@@ -15,7 +15,10 @@ function Toolbar({
   setCutX,
   markerMode,
   setMarkerMode,
-  resetMovedObjects
+  resetMovedObjects,
+  resetModelRotationForCut, // <-- HARUS ADA
+  soloSelectedObject,
+  showAllObjects,
 }) {
   return (
   <div
@@ -130,29 +133,50 @@ function Toolbar({
       Reset Xray
     </button>
 
+
     <button
+      onClick={soloSelectedObject}
+      style={{
+        width: '100%',
+        padding: '10px'
+      }}
+    >
+      Solo Object
+    </button>
+
+    <button
+      onClick={showAllObjects}
+      style={{
+        width: '100%',
+        padding: '10px'
+      }}
+    >
+      Show All Objects
+    </button>
+
+
+   <button
       onClick={() => {
         if (!cutEnabled) {
-          setCutX(cutMax)
+          resetModelRotationForCut?.()
+          setCutX((cutMin + cutMax) / 2)
         }
 
         setCutEnabled(!cutEnabled)
       }}
-    
-    style={{
-    width: '100%',
-    padding: '10px'
-    }}
+      style={{
+        width: '100%',
+        padding: '10px'
+      }}
     >
       {cutEnabled ? 'Cut Off' : 'Cut On'}
     </button>
-
     {cutEnabled && (
       <input
         type="range"
         min={cutMin}
         max={cutMax}
-        step={(cutMax - cutMin) / 100}
+        step={Math.max((cutMax - cutMin) / 100, 0.01)}
         value={cutX}
         onChange={(e) => setCutX(Number(e.target.value))}
       />
