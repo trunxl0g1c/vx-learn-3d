@@ -13,64 +13,71 @@ import { useEffect, useRef, useState, Suspense } from 'react'
 import * as THREE from 'three'
 
 import Marker from './components/Marker'
-import Sidebar from './components/Sidebar'
 import Model from './components/Model'
-import Toolbar from './components/Toolbar'
 import { applyCutAway } from './utils/cutAwayUtils'
 import { saveMarkersToFile, processLoadedMarkers} from './utils/markerUtils'
-import LeftPanel from './components/LeftPanel'
 import RightPanel from './components/RightPanel'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 
 
 function LoadingModel() {
-
   const { progress } = useProgress()
+  const percent = Math.round(progress || 0)
 
   return (
     <Html center>
-
-      <div style={{
-        background: 'white',
-        padding: '16px 22px',
-        borderRadius: 10,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-        minWidth: 220,
-        textAlign: 'center'
-      }}>
-
-        <div style={{
-          marginBottom: 10,
-          fontWeight: 'bold'
-        }}>
+      <div
+        style={{
+          background: "white",
+          padding: "24px 28px",
+          borderRadius: 12,
+          boxShadow: "0 8px 28px rgba(0,0,0,0.25)",
+          minWidth: 320,
+          textAlign: "center",
+          color: "#111827",
+        }}
+      >
+        <div
+          style={{
+            marginBottom: 14,
+            fontWeight: "bold",
+            fontSize: 20,
+            color: "#111827",
+          }}
+        >
           Loading 3D Object...
         </div>
 
-        <div style={{
-          width: '100%',
-          height: 12,
-          background: '#ddd',
-          borderRadius: 999,
-          overflow: 'hidden'
-        }}>
-
-         <div style={{
-            width: `${progress.toFixed(0)}%`,
-            height: '100%',
-            background: '#4caf50'
-          }} />
+        <div
+          style={{
+            width: "100%",
+            height: 12,
+            background: "#ddd",
+            borderRadius: 999,
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              width: `${percent}%`,
+              height: "100%",
+              background: "#4caf50",
+            }}
+          />
         </div>
 
-        <div style={{
-          marginTop: 8,
-          fontSize: 13
-        }}>
-          {progress.toFixed(0)}%
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 14,
+            fontWeight: "bold",
+            color: "#111827",
+          }}
+        >
+          {percent}%
         </div>
-
       </div>
-
     </Html>
   )
 }
@@ -199,6 +206,8 @@ export default function ViewerPage() {
   const [markers, setMarkers] = useState([])
   const [objectList, setObjectList] = useState([])
   const [selectedObject, setSelectedObject] = useState(null)
+  const [activeSidebar, setActiveSidebar] =
+    useState("hierarchy")
   
   const [targetRotationY, setTargetRotationY] = useState(0)
   const [isAutoRotating, setIsAutoRotating] = useState(false)
@@ -213,6 +222,7 @@ export default function ViewerPage() {
   const [cutMin, setCutMin] = useState(-3)
   const [cutMax, setCutMax] = useState(3)
   const [markerMode, setMarkerMode] = useState(false)
+  const [activeMenu, setActiveMenu] = useState(null)
 
   const [outlineObjects, setOutlineObjects] = useState([])
   const [isTransforming, setIsTransforming] = useState(false)
@@ -227,8 +237,10 @@ export default function ViewerPage() {
     })
 
   const [activeChapterId, setActiveChapterId] = useState(null)
+  const [rightTab, setRightTab] = useState("material")
 
   const [treeDepth, setTreeDepth] = useState(2)
+  const [searchObject, setSearchObject] = useState("")
   const [animations, setAnimations] = useState([])
   const [selectedAnimations, setSelectedAnimations] = useState({})
   const [animationCommand, setAnimationCommand] = useState(null)
@@ -240,7 +252,8 @@ export default function ViewerPage() {
     fillLight: 2,
     hemiLight: 2,
     envIntensity: 3,
-
+    hdri: "/hdr/studio.hdr",
+    showHdriBackground: false,
     shaderMode: "original",
     metalness: 0.3,
     roughness: 0.8,
@@ -263,10 +276,10 @@ export default function ViewerPage() {
     }, [])
 
     useEffect(() => {
-      if (shaderMode === "pbr") {
-        applyShaderMode("pbr")
+      if (shaderMode === "enhanced") {
+        applyShaderMode("enhanced")
       }
-    }, [metalness, roughness])
+    }, [metalness, roughness, viewerSettings.envIntensity])
 
   const handleFile = (e) => {
     const file = e.target.files[0]
@@ -660,15 +673,22 @@ const flattenObjectTree = (items) => {
           })
         }
 
-        if (mode === "pbr") {
+        if (mode === "enhanced") {
           child.material = original.clone()
 
+          if ("envMapIntensity" in child.material) {
+            child.material.envMapIntensity =
+              viewerSettings.envIntensity ?? 3
+          }
+
           if ("metalness" in child.material) {
-            child.material.metalness = metalness
+            child.material.metalness =
+              (original.metalness ?? 1) * metalness
           }
 
           if ("roughness" in child.material) {
-            child.material.roughness = roughness
+            child.material.roughness =
+              (original.roughness ?? 1) * roughness
           }
         }
 
@@ -855,6 +875,19 @@ const flattenObjectTree = (items) => {
           setIsAutoRotating(false)
           focusTargetRef.current = null
         }
+        const resetSection = () => {
+          if (!modelScene) return
+
+          const box = new THREE.Box3().setFromObject(modelScene)
+
+          setCutX((box.min.x + box.max.x) / 2)
+
+          resetModelRotationForCut()
+        }
+        const toggleCutSection = () => {
+          resetSection()
+          setCutEnabled((prev) => !prev)
+        }
         const getMaxTreeDepth = (nodes) => {
           let maxDepth = 0
 
@@ -953,12 +986,49 @@ const flattenObjectTree = (items) => {
           })
         }
 
+        const hideSelectedObject = () => {
+          if (!selectedObject) {
+            alert("Pilih object dulu")
+            return
+          }
+
+          selectedObject.visible = false
+
+          selectedObject.traverse((child) => {
+            child.visible = false
+          })
+
+          setSelectedObject(null)
+          setOutlineObjects([])
+          setSelectedObjectName("")
+        }
+
         const showAllObjects = () => {
           if (!modelScene) return
 
           modelScene.traverse((child) => {
             child.visible = true
           })
+        }
+
+        const hideAllObjects = () => {
+          if (!modelScene) return
+
+          modelScene.traverse((child) => {
+            if (child.isMesh) {
+              child.visible = false
+            }
+          })
+
+          setSelectedObject(null)
+          setOutlineObjects([])
+          setSelectedObjectName("")
+        }
+
+        const resetAllTransforms = () => {
+          resetParts()
+          resetMovedObjects()
+          resetModelRotationForCut()
         }
 
 
@@ -989,67 +1059,252 @@ const flattenObjectTree = (items) => {
 
 
   const updateEnvIntensity = (value) => {
-    setViewerSettings((prev) => ({
-      ...prev,
-      envIntensity: value,
-    }))
+        setViewerSettings((prev) => ({
+          ...prev,
+          envIntensity: value,
+        }))
 
-    if (!modelScene) return
+        if (!modelScene) return
 
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
+        modelScene.traverse((child) => {
+          if (!child.isMesh) return
 
-      if (child.material) {
-        child.material.envMapIntensity = value
-        child.material.needsUpdate = true
+          if (child.material) {
+            child.material.envMapIntensity = value
+            child.material.needsUpdate = true
+          }
+        })
       }
-    })
-  }
 
 
-  return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        overflow: 'hidden',
-        background: '#f3f4f6'
-      }}>
+      const toolButtonStyle = {
+        padding: "9px 13px",
+        borderRadius: 10,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.08)",
+        color: "white",
+        cursor: "pointer",
+        fontSize: 12,
+        fontWeight: "bold",
+      }
+
+      const menuStyle = {
+        position: "absolute",
+        left: "50%",
+        bottom: 90,
+        transform: "translateX(-50%)",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        padding: 10,
+        borderRadius: 12,
+        background: "rgba(15,23,42,0.92)",
+        backdropFilter: "blur(12px)",
+        border: "1px solid rgba(255,255,255,0.12)",
+        zIndex: 130,
+      }
+
+      const menuButtonStyle = {
+        padding: "10px 14px",
+        border: "none",
+        borderRadius: 8,
+        background: "#374151",
+        color: "white",
+        cursor: "pointer",
+        fontWeight: "bold",
+      }
+
+      const toggleMenu = (menuName) => {
+        setActiveMenu((prev) =>
+          prev === menuName ? null : menuName
+        )
+      }
+
+ return (
+        <div
+          style={{
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            background: "#0b1220",
+            color: "white",
+            position: "relative",
+          }}
+        >
+
+        <div
+            style={{
+              height: 64,
+              background: "#111827",
+              borderBottom: "2px solid #0ea5e9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0 20px",
+              flexShrink: 0,
+              zIndex: 150,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={{ fontWeight: "bold", fontSize: 22, color: "#38bdf8" }}>
+                VXPLORE
+              </div>
+
+              <div style={{ fontSize: 18, fontWeight: "bold" }}>
+                {material.title || "VX Learn 3D"}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <button
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: 10,
+                  border: "1px solid #38bdf8",
+                  background: "transparent",
+                  color: "#bfdbfe",
+                  cursor: "pointer",
+                }}
+              >
+                Share
+              </button>
+
+              <div>Admin</div>
+            </div>
+          </div>
+          
+          
+          <div
+            style={{
+              position: "absolute",
+              left: 12,
+              top: 84,
+              bottom: 20,
+              width: 48,
+              zIndex: 120,
+              background: "rgba(15,23,42,0.82)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: 16,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              paddingTop: 12,
+              gap: 12,
+              boxShadow: "0 12px 36px rgba(0,0,0,0.28)",
+            }}
+          >
+            {[
+              { id: "hierarchy", icon: "📦", label: "Object Hierarchy", target: "hierarchy" },
+              { id: "annotation", icon: "✏️", label: "Annotation", target: "annotation" },
+              { id: "visual", icon: "💡", label: "Visual", target: "visual" },
+              { id: "settings", icon: "⚙️", label: "Settings", target: "settings" },
+            ].map((item) => (
+              <button
+                key={item.id}
+                title={item.label}
+                onClick={() => setActiveSidebar(item.target)}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  background:
+                    activeSidebar === item.target
+                      ? "rgba(14,165,233,0.9)"
+                      : "rgba(255,255,255,0.06)",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: 16,
+                }}
+              >
+                {item.icon}
+              </button>
+            ))}
+          </div>
+
+
           
       <div
             style={{
-                width: 300,
-                height: "100vh",
-                background: "#111827",
+                position: "absolute",
+                right: 20,
+                top: 84,
+                bottom: 20,
+                width: 360,
+                zIndex: 110,
+                background: "rgba(15,23,42,0.78)",
+                backdropFilter: "blur(14px)",
+                WebkitBackdropFilter: "blur(14px)",
                 color: "white",
                 padding: 16,
                 overflowY: "auto",
-                borderRight: "1px solid #374151",
+                border: "1px solid rgba(255,255,255,0.10)",
+                borderRadius: 18,
+                boxShadow: "0 16px 48px rgba(0,0,0,0.34)",
             }}
             >
-            <h2 style={{ fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
-                Material Editor
-            </h2>
+            <div
+              style={{
+                display: "flex",
+                gap: 6,
+                marginBottom: 14,
+              }}
+            >
+              {[
+                ["material", "Materi"],
+                ["animation", "Animasi"],
+                ["chapter", "Bab"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setRightTab(id)}
+                  style={{
+                    flex: 1,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: "bold",
 
-            <input
-                value={material.title}
-                onChange={(e) =>
-                setMaterial((prev) => ({
-                    ...prev,
-                    title: e.target.value,
-                }))
-                }
-                placeholder="Judul materi"
-                style={{
-                width: "100%",
-                padding: 8,
-                marginBottom: 12,
-                borderRadius: 6,
-                border: "1px solid #4b5563",
-                background: "#1f2937",
-                color: "white",
-                }}
-            />
+                    background:
+                      rightTab === id
+                        ? "#2563eb"
+                        : "#374151",
+
+                    color: "white",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+
+            {rightTab === "material" && (
+            <>
+              <input
+                  value={material.title}
+                  onChange={(e) =>
+                  setMaterial((prev) => ({
+                      ...prev,
+                      title: e.target.value,
+                  }))
+                  }
+                  placeholder="Judul materi"
+                  style={{
+                  width: "100%",
+                  padding: 8,
+                  marginBottom: 12,
+                  borderRadius: 6,
+                  border: "1px solid #4b5563",
+                  background: "#1f2937",
+                  color: "white",
+                  }}
+              />
 
             <div
                 style={{
@@ -1116,6 +1371,11 @@ const flattenObjectTree = (items) => {
                 Save Material JSON
             </button>
 
+             </>
+             )}
+
+            {rightTab === "visual" && (
+            <> 
             <div
               style={{
                 background: "#1f2937",
@@ -1144,7 +1404,7 @@ const flattenObjectTree = (items) => {
               >
                 {[
                   ["original", "Original"],
-                  ["pbr", "PBR"],
+                  ["enhanced", "Enhanced"],
                   ["toon", "Toon"],
                   ["wireframe", "Wire"],
                   ["xray", "X-Ray"],
@@ -1312,9 +1572,68 @@ const flattenObjectTree = (items) => {
                 style={{ width: "100%" }}
               />
 
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                HDRI
+              </div>
+
+              <select
+                value={viewerSettings.hdri}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    hdri: e.target.value,
+                  }))
+                }
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  borderRadius: 6,
+                  background: "#111827",
+                  color: "white",
+                  border: "1px solid #374151",
+                }}
+              >
+                <option value="">None</option>
+                <option value="/hdr/studio.hdr">Studio</option>
+                <option value="/hdr/warehouse.hdr">Warehouse</option>
+                <option value="/hdr/sunset.hdr">Sunset</option>
+                <option value="/hdr/hangar.hdr">Hangar</option>
+                <option value="/hdr/industrial.hdr">Industrial</option>
+                <option value="/hdr/emptyhangar.hdr">Empty Hangar</option>
+                <option value="/hdr/capehill.hdr">Cape Hill</option>
+              </select>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={viewerSettings.showHdriBackground}
+                  onChange={(e) =>
+                    setViewerSettings((prev) => ({
+                      ...prev,
+                      showHdriBackground: e.target.checked,
+                    }))
+                  }
+                />
+
+                <span>Show HDRI Background</span>
+              </div>
+
             </div>
+              </>
+            )}
             
 
+
+              {rightTab === "animation" && (
+              <>
                 <div
                     style={{
                       background: "#1f2937",
@@ -1525,7 +1844,12 @@ const flattenObjectTree = (items) => {
                       </>
                     )}
                   </div>
+                    </>
+            )}
 
+
+            {rightTab === "chapter" && (
+            <>
             <h3 style={{ fontSize: 15, marginBottom: 8 }}>Daftar Bab</h3>
 
             {material.chapters.map((chapter, index) => (
@@ -1611,44 +1935,21 @@ const flattenObjectTree = (items) => {
                 }
                 </div>
             ))}
+              </>
+            )}
             </div>
     
      
      
 
 
-           <LeftPanel
-              markers={markers}
-              setMarkers={setMarkers}
-              toolbarProps={{
-                availableModels,
-                setModelUrl: selectModelFromPublic,
-                resetXray,
-                handleFile,
-                saveMarkers,
-                loadMarkers,
-                pullApart,
-                resetParts,
-                cutEnabled,
-                setCutEnabled,
-                cutMin,
-                cutMax,
-                cutX,
-                setCutX,
-                markerMode,
-                setMarkerMode,
-                resetMovedObjects,
-                resetModelRotationForCut,
-                soloSelectedObject,
-                showAllObjects,
-              }}
-            />
-
-            <div style={{
-              flex: 1,
-              height: '100vh',
-              position: 'relative',
-              background: '#f1f6fc'
+            <div
+            onClick={() => setActiveMenu(null)}
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 1,
+              background: "linear-gradient(135deg,#0f172a 0%,#111827 45%,#1e293b 100%)",
             }}>
 
              {selectedObjectName && (
@@ -1702,7 +2003,13 @@ const flattenObjectTree = (items) => {
 
 
         <ambientLight intensity={viewerSettings.ambientLight} />
-        <Environment preset="studio" />
+        {viewerSettings.hdri && (
+         <Environment
+            files={viewerSettings.hdri}
+            background={viewerSettings.showHdriBackground}
+          />
+        )}
+       
         <directionalLight
           position={[5, 8, 5]}
           intensity={viewerSettings.mainLight}
@@ -1809,9 +2116,188 @@ const flattenObjectTree = (items) => {
       />
 
       </Canvas>
+
+      {/* Floating Toolbar */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 24,
+          zIndex: 120,
+          display: "flex",
+          justifyContent: "center",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            padding: 10,
+            borderRadius: 14,
+            background: "rgba(15,23,42,0.82)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            pointerEvents: "auto",
+          }}
+        >
+          <label style={toolButtonStyle}>
+            Load Model
+            <input
+              type="file"
+              accept=".glb,.gltf"
+              onChange={handleFile}
+              style={{ display: "none" }}
+            />
+          </label>
+
+          <button
+            onClick={() => setMarkerMode(!markerMode)}
+            style={{
+              ...toolButtonStyle,
+              background: markerMode
+                ? "#16a34a"
+                : "rgba(255,255,255,0.08)",
+              border: markerMode
+                ? "1px solid #22c55e"
+                : "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            {markerMode ? "Marker ON" : "Marker OFF"}
+          </button>
+
+          <button
+            onClick={toggleCutSection}
+            style={{
+              ...toolButtonStyle,
+              background: cutEnabled
+                ? "#dc2626"
+                : "rgba(255,255,255,0.08)",
+              border: cutEnabled
+                ? "1px solid #ef4444"
+                : "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            {cutEnabled ? "Cut ON" : "Cut OFF"}
+          </button>
+
+          <button style={toolButtonStyle} onClick={() => toggleMenu("view")}>
+            View
+          </button>
+          
+          <button style={menuButtonStyle} onClick={hideSelectedObject}>
+            Hide Selected
+          </button>
+
+           <button style={menuButtonStyle} onClick={resetXray}>
+            Reset X-Ray
+          </button>
+  
+        </div>
       </div>
 
-      <RightPanel
+      {/* Dropdown View */}
+      {activeMenu === "view" && (
+        <div 
+        onClick={(e) => e.stopPropagation()}
+        style={menuStyle}>
+          <button style={menuButtonStyle} onClick={pullApart}>
+            Pull Apart
+          </button>
+
+          <button style={menuButtonStyle} onClick={resetAllTransforms}>
+            Reset All
+          </button>
+
+          <button style={menuButtonStyle} onClick={soloSelectedObject}>
+            Solo
+          </button>
+
+          <button style={menuButtonStyle} onClick={showAllObjects}>
+            Show All
+          </button>
+         
+        </div>
+      )}
+
+
+     
+      </div>
+
+        {cutEnabled && !activeMenu && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: 120,
+              transform: "translateX(-50%)",
+              zIndex: 120,
+
+              width: 360,
+              padding: 12,
+
+              borderRadius: 14,
+
+              background: "rgba(15,23,42,0.78)",
+              backdropFilter: "blur(12px)",
+
+              border: "1px solid rgba(255,255,255,0.12)",
+              color: "white",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 12,
+                marginBottom: 8,
+              }}
+            >
+              Cut X: {cutX.toFixed(2)}
+            </div>
+
+            <input
+              type="range"
+              min={cutMin}
+              max={cutMax}
+              step="0.01"
+              value={cutX}
+              onChange={(e) =>
+                setCutX(Number(e.target.value))
+              }
+              style={{
+                width: "100%",
+              }}
+            />
+          </div>
+        )}
+
+      <div
+        style={{
+          position: "absolute",
+          left: 72,
+          top: 84,
+          bottom: 20,
+          width: 360,
+          zIndex: 110,
+          background: "rgba(15,23,42,0.72)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 18,
+          boxShadow: "0 16px 48px rgba(0,0,0,0.34)",
+          overflow: "hidden",
+          padding: 14,
+          color: "white",
+        }}
+      >
+        {activeSidebar === "hierarchy" && (
+          <>
+            <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 10 }}>
+              Object Hierarchy
+            </div>
+
+            <RightPanel
         objectList={objectList}
         selectedObject={selectedObject}
         highlightObject={highlightObject}
@@ -1823,7 +2309,319 @@ const flattenObjectTree = (items) => {
         treeDepth={treeDepth}
         setTreeDepth={setTreeDepth}
         maxTreeDepth={maxTreeDepth}
+
+        
+        searchObject={searchObject}
+        setSearchObject={setSearchObject}
+
+        showAllObjects={showAllObjects}
+        hideAllObjects={hideAllObjects}
       />
+          </>
+        )}
+
+        {activeSidebar === "visual" && (
+            <> 
+            <div
+              style={{
+                background: "#1f2937",
+                padding: 10,
+                borderRadius: 8,
+                marginBottom: 16,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: "bold",
+                  marginBottom: 8,
+                  fontSize: 14,
+                }}
+              >
+                Visual Shader
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                  marginBottom: 10,
+                }}
+              >
+                {[
+                  ["original", "Original"],
+                  ["enhanced", "Enhanced"],
+                  ["toon", "Toon"],
+                  ["wireframe", "Wire"],
+                  ["xray", "X-Ray"],
+                  ["clay", "Clay"],
+                ].map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => applyShaderMode(mode)}
+                    style={{
+                      padding: 8,
+                      borderRadius: 6,
+                      border: "none",
+                      cursor: "pointer",
+                      background:
+                        shaderMode === mode ? "#2563eb" : "#374151",
+                      color: "white",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 12, marginBottom: 6 }}>
+                Metalness: {metalness}
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={metalness}
+                onChange={(e) => setMetalness(Number(e.target.value))}
+                style={{ width: "100%", marginBottom: 10 }}
+              />
+
+              <div style={{ fontSize: 12, marginBottom: 6 }}>
+                Roughness: {roughness}
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={roughness}
+                onChange={(e) => setRoughness(Number(e.target.value))}
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ marginTop: 12, fontWeight: "bold", fontSize: 13 }}>
+                Lighting
+              </div>
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Exposure: {viewerSettings.exposure}
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="3"
+                step="0.1"
+                value={viewerSettings.exposure}
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    exposure: value,
+                  }))
+
+                  if (window.__EDITOR_RENDERER__) {
+                    window.__EDITOR_RENDERER__.toneMappingExposure = value
+                  }
+                }}
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Ambient Light: {viewerSettings.ambientLight}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={viewerSettings.ambientLight}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    ambientLight: Number(e.target.value),
+                  }))
+                }
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Main Light: {viewerSettings.mainLight}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="8"
+                step="0.1"
+                value={viewerSettings.mainLight}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    mainLight: Number(e.target.value),
+                  }))
+                }
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Fill Light: {viewerSettings.fillLight}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={viewerSettings.fillLight}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    fillLight: Number(e.target.value),
+                  }))
+                }
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Hemisphere Light: {viewerSettings.hemiLight}
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.1"
+                value={viewerSettings.hemiLight}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    hemiLight: Number(e.target.value),
+                  }))
+                }
+                style={{ width: "100%" }}
+              />
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                Environment Intensity: {viewerSettings.envIntensity}
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="8"
+                step="0.1"
+                value={viewerSettings.envIntensity}
+                onChange={(e) =>
+                  updateEnvIntensity(Number(e.target.value))
+                }
+                style={{ width: "100%" }}
+              />
+
+              <div style={{ fontSize: 12, marginTop: 8 }}>
+                HDRI
+              </div>
+
+              <select
+                value={viewerSettings.hdri}
+                onChange={(e) =>
+                  setViewerSettings((prev) => ({
+                    ...prev,
+                    hdri: e.target.value,
+                  }))
+                }
+                style={{
+                  width: "100%",
+                  padding: 8,
+                  borderRadius: 6,
+                  background: "#111827",
+                  color: "white",
+                  border: "1px solid #374151",
+                }}
+              >
+                <option value="">None</option>
+                <option value="/hdr/studio.hdr">Studio</option>
+                <option value="/hdr/warehouse.hdr">Warehouse</option>
+                <option value="/hdr/sunset.hdr">Sunset</option>
+                <option value="/hdr/hangar.hdr">Hangar</option>
+                <option value="/hdr/industrial.hdr">Industrial</option>
+                <option value="/hdr/emptyhangar.hdr">Empty Hangar</option>
+                <option value="/hdr/capehill.hdr">Cape Hill</option>
+              </select>
+
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={viewerSettings.showHdriBackground}
+                  onChange={(e) =>
+                    setViewerSettings((prev) => ({
+                      ...prev,
+                      showHdriBackground: e.target.checked,
+                    }))
+                  }
+                />
+
+                <span>Show HDRI Background</span>
+              </div>
+
+            </div>
+              </>
+            )}
+            
+
+
+              
+
+        {activeSidebar === "annotation" && (
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 10 }}>
+              Annotation
+            </div>
+
+            <div
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 13,
+                color: "#d1d5db",
+              }}
+            >
+              Marker mode ada di toolbar bawah. Pilih Bab terlebih dahulu, lalu aktifkan Marker untuk menambahkan annotation ke Bab aktif.
+            </div>
+          </div>
+        )}
+
+        {activeSidebar === "settings" && (
+          <div style={{ height: "100%", overflowY: "auto" }}>
+            <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 10 }}>
+              Settings
+            </div>
+
+            <div
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 10,
+                padding: 12,
+                fontSize: 13,
+                color: "#d1d5db",
+              }}
+            >
+              Pengaturan editor tambahan bisa ditempatkan di sini.
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
