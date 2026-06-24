@@ -1,41 +1,31 @@
 export default function ChapterDescriptionSection({
   chapter,
-  panelSectionStyle,
-  inputStyle,
   updateChapterField,
 }) {
+  const descriptionLength = chapter.description?.length || 0;
+
   return (
-    <div style={panelSectionStyle}>
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
+    <section className="space-y-2 px-2 py-4">
+      <label className="block text-xs font-semibold text-contrast-grayout">
         Description
-      </div>
+      </label>
 
-      <textarea
-        value={chapter.description || ""}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) =>
-          updateChapterField(chapter.id, "description", e.target.value)
-        }
-        maxLength={850}
-        placeholder="Isi deskripsi materi..."
-        style={{
-          ...inputStyle,
-          minHeight: 120,
-          resize: "vertical",
-          lineHeight: 1.5,
-        }}
-      />
+      <div className="relative">
+        <textarea
+          value={chapter.description || ""}
+          maxLength={850}
+          placeholder="Isi deskripsi materi..."
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) =>
+            updateChapterField(chapter.id, "description", e.target.value)
+          }
+          className="min-h-[112px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-xs font-medium leading-5 text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-secondary-default"
+        />
 
-      <div
-        style={{
-          textAlign: "right",
-          fontSize: 10,
-          color: "#9ca3af",
-          marginTop: 4,
-        }}
-      >
-        {(chapter.description || "").length}/850
+        <span className="absolute bottom-3 right-3 text-[9px] font-semibold text-contrast-grayout">
+          {descriptionLength}/850
+        </span>
       </div>
-    </div>
-  )
+    </section>
+  );
 }

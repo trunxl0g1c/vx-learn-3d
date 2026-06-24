@@ -1,65 +1,59 @@
+import { Minus } from "lucide-react";
+import Input from "../../ui/input";
+
 export default function ChapterIdentitySection({
   chapter,
-  panelSectionStyle,
-  inputStyle,
   setActiveChapterId,
   updateChapterField,
 }) {
+  const titleLength = chapter.title?.length || 0;
+
   return (
-    <div style={panelSectionStyle}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 10,
+    <section className="p-2">
+      {/* <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveChapterId(null);
         }}
+        className="flex h-14 w-full items-center justify-between px-4 text-left"
       >
-        <div style={{ fontWeight: "bold", fontSize: 13 }}>
+
+        <span className="truncate text-sm font-bold text-white">
           {chapter.objectName || "Object"}
+        </span>
+        <Minus className="size-5 text-secondary-default" />
+        </button> */}
+
+      <span className="truncate text-base font-bold text-white mb-3">
+        {chapter.objectName || "Object"}
+      </span>
+
+      <div className="space-y-3 mt-4">
+        <div>
+          <label className="mb-2 block text-xs font-semibold text-contrast-grayout">
+            Alias Name
+          </label>
+
+          <div className="relative">
+            <Input
+              value={chapter.title || ""}
+              maxLength={48}
+              placeholder="Alias name"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) =>
+                updateChapterField(chapter.id, "title", e.target.value)
+              }
+              className="h-[44px] rounded-lg"
+              inputClassName="text-xs"
+            />
+
+            <span className="absolute bottom-2 right-3 text-[9px] font-semibold text-contrast-grayout">
+              {titleLength}/48
+            </span>
+          </div>
         </div>
-
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            setActiveChapterId(null)
-          }}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#67e8f9",
-            cursor: "pointer",
-            fontSize: 18,
-            lineHeight: 1,
-          }}
-        >
-          −
-        </button>
       </div>
-
-      <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 6 }}>
-        Alias Name
-      </div>
-
-      <input
-        value={chapter.title || ""}
-        onClick={(e) => e.stopPropagation()}
-        onChange={(e) => updateChapterField(chapter.id, "title", e.target.value)}
-        maxLength={48}
-        placeholder="Alias name"
-        style={inputStyle}
-      />
-
-      <div
-        style={{
-          textAlign: "right",
-          fontSize: 10,
-          color: "#9ca3af",
-          marginTop: 4,
-        }}
-      >
-        {(chapter.title || "").length}/48
-      </div>
-    </div>
-  )
+    </section>
+  );
 }

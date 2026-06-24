@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react"
-import HierarchyTreeItem from "./HierarchyTreeItem"
+import { useEffect, useState } from "react";
+import HierarchyTreeItem from "./HierarchyTreeItem";
 import {
   collectOpenMap,
   filterTree,
   getNodeKey,
   setObjectVisibility,
-} from "../../../utils/hierarchyTreeUtils"
+} from "../../../utils/hierarchyTreeUtils";
+import Input from "../../ui/input";
+import { Search } from "lucide-react";
+import Button from "../../ui/button";
 
 export default function HierarchyObjectTree({
   objectList,
@@ -22,68 +25,49 @@ export default function HierarchyObjectTree({
   showAllObjects,
   hideAllObjects,
 }) {
-  const filteredObjectList = filterTree(objectList, searchObject, treeDepth)
+  const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
-  const [openMap, setOpenMap] = useState({})
-  const [treeViewMode, setTreeViewMode] = useState("expand")
-  const [, setVisibilityVersion] = useState(0)
+  const [openMap, setOpenMap] = useState({});
+  const [treeViewMode, setTreeViewMode] = useState("expand");
+  const [, setVisibilityVersion] = useState(0);
 
   const refreshVisibility = () => {
-    setVisibilityVersion((prev) => prev + 1)
-  }
+    setVisibilityVersion((prev) => prev + 1);
+  };
 
   useEffect(() => {
-    setOpenMap(collectOpenMap(objectList, true))
-  }, [objectList])
+    setOpenMap(collectOpenMap(objectList, true));
+  }, [objectList]);
 
   const handleShowAll = () => {
     if (showAllObjects) {
-      showAllObjects()
+      showAllObjects();
     } else {
-      objectList.forEach((item) => setObjectVisibility(item.object, true))
+      objectList.forEach((item) => setObjectVisibility(item.object, true));
     }
 
-    refreshVisibility()
-  }
+    refreshVisibility();
+  };
 
   const handleHideAll = () => {
     if (hideAllObjects) {
-      hideAllObjects()
+      hideAllObjects();
     } else {
-      objectList.forEach((item) => setObjectVisibility(item.object, false))
+      objectList.forEach((item) => setObjectVisibility(item.object, false));
     }
 
-    refreshVisibility()
-  }
+    refreshVisibility();
+  };
 
   return (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        color: "white",
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        overflow: "hidden",
-      }}
-    >
-      <input
+    <div className="flex flex-col gap-3 px-4 py-2 overflow-auto sidebar-scroll">
+      <Input
         type="text"
-        placeholder="🔍 Search Object..."
+        placeholder="search object"
         value={searchObject}
         onChange={(event) => setSearchObject(event.target.value)}
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.06)",
-          color: "white",
-          outline: "none",
-          boxSizing: "border-box",
-        }}
+        leftIcon={<Search className="size-5" />}
+        className="h-8.5! px-2!"
       />
 
       <div
@@ -97,44 +81,30 @@ export default function HierarchyObjectTree({
           overflowY: "auto",
         }}
       >
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <button
+        <div className="flex gap-3 items-center justify-center mb-2">
+          <Button
+            size="sm"
             onClick={() => {
-              setOpenMap(collectOpenMap(filteredObjectList, true))
-              setTreeViewMode("expand")
+              setOpenMap(collectOpenMap(filteredObjectList, true));
+              setTreeViewMode("expand");
             }}
-            style={{
-              flex: 1,
-              padding: 8,
-              borderRadius: 6,
-              border: "none",
-              background: treeViewMode === "expand" ? "#2563eb" : "#374151",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
+            variant={treeViewMode === "expand" ? "default" : "cyan"}
+            className="w-1/2"
           >
             Expand All
-          </button>
+          </Button>
 
-          <button
+          <Button
+            size="sm"
             onClick={() => {
-              setOpenMap(collectOpenMap(filteredObjectList, false))
-              setTreeViewMode("collapse")
+              setOpenMap(collectOpenMap(filteredObjectList, false));
+              setTreeViewMode("collapse");
             }}
-            style={{
-              flex: 1,
-              padding: 8,
-              borderRadius: 6,
-              border: "none",
-              background: treeViewMode === "collapse" ? "#2563eb" : "#374151",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
+            variant={treeViewMode === "collapse" ? "default" : "cyan"}
+            className="w-1/2"
           >
             Collapse All
-          </button>
+          </Button>
         </div>
 
         <div
@@ -152,13 +122,14 @@ export default function HierarchyObjectTree({
             onChange={(event) => setTreeDepth(Number(event.target.value))}
             style={{ padding: 4, borderRadius: 6 }}
           >
-            {Array.from({ length: maxTreeDepth || 1 }, (_, index) => index + 1).map(
-              (depth) => (
-                <option key={depth} value={depth}>
-                  {depth}
-                </option>
-              )
-            )}
+            {Array.from(
+              { length: maxTreeDepth || 1 },
+              (_, index) => index + 1,
+            ).map((depth) => (
+              <option key={depth} value={depth}>
+                {depth}
+              </option>
+            ))}
 
             <option value={999}>All</option>
           </select>
@@ -233,5 +204,5 @@ export default function HierarchyObjectTree({
         ))}
       </div>
     </div>
-  )
+  );
 }

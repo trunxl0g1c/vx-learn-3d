@@ -1,3 +1,8 @@
+import { ChevronDown } from "lucide-react";
+import Button from "../../ui/button";
+import Switch from "../../ui/switch";
+import Slider from "../../ui/slider";
+
 export default function VisualTab(props) {
   const {
     selectedObjectName,
@@ -33,261 +38,244 @@ export default function VisualTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
-  } = props
+  } = props;
 
   return (
-                <> 
-                <div
-                  style={{
-                    background: "#1f2937",
-                    padding: 10,
-                    borderRadius: 8,
-                    marginBottom: 16,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: "bold",
-                      marginBottom: 8,
-                      fontSize: 14,
-                    }}
-                  >
-                    Visual Shader
-                  </div>
+    <div className="min-h-0 flex-1 space-y-2 overflow-auto sidebar-scroll bg-primary">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-dark-alpha px-4 text-lg font-semibold">
+        Environment Settings
+      </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 8,
-                      marginBottom: 10,
-                    }}
-                  >
-                    {[
-                      ["original", "Original"],
-                      ["enhanced", "Enhanced"],
-                      ["toon", "Toon"],
-                      ["wireframe", "Wire"],
-                      ["xray", "X-Ray"],
-                      ["clay", "Clay"],
-                    ].map(([mode, label]) => (
-                      <button
-                        key={mode}
-                        onClick={() => applyShaderMode(mode)}
-                        style={{
-                          padding: 8,
-                          borderRadius: 6,
-                          border: "none",
-                          cursor: "pointer",
-                          background:
-                            shaderMode === mode ? "#2563eb" : "#374151",
-                          color: "white",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+      <div className="flex-1 space-y-2 overflow-auto p-4">
+        <div className="space-y-5">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              ["original", "Original"],
+              ["enhanced", "Enhanced"],
+              ["toon", "Toon"],
+              ["wireframe", "Wire"],
+              ["xray", "X-Ray"],
+              ["clay", "Clay"],
+            ].map(([mode, label]) => (
+              <Button
+                key={mode}
+                size="sm"
+                variant={shaderMode === mode ? "default" : "outline"}
+                onClick={() => applyShaderMode(mode)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
 
-                  <div style={{ fontSize: 12, marginBottom: 6 }}>
-                    Metalness: {metalness}
-                  </div>
+          <Slider
+            label="Metalness"
+            value={metalness}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={setMetalness}
+          />
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={metalness}
-                    onChange={(e) => setMetalness(Number(e.target.value))}
-                    style={{ width: "100%", marginBottom: 10 }}
-                  />
+          <Slider
+            label="Roughness"
+            value={roughness}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={setRoughness}
+          />
 
-                  <div style={{ fontSize: 12, marginBottom: 6 }}>
-                    Roughness: {roughness}
-                  </div>
+          <div className="pt-2">
+            <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+              Lighting
+            </label>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    value={roughness}
-                    onChange={(e) => setRoughness(Number(e.target.value))}
-                    style={{ width: "100%" }}
-                  />
+            <SelectField
+              value={viewerSettings.lightingPreset || "Boeing’s Engine"}
+              onChange={(value) =>
+                setViewerSettings((prev) => ({
+                  ...prev,
+                  lightingPreset: value,
+                }))
+              }
+              options={[
+                { label: "Boeing’s Engine", value: "Boeing’s Engine" },
+                { label: "Studio Light", value: "studio" },
+                { label: "Soft Light", value: "soft" },
+                { label: "Industrial Light", value: "industrial" },
+              ]}
+            />
+          </div>
 
-                  <div style={{ marginTop: 12, fontWeight: "bold", fontSize: 13 }}>
-                    Lighting
-                  </div>
+          <Slider
+            label="Exposure"
+            value={viewerSettings.exposure}
+            min={0.5}
+            max={3}
+            step={0.1}
+            onChange={(value) => {
+              setViewerSettings((prev) => ({
+                ...prev,
+                exposure: value,
+              }));
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Exposure: {viewerSettings.exposure}
-                  </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="3"
-                    step="0.1"
-                    value={viewerSettings.exposure}
-                    onChange={(e) => {
-                      const value = Number(e.target.value)
+              if (window.__EDITOR_RENDERER__) {
+                window.__EDITOR_RENDERER__.toneMappingExposure = value;
+              }
+            }}
+          />
 
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        exposure: value,
-                      }))
+          <Slider
+            label="Ambient Light"
+            value={viewerSettings.ambientLight}
+            min={0}
+            max={5}
+            step={0.1}
+            onChange={(value) =>
+              setViewerSettings((prev) => ({
+                ...prev,
+                ambientLight: value,
+              }))
+            }
+          />
 
-                      if (window.__EDITOR_RENDERER__) {
-                        window.__EDITOR_RENDERER__.toneMappingExposure = value
-                      }
-                    }}
-                    style={{ width: "100%" }}
-                  />
+          <Slider
+            label="Main Light"
+            value={viewerSettings.mainLight}
+            min={0}
+            max={8}
+            step={0.1}
+            onChange={(value) =>
+              setViewerSettings((prev) => ({
+                ...prev,
+                mainLight: value,
+              }))
+            }
+          />
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Ambient Light: {viewerSettings.ambientLight}
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.1"
-                    value={viewerSettings.ambientLight}
-                    onChange={(e) =>
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        ambientLight: Number(e.target.value),
-                      }))
-                    }
-                    style={{ width: "100%" }}
-                  />
+          <Slider
+            label="Fill Light"
+            value={viewerSettings.fillLight}
+            min={0}
+            max={5}
+            step={0.1}
+            onChange={(value) =>
+              setViewerSettings((prev) => ({
+                ...prev,
+                fillLight: value,
+              }))
+            }
+          />
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Main Light: {viewerSettings.mainLight}
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="8"
-                    step="0.1"
-                    value={viewerSettings.mainLight}
-                    onChange={(e) =>
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        mainLight: Number(e.target.value),
-                      }))
-                    }
-                    style={{ width: "100%" }}
-                  />
+          <Slider
+            label="Hemisphere Light"
+            value={viewerSettings.hemiLight}
+            min={0}
+            max={5}
+            step={0.1}
+            onChange={(value) =>
+              setViewerSettings((prev) => ({
+                ...prev,
+                hemiLight: value,
+              }))
+            }
+          />
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Fill Light: {viewerSettings.fillLight}
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.1"
-                    value={viewerSettings.fillLight}
-                    onChange={(e) =>
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        fillLight: Number(e.target.value),
-                      }))
-                    }
-                    style={{ width: "100%" }}
-                  />
+          <Slider
+            label="Environment Intensity"
+            value={viewerSettings.envIntensity}
+            min={0}
+            max={8}
+            step={0.1}
+            onChange={updateEnvIntensity}
+          />
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Hemisphere Light: {viewerSettings.hemiLight}
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="5"
-                    step="0.1"
-                    value={viewerSettings.hemiLight}
-                    onChange={(e) =>
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        hemiLight: Number(e.target.value),
-                      }))
-                    }
-                    style={{ width: "100%" }}
-                  />
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    Environment Intensity: {viewerSettings.envIntensity}
-                  </div>
+          <div className="pt-2">
+            <p className="mb-4 text-base font-semibold text-secondary-default">
+              HDRI
+            </p>
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="8"
-                    step="0.1"
-                    value={viewerSettings.envIntensity}
-                    onChange={(e) =>
-                      updateEnvIntensity(Number(e.target.value))
-                    }
-                    style={{ width: "100%" }}
-                  />
+            <SelectField
+              value={viewerSettings.hdri || ""}
+              onChange={(value) =>
+                setViewerSettings((prev) => ({
+                  ...prev,
+                  hdri: value,
+                }))
+              }
+              options={[
+                { label: "None", value: "" },
+                { label: "Studio", value: "/hdr/studio.hdr" },
+                { label: "Warehouse", value: "/hdr/warehouse.hdr" },
+                { label: "Sunset", value: "/hdr/sunset.hdr" },
+                { label: "Hangar", value: "/hdr/hangar.hdr" },
+                { label: "Industrial", value: "/hdr/industrial.hdr" },
+                { label: "Empty Hangar", value: "/hdr/emptyhangar.hdr" },
+                { label: "Cape Hill", value: "/hdr/capehill.hdr" },
+              ]}
+            />
+          </div>
 
-                  <div style={{ fontSize: 12, marginTop: 8 }}>
-                    HDRI
-                  </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-secondary-default">
+              Show HDRI Background
+            </span>
 
-                  <select
-                    value={viewerSettings.hdri}
-                    onChange={(e) =>
-                      setViewerSettings((prev) => ({
-                        ...prev,
-                        hdri: e.target.value,
-                      }))
-                    }
-                    style={{
-                      width: "100%",
-                      padding: 8,
-                      borderRadius: 6,
-                      background: "#111827",
-                      color: "white",
-                      border: "1px solid #374151",
-                    }}
-                  >
-                    <option value="">None</option>
-                    <option value="/hdr/studio.hdr">Studio</option>
-                    <option value="/hdr/warehouse.hdr">Warehouse</option>
-                    <option value="/hdr/sunset.hdr">Sunset</option>
-                    <option value="/hdr/hangar.hdr">Hangar</option>
-                    <option value="/hdr/industrial.hdr">Industrial</option>
-                    <option value="/hdr/emptyhangar.hdr">Empty Hangar</option>
-                    <option value="/hdr/capehill.hdr">Cape Hill</option>
-                  </select>
+            <Switch
+              checked={viewerSettings.showHdriBackground}
+              onCheckedChange={(checked) =>
+                setViewerSettings((prev) => ({
+                  ...prev,
+                  showHdriBackground: checked,
+                }))
+              }
+              className="pointer-events-auto"
+            />
+          </div>
 
-                  <div
-                    style={{
-                      marginTop: 8,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      fontSize: 12,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={viewerSettings.showHdriBackground}
-                      onChange={(e) =>
-                        setViewerSettings((prev) => ({
-                          ...prev,
-                          showHdriBackground: e.target.checked,
-                        }))
-                      }
-                    />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-secondary-default">
+              Show HDRI Background
+            </span>
 
-                    <span>Show HDRI Background</span>
-                  </div>
+            <Switch
+              checked={viewerSettings.showHdriBackground}
+              onCheckedChange={(checked) =>
+                setViewerSettings((prev) => ({
+                  ...prev,
+                  showHdriBackground: checked,
+                }))
+              }
+              className="pointer-events-auto"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-                </div>
-                  </>
-  )
+function SelectField({ value, onChange, options }) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange?.(e.target.value)}
+        className="h-[46px] w-full appearance-none rounded-lg border border-accent-main bg-transparent px-3 pr-10 text-sm font-semibold text-white outline-none focus:ring-1 focus:ring-accent-main"
+      >
+        {options.map((option) => (
+          <option
+            key={option.value || option.label}
+            value={option.value}
+            className="bg-[#1f1d20] text-white"
+          >
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-accent-main" />
+    </div>
+  );
 }

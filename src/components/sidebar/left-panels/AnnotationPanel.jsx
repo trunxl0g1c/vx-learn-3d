@@ -1,22 +1,14 @@
 export default function AnnotationPanel() {
   return (
-    <div style={{ height: "100%", overflowY: "auto" }}>
-      <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 10 }}>
+    <div className="flex h-full flex-col bg-primary text-white">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
         Annotation
       </div>
 
-      <div
-        style={{
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 10,
-          padding: 12,
-          fontSize: 13,
-          color: "#d1d5db",
-        }}
-      >
-        Marker mode ada di toolbar bawah. Pilih Bab terlebih dahulu, lalu aktifkan Marker untuk menambahkan annotation ke Bab aktif.
+      <div className="text-white p-4 m-3 rounded-2xl bg-dark-alpha">
+        Marker mode ada di toolbar bawah. Pilih Bab terlebih dahulu, lalu
+        aktifkan Marker untuk menambahkan annotation ke Bab aktif.
       </div>
     </div>
-  )
+  );
 }

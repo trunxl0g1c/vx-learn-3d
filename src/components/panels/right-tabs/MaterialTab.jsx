@@ -1,3 +1,5 @@
+import Button from "../../ui/button";
+
 export default function MaterialTab(props) {
   const {
     selectedObjectName,
@@ -33,77 +35,29 @@ export default function MaterialTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
-  } = props
+  } = props;
 
   return (
-                <>
-             
+    <div className="flex flex-col gap-1 px-3">
+      <div className="bg-dark-alpha p-3 rounded-2xl mb-2 text-bsae">
+        Object dipilih:
+        <br />
+        <strong>{selectedObjectName || "-"}</strong>
+      </div>
 
-                <div
-                    style={{
-                    background: "#1f2937",
-                    padding: 10,
-                    borderRadius: 8,
-                    marginBottom: 12,
-                    fontSize: 13,
-                    }}
-                >
-                    Object dipilih:
-                    <br />
-                    <strong>{selectedObjectName || "-"}</strong>
-                </div>
+      <div className="flex flex-col gap-3">
+        <Button size="sm" onClick={createChapterFromSelectedObject}>
+          Buat Bab dari Object
+        </Button>
 
-                <button
-                    onClick={createChapterFromSelectedObject}
-                    style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "none",
-                    background: "#2563eb",
-                    color: "white",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                    marginBottom: 8,
-                    }}
-                >
-                    Buat Bab dari Object
-                </button>
+        <Button size="sm" onClick={saveCameraViewToActiveChapter}>
+          Save Camera View
+        </Button>
 
-                <button
-                  onClick={saveCameraViewToActiveChapter}
-                  style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "none",
-                    background: "#7c3aed",
-                    color: "white",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                    marginBottom: 8,
-                  }}
-                >
-                  Save Camera View
-                </button>
-
-                <button
-                    onClick={saveMaterial}
-                    style={{
-                    width: "100%",
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "none",
-                    background: "#059669",
-                    color: "white",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                    marginBottom: 16,
-                    }}
-                >
-                    Save Material JSON
-                </button>
-
-                 </>
-  )
+        <Button size="sm" onClick={saveMaterial}>
+          Save Material JSON
+        </Button>
+      </div>
+    </div>
+  );
 }

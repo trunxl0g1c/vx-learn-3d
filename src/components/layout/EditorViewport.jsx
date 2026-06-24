@@ -1,13 +1,14 @@
-import SceneCanvas from '../canvas/SceneCanvas'
-import EditorFloatingToolbar from '../toolbar/EditorFloatingToolbar'
-import CutSectionSlider from '../toolbar/CutSectionSlider'
-import EditorLeftSidebar from '../sidebar/EditorLeftSidebar'
-import SelectedObjectBadge from './SelectedObjectBadge'
-import { viewportStyle } from '../../constants/viewerStyles'
+import SceneCanvas from "../canvas/SceneCanvas";
+import EditorFloatingToolbar from "../toolbar/EditorFloatingToolbar";
+import CutSectionSlider from "../toolbar/CutSectionSlider";
+import EditorLeftSidebar from "../sidebar/EditorLeftSidebar";
+import SelectedObjectBadge from "./SelectedObjectBadge";
+import { viewportStyle } from "../../constants/viewerStyles";
 
 export default function EditorViewport({ controller }) {
   const {
     activeSidebar,
+    setActiveSidebar,
     selectedObjectName,
     setActiveMenu,
     activeMenu,
@@ -73,13 +74,10 @@ export default function EditorViewport({ controller }) {
     setViewerSettings,
     updateEnvIntensity,
     setAnimations,
-  } = controller
+  } = controller;
 
   return (
-    <div
-      onClick={() => setActiveMenu(null)}
-      style={viewportStyle}
-    >
+    <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
       <SelectedObjectBadge selectedObjectName={selectedObjectName} />
 
       <SceneCanvas
@@ -139,6 +137,7 @@ export default function EditorViewport({ controller }) {
 
       <EditorLeftSidebar
         activeSidebar={activeSidebar}
+        setActiveSidebar={setActiveSidebar}
         objectList={objectList}
         selectedObject={selectedObject}
         highlightObject={highlightObject}
@@ -166,5 +165,5 @@ export default function EditorViewport({ controller }) {
         updateEnvIntensity={updateEnvIntensity}
       />
     </div>
-  )
+  );
 }

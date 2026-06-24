@@ -1,10 +1,12 @@
-import VisualTab from '../panels/right-tabs/VisualTab'
-import AnnotationPanel from './left-panels/AnnotationPanel'
-import HierarchyPanel from './left-panels/HierarchyPanel'
-import ProjectSettingsPanel from './left-panels/ProjectSettingsPanel'
+import { X } from "lucide-react";
+import VisualTab from "../panels/right-tabs/VisualTab";
+import AnnotationPanel from "./left-panels/AnnotationPanel";
+import HierarchyPanel from "./left-panels/HierarchyPanel";
+import ProjectSettingsPanel from "./left-panels/ProjectSettingsPanel";
 
 export default function EditorLeftSidebar({
   activeSidebar,
+  setActiveSidebar,
   objectList,
   selectedObject,
   highlightObject,
@@ -31,64 +33,59 @@ export default function EditorLeftSidebar({
   setViewerSettings,
   updateEnvIntensity,
 }) {
+  if (!activeSidebar) return null;
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        left: 72,
-        top: 84,
-        bottom: 20,
-        width: 360,
-        zIndex: 110,
-        background: "rgba(15,23,42,0.72)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 18,
-        boxShadow: "0 16px 48px rgba(0,0,0,0.34)",
-        overflow: "hidden",
-        padding: 14,
-        color: "white",
-      }}
-    >
-      {activeSidebar === "hierarchy" && (
-        <HierarchyPanel
-          objectList={objectList}
-          selectedObject={selectedObject}
-          highlightObject={highlightObject}
-          makeXrayExcept={makeXrayExcept}
-          focusObject={focusObject}
-          markers={markers}
-          setSelectedObjectName={setSelectedObjectName}
-          treeDepth={treeDepth}
-          setTreeDepth={setTreeDepth}
-          maxTreeDepth={maxTreeDepth}
-          searchObject={searchObject}
-          setSearchObject={setSearchObject}
-          showAllObjects={showAllObjects}
-          hideAllObjects={hideAllObjects}
-        />
-      )}
+    <div className="absolute left-15 top-16 bottom-5 z-110 w-[360px] overflow-hidden border border-white/10 bg-[#0d1020]/90 text-white shadow-[0_16px_48px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+      <button
+        type="button"
+        onClick={() => setActiveSidebar(null)}
+        className="absolute right-4 top-4 z-120 grid size-8 cursor-pointer place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
+        title="Close sidebar"
+      >
+        <X className="size-6" />
+      </button>
 
-      {activeSidebar === "annotation" && <AnnotationPanel />}
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        {activeSidebar === "hierarchy" && (
+          <HierarchyPanel
+            objectList={objectList}
+            selectedObject={selectedObject}
+            highlightObject={highlightObject}
+            makeXrayExcept={makeXrayExcept}
+            focusObject={focusObject}
+            markers={markers}
+            setSelectedObjectName={setSelectedObjectName}
+            treeDepth={treeDepth}
+            setTreeDepth={setTreeDepth}
+            maxTreeDepth={maxTreeDepth}
+            searchObject={searchObject}
+            setSearchObject={setSearchObject}
+            showAllObjects={showAllObjects}
+            hideAllObjects={hideAllObjects}
+          />
+        )}
 
-      {activeSidebar === "visual" && (
-        <VisualTab
-          applyShaderMode={applyShaderMode}
-          shaderMode={shaderMode}
-          metalness={metalness}
-          setMetalness={setMetalness}
-          roughness={roughness}
-          setRoughness={setRoughness}
-          viewerSettings={viewerSettings}
-          setViewerSettings={setViewerSettings}
-          updateEnvIntensity={updateEnvIntensity}
-        />
-      )}
+        {activeSidebar === "annotation" && <AnnotationPanel />}
 
-      {activeSidebar === "settings" && (
-        <ProjectSettingsPanel material={material} setMaterial={setMaterial} />
-      )}
+        {activeSidebar === "visual" && (
+          <VisualTab
+            applyShaderMode={applyShaderMode}
+            shaderMode={shaderMode}
+            metalness={metalness}
+            setMetalness={setMetalness}
+            roughness={roughness}
+            setRoughness={setRoughness}
+            viewerSettings={viewerSettings}
+            setViewerSettings={setViewerSettings}
+            updateEnvIntensity={updateEnvIntensity}
+          />
+        )}
+
+        {activeSidebar === "settings" && (
+          <ProjectSettingsPanel material={material} setMaterial={setMaterial} />
+        )}
+      </div>
     </div>
-  )
+  );
 }

@@ -1,6 +1,9 @@
+import { Play } from "lucide-react";
+import Button from "../../ui/button";
+import Checkbox from "../../ui/checkbox";
+
 export default function ChapterAnimationSection({
   chapter,
-  panelSectionStyle,
   animations,
   isChapterAnimationSelected,
   getChapterAnimationConfig,
@@ -10,160 +13,112 @@ export default function ChapterAnimationSection({
   stopAnimationPreview,
 }) {
   return (
-    <div style={panelSectionStyle}>
-      <div style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>
-        Animation
-      </div>
+    <section className="space-y-3 px-2 pb-4">
+      <div className="text-xs font-bold text-contrast-grayout">Animation</div>
 
       {animations.length === 0 ? (
-        <div style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.5 }}>
+        <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-xs leading-5 text-contrast-grayout">
           Tidak ada animasi yang terdeteksi pada file GLB ini.
         </div>
       ) : (
         <>
-          <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>
-            Pilih animasi dari GLB untuk disimpan pada bab ini.
-          </div>
-
-          <div
-            style={{
-              maxHeight: 180,
-              overflowY: "auto",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 8,
-              marginBottom: 10,
-            }}
-          >
+          <div className="sidebar-scroll max-h-[180px] overflow-y-auto rounded-lg border border-divider-main">
             {animations.map((anim) => {
-              const selected = isChapterAnimationSelected(chapter, anim.name)
-              const config = getChapterAnimationConfig(chapter, anim.name)
+              const selected = isChapterAnimationSelected(chapter, anim.name);
+              const config = getChapterAnimationConfig(chapter, anim.name);
 
               return (
                 <div
                   key={anim.name}
                   onClick={(e) => e.stopPropagation()}
-                  style={{
-                    padding: 8,
-                    borderBottom: "1px solid rgba(255,255,255,0.08)",
-                    display: "grid",
-                    gridTemplateColumns: "24px 1fr 64px 72px",
-                    gap: 8,
-                    alignItems: "center",
-                    background: selected ? "rgba(37,99,235,0.28)" : "transparent",
-                  }}
+                  className={[
+                    "grid grid-cols-[24px_1fr_64px_72px] items-center gap-2 border-b border-divider-main p-2 last:border-b-0",
+                    selected ? "bg-accent-main/25" : "bg-transparent",
+                  ].join(" ")}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selected}
-                    onChange={(e) =>
-                      toggleChapterAnimation(chapter.id, anim.name, e.target.checked)
+                    onCheckedChange={(checked) =>
+                      toggleChapterAnimation(chapter.id, anim.name, checked)
                     }
                   />
 
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: "bold" }}>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-bold text-white">
                       {anim.name}
                     </div>
-                    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+                    <div className="text-[11px] text-contrast-grayout">
                       {anim.duration?.toFixed?.(2) || 0}s
                     </div>
                   </div>
 
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 4,
-                      alignItems: "center",
-                      fontSize: 11,
-                      color: selected ? "white" : "#9ca3af",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={!selected}
-                      checked={config.loop || false}
-                      onChange={(e) =>
-                        updateChapterAnimationField(
-                          chapter.id,
-                          anim.name,
-                          "loop",
-                          e.target.checked
-                        )
-                      }
-                    />
-                    Loop
-                  </label>
+                  <Checkbox
+                    label="Loop"
+                    checked={config.loop || false}
+                    disabled={!selected}
+                    onCheckedChange={(checked) =>
+                      updateChapterAnimationField(
+                        chapter.id,
+                        anim.name,
+                        "loop",
+                        checked,
+                      )
+                    }
+                    labelClassName={
+                      selected
+                        ? "text-[11px] text-white"
+                        : "text-[11px] text-contrast-grayout"
+                    }
+                  />
 
-                  <label
-                    style={{
-                      display: "flex",
-                      gap: 4,
-                      alignItems: "center",
-                      fontSize: 11,
-                      color: selected ? "white" : "#9ca3af",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      disabled={!selected}
-                      checked={config.autoPlay || false}
-                      onChange={(e) =>
-                        updateChapterAnimationField(
-                          chapter.id,
-                          anim.name,
-                          "autoPlay",
-                          e.target.checked
-                        )
-                      }
-                    />
-                    Auto
-                  </label>
+                  <Checkbox
+                    label="Auto"
+                    checked={config.autoPlay || false}
+                    disabled={!selected}
+                    onCheckedChange={(checked) =>
+                      updateChapterAnimationField(
+                        chapter.id,
+                        anim.name,
+                        "autoPlay",
+                        checked,
+                      )
+                    }
+                    labelClassName={
+                      selected
+                        ? "text-[11px] text-white"
+                        : "text-[11px] text-contrast-grayout"
+                    }
+                  />
                 </div>
-              )
+              );
             })}
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
               onClick={(e) => {
-                e.stopPropagation()
-                playAnimationPreview(chapter)
-              }}
-              style={{
-                flex: 1,
-                padding: 8,
-                borderRadius: 8,
-                border: "none",
-                background: "#2563eb",
-                color: "white",
-                fontWeight: "bold",
-                cursor: "pointer",
+                e.stopPropagation();
+                playAnimationPreview(chapter);
               }}
             >
-              ▶ Preview
-            </button>
+              <Play className="size-4" />
+              Preview
+            </Button>
 
-            <button
+            <Button
+              size="sm"
               onClick={(e) => {
-                e.stopPropagation()
-                stopAnimationPreview()
-              }}
-              style={{
-                flex: 1,
-                padding: 8,
-                borderRadius: 8,
-                border: "none",
-                background: "#dc2626",
-                color: "white",
-                fontWeight: "bold",
-                cursor: "pointer",
+                e.stopPropagation();
+                stopAnimationPreview();
               }}
             >
               Stop
-            </button>
+            </Button>
           </div>
         </>
       )}
-    </div>
-  )
+    </section>
+  );
 }

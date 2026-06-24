@@ -1,23 +1,15 @@
 export default function ChapterDeselectButton({ setActiveChapterId }) {
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation()
-        setActiveChapterId(null)
-      }}
-      style={{
-        width: "100%",
-        padding: 10,
-        borderRadius: 8,
-        border: "none",
-        background: "#c8b568",
-        color: "#111827",
-        fontWeight: "bold",
-        cursor: "pointer",
-        marginTop: 4,
-      }}
-    >
-      DESELECT
-    </button>
-  )
+    <div className="sticky bottom-3 py-2 backdrop-blur-sm z-10 border-t border-t-divider-main">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveChapterId(null);
+        }}
+        className="w-full p-3 rounded-2xl bg-[#AC9857] text-white uppercase cursor-pointer"
+      >
+        DESELECT
+      </button>
+    </div>
+  );
 }

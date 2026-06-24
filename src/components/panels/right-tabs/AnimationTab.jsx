@@ -1,3 +1,7 @@
+import { Play } from "lucide-react";
+import Button from "../../ui/button";
+import Checkbox from "../../ui/checkbox";
+
 export default function AnimationTab(props) {
   const {
     selectedObjectName,
@@ -36,220 +40,151 @@ export default function AnimationTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
-  } = props
+  } = props;
 
   return (
-                  <>
-                    <div
-                        style={{
-                          background: "#1f2937",
-                          padding: 10,
-                          borderRadius: 8,
-                          marginBottom: 16,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: "bold",
-                            marginBottom: 8,
-                            fontSize: 14,
-                          }}
-                        >
-                          Animasi Advance
-                        </div>
+    <div className="flex flex-col gap-1 px-3">
+      <div className="bg-dark-alpha p-3 rounded-2xl mb-3">
+        <h3 className="font-bold text-base mb-3">Animasi Advance</h3>
 
-                        {animations.length === 0 ? (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#9ca3af",
-                            }}
-                          >
-                            Tidak ada animasi pada model ini
-                          </div>
-                        ) : (
-                          <>
-                            <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-                              <button
-                                onClick={() => {
-                                  const next = {}
+        {animations.length === 0 ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: "#9ca3af",
+            }}
+          >
+            Tidak ada animasi pada model ini
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-3 mb-4 w-full items-center justify-center">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const next = {};
 
-                                  animations.forEach((anim) => {
-                                    next[anim.name] = {
-                                      ...(selectedAnimations[anim.name] || {}),
-                                      selected: true,
-                                    }
-                                  })
+                  animations.forEach((anim) => {
+                    next[anim.name] = {
+                      ...(selectedAnimations[anim.name] || {}),
+                      selected: true,
+                    };
+                  });
 
-                                  setSelectedAnimations(next)
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: 8,
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background: "#374151",
-                                  color: "white",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Select All
-                              </button>
+                  setSelectedAnimations(next);
+                }}
+                className="w-1/2"
+              >
+                Select All
+              </Button>
 
-                              <button
-                                onClick={() => {
-                                  const next = {}
+              <Button
+                size="sm"
+                onClick={() => {
+                  const next = {};
 
-                                  animations.forEach((anim) => {
-                                    next[anim.name] = {
-                                      ...(selectedAnimations[anim.name] || {}),
-                                      selected: false,
-                                    }
-                                  })
+                  animations.forEach((anim) => {
+                    next[anim.name] = {
+                      ...(selectedAnimations[anim.name] || {}),
+                      selected: false,
+                    };
+                  });
 
-                                  setSelectedAnimations(next)
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: 8,
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background: "#374151",
-                                  color: "white",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Clear
-                              </button>
-                            </div>
+                  setSelectedAnimations(next);
+                }}
+                className="w-1/2"
+              >
+                Clear
+              </Button>
+            </div>
 
-                            <div
-                              style={{
-                                maxHeight: 180,
-                                overflowY: "auto",
-                                border: "1px solid #374151",
-                                borderRadius: 8,
-                                marginBottom: 8,
-                              }}
-                            >
-                              {animations.map((anim) => {
-                                const config = selectedAnimations[anim.name] || {
-                                  selected: false,
-                                  loop: false,
-                                }
+            <div className="sidebar-scroll mb-3 max-h-[180px] overflow-y-auto rounded-lg border border-divider-main">
+              {animations.map((anim) => {
+                const config = selectedAnimations[anim.name] || {
+                  selected: false,
+                  loop: false,
+                };
 
-                                return (
-                                  <div
-                                    key={anim.name}
-                                    style={{
-                                      padding: 8,
-                                      borderBottom: "1px solid #374151",
-                                      display: "grid",
-                                      gridTemplateColumns: "24px 1fr 60px",
-                                      gap: 8,
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={config.selected}
-                                      onChange={(e) => {
-                                        setSelectedAnimations((prev) => ({
-                                          ...prev,
-                                          [anim.name]: {
-                                            ...(prev[anim.name] || {}),
-                                            selected: e.target.checked,
-                                          },
-                                        }))
-                                      }}
-                                    />
+                return (
+                  <div
+                    key={anim.name}
+                    className="grid grid-cols-[24px_1fr_70px] items-center gap-2 border-b border-divider-main p-2 last:border-b-0"
+                  >
+                    <Checkbox
+                      checked={config.selected}
+                      onCheckedChange={(checked) => {
+                        setSelectedAnimations((prev) => ({
+                          ...prev,
+                          [anim.name]: {
+                            ...(prev[anim.name] || {}),
+                            selected: checked,
+                          },
+                        }));
+                      }}
+                    />
 
-                                    <div>
-                                      <div style={{ fontSize: 13, fontWeight: "bold" }}>
-                                        {anim.name}
-                                      </div>
-                                      <div style={{ fontSize: 11, color: "#9ca3af" }}>
-                                        {anim.duration?.toFixed?.(2) || 0}s
-                                      </div>
-                                    </div>
-
-                                    <label
-                                      style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 4,
-                                        fontSize: 11,
-                                        color: "#d1d5db",
-                                      }}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={config.loop}
-                                        onChange={(e) => {
-                                          setSelectedAnimations((prev) => ({
-                                            ...prev,
-                                            [anim.name]: {
-                                              ...(prev[anim.name] || {}),
-                                              loop: e.target.checked,
-                                            },
-                                          }))
-                                        }}
-                                      />
-                                      Loop
-                                    </label>
-                                  </div>
-                                )
-                              })}
-                            </div>
-
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <button
-                                onClick={() => {
-                                  setAnimationCommand(null)
-
-                                  setTimeout(() => {
-                                    setAnimationCommand({
-                                      type: "play",
-                                      id: crypto.randomUUID(),
-                                    })
-                                  }, 10)
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: 8,
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background: "#2563eb",
-                                  color: "white",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Play Selected
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  setAnimationCommand({
-                                    type: "stop",
-                                    id: crypto.randomUUID(),
-                                  })
-                                }}
-                                style={{
-                                  flex: 1,
-                                  padding: 8,
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background: "#dc2626",
-                                  color: "white",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Stop
-                              </button>
-                            </div>
-                          </>
-                        )}
+                    <div>
+                      <div className="text-sm font-bold text-white">
+                        {anim.name}
                       </div>
-                        </>
-  )
+                      <div className="text-[11px] text-contrast-grayout">
+                        {anim.duration?.toFixed?.(2) || 0}s
+                      </div>
+                    </div>
+
+                    <Checkbox
+                      label="Loop"
+                      checked={config.loop}
+                      onCheckedChange={(checked) => {
+                        setSelectedAnimations((prev) => ({
+                          ...prev,
+                          [anim.name]: {
+                            ...(prev[anim.name] || {}),
+                            loop: checked,
+                          },
+                        }));
+                      }}
+                      labelClassName="text-[11px] text-white"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1"
+                onClick={() => {
+                  setAnimationCommand(null);
+
+                  setTimeout(() => {
+                    setAnimationCommand({
+                      type: "play",
+                      id: crypto.randomUUID(),
+                    });
+                  }, 10);
+                }}
+              >
+                <Play className="size-4" />
+                Play Selected
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={() => {
+                  setAnimationCommand({
+                    type: "stop",
+                    id: crypto.randomUUID(),
+                  });
+                }}
+              >
+                Stop
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
