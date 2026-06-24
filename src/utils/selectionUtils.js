@@ -1,0 +1,154 @@
+export function highlightObjectUtil() {}
+
+export function highlightObject({
+  targetObject,
+  modelScene,
+  setOutlineObjects,
+  setSelectedObject,
+}) {
+  if (!targetObject) return
+
+  modelScene?.traverse((child) => {
+    if (!child.isMesh || !child.material) return
+
+    if (child.userData.originalMaterial) {
+      child.material = child.userData.originalMaterial
+    }
+
+    child.material.emissive?.set(0x000000)
+    child.material.needsUpdate = true
+  })
+
+  const selectedMeshes = []
+
+  targetObject.traverse((child) => {
+    if (child.isMesh) {
+      selectedMeshes.push(child)
+    }
+  })
+
+  setOutlineObjects(selectedMeshes)
+  setSelectedObject(targetObject)
+}
+
+export function makeXrayExcept({
+  targetObject,
+  modelScene,
+  xrayMaterial,
+  isChildOf,
+  setOutlineObjects,
+  setSelectedObject,
+}) {
+  if (!targetObject || !modelScene) return
+
+  const selectedMeshes = []
+
+  modelScene.traverse((child) => {
+    if (!child.isMesh) return
+
+    const isSelected =
+      child === targetObject ||
+      child.parent === targetObject ||
+      targetObject.children.includes(child) ||
+      isChildOf(child, targetObject)
+
+    if (isSelected) {
+      selectedMeshes.push(child)
+
+      child.material = child.userData.originalMaterial || child.material
+      child.material.transparent = false
+      child.material.opacity = 1
+      child.material.depthWrite = true
+      child.material.depthTest = true
+      child.renderOrder = 999
+      child.material.emissive?.set(0x000000)
+    } else {
+      child.material = xrayMaterial
+      child.renderOrder = 0
+    }
+
+    child.material.needsUpdate = true
+  })
+
+  setOutlineObjects(selectedMeshes)
+  setSelectedObject(targetObject)
+}
+
+export function resetXray({
+  objectList,
+  flattenObjectTree,
+  setOutlineObjects,
+  setSelectedObject,
+}) {
+  flattenObjectTree(objectList).forEach((item) => {
+    item.object.traverse((child) => {
+      if (!child.isMesh) return
+
+      child.material = child.userData.originalMaterial
+      child.renderOrder = 0
+
+      if (child.material) {
+        child.material.transparent = false
+        child.material.opacity = 1
+        child.material.depthWrite = true
+        child.material.depthTest = true
+        child.material.needsUpdate = true
+      }
+    })
+  })
+
+  setOutlineObjects([])
+  setSelectedObject(null)
+}
+
+export function selectObjectFromMesh({
+  mesh,
+  objectList,
+  flattenObjectTree,
+  setSelectedObjectName,
+  setSelectedObject,
+  setOutlineObjects,
+  setOrbitEnabled,
+  focusTargetRef,
+  setIsAutoRotating,
+}) {
+  let selectedGroup = null
+
+  flattenObjectTree(objectList).forEach((item) => {
+    let current = mesh
+
+    while (current) {
+      if (current === item.object) {
+        selectedGroup = item.object
+        break
+      }
+
+      current = current.parent
+    }
+  })
+
+  if (!selectedGroup) return
+
+  const selectedItem = flattenObjectTree(objectList).find(
+    (item) => item.object === selectedGroup
+  )
+
+  setSelectedObjectName(
+    (selectedItem?.name || "Unnamed Object").replaceAll("_", " ")
+  )
+
+  const selectedMeshes = []
+
+  selectedGroup.traverse((child) => {
+    if (child.isMesh) {
+      selectedMeshes.push(child)
+    }
+  })
+
+  setSelectedObject(selectedGroup)
+  setOutlineObjects(selectedMeshes)
+
+  setOrbitEnabled(true)
+  focusTargetRef.current = null
+  setIsAutoRotating(false)
+}

@@ -1,8 +1,8 @@
-import { useFrame, useLoader } from '@react-three/fiber'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
-import { useEffect, useRef } from 'react'
-import * as THREE from 'three'
+import { useFrame, useLoader } from "@react-three/fiber"
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js"
+import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js"
+import { useEffect, useRef } from "react"
+import * as THREE from "three"
 
 function Model({
   modelUrl,
@@ -25,61 +25,101 @@ function Model({
 
   const mixerRef = useRef(null)
   const actionsRef = useRef({})
-  const activeActionRef = useRef(null)
 
   useEffect(() => {
-    onModelLoaded?.(scene)
-
-    console.log('GLB Animations:', animations)
-
-    onAnimationsLoaded?.(
-      animations.map((clip) => ({
-        name: clip.name || 'Unnamed Animation',
-        duration: clip.duration,
-      }))
-    )
-
     mixerRef.current = new THREE.AnimationMixer(scene)
     actionsRef.current = {}
 
     animations.forEach((clip) => {
-      const name = clip.name || 'Unnamed Animation'
-      actionsRef.current[name] = mixerRef.current.clipAction(clip)
+      const name = clip.name || "Unnamed Animation"
+      const action = mixerRef.current.clipAction(clip)
+
+      action.stop()
+      action.reset()
+      action.enabled = false
+
+      actionsRef.current[name] = action
     })
-  }, [scene])
+
+    mixerRef.current.setTime(0)
+
+    onAnimationsLoaded?.(
+      animations.map((clip) => ({
+        name: clip.name || "Unnamed Animation",
+        duration: clip.duration,
+      }))
+    )
+
+    onModelLoaded?.(scene)
+  }, [scene, animations])
 
   useEffect(() => {
-  if (!animationCommand) return
+    if (!animationCommand) return
 
-  if (animationCommand.type === "play") {
-    Object.entries(actionsRef.current).forEach(([name, action]) => {
-      const config = selectedAnimations?.[name]
+    if (animationCommand.type === "play") {
+      Object.entries(actionsRef.current).forEach(([name, action]) => {
+        const config = selectedAnimations?.[name]
 
-      if (!config?.selected) {
+        if (!config?.selected) {
+          action.stop()
+          action.enabled = false
+          return
+        }
+
+        action.enabled = true
+        action.reset()
+
+        if (config.loop) {
+          action.setLoop(THREE.LoopRepeat, Infinity)
+          action.clampWhenFinished = false
+        } else {
+          action.setLoop(THREE.LoopOnce, 1)
+          action.clampWhenFinished = true
+        }
+
+        action.play()
+      })
+    }
+
+    if (animationCommand.type === "playChapter") {
+      Object.values(actionsRef.current).forEach((action) => {
         action.stop()
-        return
-      }
+        action.enabled = false
+      })
 
-      action.reset()
+      const chapterAnimations = animationCommand.animations || []
 
-      if (config.loop) {
-        action.setLoop(THREE.LoopRepeat, Infinity)
-        action.clampWhenFinished = false
-      } else {
-        action.setLoop(THREE.LoopOnce, 1)
-        action.clampWhenFinished = true
-      }
+      chapterAnimations.forEach((config) => {
+        const action = actionsRef.current[config.name]
 
-      action.play()
-    })
-  }
+        if (!action) return
 
-  if (animationCommand.type === "stop") {
-    Object.values(actionsRef.current).forEach((action) => {
-      action.stop()
-    })
-  }
-}, [animationCommand])
+        action.enabled = true
+        action.reset()
+
+        if (config.loop) {
+          action.setLoop(THREE.LoopRepeat, Infinity)
+          action.clampWhenFinished = false
+        } else {
+          action.setLoop(THREE.LoopOnce, 1)
+          action.clampWhenFinished = true
+        }
+
+        action.play()
+      })
+    }
+
+    if (animationCommand.type === "stop") {
+      Object.values(actionsRef.current).forEach((action) => {
+        action.stop()
+        action.reset()
+        action.enabled = false
+      })
+
+      mixerRef.current?.setTime(0)
+      mixerRef.current?.update(0)
+    }
+  }, [animationCommand, selectedAnimations])
 
   useFrame((_, delta) => {
     mixerRef.current?.update(delta)
@@ -131,35 +171,28 @@ function Model({
   const handleClick = (e) => {
     e.stopPropagation()
 
-      if (markerMode) {
-        const text = prompt('Masukkan nama bagian:')
+    if (markerMode) {
+      const text = prompt("Masukkan nama bagian:")
 
-        if (!text) return
+      if (!text) return
 
-        const localPoint = scene.parent
-          ? scene.parent.worldToLocal(e.point.clone())
-          : e.point.clone()
+      const localPoint = scene.parent
+        ? scene.parent.worldToLocal(e.point.clone())
+        : e.point.clone()
 
-        onAddMarker?.({
-          position: [
-            localPoint.x,
-            localPoint.y,
-            localPoint.z,
-          ],
-          text,
-        })
+      onAddMarker?.({
+        position: [localPoint.x, localPoint.y, localPoint.z],
+        text,
+      })
 
-        return
-      }
+      return
+    }
 
     const isObjectVisible = (object) => {
       let current = object
 
       while (current) {
-        if (!current.visible) {
-          return false
-        }
-
+        if (!current.visible) return false
         current = current.parent
       }
 
@@ -175,12 +208,7 @@ function Model({
     onSelectObject?.(visibleHit.object)
   }
 
-  return (
-    <primitive
-      object={scene}
-      onClick={handleClick}
-    />
-  )
+  return <primitive object={scene} onClick={handleClick} />
 }
 
 export default Model

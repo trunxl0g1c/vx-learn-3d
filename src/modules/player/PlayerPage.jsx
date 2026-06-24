@@ -1,102 +1,13 @@
-import { Canvas, useFrame } from "@react-three/fiber"
-import {
-  Suspense,
-  useRef,
-  useState,
-  useEffect,
-} from "react"
+import { useRef, useState, useEffect } from "react"
 import * as THREE from "three"
 
-import {
-  OrbitControls,
-  Html,
-  useProgress,
-  Bounds,
-  Center,
-  Environment,
-  TransformControls,
-} from "@react-three/drei"
-
-import Model from "../../components/Model"
-import Marker from "../../components/Marker"
 import { applyCutAway } from "../../utils/cutAwayUtils"
-import { EffectComposer, Outline } from "@react-three/postprocessing"
-
-function LoadingModel() {
-  const { progress } = useProgress()
-  const percent = Math.min(100, Math.max(0, Math.round(progress || 0)))
-
-  return (
-    <Html center>
-      <div
-        style={{
-          background: "white",
-          padding: "18px 24px",
-          borderRadius: 12,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
-          minWidth: 280,
-          textAlign: "center",
-          color: "#111827",
-        }}
-      >
-        <div style={{ fontWeight: "bold", fontSize: 18, marginBottom: 12 }}>
-          Loading 3D Model...
-        </div>
-
-        <div
-          style={{
-            width: "100%",
-            height: 12,
-            background: "#ddd",
-            borderRadius: 999,
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              width: `${percent}%`,
-              height: "100%",
-              background: "#4caf50",
-            }}
-          />
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 14, fontWeight: "bold" }}>
-          {percent}%
-        </div>
-      </div>
-    </Html>
-  )
-}
-
-function CameraAnimator({ cameraRef, controlsRef, focusTargetRef }) {
-  useFrame(() => {
-    if (!focusTargetRef.current) return
-    if (!cameraRef.current || !controlsRef.current) return
-
-    cameraRef.current.position.lerp(
-      focusTargetRef.current.cameraPosition,
-      0.08
-    )
-
-    controlsRef.current.target.lerp(
-      focusTargetRef.current.target,
-      0.08
-    )
-
-    controlsRef.current.update()
-
-    const distance = cameraRef.current.position.distanceTo(
-      focusTargetRef.current.cameraPosition
-    )
-
-    if (distance < 0.2) {
-      focusTargetRef.current = null
-    }
-  })
-
-  return null
-}
+import PlayerSceneCanvas from "../../components/player/PlayerSceneCanvas"
+import PlayerChapterInfoPanel from "../../components/player/PlayerChapterInfoPanel"
+import PlayerToolsMenu from "../../components/player/PlayerToolsMenu"
+import PlayerCutSlider from "../../components/player/PlayerCutSlider"
+import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel"
+import PlayerBottomToolbar from "../../components/player/PlayerBottomToolbar"
 
 export default function PlayerPage() {
 
@@ -117,6 +28,10 @@ export default function PlayerPage() {
 
   const [transformMode, setTransformMode] =
   useState("translate")
+
+  const [, setAnimations] = useState([])
+  const [selectedAnimations, setSelectedAnimations] = useState({})
+  const [animationCommand, setAnimationCommand] = useState(null)
   
   const [cutEnabled, setCutEnabled] = useState(false)
   const [cutX, setCutX] = useState(0)
@@ -144,63 +59,6 @@ export default function PlayerPage() {
   const activeChapter = material?.chapters?.find(
     (chapter) => chapter.id === activeChapterId
   )
-
-  const playerToolButtonStyle = {
-    padding: "12px 18px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.08)",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: 14,
-  }
-
-  const playerMenuStyle = {
-    position: "absolute",
-    left: "50%",
-    bottom: 92,
-    transform: "translateX(-50%)",
-    zIndex: 130,
-    display: "flex",
-    flexDirection: "row",
-    gap: 8,
-    padding: 10,
-    borderRadius: 14,
-    background: "rgba(15,23,42,0.92)",
-    backdropFilter: "blur(12px)",
-    border: "1px solid rgba(255,255,255,0.12)",
-  }
-  const playerMenuButtonStyle = {
-    padding: "10px 14px",
-    borderRadius: 10,
-    border: "none",
-    background: "#374151",
-    color: "white",
-    cursor: "pointer",
-    fontWeight: "bold",
-    whiteSpace: "nowrap",
-  }
-
-  const chapterPanelStyle = {
-    position: "absolute",
-    left: 20,
-    top: 84,
-    bottom: 20,
-    width: 360,
-    zIndex: 130,
-    background: "rgba(15,23,42,0.82)",
-    backdropFilter: "blur(14px)",
-    WebkitBackdropFilter: "blur(14px)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 18,
-    boxShadow: "0 16px 48px rgba(0,0,0,0.34)",
-    padding: 14,
-    color: "white",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  }
 
   useEffect(() => {
     applyCutAway(modelScene, cutEnabled, cutX)
@@ -240,6 +98,9 @@ export default function PlayerPage() {
     setShowInfoPanel(false)
     setSelectedObject(null)
     setOutlineObjects([])
+    setAnimations([])
+    setSelectedAnimations({})
+    setAnimationCommand(null)
 
     if (json.viewerSettings) {
       setViewerSettings((prev) => ({
@@ -447,6 +308,11 @@ export default function PlayerPage() {
     if (!chapter) return
 
     setActiveChapterId(chapterId)
+    setSelectedAnimations(getChapterAnimationConfig(chapter))
+    setAnimationCommand({
+      type: "stop",
+      id: crypto.randomUUID(),
+    })
     highlightChapterObject(chapter)
 
     if (chapter.modelRotation && modelScene) {
@@ -618,6 +484,51 @@ export default function PlayerPage() {
   const stopSpeaking = () => {
     window.speechSynthesis.cancel()
   }
+
+  const getChapterAnimationConfig = (chapter) => {
+    const next = {}
+
+    ;(chapter?.animations || []).forEach((animation) => {
+      const name =
+        typeof animation === "string"
+          ? animation
+          : animation?.name
+
+      if (!name) return
+
+      next[name] = {
+        selected: true,
+        loop: Boolean(animation?.loop),
+      }
+    })
+
+    return next
+  }
+
+  const playChapterAnimations = () => {
+    if (!activeChapter?.animations?.length) return
+
+    const nextSelectedAnimations = getChapterAnimationConfig(activeChapter)
+
+    setSelectedAnimations(nextSelectedAnimations)
+    setAnimationCommand(null)
+
+    setTimeout(() => {
+      setAnimationCommand({
+        type: "playChapter",
+        animations: activeChapter.animations || [],
+        id: crypto.randomUUID(),
+      })
+    }, 10)
+  }
+
+  const stopChapterAnimations = () => {
+    setAnimationCommand({
+      type: "stop",
+      reset: true,
+      id: crypto.randomUUID(),
+    })
+  }
   
 
   
@@ -633,7 +544,6 @@ export default function PlayerPage() {
       }}
     >
       <main
-       
         style={{
           position: "absolute",
           inset: 0,
@@ -641,464 +551,83 @@ export default function PlayerPage() {
           background: "#0f172a",
         }}
       >
-        {material?.modelUrl ? (
-          <Canvas
-            camera={{ position: [0, 0, 5] }}
-            gl={{
-              localClippingEnabled: true,
-              antialias: true,
-            }}
-            onCreated={({ camera, gl }) => {
-              cameraRef.current = camera
-              gl.toneMappingExposure = viewerSettings.exposure
-              window.__PLAYER_RENDERER__ = gl
-            }}
-            onPointerMissed={() => {
-              setSelectedObject(null)
-              setOutlineObjects([])
-            }}
-          >
-            <EffectComposer autoClear={false}>
-              {outlineObjects.length > 0 && (
-                <Outline
-                  selection={outlineObjects}
-                  edgeStrength={8}
-                  visibleEdgeColor="yellow"
-                  hiddenEdgeColor="yellow"
-                  blur={false}
-                />
-              )}
-            </EffectComposer>
-
-            <ambientLight intensity={viewerSettings.ambientLight} />
-
-            {viewerSettings.hdri && (
-              <Environment
-                files={viewerSettings.hdri}
-                background={viewerSettings.showHdriBackground}
-              />
-            )}
-
-            <directionalLight
-              position={[5, 8, 5]}
-              intensity={viewerSettings.mainLight}
-            />
-
-            <directionalLight
-              position={[-5, 4, -5]}
-              intensity={viewerSettings.fillLight}
-            />
-
-            <hemisphereLight
-              skyColor="#ffffff"
-              groundColor="#aaaaaa"
-              intensity={viewerSettings.hemiLight}
-            />
-
-            <Suspense fallback={<LoadingModel />}>
-              <Bounds fit clip margin={1.2}>
-                <Center>
-                  <Model
-                    modelUrl={material.modelUrl}
-                    markerMode={false}
-                    onSelectObject={handleSelectObjectFromPlayer}
-                    onModelLoaded={handleModelLoaded}
-                  />
-                  {freePlay && selectedObject && (
-                    <TransformControls
-                      object={selectedObject}
-                      mode={transformMode}
-                      onMouseDown={() => {
-                        controlsRef.current.enabled = false
-                      }}
-                      onMouseUp={() => {
-                        controlsRef.current.enabled = true
-                      }}
-                    />
-                  )}
-                  {!freePlay && (activeChapter?.markers || []).map((marker, index) => (
-                    <Marker key={marker.id || index} marker={marker} />
-                  ))}
-                </Center>
-              </Bounds>
-            </Suspense>
-
-            <CameraAnimator
-              cameraRef={cameraRef}
-              controlsRef={controlsRef}
-              focusTargetRef={focusTargetRef}
-            />
-
-            <OrbitControls
-              ref={controlsRef}
-              enabled={true}
-              enableRotate={true}
-              enableZoom={freePlay}
-              enablePan={freePlay}
-              onStart={() => {
-                focusTargetRef.current = null
-              }}
-            />
-          </Canvas>
-        ) : (
-          <div
-            style={{
-              height: "100%",
-              display: "grid",
-              placeItems: "center",
-              color: "#94a3b8",
-              fontSize: 20,
-              fontWeight: "bold",
-            }}
-          >
-            Load JSON materi terlebih dahulu
-          </div>
-        )}
+        <PlayerSceneCanvas
+          material={material}
+          viewerSettings={viewerSettings}
+          outlineObjects={outlineObjects}
+          setOutlineObjects={setOutlineObjects}
+          setSelectedObject={setSelectedObject}
+          cameraRef={cameraRef}
+          controlsRef={controlsRef}
+          focusTargetRef={focusTargetRef}
+          freePlay={freePlay}
+          selectedObject={selectedObject}
+          transformMode={transformMode}
+          activeChapter={activeChapter}
+          selectedAnimations={selectedAnimations}
+          animationCommand={animationCommand}
+          handleSelectObjectFromPlayer={handleSelectObjectFromPlayer}
+          handleModelLoaded={handleModelLoaded}
+          setAnimations={setAnimations}
+        />
 
         {!freePlay && showInfoPanel && activeChapter && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "absolute",
-              right: 20,
-              top: 84,
-              bottom: 20,
-              width: 360,
-              overflowY: "auto",
-              background: "rgba(15, 23, 42, 0.95)",
-              color: "white",
-              padding: 20,
-              borderRadius: 16,
-              boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-              zIndex: 110,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 12,
-                color: "#93c5fd",
-                marginBottom: 8,
-                fontWeight: "bold",
-              }}
-            >
-              Chapter Info
-            </div>
-
-            <div
-              style={{
-                fontSize: 13,
-                color: "#9ca3af",
-                marginBottom: 6,
-              }}
-            >
-              Object
-            </div>
-
-            <div style={{ fontWeight: "bold", marginBottom: 14 }}>
-              {activeChapter.objectName}
-            </div>
-
-            <h2 style={{ fontSize: 22, marginBottom: 10 }}>
-              {activeChapter.title}
-            </h2>
-
-            <div
-              style={{
-                display: "flex",
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              <button
-                onClick={speakChapterDescription}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#2563eb",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                ▶ Play Voice
-              </button>
-
-              <button
-                onClick={stopSpeaking}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#374151",
-                  color: "white",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
-                Stop
-              </button>
-            </div>
-            <p
-              style={{
-                color: "#e5e7eb",
-                lineHeight: 1.6,
-                whiteSpace: "pre-line",
-              }}
-            >
-              {activeChapter.description || "Belum ada deskripsi."}
-            </p>
-
-            
-          </div>
+          <PlayerChapterInfoPanel
+            activeChapter={activeChapter}
+            speakChapterDescription={speakChapterDescription}
+            stopSpeaking={stopSpeaking}
+            playChapterAnimations={playChapterAnimations}
+            stopChapterAnimations={stopChapterAnimations}
+          />
         )}
 
         {freePlay && freePlayMenu && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={playerMenuStyle}
-          >
-            <button style={playerMenuButtonStyle} onClick={toggleCutSection}>
-              {cutEnabled ? "Cut ON" : "Cut OFF"}
-            </button>
-
-            <button style={playerMenuButtonStyle} onClick={hideSelectedObject}>
-              Hide Selected
-            </button>
-
-            <button style={playerMenuButtonStyle} onClick={pullApart}>
-              Pull Apart
-            </button>
-
-            <button style={playerMenuButtonStyle} onClick={resetAllTransforms}>
-              Reset All
-            </button>
-
-            <button style={playerMenuButtonStyle} onClick={soloSelectedObject}>
-              Solo
-            </button>
-
-            <button style={playerMenuButtonStyle} onClick={showAllObjects}>
-              Show All
-            </button>
-           
-          </div>
+          <PlayerToolsMenu
+            cutEnabled={cutEnabled}
+            toggleCutSection={toggleCutSection}
+            hideSelectedObject={hideSelectedObject}
+            pullApart={pullApart}
+            resetAllTransforms={resetAllTransforms}
+            soloSelectedObject={soloSelectedObject}
+            showAllObjects={showAllObjects}
+          />
         )}
 
         {freePlay && cutEnabled && !freePlayMenu && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: 100,
-              transform: "translateX(-50%)",
-              zIndex: 130,
-              width: 360,
-              padding: 12,
-              borderRadius: 14,
-              background: "rgba(15,23,42,0.82)",
-              backdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "white",
-            }}
-          >
-            <div style={{ fontSize: 12, marginBottom: 8 }}>
-              Cut X: {cutX.toFixed(2)}
-            </div>
-
-            <input
-              type="range"
-              min={cutMin}
-              max={cutMax}
-              step="0.01"
-              value={cutX}
-              onChange={(e) => setCutX(Number(e.target.value))}
-              style={{ width: "100%" }}
-            />
-          </div>
+          <PlayerCutSlider
+            cutX={cutX}
+            cutMin={cutMin}
+            cutMax={cutMax}
+            setCutX={setCutX}
+          />
         )}
 
         {!freePlay && activeMenu === "chapters" && material && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={chapterPanelStyle}
-          >
-            <div
-              style={{
-                fontWeight: "bold",
-                fontSize: 16,
-                marginBottom: 12,
-              }}
-            >
-              Chapters
-            </div>
-
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: "auto",
-                paddingRight: 4,
-              }}
-            >
-              {material.chapters.map((chapter, index) => (
-                <button
-                  key={chapter.id}
-                  onClick={() => {
-                    handleSelectChapter(chapter.id)
-                  }}
-                  style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: 12,
-                    marginBottom: 8,
-                    borderRadius: 10,
-                    border: "none",
-                    cursor: "pointer",
-                    background:
-                      activeChapterId === chapter.id
-                        ? "#2563eb"
-                        : "rgba(255,255,255,0.08)",
-                    color: "white",
-                  }}
-                >
-                  <strong>
-                    Bab {index + 1}: {chapter.title}
-                  </strong>
-
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#d1d5db",
-                      marginTop: 4,
-                    }}
-                  >
-                    Object: {chapter.objectName}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <PlayerChapterListPanel
+            material={material}
+            activeChapterId={activeChapterId}
+            handleSelectChapter={handleSelectChapter}
+          />
         )}
 
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: 24,
-            zIndex: 120,
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              padding: 10,
-              borderRadius: 14,
-              background: "rgba(15,23,42,0.82)",
-              backdropFilter: "blur(12px)",
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
-          >
-            <label style={playerToolButtonStyle}>
-              Load File
-              <input
-                type="file"
-                accept=".json"
-                onChange={(e) => loadJsonFile(e.target.files?.[0])}
-                style={{ display: "none" }}
-              />
-            </label>
-
-            <button
-              onClick={() => {
-                const next = !freePlay
-
-                setFreePlay(next)
-                setFreePlayMenu(next)
-
-                if (next) {
-                  setActiveMenu(null)
-                  setShowInfoPanel(false)
-                  setOutlineObjects([])
-                  return
-                }
-
-                setFreePlayMenu(false)
-                setCutEnabled(false)
-                showAllObjects()
-                resetAllTransforms()
-
-                setActiveMenu("chapters")
-                setShowInfoPanel(true)
-
-                if (activeChapterId) {
-                  setTimeout(() => {
-                    handleSelectChapter(activeChapterId)
-                  }, 50)
-                }
-              }}
-              style={{
-                ...playerToolButtonStyle,
-                background: freePlay ? "#16a34a" : "rgba(255,255,255,0.08)",
-                border: freePlay
-                  ? "1px solid #22c55e"
-                  : "1px solid rgba(255,255,255,0.12)",
-              }}
-            >
-              {freePlay ? "Free Play ON" : "Free Play OFF"}
-            </button>
-
-            {freePlay && (
-              <button
-                onClick={() => {
-                  setFreePlayMenu((prev) => !prev)
-                  setActiveMenu(null)
-                }}
-                style={{
-                  ...playerToolButtonStyle,
-                  background: freePlayMenu
-                    ? "#2563eb"
-                    : "rgba(255,255,255,0.08)",
-                }}
-              >
-                Tools
-              </button>
-            )}
-
-            {!freePlay && (
-              <>
-                <button
-                  onClick={() => {
-                    setActiveMenu(activeMenu === "chapters" ? null : "chapters")
-                  }}
-                  style={{
-                    ...playerToolButtonStyle,
-                    background:
-                      activeMenu === "chapters" ? "#2563eb" : "rgba(255,255,255,0.08)",
-                  }}
-                >
-                  Chapters
-                </button>
-
-                <button
-                  onClick={() => setShowInfoPanel(!showInfoPanel)}
-                  style={{
-                    ...playerToolButtonStyle,
-                    background: showInfoPanel ? "#2563eb" : "rgba(255,255,255,0.08)",
-                  }}
-                >
-                  {showInfoPanel ? "Info ON" : "Info OFF"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <PlayerBottomToolbar
+          loadJsonFile={loadJsonFile}
+          freePlay={freePlay}
+          setFreePlay={setFreePlay}
+          setFreePlayMenu={setFreePlayMenu}
+          setActiveMenu={setActiveMenu}
+          setShowInfoPanel={setShowInfoPanel}
+          setOutlineObjects={setOutlineObjects}
+          stopChapterAnimations={stopChapterAnimations}
+          setCutEnabled={setCutEnabled}
+          showAllObjects={showAllObjects}
+          resetAllTransforms={resetAllTransforms}
+          activeChapterId={activeChapterId}
+          handleSelectChapter={handleSelectChapter}
+          freePlayMenu={freePlayMenu}
+          activeMenu={activeMenu}
+          showInfoPanel={showInfoPanel}
+        />
       </main>
     </div>
   )
