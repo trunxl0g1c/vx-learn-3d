@@ -38,7 +38,7 @@ export default function MaterialTab(props) {
   } = props;
 
   return (
-    <div className="flex flex-col gap-1 px-3">
+    <div className="flex flex-col gap-1 p-3">
       <div className="bg-dark-alpha p-3 rounded-2xl mb-2 text-bsae">
         Object dipilih:
         <br />

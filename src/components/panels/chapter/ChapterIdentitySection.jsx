@@ -9,7 +9,7 @@ export default function ChapterIdentitySection({
   const titleLength = chapter.title?.length || 0;
 
   return (
-    <section className="p-2">
+    <section className="py-2 px-4">
       {/* <button
         type="button"
         onClick={(e) => {

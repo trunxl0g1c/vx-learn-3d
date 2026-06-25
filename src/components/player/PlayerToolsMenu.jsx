@@ -1,4 +1,8 @@
-import { playerMenuStyle, playerMenuButtonStyle } from "../../constants/playerStyles"
+import {
+  playerMenuStyle,
+  playerMenuButtonStyle,
+} from "../../constants/playerStyles";
+import Button from "../ui/button";
 
 export default function PlayerToolsMenu({
   cutEnabled,
@@ -11,29 +15,29 @@ export default function PlayerToolsMenu({
 }) {
   return (
     <div onClick={(e) => e.stopPropagation()} style={playerMenuStyle}>
-      <button style={playerMenuButtonStyle} onClick={toggleCutSection}>
+      <Button size="sm" onClick={toggleCutSection}>
         {cutEnabled ? "Cut ON" : "Cut OFF"}
-      </button>
+      </Button>
 
-      <button style={playerMenuButtonStyle} onClick={hideSelectedObject}>
+      <Button size="sm" onClick={hideSelectedObject}>
         Hide Selected
-      </button>
+      </Button>
 
-      <button style={playerMenuButtonStyle} onClick={pullApart}>
+      <Button size="sm" onClick={pullApart}>
         Pull Apart
-      </button>
+      </Button>
 
-      <button style={playerMenuButtonStyle} onClick={resetAllTransforms}>
+      <Button size="sm" onClick={resetAllTransforms}>
         Reset All
-      </button>
+      </Button>
 
-      <button style={playerMenuButtonStyle} onClick={soloSelectedObject}>
+      <Button size="sm" onClick={soloSelectedObject}>
         Solo
-      </button>
+      </Button>
 
-      <button style={playerMenuButtonStyle} onClick={showAllObjects}>
+      <Button size="sm" onClick={showAllObjects}>
         Show All
-      </button>
+      </Button>
     </div>
-  )
+  );
 }

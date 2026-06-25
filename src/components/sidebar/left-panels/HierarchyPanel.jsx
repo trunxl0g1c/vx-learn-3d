@@ -8,6 +8,7 @@ export default function HierarchyPanel({
   focusObject,
   markers,
   setSelectedObjectName,
+  setSelectedObject,
   treeDepth,
   setTreeDepth,
   maxTreeDepth,
@@ -17,9 +18,9 @@ export default function HierarchyPanel({
   hideAllObjects,
 }) {
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-auto sidebar-scroll bg-primary">
+    <div className="min-h-0 flex-1 space-y-2 overflow-auto sidebar-scroll">
       <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
-        Environment Settings
+        Object List
       </div>
 
       <HierarchyObjectTree
@@ -37,6 +38,7 @@ export default function HierarchyPanel({
         setSearchObject={setSearchObject}
         showAllObjects={showAllObjects}
         hideAllObjects={hideAllObjects}
+        setSelectedObject={setSelectedObject}
       />
     </div>
   );

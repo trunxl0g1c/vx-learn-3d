@@ -13,7 +13,7 @@ export default function ChapterAnimationSection({
   stopAnimationPreview,
 }) {
   return (
-    <section className="space-y-3 px-2 pb-4">
+    <section className="space-y-3 px-4 pb-4">
       <div className="text-xs font-bold text-contrast-grayout">Animation</div>
 
       {animations.length === 0 ? (

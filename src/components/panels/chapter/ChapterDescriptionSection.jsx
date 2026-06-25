@@ -5,7 +5,7 @@ export default function ChapterDescriptionSection({
   const descriptionLength = chapter.description?.length || 0;
 
   return (
-    <section className="space-y-2 px-2 py-4">
+    <section className="space-y-2 p-4">
       <label className="block text-xs font-semibold text-contrast-grayout">
         Description
       </label>

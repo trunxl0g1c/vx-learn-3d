@@ -1,7 +1,8 @@
-import EditorRightPanel from '../panels/EditorRightPanel'
-import EditorTopBar from './EditorTopBar'
-import EditorSidebarRail from '../sidebar/EditorSidebarRail'
-import EditorViewport from './EditorViewport'
+import EditorRightPanel from "../panels/EditorRightPanel";
+import EditorTopBar from "./EditorTopBar";
+import EditorSidebarRail from "../sidebar/EditorSidebarRail";
+import EditorViewport from "./EditorViewport";
+import MarkerDialog from "../panels/chapter/MarkerDialog";
 
 export default function ViewerPageLayout({ controller }) {
   const {
@@ -45,19 +46,28 @@ export default function ViewerPageLayout({ controller }) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
-  } = controller
+    setMarkerMode,
+    markerDialogOpen,
+    pendingMarkerName,
+    setPendingMarkerName,
+    confirmMarkerDialog,
+    cancelMarkerDialog,
+    requestAddMarker,
+    markerMode,
+    cancelAddMarker,
+  } = controller;
 
   return (
     <div
       style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: '#0b1220',
-        color: 'white',
-        position: 'relative',
+        width: "100vw",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#0b1220",
+        color: "white",
+        position: "relative",
       }}
     >
       <EditorTopBar title={material.title} />
@@ -106,9 +116,21 @@ export default function ViewerPageLayout({ controller }) {
         stopAnimationPreview={stopAnimationPreview}
         addChapterMedia={addChapterMedia}
         deleteChapterMedia={deleteChapterMedia}
+        setMarkerMode={setMarkerMode}
+        requestAddMarker={requestAddMarker}
+        markerMode={markerMode}
+        cancelAddMarker={cancelAddMarker}
       />
 
       <EditorViewport controller={controller} />
+
+      <MarkerDialog
+        open={markerDialogOpen}
+        value={pendingMarkerName}
+        onChange={setPendingMarkerName}
+        onClose={cancelAddMarker}
+        onSubmit={confirmMarkerDialog}
+      />
     </div>
-  )
+  );
 }

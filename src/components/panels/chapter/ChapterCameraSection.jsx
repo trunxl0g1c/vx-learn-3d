@@ -6,7 +6,7 @@ export default function ChapterCameraSection({
   saveCameraViewToActiveChapter,
 }) {
   return (
-    <section className="space-y-2 px-2 py-4">
+    <section className="space-y-2 p-4">
       <label className="block text-xs font-semibold text-contrast-grayout">
         Camera View
       </label>

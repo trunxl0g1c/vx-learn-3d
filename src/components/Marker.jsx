@@ -37,7 +37,7 @@ const labelPos = [9, 0, 0]
     <group ref={groupRef} position={position}>
       <mesh>
         <sphereGeometry args={[1.15, 24, 24]} />
-        <meshBasicMaterial color="#facc15" />
+        <meshBasicMaterial color="#423D48" />
       </mesh>
 
       <mesh>
@@ -47,22 +47,21 @@ const labelPos = [9, 0, 0]
 
       <Line
         points={linePoints}
-        color="#facc15"
+        color="#1D1E1F"
         lineWidth={3}
       />
 
       <Html position={labelPos} center occlude={false}>
         <div
           style={{
-            background: 'white',
+            background: '#1D1E1F',
             padding: '8px 12px',
             borderRadius: '8px',
-            border: '2px solid #facc15',
+            border: '2px solid #1D1E1F',
             fontSize: '13px',
             fontWeight: 'bold',
             whiteSpace: 'nowrap',
-            boxShadow: '0 0 10px rgba(250,204,21,0.45)',
-            color: 'black',
+            color: 'white',
           }}
         >
           {marker.text}

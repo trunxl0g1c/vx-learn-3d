@@ -1,13 +1,15 @@
+import { ChevronRight } from "lucide-react";
 import {
   formatObjectName,
   getNodeKey,
   isObjectVisible,
   setObjectVisibility,
-} from "../../../utils/hierarchyTreeUtils"
+} from "../../../utils/hierarchyTreeUtils";
 
 export default function HierarchyTreeItem({
   item,
   selectedObject,
+  setSelectedObject,
   highlightObject,
   makeXrayExcept,
   focusObject,
@@ -17,136 +19,121 @@ export default function HierarchyTreeItem({
   setOpenMap,
   refreshVisibility,
 }) {
-  const nodeKey = getNodeKey(item)
-  const open = openMap?.[nodeKey] ?? true
-  const hasChildren = item.children && item.children.length > 0
-  const displayName = formatObjectName(item.name)
-  const visible = isObjectVisible(item.object)
+  const nodeKey = getNodeKey(item);
+  const open = openMap?.[nodeKey] ?? true;
+  const hasChildren = item.children && item.children.length > 0;
+  const displayName = formatObjectName(item.name);
+  const visible = isObjectVisible(item.object);
+  const selected = selectedObject === item.object;
 
   const handleSelect = () => {
-    setSelectedObjectName(displayName)
-    highlightObject(item.object)
-    makeXrayExcept(item.object)
-    focusObject(item.object)
-  }
-
-  const handleToggleVisibility = (event) => {
-    event.stopPropagation()
-
-    const nextVisible = !visible
-    setObjectVisibility(item.object, nextVisible)
-
-    if (!nextVisible && selectedObject === item.object) {
-      setSelectedObjectName("")
+    if (selected) {
+      setSelectedObject?.(null);
+      setSelectedObjectName("");
+      return;
     }
 
-    refreshVisibility()
-  }
+    setSelectedObject?.(item.object);
+    setSelectedObjectName(displayName);
+    highlightObject(item.object);
+    makeXrayExcept(item.object);
+    focusObject(item.object);
+  };
+
+  const handleToggleOpen = (event) => {
+    event.stopPropagation();
+
+    if (!hasChildren) return;
+
+    setOpenMap((prev) => ({
+      ...prev,
+      [nodeKey]: !open,
+    }));
+  };
+
+  const handleToggleVisibility = (event) => {
+    event.stopPropagation();
+
+    const nextVisible = !visible;
+    setObjectVisibility(item.object, nextVisible);
+
+    if (!nextVisible && selected) {
+      setSelectedObject?.(null);
+      setSelectedObjectName("");
+    }
+
+    refreshVisibility();
+  };
 
   return (
     <div>
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "24px minmax(0, 1fr) 82px 34px",
-          alignItems: "center",
-          gap: 8,
-          padding: "7px 8px",
-          marginBottom: 6,
-          borderRadius: 8,
-          background:
-            selectedObject === item.object ? "#2563eb" : "rgba(255,255,255,0.08)",
-          marginLeft: item.level * 14,
-          fontSize: 13,
-          opacity: visible ? 1 : 0.55,
-        }}
+        className={[
+          "grid grid-cols-[18px_minmax(0,1fr)_68px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition",
+          selected ? "text-secondary-default" : "text-white",
+          visible ? "opacity-100" : "opacity-50",
+        ].join(" ")}
+        style={{ paddingLeft: `${item.level * 18}px` }}
       >
-        {hasChildren ? (
-          <button
-            onClick={(event) => {
-              event.stopPropagation()
-              setOpenMap((prev) => ({
-                ...prev,
-                [nodeKey]: !open,
-              }))
-            }}
-            style={{
-              width: 22,
-              height: 22,
-              border: "none",
-              borderRadius: 6,
-              background: "#111827",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            {open ? "−" : "+"}
-          </button>
-        ) : (
-          <span style={{ width: 22 }} />
-        )}
-
-        <div
-          onClick={handleSelect}
-          title={displayName}
-          style={{
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            fontWeight: selectedObject === item.object ? "bold" : "normal",
-          }}
-        >
-          {displayName}
-        </div>
-
         <button
-          onClick={(event) => {
-            event.stopPropagation()
-            handleSelect()
-          }}
-          style={{
-            padding: "5px 10px",
-            borderRadius: 999,
-            border: "1px solid rgba(56,189,248,0.45)",
-            background: "rgba(15,23,42,0.55)",
-            color: "white",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: "bold",
-          }}
+          type="button"
+          onClick={handleToggleOpen}
+          className="grid size-4 cursor-pointer place-items-center text-secondary-default"
         >
-          SELECT
+          {hasChildren ? (
+            <ChevronRight
+              className={[
+                "size-4 transition-transform",
+                open ? "rotate-90" : "rotate-0",
+              ].join(" ")}
+            />
+          ) : (
+            <span />
+          )}
         </button>
 
         <button
+          type="button"
+          onClick={handleSelect}
+          title={displayName}
+          className={[
+            "truncate cursor-pointer text-left transition hover:text-secondary-default",
+            selected ? "font-semibold text-secondary-default" : "font-medium",
+          ].join(" ")}
+        >
+          {displayName}
+        </button>
+
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleSelect();
+          }}
+          className={[
+            "h-5 cursor-pointer rounded-full border px-2 text-[9px] font-bold uppercase transition",
+            selected
+              ? "border-accent-main bg-accent-main text-white"
+              : "border-secondary-default/50 bg-transparent text-white hover:bg-white/5",
+          ].join(" ")}
+        >
+          {selected ? "DESELECT" : "SELECT"}
+        </button>
+
+        <button
+          type="button"
           onClick={handleToggleVisibility}
           title={visible ? "Hide object" : "Show object"}
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 999,
-            border: visible
-              ? "1px solid rgba(125,211,252,0.85)"
-              : "1px solid rgba(255,255,255,0.35)",
-            background: visible
-              ? "rgba(14,165,233,0.30)"
-              : "rgba(255,255,255,0.05)",
-            cursor: "pointer",
-            display: "grid",
-            placeItems: "center",
-          }}
+          className={[
+            "cursor-pointer grid size-4.5 place-items-center rounded-full border transition",
+            visible ? "border-secondary-default" : "border-contrast-grayout",
+          ].join(" ")}
         >
           <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: 999,
-              background: visible ? "#67e8f9" : "transparent",
-              display: "block",
-            }}
+            className={[
+              "block size-2 rounded-full",
+              visible ? "bg-secondary-default" : "bg-transparent",
+            ].join(" ")}
           />
         </button>
       </div>
@@ -159,6 +146,7 @@ export default function HierarchyTreeItem({
             key={getNodeKey(child) || index}
             item={child}
             selectedObject={selectedObject}
+            setSelectedObject={setSelectedObject}
             highlightObject={highlightObject}
             makeXrayExcept={makeXrayExcept}
             focusObject={focusObject}
@@ -170,5 +158,5 @@ export default function HierarchyTreeItem({
           />
         ))}
     </div>
-  )
+  );
 }

@@ -1,6 +1,6 @@
 export default function ChapterDeselectButton({ setActiveChapterId }) {
   return (
-    <div className="sticky bottom-3 py-2 backdrop-blur-sm z-10 border-t border-t-divider-main">
+    <div className="sticky bottom-0 px-4 pb-4 pt-5 backdrop-blur-3xl z-10 border-t border-t-divider-main w-full bg-primary">
       <button
         onClick={(e) => {
           e.stopPropagation();

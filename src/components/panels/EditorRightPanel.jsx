@@ -45,6 +45,10 @@ export default function EditorRightPanel({
   stopAnimationPreview,
   addChapterMedia,
   deleteChapterMedia,
+  setMarkerMode,
+  requestAddMarker,
+  markerMode,
+  cancelAddMarker,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -85,20 +89,25 @@ export default function EditorRightPanel({
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    setMarkerMode,
+    requestAddMarker,
+    markerMode,
+    cancelAddMarker,
   };
 
   return (
     <aside
       className={[
         "absolute right-0 top-16 z-[120] flex w-[500px] flex-col overflow-hidden",
-        "border border-divider-main bg-primary text-white transition-all duration-200",
+        "border border-divider-main text-white transition-all duration-200",
+        "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
         isOpen ? "bottom-0" : "h-16",
       ].join(" ")}
     >
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex h-16 shrink-0 cursor-pointer items-center justify-between bg-dark-alpha px-5 text-left transition hover:bg-white/5"
+        className="flex h-16 shrink-0 cursor-pointer items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl transition hover:bg-white/5"
       >
         <span className="truncate text-base font-semibold">
           {selectedObjectName || "Object Settings"}
@@ -113,7 +122,7 @@ export default function EditorRightPanel({
 
       {isOpen && (
         <>
-          <div className="flex shrink-0 items-center justify-center gap-3 py-3">
+          <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
             {[
               ["material", "Materi"],
               ["animation", "Animasi"],
@@ -130,7 +139,7 @@ export default function EditorRightPanel({
             ))}
           </div>
 
-          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto bg-primary">
+          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto bg-primary/50 backdrop-blur-xl">
             {rightTab === "material" && <MaterialTab {...tabProps} />}
             {rightTab === "visual" && <VisualTab {...tabProps} />}
             {rightTab === "animation" && <AnimationTab {...tabProps} />}

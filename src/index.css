@@ -9,6 +9,8 @@
   --color-contrast-grayout: #86899B;
   --color-contrast-main: #86899B;
   --color-accent-main: #03699D;
+  --color-warning-main: #C42525;
+  --color-accent-contrast: #AC9857;
 }
 
 html,

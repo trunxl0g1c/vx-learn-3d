@@ -6,7 +6,7 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
   const descriptionLength = material.description?.length || 0;
 
   return (
-    <div className="flex h-full flex-col bg-[#1f1d20] text-white">
+    <div className="flex h-full flex-col text-white">
       <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
         Project Settings
       </div>

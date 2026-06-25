@@ -43,7 +43,7 @@ export default function AnimationTab(props) {
   } = props;
 
   return (
-    <div className="flex flex-col gap-1 px-3">
+    <div className="flex flex-col gap-1 p-3">
       <div className="bg-dark-alpha p-3 rounded-2xl mb-3">
         <h3 className="font-bold text-base mb-3">Animasi Advance</h3>
 

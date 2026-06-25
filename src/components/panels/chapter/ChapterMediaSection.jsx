@@ -9,7 +9,7 @@ export default function ChapterMediaSection({
   const mediaList = chapter.media || [];
 
   return (
-    <section className="space-y-3 px-2 pb-4">
+    <section className="space-y-3 px-4 pb-4">
       <div className="text-xs font-bold text-contrast-grayout">Media</div>
 
       <div className="grid gap-2">

@@ -14,7 +14,7 @@ const sidebarItems = [
     label: "Object Hierarchy",
     target: "hierarchy",
   },
-  { id: "annotation", icon: Pencil, label: "Annotation", target: "annotation" },
+  // { id: "annotation", icon: Pencil, label: "Annotation", target: "annotation" },
 ];
 
 export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {

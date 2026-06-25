@@ -1,11 +1,11 @@
 export default function AnnotationPanel() {
   return (
-    <div className="flex h-full flex-col bg-primary text-white">
-      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
+    <div className="flex h-full flex-col text-white backdrop-blur-sm">
+      <div className="sticky top-0 z-10 flex h-16 items-center border-b border-divider-main bg-dark-alpha/70 px-4 text-lg font-semibold backdrop-blur-xl">
         Annotation
       </div>
 
-      <div className="text-white p-4 m-3 rounded-2xl bg-dark-alpha">
+      <div className="m-3 rounded-2xl border border-divider-main bg-dark-alpha/55 p-4 text-white backdrop-blur-xl">
         Marker mode ada di toolbar bawah. Pilih Bab terlebih dahulu, lalu
         aktifkan Marker untuk menambahkan annotation ke Bab aktif.
       </div>

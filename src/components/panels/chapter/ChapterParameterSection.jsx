@@ -11,7 +11,7 @@ export default function ChapterParameterSection({
   const parameters = chapter.parameters || [];
 
   return (
-    <section className="space-y-3 px-2 pb-4">
+    <section className="space-y-3 px-4 pb-4">
       <div className="text-xs font-bold text-contrast-grayout">Parameter</div>
 
       {parameters.length === 0 ? (

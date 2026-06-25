@@ -74,6 +74,7 @@ export default function EditorViewport({ controller }) {
     setViewerSettings,
     updateEnvIntensity,
     setAnimations,
+    handleMarkerPointPicked,
   } = controller;
 
   return (
@@ -87,7 +88,8 @@ export default function EditorViewport({ controller }) {
         viewerSettings={viewerSettings}
         outlineObjects={outlineObjects}
         modelUrl={modelUrl}
-        addMarker={addMarker}
+        // addMarker={addMarker}
+        addMarker={handleMarkerPointPicked}
         handleModelLoaded={handleModelLoaded}
         markerMode={markerMode}
         selectObjectFromMesh={selectObjectFromMesh}
@@ -163,6 +165,7 @@ export default function EditorViewport({ controller }) {
         viewerSettings={viewerSettings}
         setViewerSettings={setViewerSettings}
         updateEnvIntensity={updateEnvIntensity}
+        setSelectedObject={setSelectedObject}
       />
     </div>
   );

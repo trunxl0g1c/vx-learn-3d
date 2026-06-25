@@ -13,6 +13,7 @@ import Button from "../../ui/button";
 export default function HierarchyObjectTree({
   objectList,
   selectedObject,
+  setSelectedObject,
   highlightObject,
   makeXrayExcept,
   focusObject,
@@ -28,8 +29,8 @@ export default function HierarchyObjectTree({
   const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
   const [openMap, setOpenMap] = useState({});
-  const [treeViewMode, setTreeViewMode] = useState("expand");
   const [, setVisibilityVersion] = useState(0);
+  const [treeViewMode, setTreeViewMode] = useState("expand");
 
   const refreshVisibility = () => {
     setVisibilityVersion((prev) => prev + 1);
@@ -40,87 +41,65 @@ export default function HierarchyObjectTree({
   }, [objectList]);
 
   const handleShowAll = () => {
-    if (showAllObjects) {
-      showAllObjects();
-    } else {
-      objectList.forEach((item) => setObjectVisibility(item.object, true));
-    }
+    if (showAllObjects) showAllObjects();
+    else objectList.forEach((item) => setObjectVisibility(item.object, true));
 
     refreshVisibility();
   };
 
   const handleHideAll = () => {
-    if (hideAllObjects) {
-      hideAllObjects();
-    } else {
-      objectList.forEach((item) => setObjectVisibility(item.object, false));
-    }
+    if (hideAllObjects) hideAllObjects();
+    else objectList.forEach((item) => setObjectVisibility(item.object, false));
 
     refreshVisibility();
   };
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-2 overflow-auto sidebar-scroll">
-      <Input
-        type="text"
-        placeholder="search object"
-        value={searchObject}
-        onChange={(event) => setSearchObject(event.target.value)}
-        leftIcon={<Search className="size-5" />}
-        className="h-8.5! px-2!"
-      />
+    <div className="flex h-full min-h-0 flex-col text-white">
+      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <Input
+          type="text"
+          placeholder="search object"
+          value={searchObject}
+          onChange={(event) => setSearchObject(event.target.value)}
+          leftIcon={<Search className="size-5" />}
+          className="mb-4 h-8.5! rounded-full px-2!"
+          inputClassName="text-xs"
+        />
 
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 10,
-          padding: 12,
-          overflowY: "auto",
-        }}
-      >
-        <div className="flex gap-3 items-center justify-center mb-2">
+        <div className="mb-3 flex items-center gap-3">
           <Button
             size="sm"
+            variant={treeViewMode === "expand" ? "default" : "outline"}
             onClick={() => {
               setOpenMap(collectOpenMap(filteredObjectList, true));
               setTreeViewMode("expand");
             }}
-            variant={treeViewMode === "expand" ? "default" : "cyan"}
-            className="w-1/2"
+            className="h-8 flex-1 text-xs"
           >
             Expand All
           </Button>
 
           <Button
             size="sm"
+            variant={treeViewMode === "collapse" ? "default" : "outline"}
             onClick={() => {
               setOpenMap(collectOpenMap(filteredObjectList, false));
               setTreeViewMode("collapse");
             }}
-            variant={treeViewMode === "collapse" ? "default" : "cyan"}
-            className="w-1/2"
+            className="h-8 flex-1 text-xs"
           >
             Collapse All
           </Button>
         </div>
 
-        <div
-          style={{
-            marginBottom: 10,
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-          }}
-        >
-          <span>Level:</span>
+        <div className="mb-3 flex items-center justify-between">
+          <label className="text-sm font-semibold">Level:</label>
 
           <select
             value={treeDepth}
             onChange={(event) => setTreeDepth(Number(event.target.value))}
-            style={{ padding: 4, borderRadius: 6 }}
+            className="h-7 rounded-md border border-divider-main bg-primary px-2 text-xs text-white outline-none"
           >
             {Array.from(
               { length: maxTreeDepth || 1 },
@@ -135,73 +114,46 @@ export default function HierarchyObjectTree({
           </select>
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 10,
-          }}
-        >
-          <h3 style={{ margin: 0 }}>Object Tree</h3>
+        <div className="mb-3 grid grid-cols-[1fr_auto] items-center gap-3">
+          <h3 className="text-xs font-semibold text-white">Object Name</h3>
 
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              fontSize: 12,
-              color: "#67e8f9",
-              fontWeight: "bold",
-            }}
-          >
+          <div className="flex items-center gap-1 text-[11px] font-bold text-secondary-default">
             <button
+              className="cursor-pointer"
+              type="button"
               onClick={handleShowAll}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#67e8f9",
-                cursor: "pointer",
-                fontWeight: "bold",
-                padding: 0,
-              }}
             >
               Show All
             </button>
-
             <span>|</span>
-
             <button
+              className="cursor-pointer"
+              type="button"
               onClick={handleHideAll}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#67e8f9",
-                cursor: "pointer",
-                fontWeight: "bold",
-                padding: 0,
-              }}
             >
               Hide All
             </button>
           </div>
         </div>
 
-        {filteredObjectList.map((item, index) => (
-          <HierarchyTreeItem
-            key={getNodeKey(item) || index}
-            item={item}
-            selectedObject={selectedObject}
-            highlightObject={highlightObject}
-            makeXrayExcept={makeXrayExcept}
-            focusObject={focusObject}
-            setSelectedObjectName={setSelectedObjectName}
-            treeDepth={treeDepth}
-            openMap={openMap}
-            setOpenMap={setOpenMap}
-            refreshVisibility={refreshVisibility}
-          />
-        ))}
+        <div className="space-y-1">
+          {filteredObjectList.map((item, index) => (
+            <HierarchyTreeItem
+              key={getNodeKey(item) || index}
+              item={item}
+              selectedObject={selectedObject}
+              setSelectedObject={setSelectedObject}
+              highlightObject={highlightObject}
+              makeXrayExcept={makeXrayExcept}
+              focusObject={focusObject}
+              setSelectedObjectName={setSelectedObjectName}
+              treeDepth={treeDepth}
+              openMap={openMap}
+              setOpenMap={setOpenMap}
+              refreshVisibility={refreshVisibility}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
