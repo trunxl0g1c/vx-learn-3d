@@ -1,4 +1,4 @@
-import HierarchyObjectTree from './HierarchyObjectTree'
+import HierarchyObjectTree from "./HierarchyObjectTree";
 
 export default function HierarchyPanel({
   objectList,
@@ -8,6 +8,7 @@ export default function HierarchyPanel({
   focusObject,
   markers,
   setSelectedObjectName,
+  setSelectedObject,
   treeDepth,
   setTreeDepth,
   maxTreeDepth,
@@ -17,9 +18,9 @@ export default function HierarchyPanel({
   hideAllObjects,
 }) {
   return (
-    <>
-      <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 10 }}>
-        Object Hierarchy
+    <div className="min-h-0 flex-1 space-y-2 overflow-auto sidebar-scroll">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
+        Object List
       </div>
 
       <HierarchyObjectTree
@@ -37,7 +38,8 @@ export default function HierarchyPanel({
         setSearchObject={setSearchObject}
         showAllObjects={showAllObjects}
         hideAllObjects={hideAllObjects}
+        setSelectedObject={setSelectedObject}
       />
-    </>
-  )
+    </div>
+  );
 }

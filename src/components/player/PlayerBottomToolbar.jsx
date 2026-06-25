@@ -1,4 +1,5 @@
-import { playerToolButtonStyle } from "../../constants/playerStyles"
+import { playerToolButtonStyle } from "../../constants/playerStyles";
+import Button from "../ui/button";
 
 export default function PlayerBottomToolbar({
   loadJsonFile,
@@ -31,109 +32,89 @@ export default function PlayerBottomToolbar({
         justifyContent: "center",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          padding: 10,
-          borderRadius: 14,
-          background: "rgba(15,23,42,0.82)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(255,255,255,0.12)",
-        }}
-      >
-        <label style={playerToolButtonStyle}>
-          Load File
-          <input
-            type="file"
-            accept=".json"
-            onChange={(e) => loadJsonFile(e.target.files?.[0])}
-            style={{ display: "none" }}
-          />
-        </label>
+      <div className="flex gap-2 rounded-2xl bg-primary p-2">
+        <Button className="text-sm border-contrast-main! w-36 h-10!">
+          <label>
+            Load File
+            <input
+              type="file"
+              accept=".json"
+              onChange={(e) => loadJsonFile(e.target.files?.[0])}
+              style={{ display: "none" }}
+            />
+          </label>
+        </Button>
 
-        <button
+        <Button
+          className="text-sm border-contrast-main! w-36 h-10!"
           onClick={() => {
-            const next = !freePlay
+            const next = !freePlay;
 
-            setFreePlay(next)
-            setFreePlayMenu(next)
+            setFreePlay(next);
+            setFreePlayMenu(next);
 
             if (next) {
-              setActiveMenu(null)
-              setShowInfoPanel(false)
-              setOutlineObjects([])
-              stopChapterAnimations()
-              return
+              setActiveMenu(null);
+              setShowInfoPanel(false);
+              setOutlineObjects([]);
+              stopChapterAnimations();
+              return;
             }
 
-            setFreePlayMenu(false)
-            setCutEnabled(false)
-            showAllObjects()
-            resetAllTransforms()
+            setFreePlayMenu(false);
+            setCutEnabled(false);
+            showAllObjects();
+            resetAllTransforms();
 
-            setActiveMenu("chapters")
-            setShowInfoPanel(true)
+            setActiveMenu("chapters");
+            setShowInfoPanel(true);
 
             if (activeChapterId) {
               setTimeout(() => {
-                handleSelectChapter(activeChapterId)
-              }, 50)
+                handleSelectChapter(activeChapterId);
+              }, 50);
             }
           }}
-          style={{
-            ...playerToolButtonStyle,
-            background: freePlay ? "#16a34a" : "rgba(255,255,255,0.08)",
-            border: freePlay
-              ? "1px solid #22c55e"
-              : "1px solid rgba(255,255,255,0.12)",
-          }}
+          variant={freePlay ? "outline" : "default"}
         >
           {freePlay ? "Free Play ON" : "Free Play OFF"}
-        </button>
+        </Button>
 
         {freePlay && (
-          <button
+          <Button
+          variant={freePlayMenu ? "default" : "outline"}
+            className="text-sm border-contrast-main! w-36 h-10!"
             onClick={() => {
-              setFreePlayMenu((prev) => !prev)
-              setActiveMenu(null)
-            }}
-            style={{
-              ...playerToolButtonStyle,
-              background: freePlayMenu ? "#2563eb" : "rgba(255,255,255,0.08)",
+              setFreePlayMenu((prev) => !prev);
+              setActiveMenu(null);
             }}
           >
             Tools
-          </button>
+          </Button>
         )}
 
         {!freePlay && (
           <>
-            <button
+            <Button
+              variant={activeMenu === "chapters" ? "default" : "outline"}
+              className="text-sm border-contrast-main! w-36 h-10!"
               onClick={() => {
-                setActiveMenu(activeMenu === "chapters" ? null : "chapters")
-              }}
-              style={{
-                ...playerToolButtonStyle,
-                background:
-                  activeMenu === "chapters" ? "#2563eb" : "rgba(255,255,255,0.08)",
+                setActiveMenu(activeMenu === "chapters" ? null : "chapters");
               }}
             >
               Chapters
-            </button>
+            </Button>
 
-            <button
+            <Button
+              variant={showInfoPanel ? "default" : "outline"}
+              className="text-sm border-contrast-main! w-36 h-10!"
               onClick={() => setShowInfoPanel(!showInfoPanel)}
-              style={{
-                ...playerToolButtonStyle,
-                background: showInfoPanel ? "#2563eb" : "rgba(255,255,255,0.08)",
-              }}
             >
               {showInfoPanel ? "Info ON" : "Info OFF"}
-            </button>
+            </Button>
           </>
         )}
       </div>
     </div>
-  )
+  );
 }

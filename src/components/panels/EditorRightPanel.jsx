@@ -1,7 +1,10 @@
-import MaterialTab from "./right-tabs/MaterialTab"
-import VisualTab from "./right-tabs/VisualTab"
-import AnimationTab from "./right-tabs/AnimationTab"
-import ChapterTab from "./right-tabs/ChapterTab"
+import { useState } from "react";
+import { Minus, Plus } from "lucide-react";
+import MaterialTab from "./right-tabs/MaterialTab";
+import VisualTab from "./right-tabs/VisualTab";
+import AnimationTab from "./right-tabs/AnimationTab";
+import ChapterTab from "./right-tabs/ChapterTab";
+import Button from "../ui/button";
 
 export default function EditorRightPanel({
   rightTab,
@@ -41,8 +44,14 @@ export default function EditorRightPanel({
   playAnimationPreview,
   stopAnimationPreview,
   addChapterMedia,
-  deleteChapterMedia
+  deleteChapterMedia,
+  setMarkerMode,
+  requestAddMarker,
+  markerMode,
+  cancelAddMarker,
 }) {
+  const [isOpen, setIsOpen] = useState(true);
+
   const tabProps = {
     selectedObjectName,
     createChapterFromSelectedObject,
@@ -80,63 +89,64 @@ export default function EditorRightPanel({
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
-  }
+    setMarkerMode,
+    requestAddMarker,
+    markerMode,
+    cancelAddMarker,
+  };
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        right: 20,
-        top: 84,
-        bottom: 20,
-        width: 360,
-        zIndex: 110,
-        background: "rgba(15,23,42,0.78)",
-        backdropFilter: "blur(14px)",
-        WebkitBackdropFilter: "blur(14px)",
-        color: "white",
-        padding: 16,
-        overflowY: "auto",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 18,
-        boxShadow: "0 16px 48px rgba(0,0,0,0.34)",
-      }}
+    <aside
+      className={[
+        "absolute right-0 top-16 z-[120] flex w-[500px] flex-col overflow-hidden",
+        "border border-divider-main text-white transition-all duration-200",
+        "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
+        isOpen ? "bottom-0" : "h-16",
+      ].join(" ")}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          marginBottom: 14,
-        }}
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex h-16 shrink-0 cursor-pointer items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl transition hover:bg-white/5"
       >
-        {[
-          ["material", "Materi"],
-          ["animation", "Animasi"],
-          ["chapter", "Bab"],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setRightTab(id)}
-            style={{
-              flex: 1,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              fontWeight: "bold",
-              background: rightTab === id ? "#2563eb" : "#374151",
-              color: "white",
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+        <span className="truncate text-base font-semibold">
+          {selectedObjectName || "Object Settings"}
+        </span>
 
-      {rightTab === "material" && <MaterialTab {...tabProps} />}
-      {rightTab === "visual" && <VisualTab {...tabProps} />}
-      {rightTab === "animation" && <AnimationTab {...tabProps} />}
-      {rightTab === "chapter" && <ChapterTab {...tabProps} />}
-    </div>
-  )
+        {isOpen ? (
+          <Minus className="size-5 text-secondary-default" />
+        ) : (
+          <Plus className="size-5 text-secondary-default" />
+        )}
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
+            {[
+              ["material", "Materi"],
+              ["animation", "Animasi"],
+              ["chapter", "Bab"],
+            ].map(([id, label]) => (
+              <Button
+                key={id}
+                onClick={() => setRightTab(id)}
+                variant={rightTab === id ? "default" : "outline"}
+                className="w-32!"
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+
+          <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto bg-primary/50 backdrop-blur-xl">
+            {rightTab === "material" && <MaterialTab {...tabProps} />}
+            {rightTab === "visual" && <VisualTab {...tabProps} />}
+            {rightTab === "animation" && <AnimationTab {...tabProps} />}
+            {rightTab === "chapter" && <ChapterTab {...tabProps} />}
+          </div>
+        </>
+      )}
+    </aside>
+  );
 }

@@ -1,28 +1,25 @@
-export default function ChapterCameraSection({ panelSectionStyle, saveCameraViewToActiveChapter }) {
-  return (
-    <div style={panelSectionStyle}>
-      <div style={{ fontWeight: "bold", fontSize: 13, marginBottom: 8 }}>
-        Camera View
-      </div>
+import { Camera } from "lucide-react";
+import Button from "../../ui/button";
 
-      <button
+export default function ChapterCameraSection({
+  panelSectionStyle,
+  saveCameraViewToActiveChapter,
+}) {
+  return (
+    <section className="space-y-2 p-4">
+      <label className="block text-xs font-semibold text-contrast-grayout">
+        Camera View
+      </label>
+
+      <Button
+        size="sm"
         onClick={(e) => {
-          e.stopPropagation()
-          saveCameraViewToActiveChapter()
-        }}
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "none",
-          background: "#0f766e",
-          color: "white",
-          fontWeight: "bold",
-          cursor: "pointer",
+          e.stopPropagation();
+          saveCameraViewToActiveChapter();
         }}
       >
-        💾 Save Camera View
-      </button>
-    </div>
-  )
+        <Camera className="mr-2 size-4" /> Save Camera View
+      </Button>
+    </section>
+  );
 }

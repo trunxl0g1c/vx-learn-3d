@@ -1,62 +1,27 @@
-import { Html, useProgress } from '@react-three/drei'
+import { Html, useProgress } from "@react-three/drei";
 
 export default function LoadingModel() {
-  const { progress } = useProgress()
-  const percent = Math.round(progress || 0)
+  const { progress } = useProgress();
+  const percent = Math.round(progress || 0);
 
   return (
     <Html center>
-      <div
-        style={{
-          background: "white",
-          padding: "24px 28px",
-          borderRadius: 12,
-          boxShadow: "0 8px 28px rgba(0,0,0,0.25)",
-          minWidth: 320,
-          textAlign: "center",
-          color: "#111827",
-        }}
-      >
-        <div
-          style={{
-            marginBottom: 14,
-            fontWeight: "bold",
-            fontSize: 20,
-            color: "#111827",
-          }}
-        >
+      <div className="min-w-[320px] rounded-2xl border border-divider-main bg-primary/95 p-6 text-center text-white shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+        <div className="mb-4 text-xl font-bold text-white">
           Loading 3D Object...
         </div>
 
-        <div
-          style={{
-            width: "100%",
-            height: 12,
-            background: "#ddd",
-            borderRadius: 999,
-            overflow: "hidden",
-          }}
-        >
+        <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
           <div
-            style={{
-              width: `${percent}%`,
-              height: "100%",
-              background: "#4caf50",
-            }}
+            className="h-full rounded-full bg-accent-main transition-all duration-300"
+            style={{ width: `${percent}%` }}
           />
         </div>
 
-        <div
-          style={{
-            marginTop: 10,
-            fontSize: 14,
-            fontWeight: "bold",
-            color: "#111827",
-          }}
-        >
+        <div className="mt-3 text-sm font-bold text-secondary-default">
           {percent}%
         </div>
       </div>
     </Html>
-  )
+  );
 }

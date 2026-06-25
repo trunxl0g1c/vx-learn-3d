@@ -1,4 +1,11 @@
-import { menuButtonStyle, menuStyle, toolButtonStyle, toolbarDockStyle, toolbarInnerStyle } from '../../constants/viewerStyles'
+import {
+  menuButtonStyle,
+  menuStyle,
+  toolButtonStyle,
+  toolbarDockStyle,
+  toolbarInnerStyle,
+} from "../../constants/viewerStyles";
+import Button from "../ui/button";
 
 export default function EditorFloatingToolbar({
   activeMenu,
@@ -16,87 +23,88 @@ export default function EditorFloatingToolbar({
   showAllObjects,
 }) {
   const toggleMenu = (menuName) => {
-    setActiveMenu((prev) => (prev === menuName ? null : menuName))
-  }
+    setActiveMenu((prev) => (prev === menuName ? null : menuName));
+  };
 
   return (
     <>
       <div
         onClick={(e) => e.stopPropagation()}
-        style={toolbarDockStyle}
+        className="absolute left-0 right-0 bottom-5 z-120 flex justify-center pointer-none"
       >
-        <div
-          style={toolbarInnerStyle}
-        >
-          <label style={toolButtonStyle}>
-            Load Model
-            <input
-              type="file"
-              accept=".glb,.gltf"
-              onChange={handleFile}
-              style={{ display: "none" }}
-            />
-          </label>
+        <div className="flex gap-2 rounded-2xl bg-primary p-2">
+          <Button className="text-sm border-contrast-main! w-36 h-10!">
+            <label>
+              Load Model
+              <input
+                type="file"
+                accept=".glb,.gltf"
+                onChange={handleFile}
+                style={{ display: "none" }}
+              />
+            </label>
+          </Button>
 
-          <button
+          <Button
             onClick={() => setMarkerMode(!markerMode)}
-            style={{
-              ...toolButtonStyle,
-              background: markerMode ? "#16a34a" : "rgba(255,255,255,0.08)",
-              border: markerMode
-                ? "1px solid #22c55e"
-                : "1px solid rgba(255,255,255,0.12)",
-            }}
+            className="text-sm border-contrast-main! w-36 h-10!"
           >
             {markerMode ? "Marker ON" : "Marker OFF"}
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant={cutEnabled ? "outline" : "default"}
             onClick={toggleCutSection}
-            style={{
-              ...toolButtonStyle,
-              background: cutEnabled ? "#dc2626" : "rgba(255,255,255,0.08)",
-              border: cutEnabled
-                ? "1px solid #ef4444"
-                : "1px solid rgba(255,255,255,0.12)",
-            }}
+            className="text-sm border-contrast-main! w-36 h-10!"
           >
             {cutEnabled ? "Cut ON" : "Cut OFF"}
-          </button>
+          </Button>
 
-          <button style={toolButtonStyle} onClick={() => toggleMenu("view")}>
+          <Button
+            onClick={() => toggleMenu("view")}
+            className="text-sm border-contrast-main! w-36 h-10!"
+          >
             View
-          </button>
+          </Button>
 
-          <button style={menuButtonStyle} onClick={hideSelectedObject}>
+          <Button
+            onClick={hideSelectedObject}
+            className="text-sm border-contrast-main! w-36 h-10!"
+          >
             Hide Selected
-          </button>
+          </Button>
 
-          <button style={menuButtonStyle} onClick={resetXray}>
+          <Button
+            onClick={resetXray}
+            className="text-sm border-contrast-main! w-36 h-10!"
+          >
             Reset X-Ray
-          </button>
+          </Button>
         </div>
       </div>
 
       {activeMenu === "view" && (
-        <div onClick={(e) => e.stopPropagation()} style={menuStyle}>
-          <button style={menuButtonStyle} onClick={pullApart}>
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-1/2 bottom-20 transform -translate-x-1/4 flex flex-col gap-3 p-3 rounded-xl bg-primary z-120"
+        >
+          <Button size="sm" onClick={pullApart}>
             Pull Apart
-          </button>
+          </Button>
 
-          <button style={menuButtonStyle} onClick={resetAllTransforms}>
+          <Button size="sm" onClick={resetAllTransforms}>
             Reset All
-          </button>
+          </Button>
 
-          <button style={menuButtonStyle} onClick={soloSelectedObject}>
+          <Button size="sm" onClick={soloSelectedObject}>
             Solo
-          </button>
+          </Button>
 
-          <button style={menuButtonStyle} onClick={showAllObjects}>
+          <Button size="sm" onClick={showAllObjects}>
             Show All
-          </button>
+          </Button>
         </div>
       )}
     </>
-  )
+  );
 }

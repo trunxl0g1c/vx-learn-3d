@@ -1,159 +1,130 @@
+import { ImageIcon } from "lucide-react";
+import Switch from "../../ui/switch";
+
 export default function ProjectSettingsPanel({ material, setMaterial }) {
+  const titleLength = material.title?.length || 0;
+  const descriptionLength = material.description?.length || 0;
+
   return (
-    <>
-      <div style={{ fontWeight: "bold", fontSize: 15, marginBottom: 14 }}>
+    <div className="flex h-full flex-col text-white">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
         Project Settings
       </div>
 
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6 }}>
-        Title
-      </div>
+      <div className="flex-1 space-y-6 overflow-auto p-4">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+            Title
+          </label>
 
-      <input
-        value={material.title}
-        onChange={(e) =>
-          setMaterial((prev) => ({
-            ...prev,
-            title: e.target.value,
-          }))
-        }
-        maxLength={48}
-        placeholder="Project title"
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid #38bdf8",
-          background: "#111827",
-          color: "white",
-          marginBottom: 6,
-          boxSizing: "border-box",
-        }}
-      />
-
-      <div style={{ textAlign: "right", fontSize: 10, color: "#9ca3af", marginBottom: 14 }}>
-        {material.title?.length || 0}/48
-      </div>
-
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 6 }}>
-        Description
-      </div>
-
-      <textarea
-        value={material.description || ""}
-        onChange={(e) =>
-          setMaterial((prev) => ({
-            ...prev,
-            description: e.target.value,
-          }))
-        }
-        maxLength={650}
-        placeholder="Project description..."
-        style={{
-          width: "100%",
-          minHeight: 120,
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid #38bdf8",
-          background: "#111827",
-          color: "white",
-          resize: "vertical",
-          marginBottom: 6,
-          boxSizing: "border-box",
-        }}
-      />
-
-      <div style={{ textAlign: "right", fontSize: 10, color: "#9ca3af", marginBottom: 14 }}>
-        {(material.description || "").length}/650
-      </div>
-
-      <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 8 }}>
-        Thumbnail
-      </div>
-
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: 12,
-          borderRadius: 10,
-          border: "1px solid rgba(56,189,248,0.5)",
-          background: "rgba(15,23,42,0.8)",
-          cursor: "pointer",
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            width: 64,
-            height: 56,
-            borderRadius: 8,
-            background: "#4c1d95",
-            display: "grid",
-            placeItems: "center",
-            overflow: "hidden",
-          }}
-        >
-          {material.thumbnail ? (
-            <img
-              src={material.thumbnail}
-              alt="Thumbnail"
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          <div className="relative">
+            <input
+              value={material.title || ""}
+              maxLength={48}
+              placeholder="Project title"
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  title: e.target.value,
+                }))
+              }
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
             />
-          ) : (
-            <span style={{ fontSize: 24 }}>🖼️</span>
-          )}
+
+            <span className="absolute bottom-2 right-3 text-[10px] font-semibold text-[#86899B]">
+              {titleLength}/48
+            </span>
+          </div>
         </div>
 
-        <strong>Add Picture</strong>
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+            Description
+          </label>
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (!file) return
+          <div className="relative">
+            <textarea
+              value={material.description || ""}
+              maxLength={650}
+              placeholder="Project description..."
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
+              className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-semibold leading-6 text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+            />
 
-            const reader = new FileReader()
+            <span className="absolute bottom-3 right-3 text-[10px] font-semibold text-[#86899B]">
+              {descriptionLength}/650
+            </span>
+          </div>
+        </div>
 
-            reader.onload = () => {
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+            Thumbnail
+          </label>
+
+          <label className="flex h-[96px] cursor-pointer items-center gap-4 rounded-lg border border-[#2E7E87] bg-[#14201f] px-3 transition hover:border-secondary-default">
+            <div className="grid h-[72px] w-[96px] shrink-0 place-items-center overflow-hidden rounded border border-secondary-default bg-[#3A3150]">
+              {material.thumbnail ? (
+                <img
+                  src={material.thumbnail}
+                  alt="Thumbnail"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <ImageIcon className="size-9 text-[#9CA0AA]" />
+              )}
+            </div>
+
+            <span className="text-sm font-semibold text-white">
+              Add Picture
+            </span>
+
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+
+                reader.onload = () => {
+                  setMaterial((prev) => ({
+                    ...prev,
+                    thumbnail: reader.result,
+                    thumbnailName: file.name,
+                    thumbnailType: file.type,
+                  }));
+                };
+
+                reader.readAsDataURL(file);
+              }}
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-base font-semibold text-[#86899B]">
+            Available on the marketplace
+          </span>
+
+          <Switch
+            checked={material.availableOnMarketplace || false}
+            onCheckedChange={(checked) =>
               setMaterial((prev) => ({
                 ...prev,
-                thumbnail: reader.result,
-                thumbnailName: file.name,
-                thumbnailType: file.type,
+                availableOnMarketplace: checked,
               }))
             }
-
-            reader.readAsDataURL(file)
-          }}
-          style={{ display: "none" }}
-        />
-      </label>
-
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          fontSize: 12,
-          color: "#9ca3af",
-        }}
-      >
-        <span>Available on the marketplace</span>
-
-        <input
-          type="checkbox"
-          checked={material.availableOnMarketplace || false}
-          onChange={(e) =>
-            setMaterial((prev) => ({
-              ...prev,
-              availableOnMarketplace: e.target.checked,
-            }))
-          }
-        />
+          />
+        </div>
       </div>
-    </>
-  )
+    </div>
+  );
 }
