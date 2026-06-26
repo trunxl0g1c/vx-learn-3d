@@ -1,5 +1,5 @@
 import { Canvas } from "@react-three/fiber"
-import { Suspense } from "react"
+import { Suspense, useRef } from "react"
 import {
   OrbitControls,
   Bounds,
@@ -49,7 +49,7 @@ export default function PlayerSceneCanvas({
       </div>
     )
   }
-
+  const modelRootRef = useRef(null)
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
@@ -107,11 +107,14 @@ export default function PlayerSceneCanvas({
       <Suspense fallback={<LoadingModel />}>
         <Bounds fit clip margin={1.2}>
           <Center>
+          <group ref={modelRootRef}>
             <Model
               modelUrl={material.modelUrl}
               markerMode={false}
               onSelectObject={handleSelectObjectFromPlayer}
-              onModelLoaded={handleModelLoaded}
+              onModelLoaded={() => {
+                handleModelLoaded(modelRootRef.current)
+              }}
               selectedAnimations={selectedAnimations}
               animationCommand={animationCommand}
               onAnimationsLoaded={(clips) => {
@@ -136,6 +139,7 @@ export default function PlayerSceneCanvas({
               (activeChapter?.markers || []).map((marker, index) => (
                 <Marker key={marker.id || index} marker={marker} />
               ))}
+          </group>
           </Center>
         </Bounds>
       </Suspense>

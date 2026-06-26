@@ -1,8 +1,7 @@
-import { playerToolButtonStyle } from "../../constants/playerStyles";
 import Button from "../ui/button";
 
 export default function PlayerBottomToolbar({
-  loadJsonFile,
+  loadPlayerFile,
   freePlay,
   setFreePlay,
   setFreePlayMenu,
@@ -35,11 +34,14 @@ export default function PlayerBottomToolbar({
       <div className="flex gap-2 rounded-2xl bg-primary p-2">
         <Button className="text-sm border-contrast-main! w-36 h-10!">
           <label>
-            Load File
+            Open Package
             <input
               type="file"
-              accept=".json"
-              onChange={(e) => loadJsonFile(e.target.files?.[0])}
+              accept=".json,.vxpack"
+              onChange={(e) => {
+                loadPlayerFile(e.target.files?.[0]);
+                e.target.value = "";
+              }}
               style={{ display: "none" }}
             />
           </label>
@@ -82,7 +84,7 @@ export default function PlayerBottomToolbar({
 
         {freePlay && (
           <Button
-          variant={freePlayMenu ? "default" : "outline"}
+            variant={freePlayMenu ? "default" : "outline"}
             className="text-sm border-contrast-main! w-36 h-10!"
             onClick={() => {
               setFreePlayMenu((prev) => !prev);

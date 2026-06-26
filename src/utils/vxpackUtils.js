@@ -1,25 +1,23 @@
-import JSZip from "jszip"
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
-const safeFileName = (name = "file") => {
-  return String(name)
+const createSafeFileName = (name = "vx-package") => {
+  const safeName = String(name || "vx-package")
+    .trim()
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+  return safeName || "vx-package";
+};
+
+const sanitizeAssetFileName = (name = "model.glb") => {
+  return String(name || "model.glb")
     .replaceAll("\\", "/")
     .split("/")
     .pop()
-    .replace(/[^\w.\-() ]+/g, "_")
-}
-
-const downloadBlob = (blob, filename) => {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-
-  URL.revokeObjectURL(url)
-}
+    .replace(/[^\w.\-() ]+/g, "_");
+};
 
 export const exportVXPack = async ({
   material,
@@ -28,21 +26,28 @@ export const exportVXPack = async ({
   shaderMode,
   metalness,
   roughness,
+  onProgress,
 }) => {
   if (!material) {
-    throw new Error("Material belum tersedia")
+    throw new Error("Material belum tersedia");
   }
 
   if (!modelFile) {
-    throw new Error("Load model GLB terlebih dahulu")
+    throw new Error("Load model GLB terlebih dahulu");
   }
 
-  const zip = new JSZip()
+  onProgress?.(0);
 
-  const modelFileName = safeFileName(modelFile.name || "model.glb")
-  const modelPath = `model/${modelFileName}`
+  const zip = new JSZip();
 
-  zip.file(modelPath, modelFile)
+  const modelFileName = sanitizeAssetFileName(modelFile.name || "model.glb");
+  const modelPath = `models/${modelFileName}`;
+
+  onProgress?.(5);
+
+  zip.file(modelPath, modelFile);
+
+  onProgress?.(20);
 
   const manifest = {
     ...material,
@@ -56,44 +61,61 @@ export const exportVXPack = async ({
       metalness,
       roughness,
     },
-  }
+  };
 
-  zip.file("manifest.json", JSON.stringify(manifest, null, 2))
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
 
-  const blob = await zip.generateAsync({
-    type: "blob",
-    compression: "DEFLATE",
-    compressionOptions: {
-      level: 6,
+  onProgress?.(25);
+
+  const blob = await zip.generateAsync(
+    {
+      type: "blob",
+      compression: "STORE",
     },
-  })
+    (metadata) => {
+      const zipPercent = metadata.percent || 0;
+      const totalPercent = 25 + Math.round((zipPercent / 100) * 70);
 
-  downloadBlob(blob, `${safeFileName(material.title || "materi-3d")}.vxpack`)
-}
+      onProgress?.(Math.min(totalPercent, 95));
+    }
+  );
+
+  onProgress?.(98);
+
+  const packageFileName = createSafeFileName(
+    material.title || modelFile.name || "vx-package"
+  );
+
+  saveAs(blob, `${packageFileName}.vxpack`);
+
+  onProgress?.(100);
+
+  return blob;
+};
 
 export const importVXPack = async (file) => {
   if (!file) {
-    throw new Error("File VXPACK tidak ditemukan")
+    throw new Error("File VXPACK tidak ditemukan");
   }
 
-  const zip = await JSZip.loadAsync(file)
-  const manifestFile = zip.file("manifest.json")
+  const zip = await JSZip.loadAsync(file);
+  const manifestFile = zip.file("manifest.json");
 
   if (!manifestFile) {
-    throw new Error("manifest.json tidak ditemukan")
+    throw new Error("manifest.json tidak ditemukan");
   }
 
-  const manifestText = await manifestFile.async("text")
-  const manifest = JSON.parse(manifestText)
+  const manifestText = await manifestFile.async("text");
+  const manifest = JSON.parse(manifestText);
 
-  const modelEntry = zip.file(manifest.modelUrl)
+  const modelEntry = zip.file(manifest.modelUrl);
 
   if (!modelEntry) {
-    throw new Error(`Model ${manifest.modelUrl} tidak ditemukan`)
+    throw new Error(`Model ${manifest.modelUrl} tidak ditemukan`);
   }
 
-  const modelBlob = await modelEntry.async("blob")
-  const modelUrl = URL.createObjectURL(modelBlob)
+  const modelBlob = await modelEntry.async("blob");
+  const modelUrl = URL.createObjectURL(modelBlob);
 
   return {
     manifest: {
@@ -101,9 +123,9 @@ export const importVXPack = async (file) => {
       modelUrl,
       originalModelUrl: manifest.modelUrl,
     },
-  }
-}
+  };
+};
 
 export const isVXPackFile = (file) => {
-  return file?.name?.toLowerCase().endsWith(".vxpack")
-}
+  return file?.name?.toLowerCase().endsWith(".vxpack");
+};

@@ -61,6 +61,43 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
             </span>
           </div>
         </div>
+        
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+            Version
+          </label>
+
+          <input
+            value={material.version || ""}
+            placeholder="1.0.0"
+            onChange={(e) =>
+              setMaterial((prev) => ({
+                ...prev,
+                version: e.target.value,
+              }))
+            }
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+            Author
+          </label>
+
+          <input
+            value={material.author || ""}
+            placeholder="Author name"
+            onChange={(e) =>
+              setMaterial((prev) => ({
+                ...prev,
+                author: e.target.value,
+              }))
+            }
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+          />
+        </div>
+
 
         <div>
           <label className="mb-2 block text-sm font-semibold text-[#86899B]">

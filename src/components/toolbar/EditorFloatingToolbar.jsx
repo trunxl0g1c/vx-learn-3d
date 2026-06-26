@@ -1,17 +1,8 @@
-import {
-  menuButtonStyle,
-  menuStyle,
-  toolButtonStyle,
-  toolbarDockStyle,
-  toolbarInnerStyle,
-} from "../../constants/viewerStyles";
 import Button from "../ui/button";
 
 export default function EditorFloatingToolbar({
   activeMenu,
   setActiveMenu,
-  markerMode,
-  setMarkerMode,
   cutEnabled,
   handleFile,
   toggleCutSection,
@@ -28,55 +19,66 @@ export default function EditorFloatingToolbar({
 
   return (
     <>
+      <input
+        id="upload-model"
+        type="file"
+        accept=".glb,.gltf"
+        onChange={handleFile}
+        hidden
+      />
+
+      <input
+        id="open-vxpack"
+        type="file"
+        accept=".vxpack"
+        onChange={handleFile}
+        hidden
+      />
+
       <div
         onClick={(e) => e.stopPropagation()}
-        className="absolute left-0 right-0 bottom-5 z-120 flex justify-center pointer-none"
+        className="pointer-events-none absolute bottom-5 left-0 right-0 z-[120] flex justify-center"
       >
-        <div className="flex gap-2 rounded-2xl bg-primary p-2">
-          <Button className="text-sm border-contrast-main! w-36 h-10!">
-            <label>
-              Load Model
-              <input
-                type="file"
-                accept=".glb,.gltf"
-                onChange={handleFile}
-                style={{ display: "none" }}
-              />
-            </label>
+        <div className="pointer-events-auto flex gap-2 rounded-2xl bg-primary p-2">
+          <Button
+            onClick={() => document.getElementById("upload-model")?.click()}
+            className="h-10! w-36 border-contrast-main! text-sm"
+          >
+            Upload Model
           </Button>
 
           <Button
-            onClick={() => setMarkerMode(!markerMode)}
-            className="text-sm border-contrast-main! w-36 h-10!"
+            onClick={() => document.getElementById("open-vxpack")?.click()}
+            className="h-10! w-36 border-contrast-main! text-sm"
           >
-            {markerMode ? "Marker ON" : "Marker OFF"}
+            Open Package
           </Button>
 
           <Button
             variant={cutEnabled ? "outline" : "default"}
             onClick={toggleCutSection}
-            className="text-sm border-contrast-main! w-36 h-10!"
+            className="h-10! w-36 border-contrast-main! text-sm"
           >
             {cutEnabled ? "Cut ON" : "Cut OFF"}
           </Button>
 
           <Button
             onClick={() => toggleMenu("view")}
-            className="text-sm border-contrast-main! w-36 h-10!"
+            className="h-10! w-36 border-contrast-main! text-sm"
           >
             View
           </Button>
 
           <Button
             onClick={hideSelectedObject}
-            className="text-sm border-contrast-main! w-36 h-10!"
+            className="h-10! w-36 border-contrast-main! text-sm"
           >
             Hide Selected
           </Button>
 
           <Button
             onClick={resetXray}
-            className="text-sm border-contrast-main! w-36 h-10!"
+            className="h-10! w-36 border-contrast-main! text-sm"
           >
             Reset X-Ray
           </Button>
@@ -86,7 +88,7 @@ export default function EditorFloatingToolbar({
       {activeMenu === "view" && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="absolute left-1/2 bottom-20 transform -translate-x-1/4 flex flex-col gap-3 p-3 rounded-xl bg-primary z-120"
+          className="pointer-events-auto absolute bottom-20 left-1/2 z-[120] flex -translate-x-1/4 transform flex-col gap-3 rounded-xl bg-primary p-3"
         >
           <Button size="sm" onClick={pullApart}>
             Pull Apart

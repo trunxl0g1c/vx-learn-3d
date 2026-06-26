@@ -1,3 +1,6 @@
+import { useEffect, useRef, useState } from "react";
+import { exportVXPack } from "../utils/vxpackUtils";
+
 export function useChapterManager({
   selectedObjectName,
   cameraRef,
@@ -6,6 +9,7 @@ export function useChapterManager({
   material,
   setMaterial,
   materialModelUrl,
+  modelFile,
   viewerSettings,
   shaderMode,
   metalness,
@@ -19,14 +23,53 @@ export function useChapterManager({
 }) {
   const activeChapter = material.chapters.find(
     (chapter) => chapter.id === activeChapterId
-  )
+  );
 
-  const activeMarkers = activeChapter?.markers || []
+  const activeMarkers = activeChapter?.markers || [];
+
+  const [isSavingPackage, setIsSavingPackage] = useState(false);
+  const [savePackageProgress, setSavePackageProgress] = useState(0);
+  const [savePackageTargetProgress, setSavePackageTargetProgress] = useState(0);
+  const [savePackageStatus, setSavePackageStatus] = useState("");
+
+  const progressRef = useRef(0);
+
+  useEffect(() => {
+    progressRef.current = savePackageProgress;
+  }, [savePackageProgress]);
+
+  useEffect(() => {
+    if (!isSavingPackage) return;
+
+    const timer = setInterval(() => {
+      setSavePackageProgress((current) => {
+        if (current >= savePackageTargetProgress) return current;
+
+        const diff = savePackageTargetProgress - current;
+        const step = Math.max(1, Math.ceil(diff / 8));
+
+        return Math.min(current + step, savePackageTargetProgress);
+      });
+    }, 16);
+
+    return () => clearInterval(timer);
+  }, [isSavingPackage, savePackageTargetProgress]);
+
+  const waitUntilProgress = (target) => {
+    return new Promise((resolve) => {
+      const timer = setInterval(() => {
+        if (progressRef.current >= target) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 20);
+    });
+  };
 
   const createChapterFromSelectedObject = () => {
     if (!selectedObjectName) {
-      alert("Pilih object 3D dulu")
-      return
+      alert("Pilih object 3D dulu");
+      return;
     }
 
     const newChapter = {
@@ -59,77 +102,115 @@ export function useChapterManager({
           ]
         : [0, 0, 0],
       callouts: [],
-    }
+    };
 
     setMaterial((prev) => ({
       ...prev,
       chapters: [...prev.chapters, newChapter],
-    }))
+    }));
 
-    setActiveChapterId(newChapter.id)
-    setRightTab("chapter")
-  }
+    setActiveChapterId(newChapter.id);
+    setRightTab("chapter");
+  };
 
-  const saveMaterial = () => {
-    const data = {
-      ...material,
-      modelUrl: materialModelUrl,
-      viewerSettings: {
-        ...viewerSettings,
+  const saveMaterial = async () => {
+    if (isSavingPackage) return;
+
+    try {
+      setIsSavingPackage(true);
+      setSavePackageProgress(0);
+      setSavePackageTargetProgress(0);
+      setSavePackageStatus("Preparing package...");
+
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      await exportVXPack({
+        material: {
+          ...material,
+          modelUrl: materialModelUrl,
+        },
+        modelFile,
+        viewerSettings,
         shaderMode,
         metalness,
         roughness,
-      },
+        onProgress: (percent) => {
+          setSavePackageTargetProgress(percent);
+
+          if (percent < 10) {
+            setSavePackageStatus("Preparing package...");
+          } else if (percent < 25) {
+            setSavePackageStatus("Adding model file...");
+          } else if (percent < 95) {
+            setSavePackageStatus("Building package...");
+          } else if (percent < 100) {
+            setSavePackageStatus("Finalizing package...");
+          } else {
+            setSavePackageStatus("Package saved successfully");
+          }
+        },
+      });
+
+      setSavePackageStatus("Finalizing package...");
+      setSavePackageTargetProgress(100);
+
+      await waitUntilProgress(100);
+
+      setSavePackageStatus("Package saved successfully");
+
+      setTimeout(() => {
+        setIsSavingPackage(false);
+        setSavePackageProgress(0);
+        setSavePackageTargetProgress(0);
+        setSavePackageStatus("");
+      }, 1500);
+    } catch (error) {
+      console.error("Gagal menyimpan VX Package:", error);
+
+      setSavePackageStatus(error.message || "Failed to save package");
+      setSavePackageTargetProgress(100);
+      setSavePackageProgress(100);
+
+      setTimeout(() => {
+        setIsSavingPackage(false);
+        setSavePackageProgress(0);
+        setSavePackageTargetProgress(0);
+        setSavePackageStatus("");
+      }, 2500);
     }
-
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    })
-
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-
-    a.href = url
-    a.download = `${material.title || "materi-3d"}.json`
-    a.click()
-
-    URL.revokeObjectURL(url)
-  }
+  };
 
   const updateChapterField = (chapterId, field, value) => {
     setMaterial((prev) => ({
       ...prev,
       chapters: prev.chapters.map((chapter) =>
-        chapter.id === chapterId
-          ? {
-              ...chapter,
-              [field]: value,
-            }
-          : chapter
+        chapter.id === chapterId ? { ...chapter, [field]: value } : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   const saveCameraViewToActiveChapter = () => {
     if (!activeChapterId) {
-      alert("Pilih Bab terlebih dahulu")
-      return
+      alert("Pilih Bab terlebih dahulu");
+      return;
     }
 
     if (!cameraRef.current || !controlsRef.current) {
-      alert("Camera belum siap")
-      return
+      alert("Camera belum siap");
+      return;
     }
 
-    const cameraPos = cameraRef.current.position.clone()
-    const cameraTarget = controlsRef.current.target.clone()
+    const cameraPos = cameraRef.current.position.clone();
+    const cameraTarget = controlsRef.current.target.clone();
 
-    const minDistance = 2.5
-    const currentDistance = cameraPos.distanceTo(cameraTarget)
+    const minDistance = 2.5;
+    const currentDistance = cameraPos.distanceTo(cameraTarget);
 
     if (currentDistance < minDistance) {
-      const direction = cameraPos.clone().sub(cameraTarget).normalize()
-      cameraPos.copy(cameraTarget.clone().add(direction.multiplyScalar(minDistance)))
+      const direction = cameraPos.clone().sub(cameraTarget).normalize();
+      cameraPos.copy(
+        cameraTarget.clone().add(direction.multiplyScalar(minDistance))
+      );
     }
 
     setMaterial((prev) => ({
@@ -150,13 +231,13 @@ export function useChapterManager({
             }
           : chapter
       ),
-    }))
+    }));
 
-    alert("Camera view berhasil disimpan ke Bab aktif")
-  }
+    alert("Camera view berhasil disimpan ke Bab aktif");
+  };
 
   const deleteMarkerFromActiveChapter = (markerId) => {
-    if (!activeChapterId) return
+    if (!activeChapterId) return;
 
     setMaterial((prev) => ({
       ...prev,
@@ -170,38 +251,47 @@ export function useChapterManager({
             }
           : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   const isChapterAnimationSelected = (chapter, animationName) => {
-    return (chapter.animations || []).some((item) => item.name === animationName)
-  }
+    return (chapter.animations || []).some(
+      (item) => item.name === animationName
+    );
+  };
 
   const getChapterAnimationConfig = (chapter, animationName) => {
-    return (chapter.animations || []).find((item) => item.name === animationName) || {
-      name: animationName,
-      loop: false,
-      autoPlay: false,
-    }
-  }
+    return (
+      (chapter.animations || []).find((item) => item.name === animationName) || {
+        name: animationName,
+        loop: false,
+        autoPlay: false,
+      }
+    );
+  };
 
   const toggleChapterAnimation = (chapterId, animationName, checked) => {
     setMaterial((prev) => ({
       ...prev,
       chapters: prev.chapters.map((chapter) => {
-        if (chapter.id !== chapterId) return chapter
+        if (chapter.id !== chapterId) return chapter;
 
-        const currentAnimations = chapter.animations || []
+        const currentAnimations = chapter.animations || [];
 
         if (!checked) {
           return {
             ...chapter,
-            animations: currentAnimations.filter((item) => item.name !== animationName),
-          }
+            animations: currentAnimations.filter(
+              (item) => item.name !== animationName
+            ),
+          };
         }
 
-        const exists = currentAnimations.some((item) => item.name === animationName)
-        if (exists) return chapter
+        const exists = currentAnimations.some(
+          (item) => item.name === animationName
+        );
+
+        if (exists) return chapter;
 
         return {
           ...chapter,
@@ -213,28 +303,30 @@ export function useChapterManager({
               autoPlay: false,
             },
           ],
-        }
+        };
       }),
-    }))
-  }
+    }));
+  };
 
-  const updateChapterAnimationField = (chapterId, animationName, field, value) => {
+  const updateChapterAnimationField = (
+    chapterId,
+    animationName,
+    field,
+    value
+  ) => {
     setMaterial((prev) => ({
       ...prev,
       chapters: prev.chapters.map((chapter) => {
-        if (chapter.id !== chapterId) return chapter
+        if (chapter.id !== chapterId) return chapter;
 
-        const currentAnimations = chapter.animations || []
-        const exists = currentAnimations.some((item) => item.name === animationName)
+        const currentAnimations = chapter.animations || [];
+        const exists = currentAnimations.some(
+          (item) => item.name === animationName
+        );
 
         const nextAnimations = exists
           ? currentAnimations.map((item) =>
-              item.name === animationName
-                ? {
-                    ...item,
-                    [field]: value,
-                  }
-                : item
+              item.name === animationName ? { ...item, [field]: value } : item
             )
           : [
               ...currentAnimations,
@@ -244,52 +336,52 @@ export function useChapterManager({
                 autoPlay: false,
                 [field]: value,
               },
-            ]
+            ];
 
         return {
           ...chapter,
           animations: nextAnimations,
-        }
+        };
       }),
-    }))
-  }
+    }));
+  };
 
   const playAnimationPreview = (chapter) => {
-    const chapterAnimations = chapter.animations || []
+    const chapterAnimations = chapter.animations || [];
 
     if (chapterAnimations.length === 0) {
-      alert("Pilih animasi untuk bab ini terlebih dahulu")
-      return
+      alert("Pilih animasi untuk bab ini terlebih dahulu");
+      return;
     }
 
-    const nextSelectedAnimations = {}
+    const nextSelectedAnimations = {};
 
     animations.forEach((anim) => {
-      const config = chapterAnimations.find((item) => item.name === anim.name)
+      const config = chapterAnimations.find((item) => item.name === anim.name);
 
       nextSelectedAnimations[anim.name] = {
         selected: Boolean(config),
         loop: config?.loop || false,
-      }
-    })
+      };
+    });
 
-    setSelectedAnimations(nextSelectedAnimations)
-    setAnimationCommand(null)
+    setSelectedAnimations(nextSelectedAnimations);
+    setAnimationCommand(null);
 
     setTimeout(() => {
       setAnimationCommand({
         type: "play",
         id: crypto.randomUUID(),
-      })
-    }, 10)
-  }
+      });
+    }, 10);
+  };
 
   const stopAnimationPreview = () => {
     setAnimationCommand({
       type: "stop",
       id: crypto.randomUUID(),
-    })
-  }
+    });
+  };
 
   const addChapterParameter = (chapterId) => {
     setMaterial((prev) => ({
@@ -310,8 +402,8 @@ export function useChapterManager({
             }
           : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   const updateChapterParameter = (chapterId, parameterId, field, value) => {
     setMaterial((prev) => ({
@@ -322,17 +414,14 @@ export function useChapterManager({
               ...chapter,
               parameters: (chapter.parameters || []).map((parameter) =>
                 parameter.id === parameterId
-                  ? {
-                      ...parameter,
-                      [field]: value,
-                    }
+                  ? { ...parameter, [field]: value }
                   : parameter
               ),
             }
           : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   const deleteChapterParameter = (chapterId, parameterId) => {
     setMaterial((prev) => ({
@@ -347,13 +436,13 @@ export function useChapterManager({
             }
           : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   const addChapterMedia = (chapterId, type, file) => {
-    if (!file) return
+    if (!file) return;
 
-    const reader = new FileReader()
+    const reader = new FileReader();
 
     reader.onload = () => {
       setMaterial((prev) => ({
@@ -375,11 +464,11 @@ export function useChapterManager({
               }
             : chapter
         ),
-      }))
-    }
+      }));
+    };
 
-    reader.readAsDataURL(file)
-  }
+    reader.readAsDataURL(file);
+  };
 
   const deleteChapterMedia = (chapterId, mediaId) => {
     setMaterial((prev) => ({
@@ -388,18 +477,23 @@ export function useChapterManager({
         chapter.id === chapterId
           ? {
               ...chapter,
-              media: (chapter.media || []).filter((media) => media.id !== mediaId),
+              media: (chapter.media || []).filter(
+                (media) => media.id !== mediaId
+              ),
             }
           : chapter
       ),
-    }))
-  }
+    }));
+  };
 
   return {
     activeChapter,
     activeMarkers,
     createChapterFromSelectedObject,
     saveMaterial,
+    isSavingPackage,
+    savePackageProgress,
+    savePackageStatus,
     updateChapterField,
     saveCameraViewToActiveChapter,
     deleteMarkerFromActiveChapter,
@@ -414,5 +508,5 @@ export function useChapterManager({
     deleteChapterParameter,
     addChapterMedia,
     deleteChapterMedia,
-  }
+  };
 }

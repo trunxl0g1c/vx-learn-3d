@@ -41,12 +41,12 @@ export default function VisualTab(props) {
   } = props;
 
   return (
-    <div className="min-h-0 flex-1 space-y-2 overflow-auto sidebar-scroll">
-      <div className="sticky top-0 z-10 flex h-16 items-center bg-dark-alpha px-4 text-lg font-semibold">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex h-16 shrink-0 items-center bg-dark-alpha px-4 text-lg font-semibold">
         Environment Settings
       </div>
 
-      <div className="flex-1 space-y-2 overflow-auto p-4">
+      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -234,22 +234,7 @@ export default function VisualTab(props) {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-secondary-default">
-              Show HDRI Background
-            </span>
-
-            <Switch
-              checked={viewerSettings.showHdriBackground}
-              onCheckedChange={(checked) =>
-                setViewerSettings((prev) => ({
-                  ...prev,
-                  showHdriBackground: checked,
-                }))
-              }
-              className="pointer-events-auto"
-            />
-          </div>
+         
         </div>
       </div>
     </div>

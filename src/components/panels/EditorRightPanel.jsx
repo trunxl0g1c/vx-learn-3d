@@ -13,6 +13,9 @@ export default function EditorRightPanel({
   createChapterFromSelectedObject,
   saveCameraViewToActiveChapter,
   saveMaterial,
+  isSavingPackage,
+  savePackageProgress,
+  savePackageStatus,
   applyShaderMode,
   shaderMode,
   metalness,
@@ -57,6 +60,9 @@ export default function EditorRightPanel({
     createChapterFromSelectedObject,
     saveCameraViewToActiveChapter,
     saveMaterial,
+    isSavingPackage,
+    savePackageProgress,
+    savePackageStatus,
     applyShaderMode,
     shaderMode,
     metalness,
@@ -124,9 +130,9 @@ export default function EditorRightPanel({
         <>
           <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
             {[
-              ["material", "Materi"],
-              ["animation", "Animasi"],
+              ["material", "Package"],
               ["chapter", "Bab"],
+              ["animation", "Animasi"],
             ].map(([id, label]) => (
               <Button
                 key={id}

@@ -1,45 +1,52 @@
-import * as THREE from 'three'
+import * as THREE from "three";
 
 export function useCameraManager({
   modelScene,
   setTargetRotationY,
   setIsAutoRotating,
   focusTargetRef,
+  controlsRef,
 }) {
   const focusObject = (object) => {
-    if (!object || !modelScene) return
+    if (!object || !modelScene) return;
 
-    const box = new THREE.Box3().setFromObject(object)
-    const center = new THREE.Vector3()
-    const size = new THREE.Vector3()
+    const box = new THREE.Box3().setFromObject(object);
+    const center = new THREE.Vector3();
+    const size = new THREE.Vector3();
 
-    box.getCenter(center)
-    box.getSize(size)
+    box.getCenter(center);
+    box.getSize(size);
 
-    const maxSize = Math.max(size.x, size.y, size.z)
-    const distance = maxSize * 4
+    const maxSize = Math.max(size.x, size.y, size.z);
 
-    const modelBox = new THREE.Box3().setFromObject(modelScene)
-    const modelCenter = new THREE.Vector3()
-    modelBox.getCenter(modelCenter)
+    // makin kecil angka ini, makin dekat / makin besar object terlihat
+    const distance = Math.max(maxSize * 1.8, 0.1);
 
-    const direction = center.clone().sub(modelCenter).normalize()
-    const angle = Math.atan2(direction.x, direction.z)
+    const direction = new THREE.Vector3(0.8, 0.45, 1).normalize();
 
-    setTargetRotationY(modelScene.rotation.y - angle)
-    setIsAutoRotating(true)
+    const cameraPosition = center
+      .clone()
+      .add(direction.multiplyScalar(distance));
 
-    if (direction.length() === 0) {
-      direction.set(0, 0, 1)
+    // penting: orbit pivot pindah ke center object
+    if (controlsRef?.current) {
+      controlsRef.current.target.copy(center);
+      controlsRef.current.update();
     }
-
-    const cameraPosition = center.clone().add(direction.multiplyScalar(distance))
 
     focusTargetRef.current = {
       cameraPosition,
       target: center,
-    }
-  }
+    };
 
-  return { focusObject }
+    // jangan auto rotate model saat select object
+    // karena auto rotate masih memakai pivot global model
+    setIsAutoRotating(false);
+
+    if (modelScene) {
+      setTargetRotationY(modelScene.rotation.y);
+    }
+  };
+
+  return { focusObject };
 }

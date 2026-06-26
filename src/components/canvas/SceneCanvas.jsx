@@ -6,7 +6,7 @@ import {
   TransformControls,
   Environment,
 } from '@react-three/drei'
-import { Suspense } from 'react'
+import { Suspense, useRef } from 'react'
 
 import Marker from '../Marker'
 import Model from '../Model'
@@ -45,6 +45,7 @@ export default function SceneCanvas({
   setOutlineObjects,
   setSelectedObjectName,
 }) {
+  const modelRootRef = useRef(null)
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
@@ -102,10 +103,13 @@ export default function SceneCanvas({
         <Suspense fallback={<LoadingModel />}>
           <Bounds fit clip margin={1.2}>
             <Center>
+            <group ref={modelRootRef}>
               <Model
                 modelUrl={modelUrl}
                 onAddMarker={addMarker}
-                onModelLoaded={handleModelLoaded}
+                onModelLoaded={() => {
+                  handleModelLoaded(modelRootRef.current)
+                }}
                 markerMode={markerMode}
                 onSelectObject={selectObjectFromMesh}
                 selectedAnimations={selectedAnimations}
@@ -132,6 +136,7 @@ export default function SceneCanvas({
                   marker={marker}
                 />
               ))}
+            </group>
             </Center>
           </Bounds>
         </Suspense>

@@ -14,6 +14,9 @@ export default function ViewerPageLayout({ controller }) {
     createChapterFromSelectedObject,
     saveCameraViewToActiveChapter,
     saveMaterial,
+    isSavingPackage,
+    savePackageProgress,
+    savePackageStatus,
     applyShaderMode,
     shaderMode,
     metalness,
@@ -84,6 +87,9 @@ export default function ViewerPageLayout({ controller }) {
         createChapterFromSelectedObject={createChapterFromSelectedObject}
         saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
         saveMaterial={saveMaterial}
+        isSavingPackage={isSavingPackage}
+        savePackageProgress={savePackageProgress}
+        savePackageStatus={savePackageStatus}
         applyShaderMode={applyShaderMode}
         shaderMode={shaderMode}
         metalness={metalness}

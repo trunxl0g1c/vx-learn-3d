@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-
+import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
+import { getCurrentUserName } from "../utils/authUser";
 import { applyCutAway } from "../utils/cutAwayUtils";
 import {
   panelSectionStyle,
@@ -27,6 +28,7 @@ import {
 export function useViewerPageController() {
   const [modelScene, setModelScene] = useState(null);
   const [modelUrl, setModelUrl] = useState(null);
+  const [modelFile, setModelFile] = useState(null);
   const [materialModelUrl, setMaterialModelUrl] = useState("");
   const [availableModels, setAvailableModels] = useState([]);
   const [markers, setMarkers] = useState([]);
@@ -53,10 +55,13 @@ export function useViewerPageController() {
   const [orbitEnabled, setOrbitEnabled] = useState(true);
 
   const [selectedObjectName, setSelectedObjectName] = useState("");
+  const currentUserName = getCurrentUserName();
   const [material, setMaterial] = useState({
     id: crypto.randomUUID(),
     title: "Materi 3D Baru",
     description: "",
+    version: "1.0.0",
+    author: currentUserName,
     thumbnail: "",
     availableOnMarketplace: false,
     modelUrl: "",
@@ -99,16 +104,40 @@ export function useViewerPageController() {
       });
   }, []);
 
-  const handleFile = (e) => {
+  const handleFile = async (e) => {
     const file = e.target.files[0];
 
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
+    try {
+      if (isVXPackFile(file)) {
+        const { manifest } = await importVXPack(file);
 
-    setModelUrl(url);
-    setMaterialModelUrl(`/models/${file.name}`);
-    setMarkers([]);
+        setMaterial(manifest);
+        setModelUrl(manifest.modelUrl);
+        setMaterialModelUrl(manifest.originalModelUrl || "");
+        setModelFile(null);
+        setMarkers([]);
+
+        setActiveChapterId(manifest.chapters?.[0]?.id || null);
+        setRightTab("material");
+
+        e.target.value = "";
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+
+      setModelUrl(url);
+      setModelFile(file);
+      setMaterialModelUrl(`/models/${file.name}`);
+      setMarkers([]);
+
+      e.target.value = "";
+    } catch (error) {
+      console.error("Gagal load file:", error);
+      alert(error.message || "Gagal membuka file");
+    }
   };
 
   const xrayMaterialRef = useRef(
@@ -209,6 +238,7 @@ export function useViewerPageController() {
     setTargetRotationY,
     setIsAutoRotating,
     focusTargetRef,
+    controlsRef,
   });
 
   const { addMarker } = useMarkerManager({
@@ -265,6 +295,9 @@ export function useViewerPageController() {
     activeMarkers,
     createChapterFromSelectedObject,
     saveMaterial,
+    isSavingPackage,
+    savePackageProgress,
+    savePackageStatus,
     updateChapterField,
     saveCameraViewToActiveChapter,
     deleteMarkerFromActiveChapter,
@@ -287,6 +320,7 @@ export function useViewerPageController() {
     material,
     setMaterial,
     materialModelUrl,
+    modelFile,
     viewerSettings,
     shaderMode,
     metalness,
@@ -310,6 +344,9 @@ export function useViewerPageController() {
     createChapterFromSelectedObject,
     saveCameraViewToActiveChapter,
     saveMaterial,
+    isSavingPackage,
+    savePackageProgress,
+    savePackageStatus,
     applyShaderMode,
     shaderMode,
     metalness,

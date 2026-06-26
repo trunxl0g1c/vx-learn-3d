@@ -8,6 +8,7 @@ import PlayerToolsMenu from "../../components/player/PlayerToolsMenu"
 import PlayerCutSlider from "../../components/player/PlayerCutSlider"
 import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel"
 import PlayerBottomToolbar from "../../components/player/PlayerBottomToolbar"
+import { importVXPack, isVXPackFile } from "../../utils/vxpackUtils";
 
 export default function PlayerPage() {
 
@@ -84,31 +85,43 @@ export default function PlayerPage() {
     })
   }, [viewerSettings, modelScene])
 
-  const loadJsonFile = async (file) => {
-    if (!file) return
+  const loadPlayerFile = async (file) => {
+    if (!file) return;
 
-    const text = await file.text()
-    const json = JSON.parse(text)
+    try {
+      let json = null;
 
-    setMaterial(json)
-    setActiveChapterId(json.chapters?.[0]?.id || null)
-    setActiveMenu(null)
-    setFreePlay(false)
-    setFreePlayMenu(false)
-    setShowInfoPanel(false)
-    setSelectedObject(null)
-    setOutlineObjects([])
-    setAnimations([])
-    setSelectedAnimations({})
-    setAnimationCommand(null)
+      if (isVXPackFile(file)) {
+        const { manifest } = await importVXPack(file);
+        json = manifest;
+      } else {
+        const text = await file.text();
+        json = JSON.parse(text);
+      }
 
-    if (json.viewerSettings) {
-      setViewerSettings((prev) => ({
-        ...prev,
-        ...json.viewerSettings,
-      }))
+      setMaterial(json);
+      setActiveChapterId(json.chapters?.[0]?.id || null);
+      setActiveMenu(null);
+      setFreePlay(false);
+      setFreePlayMenu(false);
+      setShowInfoPanel(false);
+      setSelectedObject(null);
+      setOutlineObjects([]);
+      setAnimations([]);
+      setSelectedAnimations({});
+      setAnimationCommand(null);
+
+      if (json.viewerSettings) {
+        setViewerSettings((prev) => ({
+          ...prev,
+          ...json.viewerSettings,
+        }));
+      }
+    } catch (error) {
+      console.error("Gagal membuka file player:", error);
+      alert(error.message || "Gagal membuka file player");
     }
-  }
+  };
 
   const normalizeName = (name) => {
     return (name || "")
@@ -611,7 +624,7 @@ export default function PlayerPage() {
         )}
 
         <PlayerBottomToolbar
-          loadJsonFile={loadJsonFile}
+          loadPlayerFile={loadPlayerFile}
           freePlay={freePlay}
           setFreePlay={setFreePlay}
           setFreePlayMenu={setFreePlayMenu}

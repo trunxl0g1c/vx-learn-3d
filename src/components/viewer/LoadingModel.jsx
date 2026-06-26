@@ -1,8 +1,13 @@
 import { Html, useProgress } from "@react-three/drei";
 
 export default function LoadingModel() {
-  const { progress } = useProgress();
-  const percent = Math.round(progress || 0);
+  const { progress, active } = useProgress();
+
+  const rawPercent = Math.round(progress || 0);
+
+  const percent = active
+    ? Math.min(rawPercent, 95)
+    : 100;
 
   return (
     <Html center>
@@ -14,7 +19,9 @@ export default function LoadingModel() {
         <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-accent-main transition-all duration-300"
-            style={{ width: `${percent}%` }}
+            style={{
+              width: `${percent}%`,
+            }}
           />
         </div>
 

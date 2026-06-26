@@ -7,13 +7,15 @@ import ChapterCameraSection from "../chapter/ChapterCameraSection";
 import ChapterAnimationSection from "../chapter/ChapterAnimationSection";
 import ChapterMediaSection from "../chapter/ChapterMediaSection";
 import ChapterDeselectButton from "../chapter/ChapterDeselectButton";
-import { cn } from "../../ui/button";
+import Button, { cn } from "../../ui/button";
 
 export default function ChapterTab(props) {
   const {
     material,
     activeChapterId,
     setActiveChapterId,
+    createChapterFromSelectedObject,
+    selectedObjectName,
     panelSectionStyle,
     inputStyle,
     mediaButtonStyle,
@@ -39,6 +41,25 @@ export default function ChapterTab(props) {
 
   return (
     <div className="flex flex-col gap-1 p-3">
+      <div className="mb-3 rounded-2xl bg-dark-alpha p-3">
+        <div className="mb-2 text-sm text-secondary-default">
+          Object dipilih
+        </div>
+
+        <div className="mb-3 text-base font-semibold">
+          {selectedObjectName || "-"}
+        </div>
+
+        <Button
+          size="sm"
+          onClick={createChapterFromSelectedObject}
+          disabled={!selectedObjectName}
+          className="w-full"
+        >
+          Buat Bab dari Object
+        </Button>
+      </div>
+
       {material.chapters.length === 0 ? (
         <ChapterEmptyState />
       ) : (
@@ -49,8 +70,15 @@ export default function ChapterTab(props) {
             <div
               key={chapter.id}
               onClick={() => setActiveChapterId(chapter.id)}
-              className={cn("mb-3 rounded-2xl")}
+              className={cn(
+                "mb-3 cursor-pointer rounded-2xl border border-divider-main p-3",
+                isActive ? "bg-accent-main/20" : "bg-dark-alpha/60"
+              )}
             >
+              <div className="mb-2 text-sm font-semibold">
+                {chapter.title || "Untitled Chapter"}
+              </div>
+
               {isActive && (
                 <>
                   {markerMode ? (
