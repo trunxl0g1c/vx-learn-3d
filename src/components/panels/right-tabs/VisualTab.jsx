@@ -86,27 +86,7 @@ export default function VisualTab(props) {
             onChange={setRoughness}
           />
 
-          <div className="pt-2">
-            <label className="mb-2 block text-sm font-semibold text-[#86899B]">
-              Lighting
-            </label>
-
-            <SelectField
-              value={viewerSettings.lightingPreset || "Boeing’s Engine"}
-              onChange={(value) =>
-                setViewerSettings((prev) => ({
-                  ...prev,
-                  lightingPreset: value,
-                }))
-              }
-              options={[
-                { label: "Boeing’s Engine", value: "Boeing’s Engine" },
-                { label: "Studio Light", value: "studio" },
-                { label: "Soft Light", value: "soft" },
-                { label: "Industrial Light", value: "industrial" },
-              ]}
-            />
-          </div>
+          
 
           <Slider
             label="Exposure"

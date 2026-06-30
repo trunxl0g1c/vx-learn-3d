@@ -43,7 +43,7 @@ export default function ChapterTab(props) {
     <div className="flex flex-col gap-1 p-3">
       <div className="mb-3 rounded-2xl bg-dark-alpha p-3">
         <div className="mb-2 text-sm text-secondary-default">
-          Object dipilih
+          Object Selected
         </div>
 
         <div className="mb-3 text-base font-semibold">
@@ -56,7 +56,7 @@ export default function ChapterTab(props) {
           disabled={!selectedObjectName}
           className="w-full"
         >
-          Buat Bab dari Object
+          Create Chapter from Selected Object
         </Button>
       </div>
 

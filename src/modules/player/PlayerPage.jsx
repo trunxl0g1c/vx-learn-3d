@@ -35,9 +35,11 @@ export default function PlayerPage() {
   const [animationCommand, setAnimationCommand] = useState(null)
   
   const [cutEnabled, setCutEnabled] = useState(false)
-  const [cutX, setCutX] = useState(0)
+  const [cutAxis, setCutAxis] = useState("x")
+  const [cutValue, setCutValue] = useState(0)
   const [cutMin, setCutMin] = useState(-3)
   const [cutMax, setCutMax] = useState(3)
+  const cutBoundsRef = useRef(null)
 
   const [viewerSettings, setViewerSettings] = useState({
     exposure: 1.8,
@@ -62,8 +64,8 @@ export default function PlayerPage() {
   )
 
   useEffect(() => {
-    applyCutAway(modelScene, cutEnabled, cutX)
-  }, [modelScene, cutEnabled, cutX])
+    applyCutAway(modelScene, cutEnabled, cutValue, cutAxis)
+  }, [modelScene, cutEnabled, cutValue, cutAxis])
 
   useEffect(() => {
     if (!modelScene) return
@@ -176,6 +178,32 @@ export default function PlayerPage() {
     setOutlineObjects(collectMeshes(targetObject))
   }
 
+  const createCutBoundsFromScene = (scene) => {
+    if (!scene) return null
+
+    scene.updateMatrixWorld(true)
+
+    const box = new THREE.Box3().setFromObject(scene)
+
+    return {
+      x: { min: box.min.x, max: box.max.x },
+      y: { min: box.min.y, max: box.max.y },
+      z: { min: box.min.z, max: box.max.z },
+    }
+  }
+
+  const applyCutBoundsForAxis = (axis) => {
+    const bounds = cutBoundsRef.current?.[axis]
+
+    if (!bounds) return
+
+    const mid = (bounds.min + bounds.max) / 2
+
+    setCutMin(bounds.min)
+    setCutMax(bounds.max)
+    setCutValue(mid)
+  }
+
   const applyPlayerShaderMode = (scene, settings) => {
     if (!scene || !settings) return
 
@@ -244,13 +272,21 @@ export default function PlayerPage() {
     })
   }
 
+  const updateCutAxis = (axis) => {
+    setCutAxis(axis)
+
+    if (!cutBoundsRef.current && modelScene) {
+      cutBoundsRef.current = createCutBoundsFromScene(modelScene)
+    }
+
+    applyCutBoundsForAxis(axis)
+  }
+
   const handleModelLoaded = (scene) => {
     setModelScene(scene)
 
-    const box = new THREE.Box3().setFromObject(scene)
-    setCutMin(box.min.x)
-    setCutMax(box.max.x)
-    setCutX((box.min.x + box.max.x) / 2)
+    cutBoundsRef.current = createCutBoundsFromScene(scene)
+    applyCutBoundsForAxis("x")
 
     const positions = []
     const groupPositions = []
@@ -424,16 +460,18 @@ export default function PlayerPage() {
   const resetSection = () => {
     if (!modelScene) return
 
-    const box = new THREE.Box3().setFromObject(modelScene)
-    setCutX((box.min.x + box.max.x) / 2)
+    if (!cutBoundsRef.current) {
+      cutBoundsRef.current = createCutBoundsFromScene(modelScene)
+    }
 
+    applyCutBoundsForAxis(cutAxis)
     resetModelRotationForCut()
   }
 
   const toggleCutSection = () => {
     resetSection()
     setCutEnabled((prev) => !prev)
-    setFreePlayMenu(false)
+    //setFreePlayMenu(true)
   }
 
   const hideSelectedObject = () => {
@@ -606,12 +644,14 @@ export default function PlayerPage() {
           />
         )}
 
-        {freePlay && cutEnabled && !freePlayMenu && (
+        {freePlay && cutEnabled && (
           <PlayerCutSlider
-            cutX={cutX}
+            cutAxis={cutAxis}
+            setCutAxis={updateCutAxis}
+            cutValue={cutValue}
             cutMin={cutMin}
             cutMax={cutMax}
-            setCutX={setCutX}
+            setCutValue={setCutValue}
           />
         )}
 

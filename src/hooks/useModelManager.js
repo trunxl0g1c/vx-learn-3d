@@ -139,7 +139,7 @@ export function useModelManager({
 
   const soloSelectedObject = (selectedObject) => {
     if (!selectedObject || !modelScene) {
-      alert('Pilih object dulu')
+      alert('Select an object first')
       return
     }
 
@@ -154,7 +154,7 @@ export function useModelManager({
 
   const hideSelectedObject = (selectedObject) => {
     if (!selectedObject) {
-      alert('Pilih object dulu')
+      alert('Select an object first')
       return
     }
 

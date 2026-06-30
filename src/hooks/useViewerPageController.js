@@ -38,15 +38,18 @@ export function useViewerPageController() {
 
   const [targetRotationY, setTargetRotationY] = useState(0);
   const [isAutoRotating, setIsAutoRotating] = useState(false);
+
   const cameraRef = useRef();
   const controlsRef = useRef();
   const focusTargetRef = useRef(null);
 
   const [cutEnabled, setCutEnabled] = useState(false);
-  const [cutX, setCutX] = useState(0);
-
+  const [cutAxis, setCutAxis] = useState("x");
+  const [cutValue, setCutValue] = useState(0);
   const [cutMin, setCutMin] = useState(-3);
   const [cutMax, setCutMax] = useState(3);
+  const cutBoundsRef = useRef(null);
+
   const [markerMode, setMarkerMode] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
 
@@ -56,6 +59,7 @@ export function useViewerPageController() {
 
   const [selectedObjectName, setSelectedObjectName] = useState("");
   const currentUserName = getCurrentUserName();
+
   const [material, setMaterial] = useState({
     id: crypto.randomUUID(),
     title: "Materi 3D Baru",
@@ -76,9 +80,9 @@ export function useViewerPageController() {
   const [animations, setAnimations] = useState([]);
   const [selectedAnimations, setSelectedAnimations] = useState({});
   const [animationCommand, setAnimationCommand] = useState(null);
+
   const [viewerSettings, setViewerSettings] = useState({
     exposure: 1.8,
-
     ambientLight: 2.5,
     mainLight: 4,
     fillLight: 2,
@@ -90,11 +94,12 @@ export function useViewerPageController() {
     metalness: 0.3,
     roughness: 0.8,
   });
+
   const [markerScale, setMarkerScale] = useState(0.08);
 
   useEffect(() => {
-    applyCutAway(modelScene, cutEnabled, cutX);
-  }, [cutEnabled, cutX, modelScene]);
+    applyCutAway(modelScene, cutEnabled, cutValue, cutAxis);
+  }, [modelScene, cutEnabled, cutValue, cutAxis]);
 
   useEffect(() => {
     fetch("/models/models.json")
@@ -103,6 +108,20 @@ export function useViewerPageController() {
         setAvailableModels(data);
       });
   }, []);
+
+  const updateCutAxis = (axis) => {
+    const bounds = cutBoundsRef.current?.[axis];
+
+    if (!bounds) {
+      setCutAxis(axis);
+      return;
+    }
+
+    setCutAxis(axis);
+    setCutMin(bounds.min);
+    setCutMax(bounds.max);
+    setCutValue((bounds.min + bounds.max) / 2);
+  };
 
   const handleFile = async (e) => {
     const file = e.target.files[0];
@@ -141,15 +160,15 @@ export function useViewerPageController() {
   };
 
   const xrayMaterialRef = useRef(
-    new THREE.MeshStandardMaterial({
-      color: 0x333333,
+    new THREE.MeshPhysicalMaterial({
+      color: "#4fc3f7",
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.22,
+      roughness: 0.2,
+      metalness: 0,
       depthWrite: false,
       depthTest: true,
-      metalness: 0,
-      roughness: 1,
-    }),
+    })
   );
 
   const [markerDialogOpen, setMarkerDialogOpen] = useState(false);
@@ -218,7 +237,7 @@ export function useViewerPageController() {
     setObjectList,
     setCutMin,
     setCutMax,
-    setCutX,
+    setCutX: setCutValue,
     setMarkerScale,
     viewerSettings,
     setSelectedObject,
@@ -229,17 +248,43 @@ export function useViewerPageController() {
     focusTargetRef,
   });
 
+  const handleModelLoadedWithCutBounds = (scene) => {
+    handleModelLoaded(scene);
+
+    scene.updateMatrixWorld(true);
+
+    const box = new THREE.Box3().setFromObject(scene);
+
+    cutBoundsRef.current = {
+      x: { min: box.min.x, max: box.max.x },
+      y: { min: box.min.y, max: box.max.y },
+      z: { min: box.min.z, max: box.max.z },
+    };
+
+    const bounds = cutBoundsRef.current[cutAxis];
+
+    setCutMin(bounds.min);
+    setCutMax(bounds.max);
+    setCutValue((bounds.min + bounds.max) / 2);
+  };
+
   const toggleCutSection = () => toggleCutSectionBase(setCutEnabled);
   const soloSelectedObject = () => soloSelectedObjectBase(selectedObject);
   const hideSelectedObject = () => hideSelectedObjectBase(selectedObject);
 
-  const { focusObject } = useCameraManager({
+  const { focusObject, resetCameraToInitialView } = useCameraManager({
     modelScene,
     setTargetRotationY,
     setIsAutoRotating,
     focusTargetRef,
     controlsRef,
+    cameraRef,
   });
+
+  const resetAllWithCamera = () => {
+    resetAllTransforms();
+    resetCameraToInitialView();
+  };
 
   const { addMarker } = useMarkerManager({
     activeChapterId,
@@ -386,13 +431,14 @@ export function useViewerPageController() {
     outlineObjects,
     modelUrl,
     addMarker,
-    handleModelLoaded,
+    handleModelLoaded: handleModelLoadedWithCutBounds,
     markerMode,
     setMarkerMode,
     selectObjectFromMesh,
     selectedAnimations,
     setSelectedAnimations,
     animationCommand,
+    setAnimationCommand,
     activeMarkers,
     modelScene,
     targetRotationY,
@@ -407,16 +453,18 @@ export function useViewerPageController() {
     setOutlineObjects,
     setSelectedObjectName,
     cutEnabled,
-    cutX,
+    cutAxis,
+    updateCutAxis,
+    cutValue,
     cutMin,
     cutMax,
-    setCutX,
+    setCutValue,
     handleFile,
     toggleCutSection,
     hideSelectedObject,
     resetXray,
     pullApart,
-    resetAllTransforms,
+    resetAllTransforms: resetAllWithCamera,
     soloSelectedObject,
     showAllObjects,
     objectList,

@@ -23,6 +23,15 @@ function Model({
   const actionsRef = useRef({});
 
   useEffect(() => {
+    if (!scene.userData.__vxCentered) {
+      const box = new THREE.Box3().setFromObject(scene);
+      const center = box.getCenter(new THREE.Vector3());
+
+      scene.position.sub(center);
+      scene.userData.__vxCentered = true;
+      scene.userData.__vxCenterOffset = center.toArray();
+    }
+
     mixerRef.current = new THREE.AnimationMixer(scene);
     actionsRef.current = {};
 
@@ -53,8 +62,11 @@ function Model({
     if (!animationCommand) return;
 
     if (animationCommand.type === "play") {
+      const animationConfig =
+        animationCommand.selectedAnimations || selectedAnimations || {};
+
       Object.entries(actionsRef.current).forEach(([name, action]) => {
-        const config = selectedAnimations?.[name];
+        const config = animationConfig[name];
 
         if (!config?.selected) {
           action.stop();

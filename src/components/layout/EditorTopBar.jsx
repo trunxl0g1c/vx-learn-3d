@@ -1,7 +1,9 @@
 import { ChevronDown, CircleCheckBig, CircleUser, Share2 } from "lucide-react";
 import Button from "../ui/button";
+import { getCurrentUserName } from "../../utils/authUser";
 
 export default function EditorTopBar({ title }) {
+  const currentUserName = getCurrentUserName();
   return (
     <div className="h-[64px] z-150 border-b border-divider-main bg-primary flex items-center justify-between px-10">
       <div className="flex justify-center items-center gap-13">
@@ -31,7 +33,7 @@ export default function EditorTopBar({ title }) {
           size="sm"
           className="flex border-none items-center"
         >
-          <span className="text-base font-semibold">Jhon</span>
+          <span>{currentUserName || "Guest"}</span>
           <ChevronDown className="size-4.5" />
           <CircleUser className="size-6" />
         </Button>

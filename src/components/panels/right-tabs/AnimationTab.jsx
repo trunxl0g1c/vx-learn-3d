@@ -45,7 +45,7 @@ export default function AnimationTab(props) {
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="bg-dark-alpha p-3 rounded-2xl mb-3">
-        <h3 className="font-bold text-base mb-3">Animasi Advance</h3>
+        <h3 className="font-bold text-base mb-3">Advanced Animations</h3>
 
         {animations.length === 0 ? (
           <div
@@ -54,7 +54,7 @@ export default function AnimationTab(props) {
               color: "#9ca3af",
             }}
           >
-            Tidak ada animasi pada model ini
+            No animations available for this model
           </div>
         ) : (
           <>
@@ -156,11 +156,30 @@ export default function AnimationTab(props) {
                 size="sm"
                 className="flex-1"
                 onClick={() => {
+                  const selected = {};
+
+                  animations.forEach((anim) => {
+                    const config = selectedAnimations?.[anim.name];
+
+                    if (config?.selected) {
+                      selected[anim.name] = {
+                        selected: true,
+                        loop: Boolean(config.loop),
+                      };
+                    }
+                  });
+
+                  if (Object.keys(selected).length === 0) {
+                    alert("Please select at least one animation.");
+                    return;
+                  }
+
                   setAnimationCommand(null);
 
                   setTimeout(() => {
                     setAnimationCommand({
                       type: "play",
+                      selectedAnimations: selected,
                       id: crypto.randomUUID(),
                     });
                   }, 10);

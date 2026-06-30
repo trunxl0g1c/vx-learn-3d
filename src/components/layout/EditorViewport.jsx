@@ -39,10 +39,12 @@ export default function EditorViewport({ controller }) {
     setOutlineObjects,
     setSelectedObjectName,
     cutEnabled,
-    cutX,
+    cutAxis,
+    updateCutAxis,
+    cutValue,
     cutMin,
     cutMax,
-    setCutX,
+    setCutValue,
     handleFile,
     toggleCutSection,
     hideSelectedObject,
@@ -128,12 +130,14 @@ export default function EditorViewport({ controller }) {
         showAllObjects={showAllObjects}
       />
 
-      {cutEnabled && !activeMenu && (
+      {cutEnabled && (
         <CutSectionSlider
-          cutX={cutX}
+          cutAxis={cutAxis}
+          setCutAxis={updateCutAxis}
+          cutValue={cutValue}
           cutMin={cutMin}
           cutMax={cutMax}
-          setCutX={setCutX}
+          setCutValue={setCutValue}
         />
       )}
 

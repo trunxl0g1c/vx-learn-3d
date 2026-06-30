@@ -10,8 +10,8 @@ export default function ChapterEmptyState() {
         lineHeight: 1.5,
       }}
     >
-      Belum ada Bab. Pilih object dari hierarchy lalu klik
-      <strong style={{ color: "white" }}> Buat Bab dari Object</strong>.
+      No chapters yet. Select an object from the hierarchy, then click Create Chapter from Object.
+      <strong style={{ color: "white" }}> Create Chapter from Selected Object</strong>.
     </div>
   )
 }

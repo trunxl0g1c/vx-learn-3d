@@ -6,6 +6,7 @@ export function useCameraManager({
   setIsAutoRotating,
   focusTargetRef,
   controlsRef,
+  cameraRef,
 }) {
   const focusObject = (object) => {
     if (!object || !modelScene) return;
@@ -47,6 +48,33 @@ export function useCameraManager({
       setTargetRotationY(modelScene.rotation.y);
     }
   };
+  const resetCameraToInitialView = () => {
+    if (!modelScene || !cameraRef?.current || !controlsRef?.current) return;
 
-  return { focusObject };
+    const box = new THREE.Box3().setFromObject(modelScene);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+
+    const maxSize = Math.max(size.x, size.y, size.z);
+    const distance = Math.max(maxSize * 2.5, 3);
+
+    const direction = new THREE.Vector3(0.8, 0.45, 1).normalize();
+
+    const cameraPosition = center
+      .clone()
+      .add(direction.multiplyScalar(distance));
+
+    controlsRef.current.target.copy(center);
+    controlsRef.current.update();
+
+    focusTargetRef.current = {
+      cameraPosition,
+      target: center,
+    };
+
+    setIsAutoRotating(false);
+    setTargetRotationY(modelScene.rotation.y);
+  };
+
+  return { focusObject, resetCameraToInitialView };
 }

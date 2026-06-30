@@ -131,8 +131,8 @@ export default function EditorRightPanel({
           <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
             {[
               ["material", "Package"],
-              ["chapter", "Bab"],
-              ["animation", "Animasi"],
+              ["chapter", "Chapter"],
+              ["animation", "Animation"],
             ].map(([id, label]) => (
               <Button
                 key={id}
