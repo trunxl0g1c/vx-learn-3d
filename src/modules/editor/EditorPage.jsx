@@ -1,9 +1,34 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import { getProject } from "../project-hub/storage/projectStorage";
 import { createDefaultMaterial } from "../material/defaultMaterial";
 import { createChapter, downloadMaterialJson } from "../material/materialUtils";
 
 export default function EditorPage() {
-  const [material, setMaterial] = useState(createDefaultMaterial());
+  const { projectId } = useParams();
+  const project = getProject(projectId);
+
+  const initialMaterial = useMemo(() => {
+    const defaultMaterial = createDefaultMaterial();
+
+    return {
+      ...defaultMaterial,
+      title: project?.name || defaultMaterial.title,
+      modelUrl: project?.fileName || defaultMaterial.modelUrl,
+      projectId: project?.id || null,
+    };
+  }, [project]);
+
+  const [material, setMaterial] = useState(initialMaterial);
+
+  if (!project) {
+    return (
+      <div style={{ color: "white", padding: 40 }}>
+        <h1>Project tidak ditemukan</h1>
+        <p>Kembali ke halaman VXplore lalu pilih project lagi.</p>
+      </div>
+    );
+  }
 
   const updateTitle = (value) => {
     setMaterial((prev) => ({
@@ -46,7 +71,7 @@ export default function EditorPage() {
         <div>
           <h1 className="text-2xl font-bold">3D Material Editor</h1>
           <p className="text-slate-400">
-            Buat materi 3D, chapter, deskripsi, lalu simpan sebagai JSON.
+            Project: {project.name} — File: {project.fileName}
           </p>
         </div>
 

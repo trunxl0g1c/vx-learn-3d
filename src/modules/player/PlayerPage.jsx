@@ -1,5 +1,8 @@
 import { useRef, useState, useEffect } from "react"
+import { useParams } from "react-router-dom"
+import useProjectLoader from "../../core/project/useProjectLoader"
 import * as THREE from "three"
+import { useGlobalLoading } from "../loading/LoadingContext"
 
 import { applyCutAway } from "../../utils/cutAwayUtils"
 import PlayerSceneCanvas from "../../components/player/PlayerSceneCanvas"
@@ -8,11 +11,20 @@ import PlayerToolsMenu from "../../components/player/PlayerToolsMenu"
 import PlayerCutSlider from "../../components/player/PlayerCutSlider"
 import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel"
 import PlayerBottomToolbar from "../../components/player/PlayerBottomToolbar"
-import { importVXPack, isVXPackFile } from "../../utils/vxpackUtils";
+import { importVXPack, isVXPackFile } from "../../utils/vxpackUtils"
 
 export default function PlayerPage() {
+  const { projectId } = useParams()
+  const { updateLoading, hideLoading } = useGlobalLoading()
 
-  
+  const {
+    loadProject,
+    glbFileName,
+    isLoadingProject,
+    loadError,
+  } = useProjectLoader()
+
+
   const [material, setMaterial] = useState(null)
   const [activeChapterId, setActiveChapterId] = useState(null)
   const [modelScene, setModelScene] = useState(null)
@@ -27,13 +39,12 @@ export default function PlayerPage() {
   const [originalPositions, setOriginalPositions] = useState([])
   const [originalGroupPositions, setOriginalGroupPositions] = useState([])
 
-  const [transformMode, setTransformMode] =
-  useState("translate")
+  const [transformMode, setTransformMode] = useState("translate")
 
   const [, setAnimations] = useState([])
   const [selectedAnimations, setSelectedAnimations] = useState({})
   const [animationCommand, setAnimationCommand] = useState(null)
-  
+
   const [cutEnabled, setCutEnabled] = useState(false)
   const [cutAxis, setCutAxis] = useState("x")
   const [cutValue, setCutValue] = useState(0)
@@ -64,6 +75,90 @@ export default function PlayerPage() {
   )
 
   useEffect(() => {
+    hideLoading()
+  }, [hideLoading])
+
+  useEffect(() => {
+    if (!projectId || projectId === "demo") return
+
+    let cancelled = false
+
+    async function openProjectForPlayer() {
+      try {
+        updateLoading({
+          title: "Opening Player",
+          text: "Loading project for player...",
+          progress: null,
+        })
+
+        const loaded = await loadProject(projectId)
+
+        if (!loaded || cancelled) {
+          hideLoading()
+          return
+        }
+
+        const nextMaterial =
+          loaded.material ||
+          loaded.projectDraft?.material ||
+          loaded.project?.material ||
+          null
+
+        const nextViewer =
+          loaded.viewer ||
+          loaded.projectDraft?.viewer ||
+          loaded.project?.viewer ||
+          null
+
+        if (nextMaterial) {
+          setMaterial({
+            ...nextMaterial,
+
+            modelUrl: loaded.glbUrl,
+            modelFileName: loaded.glbFileName || glbFileName,
+
+            model: {
+              ...(nextMaterial.model || {}),
+              uri: loaded.glbUrl,
+              fileName: loaded.glbFileName || glbFileName,
+            },
+          })
+
+          setActiveChapterId(nextMaterial.chapters?.[0]?.id || null)
+        }
+
+        if (nextViewer) {
+          setViewerSettings((prev) => ({
+            ...prev,
+            ...nextViewer,
+          }))
+        }
+
+        setActiveMenu("chapters")
+        setFreePlay(false)
+        setFreePlayMenu(false)
+        setShowInfoPanel(true)
+        setSelectedObject(null)
+        setOutlineObjects([])
+        setAnimations([])
+        setSelectedAnimations({})
+        setAnimationCommand(null)
+      } catch (error) {
+        console.error("Gagal membuka project player:", error)
+      } finally {
+        hideLoading()
+      }
+    }
+
+    openProjectForPlayer()
+
+    return () => {
+      cancelled = true
+      hideLoading()
+    }
+  }, [projectId, loadProject, glbFileName, updateLoading, hideLoading])
+
+  useEffect(() => {
     applyCutAway(modelScene, cutEnabled, cutValue, cutAxis)
   }, [modelScene, cutEnabled, cutValue, cutAxis])
 
@@ -88,42 +183,42 @@ export default function PlayerPage() {
   }, [viewerSettings, modelScene])
 
   const loadPlayerFile = async (file) => {
-    if (!file) return;
+    if (!file) return
 
     try {
-      let json = null;
+      let json = null
 
       if (isVXPackFile(file)) {
-        const { manifest } = await importVXPack(file);
-        json = manifest;
+        const { manifest } = await importVXPack(file)
+        json = manifest
       } else {
-        const text = await file.text();
-        json = JSON.parse(text);
+        const text = await file.text()
+        json = JSON.parse(text)
       }
 
-      setMaterial(json);
-      setActiveChapterId(json.chapters?.[0]?.id || null);
-      setActiveMenu(null);
-      setFreePlay(false);
-      setFreePlayMenu(false);
-      setShowInfoPanel(false);
-      setSelectedObject(null);
-      setOutlineObjects([]);
-      setAnimations([]);
-      setSelectedAnimations({});
-      setAnimationCommand(null);
+      setMaterial(json)
+      setActiveChapterId(json.chapters?.[0]?.id || null)
+      setActiveMenu(null)
+      setFreePlay(false)
+      setFreePlayMenu(false)
+      setShowInfoPanel(false)
+      setSelectedObject(null)
+      setOutlineObjects([])
+      setAnimations([])
+      setSelectedAnimations({})
+      setAnimationCommand(null)
 
       if (json.viewerSettings) {
         setViewerSettings((prev) => ({
           ...prev,
           ...json.viewerSettings,
-        }));
+        }))
       }
     } catch (error) {
-      console.error("Gagal membuka file player:", error);
-      alert(error.message || "Gagal membuka file player");
+      console.error("Gagal membuka file player:", error)
+      alert(error.message || "Gagal membuka file player")
     }
-  };
+  }
 
   const normalizeName = (name) => {
     return (name || "")
@@ -282,9 +377,12 @@ export default function PlayerPage() {
     applyCutBoundsForAxis(axis)
   }
 
-  const handleModelLoaded = (scene) => {
+  const handleModelLoaded = (scene, gltf = null) => {
+    
+
     setModelScene(scene)
 
+   
     cutBoundsRef.current = createCutBoundsFromScene(scene)
     applyCutBoundsForAxis("x")
 
@@ -345,8 +443,9 @@ export default function PlayerPage() {
         ),
       }
     }
+
     setTimeout(() => {
-    setActiveMenu("chapters")
+      setActiveMenu("chapters")
       setShowInfoPanel(true)
     }, 300)
   }
@@ -471,7 +570,6 @@ export default function PlayerPage() {
   const toggleCutSection = () => {
     resetSection()
     setCutEnabled((prev) => !prev)
-    //setFreePlayMenu(true)
   }
 
   const hideSelectedObject = () => {
@@ -521,9 +619,7 @@ export default function PlayerPage() {
 
     window.speechSynthesis.cancel()
 
-    const utterance = new SpeechSynthesisUtterance(
-      activeChapter.description
-    )
+    const utterance = new SpeechSynthesisUtterance(activeChapter.description)
 
     utterance.lang = "id-ID"
     utterance.rate = 1
@@ -580,9 +676,15 @@ export default function PlayerPage() {
       id: crypto.randomUUID(),
     })
   }
-  
 
-  
+  if (isLoadingProject) {
+    return <div style={{ padding: 24 }}>Loading project...</div>
+  }
+
+  if (loadError) {
+    return <div style={{ padding: 24 }}>{loadError}</div>
+  }
+
   return (
     <div
       style={{

@@ -105,6 +105,7 @@ export default function SceneCanvas({
             <Center>
             <group ref={modelRootRef}>
               <Model
+                key={modelUrl}
                 modelUrl={modelUrl}
                 onAddMarker={addMarker}
                 onModelLoaded={() => {

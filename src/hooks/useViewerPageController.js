@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useProjectStore } from "../modules/project-store/ProjectStoreContext";
+import { useParams } from "react-router-dom";
 import * as THREE from "three";
+import useProjectLoader from "../core/project/useProjectLoader";
+import { useGlobalLoading } from "../modules/loading/LoadingContext";
+import { saveProjectDraftToIndexedDb } from "../modules/project-hub/storage/projectIndexedDb";
+
 import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
 import { getCurrentUserName } from "../utils/authUser";
 import { applyCutAway } from "../utils/cutAwayUtils";
@@ -26,6 +32,24 @@ import {
 } from "../utils/selectionUtils";
 
 export function useViewerPageController() {
+  const { projectId } = useParams();
+  const { updateLoading, hideLoading } = useGlobalLoading();
+
+  const {
+    loadProject,
+  } = useProjectLoader();
+
+  const {
+    dirty,
+    saveStatus,
+    setSaveStatus,
+    markDirty,
+    markSaved,
+    markSaveError,
+    setCurrentProject,
+    setProjectDraft,
+  } = useProjectStore();
+
   const [modelScene, setModelScene] = useState(null);
   const [modelUrl, setModelUrl] = useState(null);
   const [modelFile, setModelFile] = useState(null);
@@ -72,6 +96,11 @@ export function useViewerPageController() {
     chapters: [],
   });
 
+  const updateMaterialState = (updater) => {
+    markDirty();
+    setMaterial(updater);
+  };
+
   const [activeChapterId, setActiveChapterId] = useState(null);
   const [rightTab, setRightTab] = useState("material");
 
@@ -96,6 +125,183 @@ export function useViewerPageController() {
   });
 
   const [markerScale, setMarkerScale] = useState(0.08);
+
+  useEffect(() => {
+    if (!projectId || projectId === "demo") return;
+
+    let cancelled = false;
+
+    async function openProject() {
+      try {
+        updateLoading({
+          title: "Opening VXplore Project",
+          text: "Reading project data...",
+          progress: null,
+        });
+
+        const loaded = await loadProject(projectId);
+
+        if (!loaded || cancelled) {
+          hideLoading();
+          return;
+        }
+
+        const {
+          project,
+          projectFile,
+          projectDraft,
+          glbUrl,
+          glbFileName,
+          material,
+          viewer,
+          scene,
+        } = loaded;
+
+        setCurrentProject(project);
+        setProjectDraft(projectDraft);
+
+        updateLoading({
+          text: `Opening ${project.name}...`,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        if (cancelled) return;
+
+        updateLoading({
+          text: "Loading 3D model...",
+        });
+
+        setModelUrl(glbUrl);
+        setModelFile(projectFile);
+        setMaterialModelUrl(glbFileName || project.fileName || "");
+
+        setMaterial((prev) => ({
+          ...prev,
+          ...(material || {}),
+          projectId: project.id,
+          projectName: project.name,
+        }));
+
+        if (viewer) {
+          setViewerSettings((prev) => ({
+            ...prev,
+            ...viewer,
+          }));
+        }
+
+        if (scene?.markers) {
+          setMarkers(scene.markers);
+        }
+      } catch (error) {
+        console.error("Gagal membuka project:", error);
+
+        updateLoading({
+          title: "Failed to Open Project",
+          text: error?.message || "Unknown error",
+          progress: null,
+        });
+
+        setTimeout(() => {
+          hideLoading();
+        }, 1200);
+      }
+    }
+
+    openProject();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    projectId,
+    loadProject,
+    updateLoading,
+    hideLoading,
+    setCurrentProject,
+    setProjectDraft,
+  ]);
+
+  useEffect(() => {
+    if (!projectId || projectId === "demo") return;
+    if (!material?.projectId) return;
+    if (!dirty) return;
+
+    setSaveStatus("saving");
+
+    const timer = setTimeout(async () => {
+      try {
+        const draftToSave = {
+          projectId,
+          material,
+          viewer: viewerSettings,
+          scene: {
+            markers,
+            cut: {
+              enabled: cutEnabled,
+              axis: cutAxis,
+              value: cutValue,
+            },
+          },
+          updatedAt: new Date().toISOString(),
+        };
+
+        await saveProjectDraftToIndexedDb(projectId, draftToSave);
+        setProjectDraft(draftToSave);
+
+        markSaved();
+      } catch (error) {
+        console.error("Autosave gagal:", error);
+        markSaveError();
+      }
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [
+    projectId,
+    dirty,
+    material,
+    markers,
+    viewerSettings,
+    cutEnabled,
+    cutAxis,
+    cutValue,
+    setSaveStatus,
+    markSaved,
+    markSaveError,
+    setProjectDraft,
+  ]);
+
+  useEffect(() => {
+    if (!projectId || projectId === "demo") return;
+    if (!material?.projectId) return;
+
+    setProjectDraft((prev) => ({
+      ...(prev || {}),
+      projectId,
+      material,
+      viewer: viewerSettings,
+      scene: {
+        ...(prev?.scene || {}),
+        markers,
+        cut: {
+          enabled: cutEnabled,
+          axis: cutAxis,
+          value: cutValue,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [
+    projectId,
+    material,
+    viewerSettings,
+    markers,
+    cutEnabled,
+    cutAxis,
+    cutValue,
+    setProjectDraft,
+  ]);
 
   useEffect(() => {
     applyCutAway(modelScene, cutEnabled, cutValue, cutAxis);
@@ -266,6 +472,14 @@ export function useViewerPageController() {
     setCutMin(bounds.min);
     setCutMax(bounds.max);
     setCutValue((bounds.min + bounds.max) / 2);
+
+    updateLoading({
+      text: "Preparing scene...",
+    });
+
+    setTimeout(() => {
+      hideLoading();
+    }, 700);
   };
 
   const toggleCutSection = () => toggleCutSectionBase(setCutEnabled);
@@ -288,7 +502,7 @@ export function useViewerPageController() {
 
   const { addMarker } = useMarkerManager({
     activeChapterId,
-    setMaterial,
+    setMaterial: updateMaterialState,
     markers,
     setMarkers,
   });
@@ -363,7 +577,7 @@ export function useViewerPageController() {
     controlsRef,
     modelScene,
     material,
-    setMaterial,
+    setMaterial: updateMaterialState,
     materialModelUrl,
     modelFile,
     viewerSettings,
@@ -381,6 +595,7 @@ export function useViewerPageController() {
   const maxTreeDepth = getMaxTreeDepth(objectList);
 
   return {
+    saveStatus,
     activeSidebar,
     setActiveSidebar,
     rightTab,
@@ -402,7 +617,7 @@ export function useViewerPageController() {
     setViewerSettings,
     updateEnvIntensity,
     material,
-    setMaterial,
+    setMaterial: updateMaterialState,
     activeChapterId,
     setActiveChapterId,
     panelSectionStyle,

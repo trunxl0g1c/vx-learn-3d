@@ -6,6 +6,7 @@ import MarkerDialog from "../panels/chapter/MarkerDialog";
 
 export default function ViewerPageLayout({ controller }) {
   const {
+    saveStatus,
     activeSidebar,
     setActiveSidebar,
     rightTab,
@@ -54,7 +55,6 @@ export default function ViewerPageLayout({ controller }) {
     pendingMarkerName,
     setPendingMarkerName,
     confirmMarkerDialog,
-    cancelMarkerDialog,
     requestAddMarker,
     markerMode,
     cancelAddMarker,
@@ -73,7 +73,7 @@ export default function ViewerPageLayout({ controller }) {
         position: "relative",
       }}
     >
-      <EditorTopBar title={material.title} />
+      <EditorTopBar title={material.title} saveStatus={saveStatus} />
 
       <EditorSidebarRail
         activeSidebar={activeSidebar}
@@ -137,6 +137,8 @@ export default function ViewerPageLayout({ controller }) {
         onClose={cancelAddMarker}
         onSubmit={confirmMarkerDialog}
       />
+      
     </div>
+    
   );
 }

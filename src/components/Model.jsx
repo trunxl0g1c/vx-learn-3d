@@ -55,7 +55,10 @@ function Model({
       })),
     );
 
-    onModelLoaded?.(scene);
+    onModelLoaded?.(scene, {
+      scene,
+      animations,
+    });
   }, [scene, animations]);
 
   useEffect(() => {

@@ -33,6 +33,8 @@ export default function PlayerSceneCanvas({
   handleModelLoaded,
   setAnimations,
 }) {
+  const modelRootRef = useRef(null)
+
   if (!material?.modelUrl) {
     return (
       <div
@@ -49,7 +51,7 @@ export default function PlayerSceneCanvas({
       </div>
     )
   }
-  const modelRootRef = useRef(null)
+
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
@@ -107,39 +109,39 @@ export default function PlayerSceneCanvas({
       <Suspense fallback={<LoadingModel />}>
         <Bounds fit clip margin={1.2}>
           <Center>
-          <group ref={modelRootRef}>
-            <Model
-              modelUrl={material.modelUrl}
-              markerMode={false}
-              onSelectObject={handleSelectObjectFromPlayer}
-              onModelLoaded={() => {
-                handleModelLoaded(modelRootRef.current)
-              }}
-              selectedAnimations={selectedAnimations}
-              animationCommand={animationCommand}
-              onAnimationsLoaded={(clips) => {
-                setAnimations(clips || [])
-              }}
-            />
-
-            {freePlay && selectedObject && (
-              <TransformControls
-                object={selectedObject}
-                mode={transformMode}
-                onMouseDown={() => {
-                  controlsRef.current.enabled = false
+            <group ref={modelRootRef}>
+              <Model
+                modelUrl={material.modelUrl}
+                markerMode={false}
+                onSelectObject={handleSelectObjectFromPlayer}
+                onModelLoaded={(scene, gltf) => {
+                  handleModelLoaded(scene || modelRootRef.current, gltf)
                 }}
-                onMouseUp={() => {
-                  controlsRef.current.enabled = true
+                selectedAnimations={selectedAnimations}
+                animationCommand={animationCommand}
+                onAnimationsLoaded={(clips) => {
+                  setAnimations(clips || [])
                 }}
               />
-            )}
 
-            {!freePlay &&
-              (activeChapter?.markers || []).map((marker, index) => (
-                <Marker key={marker.id || index} marker={marker} />
-              ))}
-          </group>
+              {freePlay && selectedObject && (
+                <TransformControls
+                  object={selectedObject}
+                  mode={transformMode}
+                  onMouseDown={() => {
+                    controlsRef.current.enabled = false
+                  }}
+                  onMouseUp={() => {
+                    controlsRef.current.enabled = true
+                  }}
+                />
+              )}
+
+              {!freePlay &&
+                (activeChapter?.markers || []).map((marker, index) => (
+                  <Marker key={marker.id || index} marker={marker} />
+                ))}
+            </group>
           </Center>
         </Bounds>
       </Suspense>
