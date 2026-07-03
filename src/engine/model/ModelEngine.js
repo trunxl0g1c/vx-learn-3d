@@ -151,28 +151,86 @@ export function createModelEngine(options = {}) {
     return lastState
   }
 
-  const pullApart = (distance = 2.4) => {
-    if (!scene) return
+  const getMeshesInSubtree = (rootObject) => {
+    const meshes = []
+
+    rootObject?.traverse?.((child) => {
+      if (child.isMesh) meshes.push(child)
+    })
+
+    return meshes
+  }
+
+  const getPullApartDirection = (object, center) => {
+    const worldPosition = new THREE.Vector3()
+    object.getWorldPosition(worldPosition)
+
+    const direction = worldPosition.sub(center)
+
+    if (direction.lengthSq() > 0.000001) {
+      return direction.normalize()
+    }
+
+    const localDirection = object.position.clone()
+
+    if (localDirection.lengthSq() > 0.000001) {
+      return localDirection.normalize()
+    }
+
+    return new THREE.Vector3(0, 1, 0)
+  }
+
+  const applyVisibilityForPullApartTarget = (targetObject) => {
+    if (!scene || !targetObject) return
 
     scene.traverse((child) => {
-      if (!child.isMesh) return
+      if (child.isMesh) child.visible = false
+    })
 
-      const direction = child.position.clone().normalize()
+    targetObject.traverse?.((child) => {
+      if (child.isMesh) child.visible = true
+    })
+  }
 
-      if (direction.length() === 0) {
-        direction
-          .set(
-            Math.random() - 0.5,
-            Math.random() - 0.5,
-            Math.random() - 0.5
-          )
-          .normalize()
-      }
+  const pullApart = (targetObject = null, options = {}) => {
+    if (!scene) return false
 
-      child.userData.targetPosition = child.position
+    const {
+      distance = targetObject ? 0.28 : 0.38,
+      hideOutsideSelection = true,
+    } = options
+
+    const meshes = targetObject
+      ? getMeshesInSubtree(targetObject)
+      : originalPositions.map((item) => item.object).filter(Boolean)
+
+    if (meshes.length === 0) return false
+
+    if (targetObject && hideOutsideSelection) {
+      applyVisibilityForPullApartTarget(targetObject)
+    }
+
+    const centerBox = new THREE.Box3()
+
+    meshes.forEach((mesh) => {
+      mesh.updateWorldMatrix?.(true, false)
+      centerBox.expandByObject(mesh)
+    })
+
+    const center = new THREE.Vector3()
+    centerBox.getCenter(center)
+
+    meshes.forEach((mesh) => {
+      const original = originalPositions.find((item) => item.object === mesh)
+      const basePosition = original?.position || mesh.position
+      const direction = getPullApartDirection(mesh, center)
+
+      mesh.userData.targetPosition = basePosition
         .clone()
         .add(direction.multiplyScalar(distance))
     })
+
+    return true
   }
 
   const resetParts = () => {

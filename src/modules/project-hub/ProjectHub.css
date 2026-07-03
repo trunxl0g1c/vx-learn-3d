@@ -55,6 +55,8 @@
 .vxhub-main {
   flex: 1;
   min-width: 0;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .vxhub-topbar {
@@ -72,7 +74,11 @@
 }
 
 .vxhub-content {
+  height: calc(100vh - 66px);
   padding: 16px 134px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .vxhub-toolbar {

@@ -1,4 +1,5 @@
 import {
+  cloneCameraFocusTarget,
   createCameraFocusTargetFromBox,
   createCameraState,
   createDefaultCameraTarget,
@@ -27,6 +28,7 @@ export function createCameraEngine(initialState = {}) {
   let scene = initialState.scene || null
   let lastFocusTarget = initialState.focusTarget || null
   let savedState = initialState.savedState || null
+  let homeState = initialState.homeState || null
 
   const getState = () => ({
     camera,
@@ -34,6 +36,7 @@ export function createCameraEngine(initialState = {}) {
     scene,
     focusTarget: lastFocusTarget,
     savedState,
+    homeState,
   })
 
   const setFocusTarget = (focusTarget, options = {}) => {
@@ -84,7 +87,10 @@ export function createCameraEngine(initialState = {}) {
     },
 
     focusScene(targetScene = scene, options = {}) {
-      const focusTarget = createFocusTargetFromScene(targetScene, options)
+      const focusTarget = createFocusTargetFromScene(targetScene, {
+        ...options,
+        camera: options.camera || camera,
+      })
       return setFocusTarget(focusTarget, options)
     },
 
@@ -95,10 +101,47 @@ export function createCameraEngine(initialState = {}) {
 
     reset(options = {}) {
       const focusTarget = scene
-        ? createFocusTargetFromScene(scene, options)
+        ? createFocusTargetFromScene(scene, {
+            ...options,
+            camera: options.camera || camera,
+          })
         : createDefaultCameraTarget()
 
       return setFocusTarget(focusTarget, options)
+    },
+
+
+    saveHomeView(nextHomeState = null, options = {}) {
+      homeState = cloneCameraFocusTarget(nextHomeState)
+
+      if (!homeState && scene) {
+        homeState = createFocusTargetFromScene(scene, {
+          ...options,
+          camera: options.camera || camera,
+          distanceMultiplier: options.distanceMultiplier ?? 1.7,
+          minimumDistance: options.minimumDistance ?? 1.1,
+        })
+      }
+
+      if (!homeState) {
+        homeState = createCameraState(camera, controls)
+      }
+
+      return cloneCameraFocusTarget(homeState)
+    },
+
+    hasHomeView() {
+      return Boolean(homeState)
+    },
+
+    goHome(options = {}) {
+      if (!homeState && options.recompute !== false && scene) {
+        this.saveHomeView(null, options)
+      }
+
+      if (!homeState) return null
+
+      return setFocusTarget(cloneCameraFocusTarget(homeState), options)
     },
 
     saveState() {
@@ -109,12 +152,7 @@ export function createCameraEngine(initialState = {}) {
     restoreState(options = {}) {
       if (!savedState) return null
 
-      const focusTarget = {
-        cameraPosition: savedState.cameraPosition?.clone?.() || savedState.cameraPosition,
-        target: savedState.target?.clone?.() || savedState.target,
-      }
-
-      return setFocusTarget(focusTarget, options)
+      return setFocusTarget(cloneCameraFocusTarget(savedState), options)
     },
 
     clear() {
@@ -125,6 +163,7 @@ export function createCameraEngine(initialState = {}) {
     resetState() {
       lastFocusTarget = null
       savedState = null
+      homeState = null
       return getState()
     },
 
@@ -134,6 +173,7 @@ export function createCameraEngine(initialState = {}) {
       scene = null
       lastFocusTarget = null
       savedState = null
+      homeState = null
 
       return getState()
     },

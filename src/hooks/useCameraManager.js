@@ -13,6 +13,14 @@ function applyFocusTargetToControls(focusTarget, controlsRef) {
   controlsRef.current.update();
 }
 
+function syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef) {
+  vxEngine?.camera?.setScene?.(modelScene);
+  vxEngine?.camera?.setRefs?.({
+    camera: cameraRef?.current,
+    controls: controlsRef?.current,
+  });
+}
+
 export function useCameraManager({
   vxEngine,
   modelScene,
@@ -25,11 +33,7 @@ export function useCameraManager({
   const focusObject = (object) => {
     if (!object || !modelScene) return;
 
-    vxEngine?.camera?.setScene?.(modelScene);
-    vxEngine?.camera?.setRefs?.({
-      camera: cameraRef?.current,
-      controls: controlsRef?.current,
-    });
+    syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
 
     const focusTarget =
       vxEngine?.camera?.focusObject?.(object, {
@@ -63,33 +67,43 @@ export function useCameraManager({
   const resetCameraToInitialView = () => {
     if (!modelScene || !cameraRef?.current || !controlsRef?.current) return;
 
-    vxEngine?.camera?.setScene?.(modelScene);
-    vxEngine?.camera?.setRefs?.({
-      camera: cameraRef?.current,
-      controls: controlsRef?.current,
-    });
+    syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
 
     const focusTarget =
+      vxEngine?.camera?.goHome?.({ apply: false }) ||
       vxEngine?.camera?.reset?.({
-        distanceMultiplier: 2.5,
-        minimumDistance: 3,
+        camera: cameraRef?.current,
+        distanceMultiplier: 1.7,
+        minimumDistance: 1.1,
         direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
         apply: false,
       }) ||
       createFocusTargetFromScene(modelScene, {
-        distanceMultiplier: 2.5,
-        minimumDistance: 3,
+        camera: cameraRef?.current,
+        distanceMultiplier: 1.7,
+        minimumDistance: 1.1,
         direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
       });
 
     if (!focusTarget) return;
 
+    if (focusTarget.cameraPosition && cameraRef.current.position) {
+      cameraRef.current.position.copy(focusTarget.cameraPosition);
+    }
+
     applyFocusTargetToControls(focusTarget, controlsRef);
-    focusTargetRef.current = focusTarget;
+    focusTargetRef.current = null;
 
     setIsAutoRotating(false);
-    setTargetRotationY(modelScene.rotation.y);
+    setTargetRotationY(0);
   };
 
-  return { focusObject, resetCameraToInitialView };
+  const saveCurrentViewAsHome = () => {
+    if (!modelScene || !cameraRef?.current || !controlsRef?.current) return null;
+
+    syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
+    return vxEngine?.camera?.saveHomeView?.();
+  };
+
+  return { focusObject, resetCameraToInitialView, saveCurrentViewAsHome };
 }

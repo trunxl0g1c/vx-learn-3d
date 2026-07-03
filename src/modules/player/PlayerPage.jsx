@@ -6,6 +6,7 @@ import PlayerToolsMenu from "../../components/player/PlayerToolsMenu"
 import PlayerCutSlider from "../../components/player/PlayerCutSlider"
 import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel"
 import PlayerBottomToolbar from "../../components/player/PlayerBottomToolbar"
+import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
 
 export default function PlayerPage() {
   const player = usePlayerController()
@@ -25,7 +26,7 @@ export default function PlayerPage() {
         width: "100vw",
         height: "100vh",
         position: "relative",
-        background: "#0f172a",
+        ...getViewerBackgroundStyle(player.scene.viewerSettings),
         color: "white",
         overflow: "hidden",
       }}
@@ -35,7 +36,7 @@ export default function PlayerPage() {
           position: "absolute",
           inset: 0,
           height: "100vh",
-          background: "#0f172a",
+          ...getViewerBackgroundStyle(player.scene.viewerSettings),
         }}
       >
         <PlayerSceneCanvas {...player.scene} />
