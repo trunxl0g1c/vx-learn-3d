@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { exportVXPack } from "../utils/vxpackUtils";
+import { createAnimationEngine } from "../engine/animation";
 
 export function useChapterManager({
   selectedObjectName,
@@ -20,7 +21,10 @@ export function useChapterManager({
   animations,
   setSelectedAnimations,
   setAnimationCommand,
+  vxEngine,
 }) {
+  const animationEngine = vxEngine?.animation || createAnimationEngine();
+
   const activeChapter = material.chapters.find(
     (chapter) => chapter.id === activeChapterId
   );
@@ -255,57 +259,22 @@ export function useChapterManager({
   };
 
   const isChapterAnimationSelected = (chapter, animationName) => {
-    return (chapter.animations || []).some(
-      (item) => item.name === animationName
-    );
+    return animationEngine.isChapterAnimationSelected(chapter, animationName);
   };
 
   const getChapterAnimationConfig = (chapter, animationName) => {
-    return (
-      (chapter.animations || []).find((item) => item.name === animationName) || {
-        name: animationName,
-        loop: false,
-        autoPlay: false,
-      }
-    );
+    return animationEngine.getChapterAnimationConfig(chapter, animationName);
   };
 
   const toggleChapterAnimation = (chapterId, animationName, checked) => {
-    setMaterial((prev) => ({
-      ...prev,
-      chapters: prev.chapters.map((chapter) => {
-        if (chapter.id !== chapterId) return chapter;
-
-        const currentAnimations = chapter.animations || [];
-
-        if (!checked) {
-          return {
-            ...chapter,
-            animations: currentAnimations.filter(
-              (item) => item.name !== animationName
-            ),
-          };
-        }
-
-        const exists = currentAnimations.some(
-          (item) => item.name === animationName
-        );
-
-        if (exists) return chapter;
-
-        return {
-          ...chapter,
-          animations: [
-            ...currentAnimations,
-            {
-              name: animationName,
-              loop: false,
-              autoPlay: false,
-            },
-          ],
-        };
-      }),
-    }));
+    setMaterial((prev) =>
+      animationEngine.toggleChapterAnimationInMaterial(
+        prev,
+        chapterId,
+        animationName,
+        checked
+      )
+    );
   };
 
   const updateChapterAnimationField = (
@@ -314,36 +283,15 @@ export function useChapterManager({
     field,
     value
   ) => {
-    setMaterial((prev) => ({
-      ...prev,
-      chapters: prev.chapters.map((chapter) => {
-        if (chapter.id !== chapterId) return chapter;
-
-        const currentAnimations = chapter.animations || [];
-        const exists = currentAnimations.some(
-          (item) => item.name === animationName
-        );
-
-        const nextAnimations = exists
-          ? currentAnimations.map((item) =>
-              item.name === animationName ? { ...item, [field]: value } : item
-            )
-          : [
-              ...currentAnimations,
-              {
-                name: animationName,
-                loop: false,
-                autoPlay: false,
-                [field]: value,
-              },
-            ];
-
-        return {
-          ...chapter,
-          animations: nextAnimations,
-        };
-      }),
-    }));
+    setMaterial((prev) =>
+      animationEngine.updateChapterAnimationFieldInMaterial(
+        prev,
+        chapterId,
+        animationName,
+        field,
+        value
+      )
+    );
   };
 
   const playAnimationPreview = (chapter) => {
@@ -354,33 +302,28 @@ export function useChapterManager({
       return;
     }
 
-    const nextSelectedAnimations = {};
+    const nextSelectedAnimations = animationEngine.createSelectedAnimationMap(
+      animations,
+      chapterAnimations
+    );
 
-    animations.forEach((anim) => {
-      const config = chapterAnimations.find((item) => item.name === anim.name);
-
-      nextSelectedAnimations[anim.name] = {
-        selected: Boolean(config),
-        loop: config?.loop || false,
-      };
-    });
+    animationEngine.setAnimations?.(animations);
+    animationEngine.setSelectedAnimations?.(nextSelectedAnimations);
 
     setSelectedAnimations(nextSelectedAnimations);
     setAnimationCommand(null);
 
     setTimeout(() => {
-      setAnimationCommand({
-        type: "play",
-        id: crypto.randomUUID(),
-      });
+      setAnimationCommand(
+        animationEngine.play({
+          selectedAnimations: nextSelectedAnimations,
+        })
+      );
     }, 10);
   };
 
   const stopAnimationPreview = () => {
-    setAnimationCommand({
-      type: "stop",
-      id: crypto.randomUUID(),
-    });
+    setAnimationCommand(animationEngine.stop({ reset: true }));
   };
 
   const addChapterParameter = (chapterId) => {

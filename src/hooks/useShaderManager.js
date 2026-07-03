@@ -3,8 +3,12 @@ import * as THREE from 'three'
 
 export function useShaderManager({ modelScene, viewerSettings, setViewerSettings }) {
   const [shaderMode, setShaderMode] = useState('original')
-  const [metalness, setMetalness] = useState(0.3)
-  const [roughness, setRoughness] = useState(0.8)
+  const [metalness, setMetalness] = useState(viewerSettings?.metalness ?? 0.1)
+  const [roughness, setRoughness] = useState(viewerSettings?.roughness ?? 0.1)
+  useEffect(() => {
+    setMetalness(viewerSettings?.metalness ?? 0.1)
+    setRoughness(viewerSettings?.roughness ?? 0.1)
+  }, [viewerSettings?.metalness, viewerSettings?.roughness])
 
   const applyShaderMode = (mode) => {
     if (!modelScene) return

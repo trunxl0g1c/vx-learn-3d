@@ -30,6 +30,7 @@ export default function PlayerSceneCanvas({
   selectedAnimations,
   animationCommand,
   handleSelectObjectFromPlayer,
+  handleDoubleClickObjectFromPlayer,
   handleModelLoaded,
   setAnimations,
 }) {
@@ -114,8 +115,9 @@ export default function PlayerSceneCanvas({
                 modelUrl={material.modelUrl}
                 markerMode={false}
                 onSelectObject={handleSelectObjectFromPlayer}
-                onModelLoaded={(scene, gltf) => {
-                  handleModelLoaded(scene || modelRootRef.current, gltf)
+                onDoubleClickObject={handleDoubleClickObjectFromPlayer}
+                onModelLoaded={(scene) => {
+                  handleModelLoaded(scene || modelRootRef.current)
                 }}
                 selectedAnimations={selectedAnimations}
                 animationCommand={animationCommand}

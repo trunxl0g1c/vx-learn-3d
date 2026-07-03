@@ -1,8 +1,9 @@
 import { useRef } from 'react'
-import * as THREE from 'three'
 import { buildObjectTree } from '../utils/objectTreeUtils'
+import { createModelEngine, getAxisMidValue } from '../engine/model'
 
 export function useModelManager({
+  vxEngine,
   modelScene,
   setModelScene,
   setObjectList,
@@ -17,108 +18,69 @@ export function useModelManager({
   setTargetRotationY,
   setIsAutoRotating,
   focusTargetRef,
+  selectionEngine,
 }) {
-  const originalPositionsRef = useRef([])
-  const originalGroupPositionsRef = useRef([])
+  const modelEngineRef = useRef(null)
+
+  if (!modelEngineRef.current) {
+    modelEngineRef.current =
+      vxEngine?.model ||
+      createModelEngine({
+        buildObjectTree,
+      })
+  }
+
+  const getModelEngine = () => {
+    const engine = vxEngine?.model || modelEngineRef.current
+
+    if (modelScene && engine.getScene() !== modelScene) {
+      engine.setScene(modelScene)
+    }
+
+    return engine
+  }
+
+  const clearSelectionState = () => {
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setSelectedObjectName('')
+  }
 
   const handleModelLoaded = (scene) => {
-    setModelScene(scene)
-
-    scene.traverse((child) => {
-      if (!child.isMesh) return
-
-      if (child.material) {
-        child.material.envMapIntensity = viewerSettings.envIntensity
-        child.material.needsUpdate = true
-      }
-    })
-
-    const positions = []
-    const box = new THREE.Box3().setFromObject(scene)
-    const size = new THREE.Vector3()
-    box.getSize(size)
-
-    const maxSize = Math.max(size.x, size.y, size.z)
-    const calculatedMarkerScale = maxSize * 0.015
-
-    setMarkerScale(Math.min(Math.max(calculatedMarkerScale, 0.03), 0.15))
-    setCutMin(box.min.x)
-    setCutMax(box.max.x)
-    setCutX((box.min.x + box.max.x) / 2)
-
-    const objects = scene.children
-      .filter((child) => child.type !== 'Bone')
-      .map((child) => buildObjectTree(child, 0))
-
-    const originalGroupPositions = []
-
-    scene.traverse((child) => {
-      originalGroupPositions.push({
-        object: child,
-        position: child.position.clone(),
-        rotation: child.rotation.clone(),
+    const modelEngine = getModelEngine()
+    const state =
+      vxEngine?.initializeModel?.(scene, viewerSettings) ||
+      modelEngine.initialize(scene, viewerSettings, {
+        selectionEngine,
       })
-    })
 
-    scene.traverse((child) => {
-      if (child.isMesh) {
-        child.material = child.material.clone()
-        child.userData.originalMaterial = child.material
+    setModelScene(scene)
+    setObjectList(state.objectList)
+    setMarkerScale(state.markerScale)
 
-        positions.push({
-          object: child,
-          position: child.position.clone(),
-        })
-      }
-    })
+    const xBounds = state.boundsMap?.x
 
-    originalPositionsRef.current = positions
-    originalGroupPositionsRef.current = originalGroupPositions
-    setObjectList(objects)
+    if (xBounds) {
+      setCutMin(xBounds.min)
+      setCutMax(xBounds.max)
+      setCutX(getAxisMidValue(state.boundsMap, 'x'))
+    }
   }
 
   const pullApart = () => {
-    if (!modelScene) return
-
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
-
-      const direction = child.position.clone().normalize()
-
-      if (direction.length() === 0) {
-        direction
-          .set(
-            Math.random() - 0.5,
-            Math.random() - 0.5,
-            Math.random() - 0.5
-          )
-          .normalize()
-      }
-
-      child.userData.targetPosition = child.position
-        .clone()
-        .add(direction.multiplyScalar(1.2))
-        .add(direction.multiplyScalar(1.2))
-    })
+    getModelEngine().pullApart()
   }
 
   const resetParts = () => {
-    originalPositionsRef.current.forEach((item) => {
-      item.object.userData.targetPosition = item.position.clone()
-    })
+    getModelEngine().resetParts()
   }
 
   const resetMovedObjects = () => {
-    originalGroupPositionsRef.current.forEach((item) => {
-      item.object.userData.moveTargetPosition = item.position.clone()
-      item.object.userData.moveTargetRotation = item.rotation.clone()
-    })
+    getModelEngine().resetMovedObjects()
   }
 
   const resetModelRotationForCut = () => {
-    if (!modelScene) return
-
-    modelScene.rotation.set(0, 0, 0)
+    getModelEngine().resetRotation()
     setTargetRotationY(0)
     setIsAutoRotating(false)
     focusTargetRef.current = null
@@ -127,8 +89,8 @@ export function useModelManager({
   const resetSection = () => {
     if (!modelScene) return
 
-    const box = new THREE.Box3().setFromObject(modelScene)
-    setCutX((box.min.x + box.max.x) / 2)
+    const boundsMap = getModelEngine().createBoundsMap()
+    setCutX(getAxisMidValue(boundsMap, 'x'))
     resetModelRotationForCut()
   }
 
@@ -138,54 +100,31 @@ export function useModelManager({
   }
 
   const soloSelectedObject = (selectedObject) => {
-    if (!selectedObject || !modelScene) {
+    const success = getModelEngine().soloObject(selectedObject)
+
+    if (!success) {
       alert('Select an object first')
-      return
     }
-
-    modelScene.traverse((child) => {
-      if (child.isMesh) child.visible = false
-    })
-
-    selectedObject.traverse((child) => {
-      if (child.isMesh) child.visible = true
-    })
   }
 
   const hideSelectedObject = (selectedObject) => {
-    if (!selectedObject) {
+    const success = getModelEngine().hideObject(selectedObject)
+
+    if (!success) {
       alert('Select an object first')
       return
     }
 
-    selectedObject.visible = false
-    selectedObject.traverse((child) => {
-      child.visible = false
-    })
-
-    setSelectedObject(null)
-    setOutlineObjects([])
-    setSelectedObjectName('')
+    clearSelectionState()
   }
 
   const showAllObjects = () => {
-    if (!modelScene) return
-
-    modelScene.traverse((child) => {
-      child.visible = true
-    })
+    getModelEngine().showAllObjects()
   }
 
   const hideAllObjects = () => {
-    if (!modelScene) return
-
-    modelScene.traverse((child) => {
-      if (child.isMesh) child.visible = false
-    })
-
-    setSelectedObject(null)
-    setOutlineObjects([])
-    setSelectedObjectName('')
+    getModelEngine().hideAllObjects()
+    clearSelectionState()
   }
 
   const resetAllTransforms = () => {

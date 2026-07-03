@@ -10,6 +10,7 @@ function Model({
   onModelLoaded,
   markerMode,
   onSelectObject,
+  onDoubleClickObject,
 
   selectedAnimations,
   animationCommand,
@@ -55,10 +56,7 @@ function Model({
       })),
     );
 
-    onModelLoaded?.(scene, {
-      scene,
-      animations,
-    });
+    onModelLoaded?.(scene);
   }, [scene, animations]);
 
   useEffect(() => {
@@ -120,11 +118,39 @@ function Model({
       });
     }
 
+    if (animationCommand.type === "pause") {
+      Object.values(actionsRef.current).forEach((action) => {
+        action.paused = true;
+      });
+    }
+
+    if (animationCommand.type === "resume") {
+      Object.values(actionsRef.current).forEach((action) => {
+        if (action.enabled) action.paused = false;
+      });
+    }
+
+    if (animationCommand.type === "seek") {
+      const time = Number(animationCommand.time) || 0;
+
+      mixerRef.current?.setTime(time);
+      mixerRef.current?.update(0);
+    }
+
+    if (animationCommand.type === "setSpeed") {
+      const speed = Number(animationCommand.speed) || 1;
+
+      Object.values(actionsRef.current).forEach((action) => {
+        action.setEffectiveTimeScale(speed);
+      });
+    }
+
     if (animationCommand.type === "stop") {
       Object.values(actionsRef.current).forEach((action) => {
         action.stop();
         action.reset();
         action.enabled = false;
+        action.paused = false;
       });
 
       mixerRef.current?.setTime(0);
@@ -219,6 +245,26 @@ function Model({
   //   onSelectObject?.(visibleHit.object)
   // }
 
+
+  const getVisibleHitObject = (e) => {
+    const isObjectVisible = (object) => {
+      let current = object;
+
+      while (current) {
+        if (!current.visible) return false;
+        current = current.parent;
+      }
+
+      return true;
+    };
+
+    const visibleHit = e.intersections.find((hit) =>
+      isObjectVisible(hit.object),
+    );
+
+    return visibleHit?.object || null;
+  };
+
   const handleClick = (e) => {
     e.stopPropagation();
 
@@ -235,27 +281,30 @@ function Model({
       return;
     }
 
-    const isObjectVisible = (object) => {
-      let current = object;
+    const object = getVisibleHitObject(e);
 
-      while (current) {
-        if (!current.visible) return false;
-        current = current.parent;
-      }
+    if (!object) return;
 
-      return true;
-    };
-
-    const visibleHit = e.intersections.find((hit) =>
-      isObjectVisible(hit.object),
-    );
-
-    if (!visibleHit) return;
-
-    onSelectObject?.(visibleHit.object);
+    onSelectObject?.(object);
   };
 
-  return <primitive object={scene} onClick={handleClick} />;
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+
+    const object = getVisibleHitObject(e);
+
+    if (!object) return;
+
+    onDoubleClickObject?.(object);
+  };
+
+  return (
+    <primitive
+      object={scene}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+    />
+  );
 }
 
 export default Model;

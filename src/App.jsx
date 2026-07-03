@@ -5,6 +5,7 @@ import { ProjectStoreProvider } from "./modules/project-store/ProjectStoreContex
 import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
 import ViewerPage from "./ViewerPage";
 import PlayerPage from "./modules/player/PlayerPage";
+import PlayerV2Page from "./modules/player-v2/PlayerV2Page";
 
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
             <Route path="/vxplore" element={<ProjectHubRoute />} />
             <Route path="/vxplore/editor/:projectId" element={<ViewerPage />} />
             <Route path="/vxplore/player/:projectId" element={<PlayerPage />} />
+            <Route path="/vxplore/player-v2/:projectId" element={<PlayerV2Page />} />
 
             <Route
               path="/editor"

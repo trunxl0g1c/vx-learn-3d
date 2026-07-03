@@ -1,6 +1,20 @@
 import * as THREE from "three";
+import {
+  createFocusTargetFromObject,
+  createFocusTargetFromScene,
+} from "../engine/camera";
+
+const DEFAULT_EDITOR_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1);
+
+function applyFocusTargetToControls(focusTarget, controlsRef) {
+  if (!focusTarget || !controlsRef?.current) return;
+
+  controlsRef.current.target.copy(focusTarget.target);
+  controlsRef.current.update();
+}
 
 export function useCameraManager({
+  vxEngine,
   modelScene,
   setTargetRotationY,
   setIsAutoRotating,
@@ -11,66 +25,67 @@ export function useCameraManager({
   const focusObject = (object) => {
     if (!object || !modelScene) return;
 
-    const box = new THREE.Box3().setFromObject(object);
-    const center = new THREE.Vector3();
-    const size = new THREE.Vector3();
+    vxEngine?.camera?.setScene?.(modelScene);
+    vxEngine?.camera?.setRefs?.({
+      camera: cameraRef?.current,
+      controls: controlsRef?.current,
+    });
 
-    box.getCenter(center);
-    box.getSize(size);
+    const focusTarget =
+      vxEngine?.camera?.focusObject?.(object, {
+        camera: cameraRef?.current,
+        controls: controlsRef?.current,
+        distanceMultiplier: 1.8,
+        minimumDistance: 0.1,
+        direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+        apply: false,
+      }) ||
+      createFocusTargetFromObject(
+        object,
+        cameraRef?.current,
+        controlsRef?.current,
+        {
+          distanceMultiplier: 1.8,
+          minimumDistance: 0.1,
+          direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+        }
+      );
 
-    const maxSize = Math.max(size.x, size.y, size.z);
+    if (!focusTarget) return;
 
-    // makin kecil angka ini, makin dekat / makin besar object terlihat
-    const distance = Math.max(maxSize * 1.8, 0.1);
+    applyFocusTargetToControls(focusTarget, controlsRef);
+    focusTargetRef.current = focusTarget;
 
-    const direction = new THREE.Vector3(0.8, 0.45, 1).normalize();
-
-    const cameraPosition = center
-      .clone()
-      .add(direction.multiplyScalar(distance));
-
-    // penting: orbit pivot pindah ke center object
-    if (controlsRef?.current) {
-      controlsRef.current.target.copy(center);
-      controlsRef.current.update();
-    }
-
-    focusTargetRef.current = {
-      cameraPosition,
-      target: center,
-    };
-
-    // jangan auto rotate model saat select object
-    // karena auto rotate masih memakai pivot global model
     setIsAutoRotating(false);
-
-    if (modelScene) {
-      setTargetRotationY(modelScene.rotation.y);
-    }
+    setTargetRotationY(modelScene.rotation.y);
   };
+
   const resetCameraToInitialView = () => {
     if (!modelScene || !cameraRef?.current || !controlsRef?.current) return;
 
-    const box = new THREE.Box3().setFromObject(modelScene);
-    const center = box.getCenter(new THREE.Vector3());
-    const size = box.getSize(new THREE.Vector3());
+    vxEngine?.camera?.setScene?.(modelScene);
+    vxEngine?.camera?.setRefs?.({
+      camera: cameraRef?.current,
+      controls: controlsRef?.current,
+    });
 
-    const maxSize = Math.max(size.x, size.y, size.z);
-    const distance = Math.max(maxSize * 2.5, 3);
+    const focusTarget =
+      vxEngine?.camera?.reset?.({
+        distanceMultiplier: 2.5,
+        minimumDistance: 3,
+        direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+        apply: false,
+      }) ||
+      createFocusTargetFromScene(modelScene, {
+        distanceMultiplier: 2.5,
+        minimumDistance: 3,
+        direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+      });
 
-    const direction = new THREE.Vector3(0.8, 0.45, 1).normalize();
+    if (!focusTarget) return;
 
-    const cameraPosition = center
-      .clone()
-      .add(direction.multiplyScalar(distance));
-
-    controlsRef.current.target.copy(center);
-    controlsRef.current.update();
-
-    focusTargetRef.current = {
-      cameraPosition,
-      target: center,
-    };
+    applyFocusTargetToControls(focusTarget, controlsRef);
+    focusTargetRef.current = focusTarget;
 
     setIsAutoRotating(false);
     setTargetRotationY(modelScene.rotation.y);
