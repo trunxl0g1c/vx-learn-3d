@@ -6,7 +6,7 @@ export default function ChapterDescriptionSection({
 
   return (
     <section className="space-y-2 p-4">
-      <label className="block text-xs font-semibold text-contrast-grayout">
+      <label className="block text-sm font-normal text-contrast-grayout">
         Description
       </label>
 
@@ -22,7 +22,7 @@ export default function ChapterDescriptionSection({
           className="min-h-[112px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-xs font-medium leading-5 text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-secondary-default"
         />
 
-        <span className="absolute bottom-3 right-3 text-[9px] font-semibold text-contrast-grayout">
+        <span className="absolute bottom-3 right-3 text-[9px] font-normal text-contrast-grayout">
           {descriptionLength}/850
         </span>
       </div>

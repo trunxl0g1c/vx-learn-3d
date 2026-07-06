@@ -7,13 +7,13 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
 
   return (
     <div className="flex h-full flex-col text-white">
-      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-semibold">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
         Project Settings
       </div>
 
       <div className="flex-1 space-y-6 overflow-auto p-4">
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-[#86899B]">
             Title
           </label>
 
@@ -28,17 +28,35 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
                   title: e.target.value,
                 }))
               }
-              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
             />
 
-            <span className="absolute bottom-2 right-3 text-[10px] font-semibold text-[#86899B]">
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-[#86899B]">
               {titleLength}/48
             </span>
           </div>
         </div>
 
+        <div className="flex items-center justify-between">
+          <span className="text-base font-normal text-[#86899B]">
+            Available on the marketplace
+          </span>
+
+          <Switch
+            checked={material.availableOnMarketplace || false}
+            onCheckedChange={(checked) =>
+              setMaterial((prev) => ({
+                ...prev,
+                availableOnMarketplace: checked,
+              }))
+            }
+          />
+        </div>
+
+        {/* THUMBNAIL */}
+
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-[#86899B]">
             Description
           </label>
 
@@ -53,17 +71,17 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
                   description: e.target.value,
                 }))
               }
-              className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-semibold leading-6 text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+              className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-normal leading-6 text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
             />
 
-            <span className="absolute bottom-3 right-3 text-[10px] font-semibold text-[#86899B]">
+            <span className="absolute bottom-3 right-3 text-[10px] font-normal text-[#86899B]">
               {descriptionLength}/650
             </span>
           </div>
         </div>
-        
+
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-[#86899B]">
             Version
           </label>
 
@@ -76,12 +94,12 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
                 version: e.target.value,
               }))
             }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-[#86899B]">
             Author
           </label>
 
@@ -94,14 +112,13 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
                 author: e.target.value,
               }))
             }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-semibold text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
           />
         </div>
 
-
         <div>
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
-            Thumbnail
+          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+            Media Content
           </label>
 
           <label className="flex h-[96px] cursor-pointer items-center gap-4 rounded-lg border border-[#2E7E87] bg-[#14201f] px-3 transition hover:border-secondary-default">
@@ -117,9 +134,7 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
               )}
             </div>
 
-            <span className="text-sm font-semibold text-white">
-              Add Picture
-            </span>
+            <span className="text-sm font-normal text-white">Add Image</span>
 
             <input
               type="file"
@@ -144,22 +159,6 @@ export default function ProjectSettingsPanel({ material, setMaterial }) {
               }}
             />
           </label>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <span className="text-base font-semibold text-[#86899B]">
-            Available on the marketplace
-          </span>
-
-          <Switch
-            checked={material.availableOnMarketplace || false}
-            onCheckedChange={(checked) =>
-              setMaterial((prev) => ({
-                ...prev,
-                availableOnMarketplace: checked,
-              }))
-            }
-          />
         </div>
       </div>
     </div>

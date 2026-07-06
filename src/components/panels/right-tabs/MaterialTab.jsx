@@ -10,7 +10,7 @@ export default function MaterialTab({
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="rounded-2xl bg-dark-alpha p-4">
-        <div className="mb-3 text-lg font-semibold">Package</div>
+        <div className="mb-3 text-lg font-normal">Package</div>
 
         <InfoRow label="Project" value={material?.title || "Aircraft Engine"} />
         <InfoRow label="Version" value={material?.version || "1.0.0"} />
@@ -48,10 +48,10 @@ export default function MaterialTab({
 function InfoRow({ label, value }) {
   return (
     <div className="mb-3">
-      <div className="text-xs font-semibold uppercase text-secondary-default">
+      <div className="text-xs font-normal uppercase text-secondary-default">
         {label}
       </div>
-      <div className="mt-1 text-sm font-semibold text-white">
+      <div className="mt-1 text-sm font-normal text-white">
         {value}
       </div>
     </div>

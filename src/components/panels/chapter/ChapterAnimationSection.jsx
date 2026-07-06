@@ -13,11 +13,11 @@ export default function ChapterAnimationSection({
   stopAnimationPreview,
 }) {
   return (
-    <section className="space-y-3 px-4 pb-4">
-      <div className="text-xs font-bold text-contrast-grayout">Animation</div>
+    <section className="space-y-3 p-4">
+      <div className="text-sm font-normal text-contrast-grayout">Animation</div>
 
       {animations.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-xs leading-5 text-contrast-grayout">
+        <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-sm leading-5 text-contrast-grayout">
           Tidak ada animasi yang terdeteksi pada file GLB ini.
         </div>
       ) : (
@@ -44,7 +44,7 @@ export default function ChapterAnimationSection({
                   />
 
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-bold text-white">
+                    <div className="truncate text-sm font-normal text-white">
                       {anim.name}
                     </div>
                     <div className="text-[11px] text-contrast-grayout">

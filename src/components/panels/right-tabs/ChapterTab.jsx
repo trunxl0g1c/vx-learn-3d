@@ -39,14 +39,45 @@ export default function ChapterTab(props) {
     markerMode,
   } = props;
 
+  const chapters = material?.chapters || [];
+
+  const activeChapter = chapters.find(
+    (chapter) => chapter.id === activeChapterId,
+  );
+
+  if (markerMode) {
+    return (
+      <div className="flex flex-col gap-1 p-3">
+        {!activeChapter ? (
+          <ChapterEmptyState />
+        ) : (
+          <div className="rounded-2xl">
+            {/* <div className="mb-3 text-base font-normal">
+              {activeChapter.title || "Untitled Chapter"}
+            </div> */}
+            <ChapterMarkerSection
+              chapter={activeChapter}
+              markerMode={markerMode}
+              requestAddMarker={requestAddMarker}
+              cancelAddMarker={cancelAddMarker}
+              deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
+            />
+
+            <ChapterDeselectButton setActiveChapterId={setActiveChapterId} />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-1 p-3">
-      <div className="mb-3 rounded-2xl bg-dark-alpha p-3">
+    <div className="flex flex-col gap-1">
+      <div className="m-3 rounded-2xl bg-dark-alpha p-3">
         <div className="mb-2 text-sm text-secondary-default">
           Object Selected
         </div>
 
-        <div className="mb-3 text-base font-semibold">
+        <div className="mb-3 text-base font-normal">
           {selectedObjectName || "-"}
         </div>
 
@@ -60,10 +91,10 @@ export default function ChapterTab(props) {
         </Button>
       </div>
 
-      {material.chapters.length === 0 ? (
+      {chapters.length === 0 ? (
         <ChapterEmptyState />
       ) : (
-        material.chapters.map((chapter) => {
+        chapters.map((chapter) => {
           const isActive = activeChapterId === chapter.id;
 
           return (
@@ -71,102 +102,80 @@ export default function ChapterTab(props) {
               key={chapter.id}
               onClick={() => setActiveChapterId(chapter.id)}
               className={cn(
-                "mb-3 cursor-pointer rounded-2xl border border-divider-main p-3",
-                isActive ? "bg-accent-main/20" : "bg-dark-alpha/60"
+                "mx-4 mb-3 cursor-pointer rounded-2xl border border-divider-main p-3",
+                // isActive ? "bg-dark-alpha/80" : "bg-dark-alpha/40",
               )}
             >
-              <div className="mb-2 text-sm font-semibold">
+              <div className="mb-2 text-sm font-normal">
                 {chapter.title || "Untitled Chapter"}
               </div>
 
               {isActive && (
                 <>
-                  {markerMode ? (
-                    <>
-                      <ChapterMarkerSection
-                        chapter={chapter}
-                        markerMode={markerMode}
-                        requestAddMarker={requestAddMarker}
-                        cancelAddMarker={cancelAddMarker}
-                        deleteMarkerFromActiveChapter={
-                          deleteMarkerFromActiveChapter
-                        }
-                      />
+                  <ChapterIdentitySection
+                    chapter={chapter}
+                    panelSectionStyle={panelSectionStyle}
+                    inputStyle={inputStyle}
+                    setActiveChapterId={setActiveChapterId}
+                    updateChapterField={updateChapterField}
+                  />
 
-                      <ChapterDeselectButton
-                        setActiveChapterId={setActiveChapterId}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <ChapterIdentitySection
-                        chapter={chapter}
-                        panelSectionStyle={panelSectionStyle}
-                        inputStyle={inputStyle}
-                        setActiveChapterId={setActiveChapterId}
-                        updateChapterField={updateChapterField}
-                      />
+                  <ChapterDescriptionSection
+                    chapter={chapter}
+                    panelSectionStyle={panelSectionStyle}
+                    inputStyle={inputStyle}
+                    updateChapterField={updateChapterField}
+                  />
 
-                      <ChapterDescriptionSection
-                        chapter={chapter}
-                        panelSectionStyle={panelSectionStyle}
-                        inputStyle={inputStyle}
-                        updateChapterField={updateChapterField}
-                      />
+                  <ChapterParameterSection
+                    chapter={chapter}
+                    panelSectionStyle={panelSectionStyle}
+                    inputStyle={inputStyle}
+                    addChapterParameter={addChapterParameter}
+                    updateChapterParameter={updateChapterParameter}
+                    deleteChapterParameter={deleteChapterParameter}
+                  />
 
-                      <ChapterParameterSection
-                        chapter={chapter}
-                        panelSectionStyle={panelSectionStyle}
-                        inputStyle={inputStyle}
-                        addChapterParameter={addChapterParameter}
-                        updateChapterParameter={updateChapterParameter}
-                        deleteChapterParameter={deleteChapterParameter}
-                      />
+                  <ChapterMarkerSection
+                    chapter={chapter}
+                    markerMode={markerMode}
+                    requestAddMarker={requestAddMarker}
+                    cancelAddMarker={cancelAddMarker}
+                    deleteMarkerFromActiveChapter={
+                      deleteMarkerFromActiveChapter
+                    }
+                  />
 
-                      <ChapterMarkerSection
-                        chapter={chapter}
-                        markerMode={markerMode}
-                        requestAddMarker={requestAddMarker}
-                        cancelAddMarker={cancelAddMarker}
-                        deleteMarkerFromActiveChapter={
-                          deleteMarkerFromActiveChapter
-                        }
-                      />
+                  <ChapterCameraSection
+                    panelSectionStyle={panelSectionStyle}
+                    saveCameraViewToActiveChapter={
+                      saveCameraViewToActiveChapter
+                    }
+                  />
 
-                      <ChapterCameraSection
-                        panelSectionStyle={panelSectionStyle}
-                        saveCameraViewToActiveChapter={
-                          saveCameraViewToActiveChapter
-                        }
-                      />
+                  <ChapterAnimationSection
+                    chapter={chapter}
+                    panelSectionStyle={panelSectionStyle}
+                    animations={animations}
+                    isChapterAnimationSelected={isChapterAnimationSelected}
+                    getChapterAnimationConfig={getChapterAnimationConfig}
+                    toggleChapterAnimation={toggleChapterAnimation}
+                    updateChapterAnimationField={updateChapterAnimationField}
+                    playAnimationPreview={playAnimationPreview}
+                    stopAnimationPreview={stopAnimationPreview}
+                  />
 
-                      <ChapterAnimationSection
-                        chapter={chapter}
-                        panelSectionStyle={panelSectionStyle}
-                        animations={animations}
-                        isChapterAnimationSelected={isChapterAnimationSelected}
-                        getChapterAnimationConfig={getChapterAnimationConfig}
-                        toggleChapterAnimation={toggleChapterAnimation}
-                        updateChapterAnimationField={
-                          updateChapterAnimationField
-                        }
-                        playAnimationPreview={playAnimationPreview}
-                        stopAnimationPreview={stopAnimationPreview}
-                      />
+                  <ChapterMediaSection
+                    chapter={chapter}
+                    panelSectionStyle={panelSectionStyle}
+                    mediaButtonStyle={mediaButtonStyle}
+                    addChapterMedia={addChapterMedia}
+                    deleteChapterMedia={deleteChapterMedia}
+                  />
 
-                      <ChapterMediaSection
-                        chapter={chapter}
-                        panelSectionStyle={panelSectionStyle}
-                        mediaButtonStyle={mediaButtonStyle}
-                        addChapterMedia={addChapterMedia}
-                        deleteChapterMedia={deleteChapterMedia}
-                      />
-
-                      <ChapterDeselectButton
-                        setActiveChapterId={setActiveChapterId}
-                      />
-                    </>
-                  )}
+                  <ChapterDeselectButton
+                    setActiveChapterId={setActiveChapterId}
+                  />
                 </>
               )}
             </div>

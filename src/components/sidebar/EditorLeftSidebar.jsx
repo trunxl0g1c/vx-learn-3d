@@ -1,6 +1,5 @@
 import { X } from "lucide-react";
 import VisualTab from "../panels/right-tabs/VisualTab";
-import AnnotationPanel from "./left-panels/AnnotationPanel";
 import HierarchyPanel from "./left-panels/HierarchyPanel";
 import ProjectSettingsPanel from "./left-panels/ProjectSettingsPanel";
 
@@ -39,7 +38,7 @@ export default function EditorLeftSidebar({
   return (
     <aside
       className={[
-        "absolute left-15 top-16 bottom-5 z-[110] w-[400px] overflow-hidden",
+        "absolute left-15 top-14 bottom-5 z-[110] w-[400px] overflow-hidden h-full",
         "border border-divider-main/80 text-white transition-all duration-200",
         "bg-primary/45 backdrop-blur-2xl backdrop-saturate-200",
       ].join(" ")}

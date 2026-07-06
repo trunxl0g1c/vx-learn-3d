@@ -15,8 +15,8 @@ function Slider({
 
   return (
     <div className={cn(className)}>
-      <div className="flex items-center justify-between text-sm font-semibold">
-        <span className="text-accent-main">{label}</span>
+      <div className="flex items-center justify-between text-sm font-normal">
+        <span className="text-secondary-default">{label}</span>
         <span className="text-[#86899B] text-xs">{value}</span>
       </div>
 

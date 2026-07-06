@@ -7,7 +7,7 @@ export default function ChapterCameraSection({
 }) {
   return (
     <section className="space-y-2 p-4">
-      <label className="block text-xs font-semibold text-contrast-grayout">
+      <label className="block text-sm font-normal text-contrast-grayout">
         Camera View
       </label>
 

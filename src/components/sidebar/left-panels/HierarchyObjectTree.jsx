@@ -30,6 +30,7 @@ export default function HierarchyObjectTree({
 
   const [openMap, setOpenMap] = useState({});
   const [, setVisibilityVersion] = useState(0);
+  const [isVisible, setIsVisible] = useState(true);
   const [treeViewMode, setTreeViewMode] = useState("expand");
 
   const refreshVisibility = () => {
@@ -41,6 +42,7 @@ export default function HierarchyObjectTree({
   }, [objectList]);
 
   const handleShowAll = () => {
+    setIsVisible(true);
     if (showAllObjects) showAllObjects();
     else objectList.forEach((item) => setObjectVisibility(item.object, true));
 
@@ -48,6 +50,7 @@ export default function HierarchyObjectTree({
   };
 
   const handleHideAll = () => {
+    setIsVisible(false);
     if (hideAllObjects) hideAllObjects();
     else objectList.forEach((item) => setObjectVisibility(item.object, false));
 
@@ -64,7 +67,7 @@ export default function HierarchyObjectTree({
           onChange={(event) => setSearchObject(event.target.value)}
           leftIcon={<Search className="size-5" />}
           className="mb-4 h-8.5! rounded-full px-2!"
-          inputClassName="text-xs"
+          inputClassName="text-base"
         />
 
         <div className="mb-3 flex items-center gap-3">
@@ -75,7 +78,7 @@ export default function HierarchyObjectTree({
               setOpenMap(collectOpenMap(filteredObjectList, true));
               setTreeViewMode("expand");
             }}
-            className="h-8 flex-1 text-xs"
+            className="h-8 flex-1"
           >
             Expand All
           </Button>
@@ -87,19 +90,19 @@ export default function HierarchyObjectTree({
               setOpenMap(collectOpenMap(filteredObjectList, false));
               setTreeViewMode("collapse");
             }}
-            className="h-8 flex-1 text-xs"
+            className="h-8 flex-1"
           >
             Collapse All
           </Button>
         </div>
 
         <div className="mb-3 flex items-center justify-between">
-          <label className="text-sm font-semibold">Level:</label>
+          <label className="text-base font-normal">Level:</label>
 
           <select
             value={treeDepth}
             onChange={(event) => setTreeDepth(Number(event.target.value))}
-            className="h-7 rounded-md border border-divider-main bg-primary px-2 text-xs text-white outline-none"
+            className="h-7 cursor-pointer rounded-md border border-divider-main bg-primary px-2 text-sm text-white outline-none"
           >
             {Array.from(
               { length: maxTreeDepth || 1 },
@@ -115,11 +118,11 @@ export default function HierarchyObjectTree({
         </div>
 
         <div className="mb-3 grid grid-cols-[1fr_auto] items-center gap-3">
-          <h3 className="text-xs font-semibold text-white">Object Name</h3>
+          <h3 className="text-sm font-normal text-white">Object Name</h3>
 
-          <div className="flex items-center gap-1 text-[11px] font-bold text-secondary-default">
+          <div className="flex items-center gap-1 text-sm font-normal">
             <button
-              className="cursor-pointer"
+              className={`cursor-pointer ${isVisible ? "text-secondary-default" : "text-contrast-grayout"}`}
               type="button"
               onClick={handleShowAll}
             >
@@ -127,7 +130,7 @@ export default function HierarchyObjectTree({
             </button>
             <span>|</span>
             <button
-              className="cursor-pointer"
+              className={`cursor-pointer ${isVisible ? "text-contrast-grayout" : "text-secondary-default"}`}
               type="button"
               onClick={handleHideAll}
             >

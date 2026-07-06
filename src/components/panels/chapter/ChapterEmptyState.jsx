@@ -11,7 +11,7 @@ export default function ChapterEmptyState() {
       }}
     >
       No chapters yet. Select an object from the hierarchy, then click Create Chapter from Object.
-      <strong style={{ color: "white" }}> Create Chapter from Selected Object</strong>.
+      <span style={{ color: "white" }}> Create Chapter from Selected Object</span>.
     </div>
   )
 }
