@@ -1,8 +1,10 @@
 @import "tailwindcss";
 
 @theme {
+  --color-dark: #1A1B1C;
   --color-primary: #1D1E1F;
   --color-divider-main: #423D48;
+  --color-secondary-dark: #373047;
   --color-secondary-default: #66B0C0;
   --color-accent-main: #03699D;
   --color-dark-alpha: #182223B8;
@@ -11,6 +13,9 @@
   --color-accent-main: #03699D;
   --color-warning-main: #C42525;
   --color-accent-contrast: #AC9857;
+  --color-accent-dark: #0A4563;
+  --color-grayout-dark: #344B58;
+  --color-grayout-main: #696C76;
 }
 
 html,
@@ -22,6 +27,7 @@ body,
   height: 100%;
   overflow: hidden;
   background: var(--color-primary);
+  font-family: 'Kanit', sans-serif;
 }
 
 * {
@@ -130,6 +136,7 @@ input[type="range"]::-moz-range-thumb {
   0% {
     transform: translateX(-120%);
   }
+
   100% {
     transform: translateX(260%);
   }
@@ -190,14 +197,14 @@ input[type="range"]::-moz-range-thumb {
   overflow: hidden;
 }
 
-.vx-global-loading-bar > div {
+.vx-global-loading-bar>div {
   height: 100%;
   background: linear-gradient(90deg, #0284c7, #38bdf8, #7dd3fc);
   border-radius: 999px;
   transition: width 0.25s ease;
 }
 
-.vx-global-loading-bar > div.indeterminate {
+.vx-global-loading-bar>div.indeterminate {
   animation: vx-global-loading-slide 1.1s infinite ease-in-out;
 }
 

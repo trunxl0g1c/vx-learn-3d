@@ -2,6 +2,7 @@ import { ChevronDown } from "lucide-react";
 import Button from "../../ui/button";
 import Switch from "../../ui/switch";
 import Slider from "../../ui/slider";
+import SelectField from "../../ui/select";
 
 export default function VisualTab(props) {
   const {
@@ -42,7 +43,7 @@ export default function VisualTab(props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex h-16 shrink-0 items-center bg-dark-alpha px-4 text-lg font-semibold">
+      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
         Environment Settings
       </div>
 
@@ -85,8 +86,6 @@ export default function VisualTab(props) {
             step={0.01}
             onChange={setRoughness}
           />
-
-          
 
           <Slider
             label="Exposure"
@@ -172,7 +171,7 @@ export default function VisualTab(props) {
           />
 
           <div className="pt-2">
-            <p className="mb-4 text-base font-semibold text-secondary-default">
+            <p className="mb-4 text-base font-normal text-contrast-grayout">
               HDRI
             </p>
 
@@ -199,7 +198,7 @@ export default function VisualTab(props) {
           </div>
 
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-secondary-default">
+            <span className="text-sm font-normal text-contrast-grayout">
               Show HDRI Background
             </span>
 
@@ -214,34 +213,8 @@ export default function VisualTab(props) {
               className="pointer-events-auto"
             />
           </div>
-
-         
         </div>
       </div>
-    </div>
-  );
-}
-
-function SelectField({ value, onChange, options }) {
-  return (
-    <div className="relative">
-      <select
-        value={value}
-        onChange={(e) => onChange?.(e.target.value)}
-        className="h-[46px] w-full appearance-none rounded-lg border border-accent-main bg-transparent px-3 pr-10 text-sm font-semibold text-white outline-none focus:ring-1 focus:ring-accent-main"
-      >
-        {options.map((option) => (
-          <option
-            key={option.value || option.label}
-            value={option.value}
-            className="bg-[#1f1d20] text-white"
-          >
-            {option.label}
-          </option>
-        ))}
-      </select>
-
-      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-accent-main" />
     </div>
   );
 }

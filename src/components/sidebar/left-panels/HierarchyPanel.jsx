@@ -19,7 +19,7 @@ export default function HierarchyPanel({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex h-16 shrink-0 items-center bg-[#14201f] px-4 text-lg font-semibold">
+      <div className="flex h-16 shrink-0 items-center bg-[#14201f] px-4 text-lg font-normal">
         Object List
       </div>
 

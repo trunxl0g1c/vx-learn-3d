@@ -9,7 +9,7 @@ export default function ChapterIdentitySection({
   const titleLength = chapter.title?.length || 0;
 
   return (
-    <section className="py-2 px-4">
+    <section className="pb-2 px-2">
       {/* <button
         type="button"
         onClick={(e) => {
@@ -25,13 +25,13 @@ export default function ChapterIdentitySection({
         <Minus className="size-5 text-secondary-default" />
         </button> */}
 
-      <span className="truncate text-base font-bold text-white mb-3">
+      {/* <span className="truncate text-base font-bold text-white mb-3">
         {chapter.objectName || "Object"}
-      </span>
+      </span> */}
 
-      <div className="space-y-3 mt-4">
+      <div className="space-y-3 mt-4 px-2">
         <div>
-          <label className="mb-2 block text-xs font-semibold text-contrast-grayout">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Alias Name
           </label>
 
@@ -45,10 +45,10 @@ export default function ChapterIdentitySection({
                 updateChapterField(chapter.id, "title", e.target.value)
               }
               className="h-[44px] rounded-lg"
-              inputClassName="text-xs"
+              inputClassName="text-sm"
             />
 
-            <span className="absolute bottom-2 right-3 text-[9px] font-semibold text-contrast-grayout">
+            <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
               {titleLength}/48
             </span>
           </div>

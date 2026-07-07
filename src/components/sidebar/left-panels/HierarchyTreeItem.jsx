@@ -98,7 +98,7 @@ export default function HierarchyTreeItem({
           title={displayName}
           className={[
             "truncate cursor-pointer text-left transition hover:text-secondary-default",
-            selected ? "font-semibold text-secondary-default" : "font-medium",
+            selected ? "font-normal text-secondary-default" : "font-normal",
           ].join(" ")}
         >
           {displayName}
@@ -111,10 +111,10 @@ export default function HierarchyTreeItem({
             handleSelect();
           }}
           className={[
-            "h-5 cursor-pointer rounded-full border px-2 text-[9px] font-bold uppercase transition",
+            "h-5 cursor-pointer rounded-full border px-2 text-[9px] font-normal uppercase transition",
             selected
-              ? "border-accent-main bg-accent-main text-white"
-              : "border-secondary-default/50 bg-transparent text-white hover:bg-white/5",
+              ? "border-grayout-dark bg-accent-main text-white"
+              : "border-grayout-dark bg-dark-alpha text-white hover:bg-white/5",
           ].join(" ")}
         >
           {selected ? "DESELECT" : "SELECT"}

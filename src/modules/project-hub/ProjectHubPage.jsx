@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGlobalLoading } from "../loading/LoadingContext";
 import { useLocation, useNavigate } from "react-router-dom";
-import "./ProjectHub.css";
 import CreateProjectDialog from "./CreateProjectDialog";
 import {
   createProjectRecord,
@@ -10,6 +9,9 @@ import {
   clearVXploreIndexedDb,
 } from "./storage/projectIndexedDb";
 import { validateGlbFile } from "../../utils/glbValidator";
+import ProjectHubLayout from "./layouts/ProjectHubLayout";
+import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
+import ProjectHubGrid from "./components/ProjectHubGrid";
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -88,18 +90,18 @@ export default function ProjectHubPage() {
     if (isSubmitting) return;
 
     if (!projectName.trim()) {
-        alert("Project name wajib diisi");
-        return;
+      alert("Project name wajib diisi");
+      return;
     }
 
     if (!file) {
-        alert("Pilih file GLB");
-        return;
+      alert("Pilih file GLB");
+      return;
     }
 
     if (!file.name.toLowerCase().endsWith(".glb")) {
-        alert("File harus format .glb");
-        return;
+      alert("File harus format .glb");
+      return;
     }
 
     if (isValidatingGlb) {
@@ -108,13 +110,13 @@ export default function ProjectHubPage() {
     }
 
     if (!glbValidation) {
-        alert("GLB belum divalidasi.");
-        return;
+      alert("GLB belum divalidasi.");
+      return;
     }
 
     if (!glbValidation.valid) {
-        alert("GLB tidak valid.");
-        return;
+      alert("GLB tidak valid.");
+      return;
     }
 
     setIsSubmitting(true);
@@ -142,7 +144,6 @@ export default function ProjectHubPage() {
     setIsSubmitting(false);
   }
 
-
   const filteredProjects = projects.filter((project) => {
     const keyword = search.trim().toLowerCase();
 
@@ -152,134 +153,45 @@ export default function ProjectHubPage() {
       project.workspace?.toLowerCase().includes(keyword) ||
       project.fileName?.toLowerCase().includes(keyword);
 
-    const matchAccess =
-      accessFilter === "ALL" || project.role === accessFilter;
+    const matchAccess = accessFilter === "ALL" || project.role === accessFilter;
 
     return matchSearch && matchAccess;
   });
 
   return (
-    <div className="vxhub">
-      <aside className="vxhub-sidebar">
-        <div className="vxhub-logo">VXE</div>
+    <ProjectHubLayout>
+      <ProjectHubToolbar
+        search={search}
+        setSearch={setSearch}
+        accessFilter={accessFilter}
+        setAccessFilter={setAccessFilter}
+        onClearLocalDb={async () => {
+          const confirmed = window.confirm(
+            "Clear all local VXplore projects? This is for development only.",
+          );
 
-        <nav className="vxhub-menu">
-          <button className="active">My Catalogue</button>
-          <button>Workspace</button>
-          <button>Library</button>
-          <hr />
-          <button>Assets Marketplace</button>
-          <button>VXLearn</button>
-          <button>GLB Compression</button>
-          <hr />
-          <button>Profile</button>
-          <button>Documentation</button>
-          <button>Support</button>
-        </nav>
-      </aside>
+          if (!confirmed) return;
 
-      <main className="vxhub-main">
-        <header className="vxhub-topbar">
-          <div />
-          <div className="vxhub-user">Jhon ▼</div>
-        </header>
+          await clearVXploreIndexedDb();
+          setProjects([]);
+        }}
+      />
 
-        <section className="vxhub-content">
-          <div className="vxhub-toolbar">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Find the content you want to learn..."
-            />
-            <button>All Workspaces ▼</button>
-            <button>Last Viewed ▼</button>
-            <select
-              className="vxhub-select"
-              value={accessFilter}
-              onChange={(e) => setAccessFilter(e.target.value)}
-            >
-              <option value="ALL">All Access</option>
-              <option value="EDITOR">Editor Access</option>
-              <option value="PLAYER">Player Access</option>
-            </select>
-            <button
-              className="vxhub-dev-clear"
-              onClick={async () => {
-                const confirmed = window.confirm(
-                  "Clear all local VXplore projects? This is for development only."
-                );
-
-                if (!confirmed) return;
-
-                await clearVXploreIndexedDb();
-                setProjects([]);
-              }}
-            >
-              Clear Local DB
-            </button>
-          </div>
-            
-          <div className="vxhub-grid">
-            <button
-                className="vxhub-create-card"
-                onClick={() => setOpenCreate(true)}
-            >
-                <div className="vxhub-plus">+</div>
-                <span>Create New Project</span>
-            </button>
-           
-            {filteredProjects.map((project) => (
-            <button
-                className="vxhub-card"
-                key={project.id}
-                onClick={() => handleOpenProject(project)}
-            >
-                {getProjectThumbnail(project) ? (
-                  <img
-                    className="vxhub-thumb"
-                    src={getProjectThumbnail(project)}
-                    alt={`${project.name} thumbnail`}
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="vxhub-thumb placeholder" />
-                )}
-
-                <div className="vxhub-card-body">
-                <div>
-                    <h3>{project.name}</h3>
-                    <p>{project.workspace || "Default Workspace"}</p>
-                    <p className="vxhub-card-meta">{formatLastOpened(project)}</p>
-                </div>
-
-                <div className="vxhub-card-actions">
-                  <span className="vxhub-access-badge">
-                    {getAccessLabel(project.role)}
-                  </span>
-
-                  <span className="vxhub-action">
-                    {project.role === "EDITOR" ? "✎" : "▶"}
-                  </span>
-                </div>
-                </div>
-            </button>
-            ))}
-            {filteredProjects.length === 0 && (
-              <div className="vxhub-empty">
-                No projects found
-              </div>
-            )}
-            </div>
-        </section>
-      </main>
+      <ProjectHubGrid
+        projects={filteredProjects}
+        onCreate={() => setOpenCreate(true)}
+        onOpenProject={handleOpenProject}
+        getAccessLabel={getAccessLabel}
+        formatLastOpened={formatLastOpened}
+      />
 
       <CreateProjectDialog
         open={openCreate}
         onClose={() => {
-            setOpenCreate(false);
-            setFile(null);
-            setGlbValidation(null);
-            setIsValidatingGlb(false);
+          setOpenCreate(false);
+          setFile(null);
+          setGlbValidation(null);
+          setIsValidatingGlb(false);
         }}
         projectName={projectName}
         setProjectName={setProjectName}
@@ -288,11 +200,11 @@ export default function ProjectHubPage() {
         glbValidation={glbValidation}
         isValidatingGlb={isValidatingGlb}
         createRole={createRole}
-        setCreateRole={setCreateRole}   
+        setCreateRole={setCreateRole}
         onSubmit={handleSubmitCreateProject}
         progress={progress}
         isSubmitting={isSubmitting}
       />
-    </div>
+    </ProjectHubLayout>
   );
 }

@@ -58,6 +58,8 @@ export default function ViewerPageLayout({ controller }) {
     requestAddMarker,
     markerMode,
     cancelAddMarker,
+
+    hideSelectedObject,
   } = controller;
 
   return (
@@ -126,6 +128,10 @@ export default function ViewerPageLayout({ controller }) {
         requestAddMarker={requestAddMarker}
         markerMode={markerMode}
         cancelAddMarker={cancelAddMarker}
+
+        hideSelectedObject={controller.hideSelectedObject}
+        soloSelectedObject={controller.soloSelectedObject}
+        resetAllTransforms={controller.resetAllTransforms}
       />
 
       <EditorViewport controller={controller} />

@@ -11,15 +11,15 @@ export default function ChapterMarkerSection({
   const markers = chapter.markers || [];
 
   return (
-    <section className="space-y-3 px-4 pb-4">
-      <div className="text-xs font-bold text-contrast-grayout">Marker</div>
+    <section className="space-y-3 p-4">
+      <div className="text-sm font-normal text-contrast-grayout">Marker</div>
 
       {markerMode ? (
         <div className="rounded-lg bg-warning-main px-3 text-secondary-default py-2 text-base">
           Select the point where the marker will be saved on the 3D object
         </div>
       ) : markers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-xs text-contrast-grayout">
+        <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-sm text-contrast-grayout">
           No marker has not been set yet
         </div>
       ) : (
@@ -62,14 +62,14 @@ export default function ChapterMarkerSection({
       ) : (
         <Button
           size="sm"
-          variant="outline"
-          className="gap-2 border-secondary-default text-white"
+          variant="cyanOutline"
           onClick={(e) => {
             e.stopPropagation();
             requestAddMarker?.(chapter.id);
           }}
+          className="gap-2 text-white bg-dark-alpha rounded-lg!"
         >
-          <Plus className="size-4" />
+          <Plus className="size-4 text-secondary-default" />
           Add New Marker
         </Button>
       )}

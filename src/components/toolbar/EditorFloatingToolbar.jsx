@@ -39,23 +39,23 @@ export default function EditorFloatingToolbar({
         onClick={(e) => e.stopPropagation()}
         className="pointer-events-none absolute bottom-5 left-0 right-0 z-[120] flex justify-center"
       >
-        <div className="pointer-events-auto flex gap-2 rounded-2xl bg-primary p-2">
-          <Button
+        <div className="pointer-events-auto flex gap-2 rounded-2xl bg-[#182223B8] p-2">
+          {/* <Button
             onClick={() => document.getElementById("upload-model")?.click()}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
             Upload Model
-          </Button>
+          </Button> */}
 
-          <Button
+          {/* <Button
             onClick={() => document.getElementById("open-vxpack")?.click()}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
             Open Package
-          </Button>
+          </Button> */}
 
           <Button
-            variant={cutEnabled ? "outline" : "default"}
+            variant={cutEnabled ? "default" : "outline"}
             onClick={toggleCutSection}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
@@ -63,20 +63,22 @@ export default function EditorFloatingToolbar({
           </Button>
 
           <Button
+            variant={activeMenu === "view" ? "default" : "outline"}
             onClick={() => toggleMenu("view")}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
             View
           </Button>
 
-          <Button
+          {/* <Button
             onClick={hideSelectedObject}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
             Hide Selected
-          </Button>
+          </Button> */}
 
           <Button
+            variant="outline"
             onClick={resetXray}
             className="h-10! w-36 border-contrast-main! text-sm"
           >

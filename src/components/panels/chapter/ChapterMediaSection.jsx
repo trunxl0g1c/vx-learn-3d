@@ -9,8 +9,8 @@ export default function ChapterMediaSection({
   const mediaList = chapter.media || [];
 
   return (
-    <section className="space-y-3 px-4 pb-4">
-      <div className="text-xs font-bold text-contrast-grayout">Media</div>
+    <section className="space-y-3 p-4">
+      <div className="text-sm font-norml text-contrast-grayout">Media</div>
 
       <div className="grid gap-2">
         <MediaUploadButton
@@ -73,7 +73,7 @@ export default function ChapterMediaSection({
 
 function MediaUploadButton({ icon, label, accept, onFileChange }) {
   return (
-    <label className="flex h-11 cursor-pointer items-center gap-3 rounded-lg border border-secondary-default bg-transparent px-3 text-xs font-semibold text-white transition hover:bg-white/5">
+    <label className="flex h-11 cursor-pointer items-center gap-3 rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white transition hover:bg-white/5">
       <span className="text-secondary-default">{icon}</span>
       <span>{label}</span>
 

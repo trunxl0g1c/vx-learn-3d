@@ -5,6 +5,8 @@ import {
   Share2,
   Loader2,
   CloudOff,
+  Download,
+  PlayCircle,
 } from "lucide-react";
 import Button from "../ui/button";
 import { getCurrentUserName } from "../../utils/authUser";
@@ -40,28 +42,37 @@ export default function EditorTopBar({ title, saveStatus = "saved" }) {
   const currentUserName = getCurrentUserName();
 
   return (
-    <div className="h-[64px] z-150 border-b border-divider-main bg-primary flex items-center justify-between px-10">
-      <div className="flex justify-center items-center gap-13">
-        <div className="text-[#3997FB] font-bold text-2xl">
+    <div className="h-[56px] z-150 border-b border-divider-main bg-primary flex items-center justify-between px-5">
+      <div className="flex justify-center items-center gap-7">
+        {/* <div className="text-[#3997FB] font-bold text-2xl">
           VX
           <span className="italic text-[#90C6FF]">E</span>
-        </div>
+        </div> */}
+        <img src="/images/logo.svg" alt="VXplore Studio" className="rounded-full size-8" />
 
-        <div style={{ fontSize: 18, fontWeight: "bold" }}>
+        <span className="font-normal text-xl">
           {title || "VX Learn 3D"}
-        </div>
+        </span>
 
         <SaveStatusBadge status={saveStatus} />
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <Button variant="ghost" size="xs" className="border-none px-1!">
+          <PlayCircle className="size-6.5" color="#66B0C0" />
+        </Button>
         <Button variant="cyanOutline" size="sm" className="uppercase">
-          <CircleCheckBig className="size-4.5" />
+          <CircleCheckBig className="size-4.5 mr-1" />
           Publish
         </Button>
 
         <Button variant="cyanOutline" size="sm" className="uppercase">
-          <Share2 className="size-4.5" />
+          <Download className="size-4.5 mr-1" />
+          Export
+        </Button>
+
+        <Button variant="cyanOutline" size="sm" className="uppercase">
+          <Share2 className="size-4.5 mr-1" />
           Share
         </Button>
 
@@ -70,9 +81,9 @@ export default function EditorTopBar({ title, saveStatus = "saved" }) {
           size="sm"
           className="flex border-none items-center"
         >
-          <span>{currentUserName || "Guest"}</span>
+          <span className="text-base">{currentUserName || "Guest"}</span>
           <ChevronDown className="size-4.5" />
-          <CircleUser className="size-6" />
+          <CircleUser className="size-7" color="#03699D" />
         </Button>
       </div>
     </div>

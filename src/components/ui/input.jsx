@@ -25,7 +25,7 @@ function Input({
 
       <input
         className={cn(
-          "h-full min-w-0 flex-1 bg-transparent text-base font-semibold text-white outline-none",
+          "h-full min-w-0 flex-1 bg-transparent text-base font-normal text-white outline-none",
           "placeholder:text-contrast-grayout",
           inputClassName,
         )}

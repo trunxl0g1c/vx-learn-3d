@@ -20,7 +20,7 @@ function Checkbox({
       disabled={disabled}
       onClick={() => onCheckedChange?.(!checked)}
       className={cn(
-        "inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-white",
+        "inline-flex cursor-pointer items-center gap-2 text-sm font-normal text-white",
         "disabled:pointer-events-none disabled:opacity-50",
         className,
       )}

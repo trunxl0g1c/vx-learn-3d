@@ -1,4 +1,5 @@
 import { ArrowLeft, Box, CloudHail, Pencil, SquarePlay } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const sidebarItems = [
   {
@@ -18,13 +19,18 @@ const sidebarItems = [
 ];
 
 export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
+  const navigate = useNavigate();
+
   return (
-    <aside className="absolute left-0 top-[60px] bottom-0 z-[120] w-[60px] border-r border-divider-main bg-primary">
+    <aside className="absolute left-0 top-[56px] bottom-0 z-[120] w-[60px] border-r border-divider-main bg-primary">
       <div className="flex flex-col items-center">
         <button
           type="button"
           title="Back"
-          className="grid size-14 place-items-center text-secondary-default transition hover:bg-white/5"
+          onClick={() => {
+            navigate("/");
+          }}
+          className="grid cursor-pointer size-14 place-items-center text-secondary-default transition hover:bg-white/5"
         >
           <ArrowLeft className="size-7" />
         </button>
