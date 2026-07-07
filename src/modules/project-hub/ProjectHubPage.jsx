@@ -28,6 +28,11 @@ function getAccessLabel(role) {
   return "Unknown Access";
 }
 
+
+function getProjectThumbnail(project) {
+  return project?.thumbnail || project?.material?.thumbnail || "";
+}
+
 export default function ProjectHubPage() {
   const [glbValidation, setGlbValidation] = useState(null);
   const [isValidatingGlb, setIsValidatingGlb] = useState(false);

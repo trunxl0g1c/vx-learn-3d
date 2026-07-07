@@ -1,5 +1,8 @@
 import { useEffect } from "react";
-import { saveProjectDraftToIndexedDb } from "../modules/project-hub/storage/projectIndexedDb";
+import {
+  saveProjectDraftToIndexedDb,
+  updateProjectInIndexedDb,
+} from "../modules/project-hub/storage/projectIndexedDb";
 
 export function createViewerDraft({
   projectId,
@@ -62,6 +65,13 @@ export function useViewerAutosave({
         });
 
         await saveProjectDraftToIndexedDb(projectId, draftToSave);
+
+        await updateProjectInIndexedDb(projectId, {
+          thumbnail: material?.thumbnail || null,
+          material,
+          viewer: viewerSettings,
+        });
+
         setProjectDraft(draftToSave);
 
         markSaved();

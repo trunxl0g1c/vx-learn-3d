@@ -163,15 +163,40 @@ function Model({
 
     scene.traverse((child) => {
       if (child.isMesh && child.userData.targetPosition) {
-        child.position.lerp(child.userData.targetPosition, 0.08);
+        const animation = child.userData.targetPositionAnimation;
 
-        const distance = child.position.distanceTo(
-          child.userData.targetPosition,
-        );
+        if (animation?.from && animation?.startedAt) {
+          const now =
+            typeof performance !== "undefined" &&
+            typeof performance.now === "function"
+              ? performance.now()
+              : Date.now();
+          const duration = Math.max(animation.duration || 450, 1);
+          const progress = Math.min((now - animation.startedAt) / duration, 1);
+          const easedProgress = 1 - Math.pow(1 - progress, 3);
 
-        if (distance < 0.01) {
-          child.position.copy(child.userData.targetPosition);
-          delete child.userData.targetPosition;
+          child.position.lerpVectors(
+            animation.from,
+            child.userData.targetPosition,
+            easedProgress,
+          );
+
+          if (progress >= 1) {
+            child.position.copy(child.userData.targetPosition);
+            delete child.userData.targetPosition;
+            delete child.userData.targetPositionAnimation;
+          }
+        } else {
+          child.position.lerp(child.userData.targetPosition, 0.08);
+
+          const distance = child.position.distanceTo(
+            child.userData.targetPosition,
+          );
+
+          if (distance < 0.01) {
+            child.position.copy(child.userData.targetPosition);
+            delete child.userData.targetPosition;
+          }
         }
       }
 

@@ -1,4 +1,4 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useThree } from '@react-three/fiber'
 import {
   OrbitControls,
   Center,
@@ -6,15 +6,37 @@ import {
   TransformControls,
   Environment,
 } from '@react-three/drei'
-import { Suspense, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
+import * as THREE from 'three'
 
 import Marker from '../Marker'
 import Model from '../Model'
 import LoadingModel from '../viewer/LoadingModel'
 import CameraAnimator from '../viewer/CameraAnimator'
 import ModelRotator from '../viewer/ModelRotator'
+import { getViewerBackgroundStyle } from '../../utils/viewerBackground'
+import CustomHdriEnvironment from './CustomHdriEnvironment'
+import ViewerSceneBackground from './ViewerSceneBackground'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
+
+
+function RenderSettingsSync({ viewerSettings }) {
+  const { gl, scene, invalidate } = useThree()
+
+  useEffect(() => {
+    gl.toneMapping = THREE.ACESFilmicToneMapping
+    gl.toneMappingExposure = Number(viewerSettings?.exposure ?? 1)
+
+    if ('environmentIntensity' in scene) {
+      scene.environmentIntensity = Number(viewerSettings?.envIntensity ?? 1)
+    }
+
+    invalidate()
+  }, [gl, scene, invalidate, viewerSettings?.exposure, viewerSettings?.envIntensity])
+
+  return null
+}
 
 export default function SceneCanvas({
   cameraRef,
@@ -49,9 +71,16 @@ export default function SceneCanvas({
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
-      gl={{ localClippingEnabled: true }}
+      style={getViewerBackgroundStyle(viewerSettings)}
+      gl={{
+        alpha: true,
+        preserveDrawingBuffer: true,
+        localClippingEnabled: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+      }}
       onCreated={({ camera, gl }) => {
         cameraRef.current = camera
+        gl.setClearColor(0x000000, 0)
         gl.toneMappingExposure = viewerSettings.exposure
         window.__EDITOR_RENDERER__ = gl
       }}
@@ -62,6 +91,9 @@ export default function SceneCanvas({
         setOrbitEnabled(true)
       }}
     >
+      <RenderSettingsSync viewerSettings={viewerSettings} />
+      <ViewerSceneBackground viewerSettings={viewerSettings} />
+
       <EffectComposer autoClear={false}>
         {outlineObjects.length > 0 && (
           <Outline
@@ -76,11 +108,17 @@ export default function SceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings.hdri && (
-        <Environment
-          files={viewerSettings.hdri}
-          background={viewerSettings.showHdriBackground}
-        />
+      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+        <CustomHdriEnvironment viewerSettings={viewerSettings} />
+      ) : (
+        viewerSettings.hdri && (
+          <Environment
+            files={viewerSettings.hdri}
+            background={viewerSettings.showHdriBackground}
+            environmentIntensity={viewerSettings.envIntensity}
+            backgroundIntensity={viewerSettings.envIntensity}
+          />
+        )
       )}
 
       <directionalLight

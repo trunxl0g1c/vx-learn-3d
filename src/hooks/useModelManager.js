@@ -19,6 +19,8 @@ export function useModelManager({
   setIsAutoRotating,
   focusTargetRef,
   selectionEngine,
+  cameraRef,
+  controlsRef,
 }) {
   const modelEngineRef = useRef(null)
 
@@ -46,6 +48,51 @@ export function useModelManager({
     setSelectedObjectName('')
   }
 
+  const createCurrentCameraFocusTarget = () => {
+    const camera = cameraRef?.current
+    const controls = controlsRef?.current
+
+    if (!camera?.position || !controls?.target) return null
+
+    return {
+      cameraPosition: camera.position.clone(),
+      target: controls.target.clone(),
+    }
+  }
+
+  const saveCurrentCanvasViewAsHome = (scene) => {
+    const focusTarget = createCurrentCameraFocusTarget()
+
+    vxEngine?.camera?.setScene?.(scene)
+    vxEngine?.camera?.setRefs?.({
+      camera: cameraRef?.current,
+      controls: controlsRef?.current,
+    })
+
+    if (focusTarget) {
+      vxEngine?.camera?.saveHomeView?.(focusTarget)
+      return
+    }
+
+    vxEngine?.camera?.saveHomeView?.(null, {
+      camera: cameraRef?.current,
+      distanceMultiplier: 1.7,
+      minimumDistance: 1.1,
+    })
+  }
+
+  const scheduleHomeViewCapture = (scene) => {
+    const capture = () => saveCurrentCanvasViewAsHome(scene)
+
+    window.requestAnimationFrame?.(() => {
+      window.requestAnimationFrame?.(() => {
+        window.requestAnimationFrame?.(capture)
+      })
+    })
+
+    window.setTimeout?.(capture, 350)
+  }
+
   const handleModelLoaded = (scene) => {
     const modelEngine = getModelEngine()
     const state =
@@ -65,10 +112,18 @@ export function useModelManager({
       setCutMax(xBounds.max)
       setCutX(getAxisMidValue(state.boundsMap, 'x'))
     }
+
+    scheduleHomeViewCapture(scene)
   }
 
-  const pullApart = () => {
-    getModelEngine().pullApart()
+  const pullApart = (selectedObject = null) => {
+    return getModelEngine().pullApart(selectedObject, {
+      mode: 'hierarchy',
+      strength: selectedObject ? 0.28 : 0.18,
+      maxDepthMultiplier: 1.8,
+      animationDuration: 450,
+      hideOutsideSelection: true,
+    })
   }
 
   const resetParts = () => {

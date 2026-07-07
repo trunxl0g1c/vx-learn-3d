@@ -181,6 +181,7 @@ export default function VisualTab(props) {
                 setViewerSettings((prev) => ({
                   ...prev,
                   hdri: value,
+                  hdriSource: "preset",
                 }))
               }
               options={[

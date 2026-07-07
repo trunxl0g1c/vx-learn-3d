@@ -90,7 +90,12 @@ export default function EditorLeftSidebar({
         )}
 
         {activeSidebar === "settings" && (
-          <ProjectSettingsPanel material={material} setMaterial={setMaterial} />
+          <ProjectSettingsPanel
+            material={material}
+            setMaterial={setMaterial}
+            viewerSettings={viewerSettings}
+            setViewerSettings={setViewerSettings}
+          />
         )}
       </div>
     </aside>

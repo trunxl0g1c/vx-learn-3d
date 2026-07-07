@@ -94,12 +94,17 @@ export function useViewerProject({
         setModelFile(projectFile);
         setMaterialModelUrl(glbFileName || project.fileName || "");
 
-        setMaterial((prev) => ({
-          ...prev,
-          ...(material || {}),
-          projectId: project.id,
-          projectName: project.name,
-        }));
+        setMaterial((prev) => {
+          const loadedMaterial = material || {};
+
+          return {
+            ...prev,
+            ...loadedMaterial,
+            thumbnail: loadedMaterial.thumbnail || project.thumbnail || "",
+            projectId: project.id,
+            projectName: project.name,
+          };
+        });
 
         if (viewer) {
           setViewerSettings((prev) => ({
@@ -172,6 +177,13 @@ export function useViewerProject({
         setMaterialModelUrl(manifest.originalModelUrl || "");
         setModelFile(null);
         setMarkers([]);
+
+        if (manifest.viewerSettings) {
+          setViewerSettings((prev) => ({
+            ...prev,
+            ...manifest.viewerSettings,
+          }));
+        }
 
         setActiveChapterId(manifest.chapters?.[0]?.id || null);
         setRightTab("material");

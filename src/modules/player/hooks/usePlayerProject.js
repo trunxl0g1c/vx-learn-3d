@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom"
 import useProjectLoader from "../../../engine/project/useProjectLoader"
 import { useGlobalLoading } from "../../loading/LoadingContext"
 import { importVXPack, isVXPackFile } from "../../../utils/vxpackUtils"
+import { DEFAULT_VIEWER_BACKGROUND } from "../../../utils/viewerBackground"
 
 export const DEFAULT_VIEWER_SETTINGS = {
   exposure: 1.8,
@@ -12,10 +13,13 @@ export const DEFAULT_VIEWER_SETTINGS = {
   hemiLight: 2,
   envIntensity: 3,
   hdri: "",
+  hdriSource: "preset",
+  customHdri: null,
   showHdriBackground: false,
   shaderMode: "original",
   metalness: 0.3,
   roughness: 0.8,
+  background: DEFAULT_VIEWER_BACKGROUND,
 }
 
 export default function usePlayerProject({

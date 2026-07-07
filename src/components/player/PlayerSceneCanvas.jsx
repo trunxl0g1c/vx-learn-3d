@@ -1,5 +1,6 @@
-import { Canvas } from "@react-three/fiber"
-import { Suspense, useRef } from "react"
+import { Canvas, useThree } from "@react-three/fiber"
+import { Suspense, useEffect, useRef } from "react"
+import * as THREE from "three"
 import {
   OrbitControls,
   Bounds,
@@ -13,6 +14,27 @@ import Model from "../Model"
 import Marker from "../Marker"
 import LoadingModel from "../viewer/LoadingModel"
 import CameraAnimator from "../viewer/CameraAnimator"
+import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
+import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment"
+import ViewerSceneBackground from '../canvas/ViewerSceneBackground'
+
+
+function RenderSettingsSync({ viewerSettings }) {
+  const { gl, scene, invalidate } = useThree()
+
+  useEffect(() => {
+    gl.toneMapping = THREE.ACESFilmicToneMapping
+    gl.toneMappingExposure = Number(viewerSettings?.exposure ?? 1)
+
+    if ('environmentIntensity' in scene) {
+      scene.environmentIntensity = Number(viewerSettings?.envIntensity ?? 1)
+    }
+
+    invalidate()
+  }, [gl, scene, invalidate, viewerSettings?.exposure, viewerSettings?.envIntensity])
+
+  return null
+}
 
 export default function PlayerSceneCanvas({
   material,
@@ -56,12 +78,16 @@ export default function PlayerSceneCanvas({
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
+      style={getViewerBackgroundStyle(viewerSettings)}
       gl={{
+        alpha: true,
         localClippingEnabled: true,
         antialias: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
       }}
       onCreated={({ camera, gl }) => {
         cameraRef.current = camera
+        gl.setClearColor(0x000000, 0)
         gl.toneMappingExposure = viewerSettings.exposure
         window.__PLAYER_RENDERER__ = gl
       }}
@@ -70,6 +96,9 @@ export default function PlayerSceneCanvas({
         setOutlineObjects([])
       }}
     >
+      <RenderSettingsSync viewerSettings={viewerSettings} />
+      <ViewerSceneBackground viewerSettings={viewerSettings} />
+
       <EffectComposer autoClear={false}>
         {outlineObjects.length > 0 && (
           <Outline
@@ -84,11 +113,17 @@ export default function PlayerSceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings.hdri && (
-        <Environment
-          files={viewerSettings.hdri}
-          background={viewerSettings.showHdriBackground}
-        />
+      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+        <CustomHdriEnvironment viewerSettings={viewerSettings} />
+      ) : (
+        viewerSettings.hdri && (
+          <Environment
+            files={viewerSettings.hdri}
+            background={viewerSettings.showHdriBackground}
+            environmentIntensity={viewerSettings.envIntensity}
+            backgroundIntensity={viewerSettings.envIntensity}
+          />
+        )
       )}
 
       <directionalLight

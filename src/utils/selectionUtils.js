@@ -1,3 +1,25 @@
+function cloneMaterial(material) {
+  if (Array.isArray(material)) {
+    return material.map((item) => item?.clone?.() || item)
+  }
+
+  return material?.clone?.() || material
+}
+
+function restoreOriginalMaterial(child) {
+  if (!child?.isMesh || !child.userData?.originalMaterial) return
+
+  child.material = cloneMaterial(child.userData.originalMaterial)
+}
+
+function markMaterialNeedsUpdate(material) {
+  const materials = Array.isArray(material) ? material : [material]
+
+  materials.forEach((item) => {
+    if (item) item.needsUpdate = true
+  })
+}
+
 export function highlightObjectUtil() {}
 
 export function highlightObject({
@@ -11,12 +33,10 @@ export function highlightObject({
   modelScene?.traverse((child) => {
     if (!child.isMesh || !child.material) return
 
-    if (child.userData.originalMaterial) {
-      child.material = child.userData.originalMaterial
-    }
+    restoreOriginalMaterial(child)
 
     child.material.emissive?.set(0x000000)
-    child.material.needsUpdate = true
+    markMaterialNeedsUpdate(child.material)
   })
 
   const selectedMeshes = []
@@ -55,11 +75,7 @@ export function makeXrayExcept({
     if (isSelected) {
       selectedMeshes.push(child)
 
-      child.material = child.userData.originalMaterial || child.material
-      child.material.transparent = false
-      child.material.opacity = 1
-      child.material.depthWrite = true
-      child.material.depthTest = true
+      restoreOriginalMaterial(child)
       child.renderOrder = 999
       child.material.emissive?.set(0x000000)
     } else {
@@ -67,7 +83,7 @@ export function makeXrayExcept({
       child.renderOrder = 0
     }
 
-    child.material.needsUpdate = true
+    markMaterialNeedsUpdate(child.material)
   })
 
   setOutlineObjects(selectedMeshes)
@@ -84,15 +100,11 @@ export function resetXray({
     item.object.traverse((child) => {
       if (!child.isMesh) return
 
-      child.material = child.userData.originalMaterial
+      restoreOriginalMaterial(child)
       child.renderOrder = 0
 
       if (child.material) {
-        child.material.transparent = false
-        child.material.opacity = 1
-        child.material.depthWrite = true
-        child.material.depthTest = true
-        child.material.needsUpdate = true
+        markMaterialNeedsUpdate(child.material)
       }
     })
   })

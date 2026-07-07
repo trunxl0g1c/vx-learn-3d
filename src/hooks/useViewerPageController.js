@@ -20,6 +20,7 @@ import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
 import { useVXEngine } from "./useVXEngine";
+import { DEFAULT_VIEWER_BACKGROUND } from "../utils/viewerBackground";
 
 export function useViewerPageController() {
   const vxEngine = useVXEngine();
@@ -83,11 +84,19 @@ export function useViewerPageController() {
     hemiLight: 0.5,
     envIntensity: 0.8,
     hdri: "/hdr/studio.hdr",
+    hdriSource: "preset",
+    customHdri: null,
     showHdriBackground: false,
     shaderMode: "original",
     metalness: 0.1,
     roughness: 0.1,
+    background: DEFAULT_VIEWER_BACKGROUND,
   });
+
+  const updateViewerSettings = (updater) => {
+    markDirty();
+    setViewerSettings(updater);
+  };
 
   const {
     material,
@@ -183,6 +192,8 @@ export function useViewerPageController() {
     setIsAutoRotating,
     focusTargetRef,
     selectionEngine,
+    cameraRef,
+    controlsRef,
   });
 
   const {
@@ -207,6 +218,10 @@ export function useViewerPageController() {
     hideLoading,
     handleModelLoaded,
   });
+
+  const pullApartSelectedScope = () => {
+    pullApart(selectedObject);
+  };
 
   const soloSelectedObject = () => soloSelectedObjectBase(selectedObject);
   const hideSelectedObject = () => hideSelectedObjectBase(selectedObject);
@@ -305,7 +320,7 @@ export function useViewerPageController() {
     roughness,
     setRoughness,
     viewerSettings,
-    setViewerSettings,
+    setViewerSettings: updateViewerSettings,
     updateEnvIntensity,
     material,
     setMaterial: updateMaterialState,
@@ -369,7 +384,7 @@ export function useViewerPageController() {
     toggleCutSection,
     hideSelectedObject,
     resetXray,
-    pullApart,
+    pullApart: pullApartSelectedScope,
     resetAllTransforms: resetAllWithCamera,
     soloSelectedObject,
     showAllObjects,
