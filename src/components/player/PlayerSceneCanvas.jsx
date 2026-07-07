@@ -15,6 +15,8 @@ import Marker from "../Marker"
 import LoadingModel from "../viewer/LoadingModel"
 import CameraAnimator from "../viewer/CameraAnimator"
 import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
+import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment"
+import ViewerSceneBackground from '../canvas/ViewerSceneBackground'
 
 
 function RenderSettingsSync({ viewerSettings }) {
@@ -95,6 +97,7 @@ export default function PlayerSceneCanvas({
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
+      <ViewerSceneBackground viewerSettings={viewerSettings} />
 
       <EffectComposer autoClear={false}>
         {outlineObjects.length > 0 && (
@@ -110,13 +113,17 @@ export default function PlayerSceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings.hdri && (
-        <Environment
-          files={viewerSettings.hdri}
-          background={viewerSettings.showHdriBackground}
-          environmentIntensity={viewerSettings.envIntensity}
-          backgroundIntensity={viewerSettings.envIntensity}
-        />
+      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+        <CustomHdriEnvironment viewerSettings={viewerSettings} />
+      ) : (
+        viewerSettings.hdri && (
+          <Environment
+            files={viewerSettings.hdri}
+            background={viewerSettings.showHdriBackground}
+            environmentIntensity={viewerSettings.envIntensity}
+            backgroundIntensity={viewerSettings.envIntensity}
+          />
+        )
       )}
 
       <directionalLight

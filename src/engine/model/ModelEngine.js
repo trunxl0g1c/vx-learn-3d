@@ -52,6 +52,20 @@ export function createModelEngine(options = {}) {
   let originalGroupPositions = []
   let lastState = null
 
+  const getNow = () => {
+    if (typeof performance !== "undefined" && typeof performance.now === "function") {
+      return performance.now()
+    }
+
+    return Date.now()
+  }
+
+  const createTargetAnimation = (object, duration = 450) => ({
+    from: object.position.clone(),
+    startedAt: getNow(),
+    duration,
+  })
+
   const getScene = () => scene
 
   const getOriginalPositions = () => originalPositions
@@ -151,21 +165,125 @@ export function createModelEngine(options = {}) {
     return lastState
   }
 
+  const isValidPullApartMesh = (object) => Boolean(object?.isMesh)
+
   const getMeshesInSubtree = (rootObject) => {
     const meshes = []
 
     rootObject?.traverse?.((child) => {
-      if (child.isMesh) meshes.push(child)
+      if (isValidPullApartMesh(child)) meshes.push(child)
     })
 
     return meshes
   }
 
-  const getPullApartDirection = (object, center) => {
-    const worldPosition = new THREE.Vector3()
-    object.getWorldPosition(worldPosition)
+  const createBoxFromObjects = (objects = []) => {
+    const box = new THREE.Box3()
+    let hasObject = false
 
-    const direction = worldPosition.sub(center)
+    objects.forEach((object) => {
+      if (!object) return
+
+      object.updateWorldMatrix?.(true, false)
+
+      const objectBox = new THREE.Box3().setFromObject(object)
+
+      if (objectBox.isEmpty()) return
+
+      box.union(objectBox)
+      hasObject = true
+    })
+
+    return hasObject ? box : null
+  }
+
+  const getBoxCenter = (box, fallback = new THREE.Vector3()) => {
+    if (!box || box.isEmpty()) return fallback.clone()
+
+    const center = new THREE.Vector3()
+    box.getCenter(center)
+    return center
+  }
+
+  const getBoxMaxSize = (box) => {
+    if (!box || box.isEmpty()) return 1
+
+    const size = new THREE.Vector3()
+    box.getSize(size)
+
+    return Math.max(size.x, size.y, size.z, 0.0001)
+  }
+
+  const getObjectWorldCenter = (object, fallback = new THREE.Vector3()) => {
+    if (!object) return fallback.clone()
+
+    const meshes = getMeshesInSubtree(object)
+    const box = createBoxFromObjects(meshes.length > 0 ? meshes : [object])
+
+    return getBoxCenter(box, fallback)
+  }
+
+  const getRelativeHierarchyDepth = (object, rootObject) => {
+    let depth = 0
+    let current = object?.parent || null
+
+    while (current && current !== rootObject && current !== scene) {
+      depth += 1
+      current = current.parent || null
+    }
+
+    return depth
+  }
+
+  const getObjectStableIndex = (object) => {
+    if (!scene || !object) return 0
+
+    let index = 0
+    let foundIndex = 0
+
+    scene.traverse((child) => {
+      if (!child.isMesh) return
+
+      if (child === object) {
+        foundIndex = index
+      }
+
+      index += 1
+    })
+
+    return foundIndex
+  }
+
+  const createFallbackDirection = (object) => {
+    const index = getObjectStableIndex(object)
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+    const angle = index * goldenAngle
+    const y = ((index % 5) - 2) * 0.18
+
+    return new THREE.Vector3(
+      Math.cos(angle),
+      y,
+      Math.sin(angle)
+    ).normalize()
+  }
+
+  const getPullApartDirection = (object, rootCenter, rootObject, mode = "hierarchy") => {
+    const objectCenter = getObjectWorldCenter(object, rootCenter)
+
+    if (mode === "axis-x") return new THREE.Vector3(objectCenter.x >= rootCenter.x ? 1 : -1, 0, 0)
+    if (mode === "axis-y") return new THREE.Vector3(0, objectCenter.y >= rootCenter.y ? 1 : -1, 0)
+    if (mode === "axis-z") return new THREE.Vector3(0, 0, objectCenter.z >= rootCenter.z ? 1 : -1)
+
+    let direction = null
+
+    if (mode === "hierarchy") {
+      const parentCenter = getObjectWorldCenter(object.parent, rootCenter)
+      direction = objectCenter.clone().sub(parentCenter)
+    }
+
+    if (!direction || direction.lengthSq() <= 0.000001) {
+      direction = objectCenter.clone().sub(rootCenter)
+    }
 
     if (direction.lengthSq() > 0.000001) {
       return direction.normalize()
@@ -177,18 +295,62 @@ export function createModelEngine(options = {}) {
       return localDirection.normalize()
     }
 
-    return new THREE.Vector3(0, 1, 0)
+    return createFallbackDirection(object)
+  }
+
+  const createLocalTargetFromWorldOffset = (object, baseLocalPosition, worldOffset) => {
+    const parent = object.parent || null
+    const baseWorldPosition = parent
+      ? parent.localToWorld(baseLocalPosition.clone())
+      : baseLocalPosition.clone()
+
+    const targetWorldPosition = baseWorldPosition.add(worldOffset)
+
+    return parent
+      ? parent.worldToLocal(targetWorldPosition)
+      : targetWorldPosition
+  }
+
+  const collectObjectSubtree = (rootObject) => {
+    const subtree = new Set()
+
+    rootObject?.traverse?.((child) => {
+      subtree.add(child)
+    })
+
+    return subtree
+  }
+
+  const collectObjectAncestors = (object) => {
+    const ancestors = new Set()
+    let current = object || null
+
+    while (current) {
+      ancestors.add(current)
+
+      if (current === scene) break
+
+      current = current.parent || null
+    }
+
+    return ancestors
   }
 
   const applyVisibilityForPullApartTarget = (targetObject) => {
     if (!scene || !targetObject) return
 
-    scene.traverse((child) => {
-      if (child.isMesh) child.visible = false
-    })
+    const visibleSubtree = collectObjectSubtree(targetObject)
+    const visibleAncestors = collectObjectAncestors(targetObject)
 
-    targetObject.traverse?.((child) => {
-      if (child.isMesh) child.visible = true
+    scene.traverse((child) => {
+      if (visibleSubtree.has(child) || visibleAncestors.has(child)) {
+        child.visible = true
+        return
+      }
+
+      if (child.isMesh) {
+        child.visible = false
+      }
     })
   }
 
@@ -196,38 +358,51 @@ export function createModelEngine(options = {}) {
     if (!scene) return false
 
     const {
-      distance = targetObject ? 0.28 : 0.38,
+      mode = "hierarchy",
+      strength = targetObject ? 0.28 : 0.18,
+      distance = null,
+      maxDepthMultiplier = 1.8,
+      animationDuration = 450,
       hideOutsideSelection = true,
     } = options
 
+    const rootObject = targetObject || scene
     const meshes = targetObject
       ? getMeshesInSubtree(targetObject)
       : originalPositions.map((item) => item.object).filter(Boolean)
 
     if (meshes.length === 0) return false
 
+    scene.updateMatrixWorld(true)
+
     if (targetObject && hideOutsideSelection) {
       applyVisibilityForPullApartTarget(targetObject)
     }
 
-    const centerBox = new THREE.Box3()
-
-    meshes.forEach((mesh) => {
-      mesh.updateWorldMatrix?.(true, false)
-      centerBox.expandByObject(mesh)
-    })
-
-    const center = new THREE.Vector3()
-    centerBox.getCenter(center)
+    const rootBox = createBoxFromObjects(meshes)
+    const rootCenter = getBoxCenter(rootBox)
+    const rootMaxSize = getBoxMaxSize(rootBox)
+    const baseDistance = typeof distance === "number"
+      ? distance
+      : rootMaxSize * strength
 
     meshes.forEach((mesh) => {
       const original = originalPositions.find((item) => item.object === mesh)
-      const basePosition = original?.position || mesh.position
-      const direction = getPullApartDirection(mesh, center)
+      const basePosition = original?.position?.clone?.() || mesh.position.clone()
+      const direction = getPullApartDirection(mesh, rootCenter, rootObject, mode)
+      const depth = getRelativeHierarchyDepth(mesh, rootObject)
+      const depthMultiplier = Math.min(1 + depth * 0.12, maxDepthMultiplier)
+      const worldOffset = direction.multiplyScalar(baseDistance * depthMultiplier)
 
-      mesh.userData.targetPosition = basePosition
-        .clone()
-        .add(direction.multiplyScalar(distance))
+      mesh.userData.targetPosition = createLocalTargetFromWorldOffset(
+        mesh,
+        basePosition,
+        worldOffset
+      )
+      mesh.userData.targetPositionAnimation = createTargetAnimation(
+        mesh,
+        animationDuration
+      )
     })
 
     return true
@@ -236,6 +411,7 @@ export function createModelEngine(options = {}) {
   const resetParts = () => {
     originalPositions.forEach((item) => {
       item.object.userData.targetPosition = item.position.clone()
+      item.object.userData.targetPositionAnimation = createTargetAnimation(item.object, 420)
     })
   }
 

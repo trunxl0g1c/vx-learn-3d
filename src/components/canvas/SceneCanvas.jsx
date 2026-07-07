@@ -15,6 +15,8 @@ import LoadingModel from '../viewer/LoadingModel'
 import CameraAnimator from '../viewer/CameraAnimator'
 import ModelRotator from '../viewer/ModelRotator'
 import { getViewerBackgroundStyle } from '../../utils/viewerBackground'
+import CustomHdriEnvironment from './CustomHdriEnvironment'
+import ViewerSceneBackground from './ViewerSceneBackground'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 
@@ -72,6 +74,7 @@ export default function SceneCanvas({
       style={getViewerBackgroundStyle(viewerSettings)}
       gl={{
         alpha: true,
+        preserveDrawingBuffer: true,
         localClippingEnabled: true,
         toneMapping: THREE.ACESFilmicToneMapping,
       }}
@@ -89,6 +92,7 @@ export default function SceneCanvas({
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
+      <ViewerSceneBackground viewerSettings={viewerSettings} />
 
       <EffectComposer autoClear={false}>
         {outlineObjects.length > 0 && (
@@ -104,13 +108,17 @@ export default function SceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings.hdri && (
-        <Environment
-          files={viewerSettings.hdri}
-          background={viewerSettings.showHdriBackground}
-          environmentIntensity={viewerSettings.envIntensity}
-          backgroundIntensity={viewerSettings.envIntensity}
-        />
+      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+        <CustomHdriEnvironment viewerSettings={viewerSettings} />
+      ) : (
+        viewerSettings.hdri && (
+          <Environment
+            files={viewerSettings.hdri}
+            background={viewerSettings.showHdriBackground}
+            environmentIntensity={viewerSettings.envIntensity}
+            backgroundIntensity={viewerSettings.envIntensity}
+          />
+        )
       )}
 
       <directionalLight

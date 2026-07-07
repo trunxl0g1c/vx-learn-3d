@@ -118,7 +118,10 @@ export function useModelManager({
 
   const pullApart = (selectedObject = null) => {
     return getModelEngine().pullApart(selectedObject, {
-      distance: selectedObject ? 0.28 : 0.38,
+      mode: 'hierarchy',
+      strength: selectedObject ? 0.28 : 0.18,
+      maxDepthMultiplier: 1.8,
+      animationDuration: 450,
       hideOutsideSelection: true,
     })
   }

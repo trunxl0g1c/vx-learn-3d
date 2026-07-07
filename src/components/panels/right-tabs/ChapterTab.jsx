@@ -42,13 +42,7 @@ export default function ChapterTab(props) {
   return (
     <div className="flex flex-col gap-1 p-3">
       <div className="mb-3 rounded-2xl bg-dark-alpha p-3">
-        <div className="mb-2 text-sm text-secondary-default">
-          Object Selected
-        </div>
-
-        <div className="mb-3 text-base font-semibold">
-          {selectedObjectName || "-"}
-        </div>
+        
 
         <Button
           size="sm"

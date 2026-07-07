@@ -26,6 +26,11 @@ function getAccessLabel(role) {
   return "Unknown Access";
 }
 
+
+function getProjectThumbnail(project) {
+  return project?.thumbnail || project?.material?.thumbnail || "";
+}
+
 export default function ProjectHubPage() {
   const [glbValidation, setGlbValidation] = useState(null);
   const [isValidatingGlb, setIsValidatingGlb] = useState(false);
@@ -229,7 +234,16 @@ export default function ProjectHubPage() {
                 key={project.id}
                 onClick={() => handleOpenProject(project)}
             >
-                <div className="vxhub-thumb placeholder" />
+                {getProjectThumbnail(project) ? (
+                  <img
+                    className="vxhub-thumb"
+                    src={getProjectThumbnail(project)}
+                    alt={`${project.name} thumbnail`}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="vxhub-thumb placeholder" />
+                )}
 
                 <div className="vxhub-card-body">
                 <div>

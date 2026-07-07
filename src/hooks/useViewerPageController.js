@@ -84,6 +84,8 @@ export function useViewerPageController() {
     hemiLight: 0.5,
     envIntensity: 0.8,
     hdri: "/hdr/studio.hdr",
+    hdriSource: "preset",
+    customHdri: null,
     showHdriBackground: false,
     shaderMode: "original",
     metalness: 0.1,

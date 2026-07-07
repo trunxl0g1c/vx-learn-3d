@@ -4,6 +4,18 @@ export const DEFAULT_VIEWER_BACKGROUND = {
   centerColor: "#2a2a2a",
   edgeColor: "#0d0d0d",
   intensity: 1,
+  size: 1,
+  imageUrl: "",
+  imageName: "",
+  imageFit: "cover",
+  imageOpacity: 1,
+};
+
+export const DEFAULT_VIEWER_HDRI = {
+  source: "preset",
+  hdri: "/hdr/studio.hdr",
+  customHdri: null,
+  showHdriBackground: false,
 };
 
 function isValidHexColor(value) {
@@ -18,15 +30,27 @@ function clampNumber(value, min, max, fallback) {
   return Math.min(max, Math.max(min, numericValue));
 }
 
+function normalizeBackgroundType(type) {
+  if (type === "solid" || type === "radialGradient" || type === "image") {
+    return type;
+  }
+
+  return DEFAULT_VIEWER_BACKGROUND.type;
+}
+
+function normalizeImageFit(value) {
+  if (value === "cover" || value === "contain" || value === "stretch") {
+    return value;
+  }
+
+  return DEFAULT_VIEWER_BACKGROUND.imageFit;
+}
+
 export function normalizeViewerBackground(background = {}) {
   const source = background || {};
-  const type =
-    source.type === "solid" || source.type === "radialGradient"
-      ? source.type
-      : DEFAULT_VIEWER_BACKGROUND.type;
 
   return {
-    type,
+    type: normalizeBackgroundType(source.type),
     solidColor: isValidHexColor(source.solidColor)
       ? source.solidColor
       : DEFAULT_VIEWER_BACKGROUND.solidColor,
@@ -42,6 +66,22 @@ export function normalizeViewerBackground(background = {}) {
       2,
       DEFAULT_VIEWER_BACKGROUND.intensity,
     ),
+    size: clampNumber(source.size, 0.2, 3, DEFAULT_VIEWER_BACKGROUND.size),
+    imageUrl:
+      typeof source.imageUrl === "string"
+        ? source.imageUrl
+        : DEFAULT_VIEWER_BACKGROUND.imageUrl,
+    imageName:
+      typeof source.imageName === "string"
+        ? source.imageName
+        : DEFAULT_VIEWER_BACKGROUND.imageName,
+    imageFit: normalizeImageFit(source.imageFit),
+    imageOpacity: clampNumber(
+      source.imageOpacity,
+      0,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.imageOpacity,
+    ),
   };
 }
 
@@ -56,14 +96,24 @@ export function getViewerBackgroundCss(viewerSettings = {}) {
     return background.solidColor;
   }
 
-  const innerStop = Math.round(8 + background.intensity * 12);
-  const outerStart = Math.round(42 + background.intensity * 12);
+  if (background.type === "image" && background.imageUrl) {
+    const fit = background.imageFit === "stretch" ? "100% 100%" : background.imageFit;
+
+    return [
+      `linear-gradient(rgba(0,0,0,${1 - background.imageOpacity}), rgba(0,0,0,${1 - background.imageOpacity}))`,
+      `url("${background.imageUrl}") center / ${fit} no-repeat`,
+    ].join(", ");
+  }
+
+  const safeSize = background.size || 1;
+  const innerStop = Math.round((8 + background.intensity * 12) * safeSize);
+  const outerStart = Math.round((42 + background.intensity * 12) * safeSize);
 
   return [
     "radial-gradient(circle at center,",
     `${background.centerColor} 0%,`,
-    `${background.centerColor} ${innerStop}%,`,
-    `${background.edgeColor} ${outerStart}%,`,
+    `${background.centerColor} ${Math.min(innerStop, 90)}%,`,
+    `${background.edgeColor} ${Math.min(Math.max(outerStart, innerStop + 1), 98)}%,`,
     `${background.edgeColor} 100%)`,
   ].join(" ");
 }
@@ -71,5 +121,26 @@ export function getViewerBackgroundCss(viewerSettings = {}) {
 export function getViewerBackgroundStyle(viewerSettings = {}) {
   return {
     background: getViewerBackgroundCss(viewerSettings),
+  };
+}
+
+export function normalizeViewerHdri(viewerSettings = {}) {
+  const customHdri = viewerSettings?.customHdri || null;
+  const hasCustomHdri = Boolean(customHdri?.dataUrl);
+  const hdri = typeof viewerSettings?.hdri === "string" ? viewerSettings.hdri : "";
+
+  return {
+    source: hasCustomHdri && viewerSettings?.hdriSource === "custom" ? "custom" : "preset",
+    hdri,
+    customHdri: hasCustomHdri
+      ? {
+          name: customHdri.name || "custom.hdr",
+          type: customHdri.type || "application/octet-stream",
+          dataUrl: customHdri.dataUrl,
+          size: Number(customHdri.size || 0),
+          importedAt: customHdri.importedAt || null,
+        }
+      : null,
+    showHdriBackground: Boolean(viewerSettings?.showHdriBackground),
   };
 }

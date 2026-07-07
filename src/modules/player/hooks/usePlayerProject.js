@@ -13,6 +13,8 @@ export const DEFAULT_VIEWER_SETTINGS = {
   hemiLight: 2,
   envIntensity: 3,
   hdri: "",
+  hdriSource: "preset",
+  customHdri: null,
   showHdriBackground: false,
   shaderMode: "original",
   metalness: 0.3,
