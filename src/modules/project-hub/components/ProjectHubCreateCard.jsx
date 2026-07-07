@@ -5,11 +5,11 @@ export default function ProjectHubCreateCard({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="cursor-pointer flex h-48.5 w-full flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark text-white transition hover:border-accent-main hover:bg-white/5"
+      className="cursor-pointer flex h-50 w-full flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark text-white transition hover:border-accent-main hover:bg-white/2"
     >
-      <PlusCircle className="w-10! h-10! text-accent-main" />
+      <PlusCircle className="w-12! h-12! text-accent-main" />
 
-      <span className="text-sm font-normal mt-4">Create New Project</span>
+      <span className="text-sm font-normal mt-6">Create New Project</span>
     </button>
   );
 }
