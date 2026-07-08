@@ -12,6 +12,8 @@ export function createViewerDraft({
   cutEnabled,
   cutAxis,
   cutValue,
+  cutValues,
+  cutRanges,
   previousScene = {},
 }) {
   return {
@@ -25,6 +27,8 @@ export function createViewerDraft({
         enabled: cutEnabled,
         axis: cutAxis,
         value: cutValue,
+        values: cutValues || null,
+        ranges: cutRanges || null,
       },
     },
     updatedAt: new Date().toISOString(),
@@ -40,6 +44,8 @@ export function useViewerAutosave({
   cutEnabled,
   cutAxis,
   cutValue,
+  cutValues,
+  cutRanges,
   setSaveStatus,
   markSaved,
   markSaveError,
@@ -62,6 +68,8 @@ export function useViewerAutosave({
           cutEnabled,
           cutAxis,
           cutValue,
+          cutValues,
+          cutRanges,
         });
 
         await saveProjectDraftToIndexedDb(projectId, draftToSave);
@@ -91,6 +99,8 @@ export function useViewerAutosave({
     cutEnabled,
     cutAxis,
     cutValue,
+    cutValues,
+    cutRanges,
     setSaveStatus,
     markSaved,
     markSaveError,
@@ -110,6 +120,8 @@ export function useViewerAutosave({
         cutEnabled,
         cutAxis,
         cutValue,
+        cutValues,
+        cutRanges,
         previousScene: prev?.scene,
       })
     );
@@ -121,6 +133,8 @@ export function useViewerAutosave({
     cutEnabled,
     cutAxis,
     cutValue,
+    cutValues,
+    cutRanges,
     setProjectDraft,
   ]);
 }

@@ -1,6 +1,47 @@
 import * as THREE from "three"
 import { createChapterHighlightPayload } from "../selection"
 
+
+function normalizeShaderMode(mode) {
+  return mode === "enhanced" ? "original" : mode || "original"
+}
+
+function getMaterialList(material) {
+  if (!material) return []
+
+  return Array.isArray(material) ? material.filter(Boolean) : [material]
+}
+
+function applyPbrSettings(material, settings = {}) {
+  const envIntensity = Number.isFinite(Number(settings.envIntensity))
+    ? Number(settings.envIntensity)
+    : 3
+  const metalness = Number.isFinite(Number(settings.metalness))
+    ? Number(settings.metalness)
+    : 0.3
+  const roughness = Number.isFinite(Number(settings.roughness))
+    ? Number(settings.roughness)
+    : 0.8
+
+  getMaterialList(material).forEach((item) => {
+    if (!item) return
+
+    if ("envMapIntensity" in item) {
+      item.envMapIntensity = envIntensity
+    }
+
+    if ("metalness" in item) {
+      item.metalness = metalness
+    }
+
+    if ("roughness" in item) {
+      item.roughness = roughness
+    }
+
+    item.needsUpdate = true
+  })
+}
+
 export function createSceneBounds(scene) {
   if (!scene) return null
 
@@ -77,40 +118,26 @@ export function applyModelShaderMode(scene, settings = {}) {
 
     const original = child.userData.originalMaterial
 
-    if (settings.shaderMode === "original") {
+    const shaderMode = normalizeShaderMode(settings.shaderMode)
+
+    if (shaderMode === "original") {
       child.material = original.clone()
+      applyPbrSettings(child.material, settings)
     }
 
-    if (settings.shaderMode === "enhanced") {
+    if (shaderMode === "wireframe") {
       child.material = original.clone()
-
-      if ("envMapIntensity" in child.material) {
-        child.material.envMapIntensity = settings.envIntensity ?? 3
-      }
-
-      if ("metalness" in child.material) {
-        child.material.metalness =
-          (original.metalness ?? 1) * (settings.metalness ?? 0.3)
-      }
-
-      if ("roughness" in child.material) {
-        child.material.roughness =
-          (original.roughness ?? 1) * (settings.roughness ?? 0.8)
-      }
-    }
-
-    if (settings.shaderMode === "wireframe") {
-      child.material = original.clone()
+      applyPbrSettings(child.material, settings)
       child.material.wireframe = true
     }
 
-    if (settings.shaderMode === "toon") {
+    if (shaderMode === "toon") {
       child.material = new THREE.MeshToonMaterial({
         color: original.color || new THREE.Color("#ffffff"),
       })
     }
 
-    if (settings.shaderMode === "xray") {
+    if (shaderMode === "xray") {
       child.material = new THREE.MeshPhysicalMaterial({
         color: "#4fc3f7",
         transparent: true,
@@ -121,7 +148,7 @@ export function applyModelShaderMode(scene, settings = {}) {
       })
     }
 
-    if (settings.shaderMode === "clay") {
+    if (shaderMode === "clay") {
       child.material = new THREE.MeshStandardMaterial({
         color: "#c9b8a4",
         roughness: 1,

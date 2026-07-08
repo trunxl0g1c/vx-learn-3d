@@ -52,7 +52,6 @@ export default function VisualTab(props) {
           <div className="grid grid-cols-2 gap-2">
             {[
               ["original", "Original"],
-              ["enhanced", "Enhanced"],
               ["toon", "Toon"],
               ["wireframe", "Wire"],
               ["xray", "X-Ray"],
