@@ -33,6 +33,12 @@ export default function usePlayerController() {
   const [cutEnabled, setCutEnabled] = useState(false)
   const [cutAxis, setCutAxis] = useState("x")
   const [cutValue, setCutValue] = useState(0)
+  const [cutValues, setCutValues] = useState({ x: 0, y: 0, z: 0 })
+  const [cutRanges, setCutRanges] = useState({
+    x: { min: -3, max: 3 },
+    y: { min: -3, max: 3 },
+    z: { min: -3, max: 3 },
+  })
   const [cutMin, setCutMin] = useState(-3)
   const [cutMax, setCutMax] = useState(3)
   const cutBoundsRef = useRef(null)
@@ -93,6 +99,9 @@ export default function usePlayerController() {
     setCutMin,
     setCutMax,
     setCutValue,
+    cutValues,
+    setCutValues,
+    setCutRanges,
     setCutEnabled,
     setSelectedObject,
     setOutlineObjects,
@@ -100,8 +109,8 @@ export default function usePlayerController() {
   })
 
   useEffect(() => {
-    applyCutAway(modelScene, cutEnabled, cutValue, cutAxis)
-  }, [modelScene, cutEnabled, cutValue, cutAxis])
+    applyCutAway(modelScene, cutEnabled, cutValues, cutAxis, cutBoundsRef.current)
+  }, [modelScene, cutEnabled, cutValues, cutAxis])
 
   useEffect(() => {
     if (!modelScene) return
@@ -135,10 +144,20 @@ export default function usePlayerController() {
 
     cutBoundsRef.current = modelInit.cutBounds
 
+    if (modelInit.cutBounds) {
+      setCutRanges(modelInit.cutBounds)
+      const nextValues = {
+        x: modelInit.cutBounds.x?.max ?? 0,
+        y: modelInit.cutBounds.y?.max ?? 0,
+        z: modelInit.cutBounds.z?.max ?? 0,
+      }
+      setCutValues(nextValues)
+      setCutValue(nextValues.x)
+    }
+
     if (modelInit.cutState) {
       setCutMin(modelInit.cutState.min)
       setCutMax(modelInit.cutState.max)
-      setCutValue(modelInit.cutState.value)
     }
 
     setOriginalPositions(modelInit.originalPositions)
@@ -227,9 +246,13 @@ export default function usePlayerController() {
       cutAxis,
       setCutAxis: playerFreePlay.updateCutAxis,
       cutValue,
+      cutValues,
+      cutRanges,
       cutMin,
       cutMax,
       setCutValue,
+      updateCutValue: playerFreePlay.updateCutValue,
+      resetCutValues: playerFreePlay.resetSection,
     },
 
     chapterList: {

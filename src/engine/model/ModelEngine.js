@@ -177,6 +177,34 @@ export function createModelEngine(options = {}) {
     return meshes
   }
 
+  const getDirectPullApartBranches = (rootObject) => {
+    if (!rootObject) return []
+
+    const directChildren = Array.isArray(rootObject.children)
+      ? rootObject.children.filter((child) => !ignoreObjectTypes.includes(child.type))
+      : []
+
+    const branches = directChildren
+      .map((child) => ({
+        object: child,
+        meshes: getMeshesInSubtree(child),
+      }))
+      .filter((branch) => branch.meshes.length > 0)
+
+    if (branches.length > 0) return branches
+
+    const fallbackMeshes = getMeshesInSubtree(rootObject)
+
+    return fallbackMeshes.length > 0
+      ? [
+          {
+            object: rootObject,
+            meshes: fallbackMeshes,
+          },
+        ]
+      : []
+  }
+
   const createBoxFromObjects = (objects = []) => {
     const box = new THREE.Box3()
     let hasObject = false
@@ -265,6 +293,154 @@ export function createModelEngine(options = {}) {
       y,
       Math.sin(angle)
     ).normalize()
+  }
+
+  const getCompactPullApartDirection = (index, total, branch, rootCenter) => {
+    if (total <= 1) {
+      return getPullApartDirection(branch.object, rootCenter, scene, "hierarchy")
+    }
+
+    const objectCenter = getObjectWorldCenter(branch.object, rootCenter)
+    const naturalDirection = objectCenter.clone().sub(rootCenter)
+
+    if (naturalDirection.lengthSq() > 0.000001) {
+      naturalDirection.normalize()
+    }
+
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5))
+    const angle = index * goldenAngle
+    const radiusFactor = Math.sqrt((index + 0.5) / total)
+    const verticalBand = ((index % 3) - 1) * 0.18
+
+    const layoutDirection = new THREE.Vector3(
+      Math.cos(angle),
+      verticalBand * radiusFactor,
+      Math.sin(angle)
+    ).normalize()
+
+    if (naturalDirection.lengthSq() <= 0.000001) {
+      return layoutDirection
+    }
+
+    return naturalDirection
+      .multiplyScalar(0.45)
+      .add(layoutDirection.multiplyScalar(0.55))
+      .normalize()
+  }
+
+  const getBranchRadius = (branch) => {
+    const box = createBoxFromObjects(branch?.meshes || [])
+
+    if (!box || box.isEmpty()) return 0.05
+
+    const size = new THREE.Vector3()
+    box.getSize(size)
+
+    return Math.max(size.x, size.y, size.z, 0.05) * 0.5
+  }
+
+  const createBranchLayoutState = (branches, rootCenter) => {
+    return branches.map((branch) => {
+      const box = createBoxFromObjects(branch?.meshes || [])
+      const center = getBoxCenter(box, rootCenter)
+      const radius = getBranchRadius(branch)
+
+      return {
+        branch,
+        box,
+        center,
+        radius,
+      }
+    })
+  }
+
+  const resolveCompactPullApartOffsets = (offsets, layoutState, rootCenter, rootMaxSize) => {
+    const resolvedOffsets = offsets.map((offset) => offset.clone())
+    const branchCount = resolvedOffsets.length
+
+    if (branchCount <= 1) return resolvedOffsets
+
+    const largestRadius = layoutState.reduce(
+      (maxRadius, item) => Math.max(maxRadius, item.radius || 0.05),
+      0.05
+    )
+    const minimumGap = Math.max(largestRadius * 0.16, rootMaxSize * 0.018, 0.02)
+    const maxLayoutRadius = Math.max(rootMaxSize * 0.58, largestRadius * 2.25)
+    const iterations = 10
+
+    for (let iteration = 0; iteration < iterations; iteration += 1) {
+      let hasOverlap = false
+
+      for (let a = 0; a < branchCount; a += 1) {
+        for (let b = a + 1; b < branchCount; b += 1) {
+          const stateA = layoutState[a]
+          const stateB = layoutState[b]
+          const centerA = stateA.center.clone().add(resolvedOffsets[a])
+          const centerB = stateB.center.clone().add(resolvedOffsets[b])
+          const delta = centerB.clone().sub(centerA)
+          const currentDistance = Math.max(delta.length(), 0.0001)
+          const targetDistance = (stateA.radius || 0.05) + (stateB.radius || 0.05) + minimumGap
+
+          if (currentDistance >= targetDistance) continue
+
+          hasOverlap = true
+
+          const fallbackDirectionA = centerA.clone().sub(rootCenter)
+          const fallbackDirectionB = centerB.clone().sub(rootCenter)
+          const direction = delta.lengthSq() > 0.000001
+            ? delta.normalize()
+            : fallbackDirectionB.sub(fallbackDirectionA).normalize()
+
+          if (direction.lengthSq() <= 0.000001) {
+            direction.copy(createFallbackDirection(stateB.branch?.object))
+          }
+
+          const pushAmount = (targetDistance - currentDistance) * 0.52
+          resolvedOffsets[a].add(direction.clone().multiplyScalar(-pushAmount))
+          resolvedOffsets[b].add(direction.clone().multiplyScalar(pushAmount))
+        }
+      }
+
+      resolvedOffsets.forEach((offset) => {
+        const distanceFromRoot = offset.length()
+
+        if (distanceFromRoot <= maxLayoutRadius) return
+
+        offset.multiplyScalar(maxLayoutRadius / Math.max(distanceFromRoot, 0.0001))
+      })
+
+      if (!hasOverlap) break
+    }
+
+    return resolvedOffsets
+  }
+
+  const createCompactPullApartOffsets = (branches, rootCenter, rootMaxSize, baseDistance) => {
+    const safeBranches = Array.isArray(branches) ? branches : []
+    const branchCount = safeBranches.length
+    const layoutState = createBranchLayoutState(safeBranches, rootCenter)
+    const largestBranchRadius = layoutState.reduce(
+      (maxRadius, item) => Math.max(maxRadius, item.radius || 0.05),
+      0.05
+    )
+    const compactRadius = Math.max(
+      baseDistance,
+      Math.min(rootMaxSize * 0.38, largestBranchRadius * 1.35)
+    )
+    const minSpacing = largestBranchRadius * 0.9
+    const offsets = []
+
+    safeBranches.forEach((branch, index) => {
+      const direction = getCompactPullApartDirection(index, branchCount, branch, rootCenter)
+      const branchRadius = layoutState[index]?.radius || getBranchRadius(branch)
+      const sizeFactor = branchRadius / Math.max(largestBranchRadius, 0.0001)
+      const distanceFactor = 0.72 + sizeFactor * 0.28
+      const distance = Math.max(compactRadius * distanceFactor, minSpacing)
+
+      offsets.push(direction.multiplyScalar(distance))
+    })
+
+    return resolveCompactPullApartOffsets(offsets, layoutState, rootCenter, rootMaxSize)
   }
 
   const getPullApartDirection = (object, rootCenter, rootObject, mode = "hierarchy") => {
@@ -367,13 +543,13 @@ export function createModelEngine(options = {}) {
     } = options
 
     const rootObject = targetObject || scene
-    const meshes = targetObject
-      ? getMeshesInSubtree(targetObject)
-      : originalPositions.map((item) => item.object).filter(Boolean)
-
-    if (meshes.length === 0) return false
 
     scene.updateMatrixWorld(true)
+
+    const branches = getDirectPullApartBranches(rootObject)
+    const meshes = branches.flatMap((branch) => branch.meshes)
+
+    if (meshes.length === 0) return false
 
     if (targetObject && hideOutsideSelection) {
       applyVisibilityForPullApartTarget(targetObject)
@@ -386,23 +562,30 @@ export function createModelEngine(options = {}) {
       ? distance
       : rootMaxSize * strength
 
-    meshes.forEach((mesh) => {
-      const original = originalPositions.find((item) => item.object === mesh)
-      const basePosition = original?.position?.clone?.() || mesh.position.clone()
-      const direction = getPullApartDirection(mesh, rootCenter, rootObject, mode)
-      const depth = getRelativeHierarchyDepth(mesh, rootObject)
-      const depthMultiplier = Math.min(1 + depth * 0.12, maxDepthMultiplier)
-      const worldOffset = direction.multiplyScalar(baseDistance * depthMultiplier)
+    const compactOffsets = mode === "hierarchy"
+      ? createCompactPullApartOffsets(branches, rootCenter, rootMaxSize, baseDistance)
+      : null
 
-      mesh.userData.targetPosition = createLocalTargetFromWorldOffset(
-        mesh,
-        basePosition,
-        worldOffset
-      )
-      mesh.userData.targetPositionAnimation = createTargetAnimation(
-        mesh,
-        animationDuration
-      )
+    branches.forEach((branch, index) => {
+      const worldOffset = compactOffsets
+        ? compactOffsets[index]
+        : getPullApartDirection(branch.object, rootCenter, rootObject, mode)
+            .multiplyScalar(baseDistance)
+
+      branch.meshes.forEach((mesh) => {
+        const original = originalPositions.find((item) => item.object === mesh)
+        const basePosition = original?.position?.clone?.() || mesh.position.clone()
+
+        mesh.userData.targetPosition = createLocalTargetFromWorldOffset(
+          mesh,
+          basePosition,
+          worldOffset
+        )
+        mesh.userData.targetPositionAnimation = createTargetAnimation(
+          mesh,
+          animationDuration
+        )
+      })
     })
 
     return true

@@ -1,3 +1,4 @@
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import usePlayerController from "./hooks/usePlayerController"
 
 import PlayerSceneCanvas from "../../components/player/PlayerSceneCanvas"
@@ -10,6 +11,12 @@ import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
 
 export default function PlayerPage() {
   const player = usePlayerController()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { projectId } = useParams()
+  const searchParams = new URLSearchParams(location.search)
+  const isPreviewMode =
+    location.state?.preview === true || searchParams.get("preview") === "true"
   const { isLoadingProject, loadError } = player.status
 
   if (isLoadingProject) {
@@ -41,6 +48,30 @@ export default function PlayerPage() {
       >
         <PlayerSceneCanvas {...player.scene} />
 
+        {isPreviewMode && (
+          <button
+            type="button"
+            onClick={() => navigate(`/vxplore/editor/${projectId}`)}
+            style={{
+              position: "absolute",
+              top: 18,
+              left: 18,
+              zIndex: 140,
+              height: 38,
+              padding: "0 14px",
+              borderRadius: 10,
+              border: "1px solid rgba(102, 176, 192, 0.75)",
+              background: "rgba(12, 23, 32, 0.88)",
+              color: "white",
+              fontWeight: 700,
+              cursor: "pointer",
+              backdropFilter: "blur(10px)",
+            }}
+          >
+            ← Back to Editor
+          </button>
+        )}
+
         {!player.chapterPanel.freePlay &&
           player.chapterPanel.showInfoPanel &&
           player.chapterPanel.activeChapter && (
@@ -70,9 +101,14 @@ export default function PlayerPage() {
             cutAxis={player.cutSlider.cutAxis}
             setCutAxis={player.cutSlider.setCutAxis}
             cutValue={player.cutSlider.cutValue}
+            cutValues={player.cutSlider.cutValues}
+            cutRanges={player.cutSlider.cutRanges}
             cutMin={player.cutSlider.cutMin}
             cutMax={player.cutSlider.cutMax}
             setCutValue={player.cutSlider.setCutValue}
+            updateCutValue={player.cutSlider.updateCutValue}
+            resetCutValues={player.cutSlider.resetCutValues}
+            onClose={player.toolsMenu.toggleCutSection}
           />
         )}
 

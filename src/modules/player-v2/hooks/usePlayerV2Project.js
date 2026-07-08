@@ -5,17 +5,17 @@ import useProjectLoader from "../../../engine/project/useProjectLoader"
 import { useGlobalLoading } from "../../loading/LoadingContext"
 
 export const DEFAULT_PLAYER_V2_VIEWER_SETTINGS = {
-  exposure: 1.8,
-  ambientLight: 2.5,
-  mainLight: 4,
-  fillLight: 2,
-  hemiLight: 2,
-  envIntensity: 3,
+  exposure: 0.75,
+  ambientLight: 0.5,
+  mainLight: 0.8,
+  fillLight: 0.5,
+  hemiLight: 0.5,
+  envIntensity: 0.8,
   hdri: "",
   showHdriBackground: false,
   shaderMode: "original",
-  metalness: 0.3,
-  roughness: 0.8,
+  metalness: 0.1,
+  roughness: 0.1,
 }
 
 function createV2MaterialFromLoadedProject(loaded, fallbackFileName) {

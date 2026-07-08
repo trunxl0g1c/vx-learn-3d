@@ -38,7 +38,7 @@ function SaveStatusBadge({ status }) {
   );
 }
 
-export default function EditorTopBar({ title, saveStatus = "saved" }) {
+export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
   const currentUserName = getCurrentUserName();
 
   return (
@@ -58,7 +58,13 @@ export default function EditorTopBar({ title, saveStatus = "saved" }) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <Button variant="ghost" size="xs" className="border-none px-1!">
+        <Button
+          variant="ghost"
+          size="xs"
+          className="border-none px-1!"
+          onClick={onPlay}
+          title="Preview in Player"
+        >
           <PlayCircle className="size-6.5" color="#66B0C0" />
         </Button>
         <Button variant="cyanOutline" size="sm" className="uppercase">
