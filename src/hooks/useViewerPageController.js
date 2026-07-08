@@ -32,7 +32,6 @@ export function useViewerPageController() {
   const { projectId } = useParams();
   const { updateLoading, hideLoading } = useGlobalLoading();
 
-
   const {
     dirty,
     saveStatus,
@@ -188,6 +187,7 @@ export function useViewerPageController() {
     setOrbitEnabled,
     focusTargetRef,
     setIsAutoRotating,
+    setRightTab,
   });
 
   const {
@@ -403,6 +403,13 @@ export function useViewerPageController() {
 
   const maxTreeDepth = getMaxTreeDepth(objectList);
 
+  const deselectObject = () => {
+    setSelectedObject(null);
+    setSelectedObjectName("");
+    setOutlineObjects([]);
+    setRightTab(null);
+  };
+
   return {
     saveStatus,
     openPlayerPreview,
@@ -507,6 +514,7 @@ export function useViewerPageController() {
     searchObject,
     setSearchObject,
     hideAllObjects,
+    deselectObject,
     ...dialogs,
   };
 }

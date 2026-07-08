@@ -57,6 +57,7 @@ export default function EditorRightPanel({
   hideSelectedObject,
   soloSelectedObject,
   resetAllTransforms,
+  deselectObject,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -108,6 +109,8 @@ export default function EditorRightPanel({
     requestAddMarker,
     markerMode,
     cancelAddMarker,
+    setRightTab,
+    deselectObject,
   };
 
   return (
@@ -196,7 +199,7 @@ export default function EditorRightPanel({
       {isOpen && !isInfoTab && !markerMode && (
         <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
           {[
-            ["material", "Package"],
+            // ["material", "Package"],
             ["chapter", "Chapter"],
             ["animation", "Animation"],
           ].map(([id, label]) => (
@@ -222,7 +225,7 @@ export default function EditorRightPanel({
               : "min-h-0 flex-1 overflow-y-auto",
           ].join(" ")}
         >
-          {rightTab === "material" && <MaterialTab {...tabProps} />}
+          {/* {rightTab === "material" && <MaterialTab {...tabProps} />} */}
           {rightTab === "visual" && <VisualTab {...tabProps} />}
           {rightTab === "animation" && <AnimationTab {...tabProps} />}
           {rightTab === "chapter" && <ChapterTab {...tabProps} />}

@@ -1,7 +1,12 @@
 import { Copy } from "lucide-react";
 import Button from "../../ui/button";
 
-export default function InfoTab({ material, setActiveChapterId }) {
+export default function InfoTab({
+  material,
+  setActiveChapterId,
+  setRightTab,
+  deselectObject,
+}) {
   const properties = [
     { label: "Part Type", value: material?.partType || "Baud 65" },
     { label: "Width", value: "320", unit: "cm" },
@@ -24,12 +29,21 @@ export default function InfoTab({ material, setActiveChapterId }) {
         <Button
           variant="gold"
           className="flex-1"
-          onClick={() => setActiveChapterId(null)}
+          onClick={() => {
+            deselectObject();
+            setActiveChapterId(null);
+          }}
         >
           DESELECT
         </Button>
 
-        <Button variant="outline" className="flex-1 border-accent-contrast!">
+        <Button
+          onClick={() => {
+            setRightTab("chapter");
+          }}
+          variant="outline"
+          className="flex-1 border-accent-contrast!"
+        >
           EDIT CONTENT
         </Button>
       </div>

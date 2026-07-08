@@ -25,6 +25,7 @@ export default function HierarchyObjectTree({
   setSearchObject,
   showAllObjects,
   hideAllObjects,
+  setRightTab,
 }) {
   const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
@@ -154,6 +155,7 @@ export default function HierarchyObjectTree({
               openMap={openMap}
               setOpenMap={setOpenMap}
               refreshVisibility={refreshVisibility}
+              setRightTab={setRightTab}
             />
           ))}
         </div>

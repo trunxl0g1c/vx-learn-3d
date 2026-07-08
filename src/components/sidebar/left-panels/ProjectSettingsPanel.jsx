@@ -6,6 +6,9 @@ import {
   getViewerBackgroundStyle,
   normalizeViewerHdri,
 } from "../../../utils/viewerBackground";
+import Button from "../../ui/button";
+import SelectField from "../../ui/select";
+import ColorFieldInput from "./attributes/ColorFieldInput";
 
 const HDRI_PRESETS = [
   { label: "None", value: "" },
@@ -27,7 +30,10 @@ function readFileAsDataUrl(file) {
   });
 }
 
-function resizeImageDataUrl(dataUrl, { maxWidth = 900, maxHeight = 520, quality = 0.86 } = {}) {
+function resizeImageDataUrl(
+  dataUrl,
+  { maxWidth = 900, maxHeight = 520, quality = 0.86 } = {},
+) {
   return new Promise((resolve) => {
     const image = new Image();
 
@@ -35,7 +41,7 @@ function resizeImageDataUrl(dataUrl, { maxWidth = 900, maxHeight = 520, quality 
       const scale = Math.min(
         1,
         maxWidth / image.width,
-        maxHeight / image.height
+        maxHeight / image.height,
       );
 
       const width = Math.max(1, Math.round(image.width * scale));
@@ -125,7 +131,8 @@ export default function ProjectSettingsPanel({
     if (!file) return;
 
     const lowerName = file.name.toLowerCase();
-    const isSupported = lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
+    const isSupported =
+      lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
 
     if (!isSupported) {
       alert("File HDRI harus berformat .hdr atau .exr");
@@ -146,7 +153,6 @@ export default function ProjectSettingsPanel({
       },
     });
   };
-
 
   const updateThumbnail = (thumbnail, metadata = {}) => {
     setMaterial((prev) => ({
@@ -195,7 +201,7 @@ export default function ProjectSettingsPanel({
 
       <div className="flex-1 space-y-6 overflow-auto p-4">
         <div>
-          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Title
           </label>
 
@@ -210,17 +216,17 @@ export default function ProjectSettingsPanel({
                   title: e.target.value,
                 }))
               }
-              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
             />
 
-            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-[#86899B]">
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
               {titleLength}/48
             </span>
           </div>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-base font-normal text-[#86899B]">
+          <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
 
@@ -238,7 +244,7 @@ export default function ProjectSettingsPanel({
         {/* THUMBNAIL */}
 
         <div>
-          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Description
           </label>
 
@@ -253,17 +259,17 @@ export default function ProjectSettingsPanel({
                   description: e.target.value,
                 }))
               }
-              className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-normal leading-6 text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+              className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-normal leading-6 text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
             />
 
-            <span className="absolute bottom-3 right-3 text-[10px] font-normal text-[#86899B]">
+            <span className="absolute bottom-3 right-3 text-[10px] font-normal text-contrast-grayout">
               {descriptionLength}/650
             </span>
           </div>
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Version
           </label>
 
@@ -276,12 +282,12 @@ export default function ProjectSettingsPanel({
                 version: e.target.value,
               }))
             }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Author
           </label>
 
@@ -294,18 +300,18 @@ export default function ProjectSettingsPanel({
                 author: e.target.value,
               }))
             }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-[#86899B] focus:ring-1 focus:ring-[#67D4EA]"
+            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-normal text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Media Content
           </label>
 
-          <div className="rounded-lg border border-[#2E7E87] bg-[#14201f] p-3">
+          <div className="rounded-lg border border-secondary-default bg-primary p-3">
             <div className="flex items-center gap-4">
-              <div className="grid h-[72px] w-[112px] shrink-0 place-items-center overflow-hidden rounded border border-secondary-default bg-[#3A3150]">
+              <div className="grid h-18 w-28 shrink-0 place-items-center overflow-hidden rounded border border-secondary-default bg-primary">
                 {material.thumbnail ? (
                   <img
                     src={material.thumbnail}
@@ -313,22 +319,22 @@ export default function ProjectSettingsPanel({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <ImageIcon className="size-9 text-[#9CA0AA]" />
+                  <ImageIcon className="size-9 text-contrast-grayout" />
                 )}
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-white">
+                <div className="truncate text-sm font-normal text-white">
                   {material.thumbnailName || "Project thumbnail"}
                 </div>
-                <p className="mt-1 text-xs font-semibold text-[#86899B]">
+                <p className="mt-1 text-xs font-normal text-contrast-grayout">
                   Upload an image or capture the current 3D viewport.
                 </p>
               </div>
             </div>
 
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <label className="grid h-9 cursor-pointer place-items-center rounded-lg border border-[#315b64] text-xs font-semibold text-white transition hover:border-secondary-default">
+              <label className="cursor-pointer grid h-9 place-items-center rounded-lg border border-[#315b64] text-xs font-normal text-white transition hover:border-secondary-default">
                 {material.thumbnail ? "Change" : "Upload"}
                 <input
                   type="file"
@@ -345,7 +351,7 @@ export default function ProjectSettingsPanel({
               <button
                 type="button"
                 onClick={handleCaptureThumbnail}
-                className="h-9 rounded-lg border border-[#315b64] text-xs font-semibold text-white transition hover:border-secondary-default"
+                className="cursor-pointer h-9 rounded-lg border border-[#315b64] text-xs font-normal text-white transition hover:border-secondary-default"
               >
                 Capture
               </button>
@@ -354,7 +360,7 @@ export default function ProjectSettingsPanel({
                 type="button"
                 disabled={!material.thumbnail}
                 onClick={() => updateThumbnail("")}
-                className="h-9 rounded-lg border border-[#315b64] text-xs font-semibold text-[#B7BBC8] transition hover:border-secondary-default hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                className="cursor-pointer h-9 rounded-lg border border-[#315b64] text-xs font-normal text-white transition hover:border-secondary-default hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Remove
               </button>
@@ -362,15 +368,17 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#2E7E87] bg-[#14201f]/70 p-4">
-          <div className="mb-4 text-sm font-semibold text-white">Environment</div>
+        <div className="rounded-xl border border-secondary-default bg-primary p-4">
+          <div className="mb-4 text-sm font-normal text-white">Environment</div>
 
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             HDRI Lighting
           </label>
 
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <button
+            <Button
+              size="sm"
+              variant={hdri.source === "preset" ? "default" : "outline"}
               type="button"
               onClick={() =>
                 updateHdri({
@@ -378,48 +386,45 @@ export default function ProjectSettingsPanel({
                   hdri: hdri.hdri || "/hdr/studio.hdr",
                 })
               }
-              className={[
-                "h-10 rounded-lg border text-sm font-semibold transition",
-                hdri.source !== "custom"
-                  ? "border-secondary-default bg-[#087aa6] text-white"
-                  : "border-[#315b64] bg-transparent text-white hover:border-secondary-default",
-              ].join(" ")}
             >
               Preset HDRI
-            </button>
+            </Button>
 
-            <label
-              className={[
-                "grid h-10 cursor-pointer place-items-center rounded-lg border text-sm font-semibold transition",
-                hdri.source === "custom"
-                  ? "border-secondary-default bg-[#087aa6] text-white"
-                  : "border-[#315b64] bg-transparent text-white hover:border-secondary-default",
-              ].join(" ")}
+            <Button
+              asChild
+              size="sm"
+              variant={hdri.source === "custom" ? "default" : "outline"}
             >
-              Import HDRI
-              <input
-                type="file"
-                accept=".hdr,.exr"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  handleImportHdri(file);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+              <label>
+                Import HDRI
+                <input
+                  type="file"
+                  accept=".hdr,.exr"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleImportHdri(file);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </Button>
           </div>
 
-          {hdri.source === "custom" ? (
-            <div className="mb-4 rounded-lg border border-[#315b64] bg-[#1b2427] px-3 py-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[#67D4EA]">
+          {hdri.source == "custom" ? (
+            <div className="mb-4 rounded-lg border border-secondary-default bg-primary px-3 py-3">
+              <div className="text-xs font-normal uppercase tracking-wide">
                 Custom HDRI
               </div>
-              <div className="mt-1 truncate text-sm font-semibold text-white">
+              <div className="mt-1 truncate text-sm font-normal text-white">
                 {hdri.customHdri?.name || "No custom HDRI selected"}
               </div>
-              <button
+              <Button
+                size="sm"
                 type="button"
+                variant="outline"
                 onClick={() =>
                   updateHdri({
                     hdriSource: "preset",
@@ -427,110 +432,99 @@ export default function ProjectSettingsPanel({
                     customHdri: null,
                   })
                 }
-                className="mt-3 h-9 rounded-lg border border-[#315b64] px-3 text-xs font-semibold text-[#B7BBC8] hover:border-secondary-default hover:text-white"
+                className="mt-3 w-full"
               >
                 Remove Custom HDRI
-              </button>
+              </Button>
             </div>
           ) : (
-            <select
+            <SelectField
               value={viewerSettings?.hdri || ""}
-              onChange={(e) =>
+              options={HDRI_PRESETS}
+              onChange={(value) =>
                 updateHdri({
                   hdriSource: "preset",
-                  hdri: e.target.value,
+                  hdri: value,
                 })
               }
-              className="mb-4 h-11 w-full rounded-lg border border-[#315b64] bg-[#1b2427] px-3 text-sm font-semibold text-white outline-none focus:border-secondary-default"
-            >
-              {HDRI_PRESETS.map((option) => (
-                <option key={option.value || "none"} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            />
           )}
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-[#86899B]">
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-sm font-normal text-contrast-grayout">
               Show HDRI as background
             </span>
             <Switch
               checked={viewerSettings?.showHdriBackground || false}
-              onCheckedChange={(checked) => updateHdri({ showHdriBackground: checked })}
+              onCheckedChange={(checked) =>
+                updateHdri({ showHdriBackground: checked })
+              }
             />
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#2E7E87] bg-[#14201f]/70 p-4">
-          <div className="mb-4 text-sm font-semibold text-white">Background</div>
+        <div className="rounded-xl border border-secondary-default bg-primary p-4">
+          <div className="mb-2 text-sm font-normal text-white">Background</div>
 
-          <label className="mb-2 block text-sm font-semibold text-[#86899B]">
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Background Type
           </label>
 
           <div className="mb-4 grid grid-cols-3 gap-2">
-            <button
+            <Button
+              size="sm"
               type="button"
+              variant={background.type === "solid" ? "default" : "outline"}
               onClick={() => updateBackground({ type: "solid" })}
-              className={[
-                "h-10 rounded-lg border text-xs font-semibold transition",
-                background.type === "solid"
-                  ? "border-secondary-default bg-[#087aa6] text-white"
-                  : "border-[#315b64] bg-transparent text-white hover:border-secondary-default",
-              ].join(" ")}
             >
               Solid
-            </button>
+            </Button>
 
-            <button
+            <Button
+              size="sm"
               type="button"
+              variant={
+                background.type === "radialGradient" ? "default" : "outline"
+              }
               onClick={() => updateBackground({ type: "radialGradient" })}
-              className={[
-                "h-10 rounded-lg border text-xs font-semibold transition",
-                background.type === "radialGradient"
-                  ? "border-secondary-default bg-[#087aa6] text-white"
-                  : "border-[#315b64] bg-transparent text-white hover:border-secondary-default",
-              ].join(" ")}
             >
               Radial
-            </button>
+            </Button>
 
-            <label
-              className={[
-                "grid h-10 cursor-pointer place-items-center rounded-lg border text-xs font-semibold transition",
-                background.type === "image"
-                  ? "border-secondary-default bg-[#087aa6] text-white"
-                  : "border-[#315b64] bg-transparent text-white hover:border-secondary-default",
-              ].join(" ")}
+            <Button
+              size="sm"
+              type="button"
+              variant={background.type === "image" ? "default" : "outline"}
             >
-              Image
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
+              <label>
+                Image
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
 
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    updateBackground({
-                      type: "image",
-                      imageUrl: reader.result,
-                      imageName: file.name,
-                    });
-                  };
-                  reader.readAsDataURL(file);
-                  e.target.value = "";
-                }}
-              />
-            </label>
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      updateBackground({
+                        type: "image",
+                        imageUrl: reader.result,
+                        imageName: file.name,
+                      });
+                    };
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </Button>
           </div>
 
           <div className="space-y-3">
             {background.type === "solid" && (
-              <ColorField
+              <ColorFieldInput
                 label="Solid Color"
                 value={background.solidColor}
                 onChange={(value) => updateBackground({ solidColor: value })}
@@ -539,13 +533,13 @@ export default function ProjectSettingsPanel({
 
             {background.type === "radialGradient" && (
               <>
-                <ColorField
+                <ColorFieldInput
                   label="Center Color"
                   value={background.centerColor}
                   onChange={(value) => updateBackground({ centerColor: value })}
                 />
 
-                <ColorField
+                <ColorFieldInput
                   label="Edge Color"
                   value={background.edgeColor}
                   onChange={(value) => updateBackground({ edgeColor: value })}
@@ -573,19 +567,19 @@ export default function ProjectSettingsPanel({
 
             {background.type === "image" && (
               <>
-                <div className="rounded-lg border border-[#315b64] bg-[#1b2427] px-3 py-3 text-sm font-semibold text-white">
+                <div className="rounded-lg border border-secondary-dark bg-primary px-3 py-3 text-sm font-semibold text-white">
                   {background.imageName || "No background image selected"}
                 </div>
 
-                <select
-                  value={background.imageFit}
-                  onChange={(e) => updateBackground({ imageFit: e.target.value })}
-                  className="h-11 w-full rounded-lg border border-[#315b64] bg-[#1b2427] px-3 text-sm font-semibold text-white outline-none focus:border-secondary-default"
-                >
-                  <option value="cover">Cover</option>
-                  <option value="contain">Contain</option>
-                  <option value="stretch">Stretch</option>
-                </select>
+                <SelectField
+                  value={background.imageFit || "cover"}
+                  onChange={(value) => updateBackground({ imageFit: value })}
+                  options={[
+                    { label: "Cover", value: "cover" },
+                    { label: "Contain", value: "contain" },
+                    { label: "Stretch", value: "stretch" },
+                  ]}
+                />
 
                 <Slider
                   label="Image Opacity"
@@ -593,15 +587,17 @@ export default function ProjectSettingsPanel({
                   min={0}
                   max={1}
                   step={0.05}
-                  onChange={(value) => updateBackground({ imageOpacity: value })}
+                  onChange={(value) =>
+                    updateBackground({ imageOpacity: value })
+                  }
                 />
               </>
             )}
 
             <div>
-              <label className="mb-2 block text-xs font-semibold text-[#B7BBC8]">
+              <div className="mb-2 text-sm font-normal text-white">
                 Preview
-              </label>
+              </div>
               <div
                 className="h-[132px] w-full rounded-lg border border-[#6b7280]"
                 style={getViewerBackgroundStyle(viewerSettings)}
@@ -611,7 +607,7 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-base font-semibold text-[#86899B]">
+          <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
 
@@ -625,31 +621,6 @@ export default function ProjectSettingsPanel({
             }
           />
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ColorField({ label, value, onChange }) {
-  return (
-    <div>
-      <label className="mb-2 block text-xs font-semibold text-[#B7BBC8]">
-        {label}
-      </label>
-
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 w-12 cursor-pointer rounded-lg border border-[#315b64] bg-transparent p-1"
-        />
-
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-11 min-w-0 flex-1 rounded-lg border border-[#315b64] bg-[#1b2427] px-3 text-sm font-semibold text-white outline-none focus:border-secondary-default"
-        />
       </div>
     </div>
   );

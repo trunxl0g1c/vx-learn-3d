@@ -81,6 +81,7 @@ export default function EditorViewport({ controller }) {
     updateEnvIntensity,
     setAnimations,
     handleMarkerPointPicked,
+    setRightTab,
   } = controller;
 
   return (
@@ -173,6 +174,7 @@ export default function EditorViewport({ controller }) {
         setViewerSettings={setViewerSettings}
         updateEnvIntensity={updateEnvIntensity}
         setSelectedObject={setSelectedObject}
+        setRightTab={setRightTab}
       />
     </div>
   );

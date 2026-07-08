@@ -12,6 +12,7 @@ export function useViewerSelection({
   setOrbitEnabled,
   focusTargetRef,
   setIsAutoRotating,
+  setRightTab,
 }) {
   const xrayMaterialRef = useRef(
     new THREE.MeshPhysicalMaterial({
@@ -70,6 +71,8 @@ export function useViewerSelection({
     setOrbitEnabled(payload.orbitEnabled);
     focusTargetRef.current = payload.focusTarget;
     setIsAutoRotating(payload.isAutoRotating);
+
+    setRightTab?.("info");
   };
 
   return {

@@ -16,6 +16,7 @@ export default function HierarchyPanel({
   setSearchObject,
   showAllObjects,
   hideAllObjects,
+  setRightTab,
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -40,6 +41,7 @@ export default function HierarchyPanel({
           showAllObjects={showAllObjects}
           hideAllObjects={hideAllObjects}
           setSelectedObject={setSelectedObject}
+          setRightTab={setRightTab}
         />
       </div>
     </div>
