@@ -32,6 +32,7 @@ export default function EditorLeftSidebar({
   setViewerSettings,
   updateEnvIntensity,
   setSelectedObject,
+  setRightTab,
 }) {
   if (!activeSidebar) return null;
 
@@ -70,6 +71,7 @@ export default function EditorLeftSidebar({
             showAllObjects={showAllObjects}
             hideAllObjects={hideAllObjects}
             setSelectedObject={setSelectedObject}
+            setRightTab={setRightTab}
           />
         )}
 

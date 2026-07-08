@@ -27,7 +27,6 @@ export function useViewerPageController() {
   const { projectId } = useParams();
   const { updateLoading, hideLoading } = useGlobalLoading();
 
-
   const {
     dirty,
     saveStatus,
@@ -165,6 +164,7 @@ export function useViewerPageController() {
     setOrbitEnabled,
     focusTargetRef,
     setIsAutoRotating,
+    setRightTab,
   });
 
   const {
@@ -196,28 +196,25 @@ export function useViewerPageController() {
     controlsRef,
   });
 
-  const {
-    updateCutAxis,
-    toggleCutSection,
-    handleModelLoadedWithCutBounds,
-  } = useViewerCut({
-    vxEngine,
-    modelScene,
-    cutEnabled,
-    setCutEnabled,
-    cutAxis,
-    setCutAxis,
-    cutValue,
-    setCutValue,
-    setCutMin,
-    setCutMax,
-    setTargetRotationY,
-    setIsAutoRotating,
-    focusTargetRef,
-    updateLoading,
-    hideLoading,
-    handleModelLoaded,
-  });
+  const { updateCutAxis, toggleCutSection, handleModelLoadedWithCutBounds } =
+    useViewerCut({
+      vxEngine,
+      modelScene,
+      cutEnabled,
+      setCutEnabled,
+      cutAxis,
+      setCutAxis,
+      cutValue,
+      setCutValue,
+      setCutMin,
+      setCutMax,
+      setTargetRotationY,
+      setIsAutoRotating,
+      focusTargetRef,
+      updateLoading,
+      hideLoading,
+      handleModelLoaded,
+    });
 
   const pullApartSelectedScope = () => {
     pullApart(selectedObject);
@@ -299,6 +296,13 @@ export function useViewerPageController() {
   });
 
   const maxTreeDepth = getMaxTreeDepth(objectList);
+
+  const deselectObject = () => {
+    setSelectedObject(null);
+    setSelectedObjectName("");
+    setOutlineObjects([]);
+    setRightTab(null);
+  };
 
   return {
     saveStatus,
@@ -399,6 +403,7 @@ export function useViewerPageController() {
     searchObject,
     setSearchObject,
     hideAllObjects,
+    deselectObject,
     ...dialogs,
   };
 }

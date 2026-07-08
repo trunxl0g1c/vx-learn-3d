@@ -18,6 +18,7 @@ export default function HierarchyTreeItem({
   openMap,
   setOpenMap,
   refreshVisibility,
+  setRightTab,
 }) {
   const nodeKey = getNodeKey(item);
   const open = openMap?.[nodeKey] ?? true;
@@ -30,11 +31,14 @@ export default function HierarchyTreeItem({
     if (selected) {
       setSelectedObject?.(null);
       setSelectedObjectName("");
+      setRightTab?.(null);
       return;
     }
 
     setSelectedObject?.(item.object);
     setSelectedObjectName(displayName);
+    setRightTab?.("info");
+
     highlightObject(item.object);
     makeXrayExcept(item.object);
     focusObject(item.object);
@@ -155,6 +159,7 @@ export default function HierarchyTreeItem({
             openMap={openMap}
             setOpenMap={setOpenMap}
             refreshVisibility={refreshVisibility}
+            setRightTab={setRightTab}
           />
         ))}
     </div>
