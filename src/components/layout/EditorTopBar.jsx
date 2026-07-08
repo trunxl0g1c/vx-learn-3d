@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Button from "../ui/button";
 import { getCurrentUserName } from "../../utils/authUser";
+import MaterialIcon from "../ui/material-icon";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -48,11 +49,13 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
           VX
           <span className="italic text-[#90C6FF]">E</span>
         </div> */}
-        <img src="/images/logo.svg" alt="VXplore Studio" className="rounded-full size-8" />
+        <img
+          src="/images/logo.svg"
+          alt="VXplore Studio"
+          className="rounded-full size-8"
+        />
 
-        <span className="font-normal text-xl">
-          {title || "VX Learn 3D"}
-        </span>
+        <span className="font-normal text-xl">{title || "VX Learn 3D"}</span>
 
         <SaveStatusBadge status={saveStatus} />
       </div>
@@ -65,20 +68,34 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
           onClick={onPlay}
           title="Preview in Player"
         >
-          <PlayCircle className="size-6.5" color="#66B0C0" />
+          <MaterialIcon
+            name="play_circle"
+            fill={1}
+            size={26}
+            className="text-secondary-default"
+          />
+          {/* <PlayCircle className="size-6.5" color="#66B0C0" /> */}
         </Button>
         <Button variant="cyanOutline" size="sm" className="uppercase">
-          <CircleCheckBig className="size-4.5 mr-1" />
+          {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
+          <MaterialIcon
+            name="published_with_changes"
+            fill={1}
+            size={20}
+            className="mr-1"
+          />
           Publish
         </Button>
 
-        <Button variant="cyanOutline" size="sm" className="uppercase">
-          <Download className="size-4.5 mr-1" />
+        <Button disabled variant="cyanOutline" size="sm" className="uppercase">
+          {/* <Download className="size-4.5 mr-1" /> */}
+          <MaterialIcon name="download_2" fill={1} size={20} className="mr-1" />
           Export
         </Button>
 
-        <Button variant="cyanOutline" size="sm" className="uppercase">
-          <Share2 className="size-4.5 mr-1" />
+        <Button disabled variant="cyanOutline" size="sm" className="uppercase">
+          {/* <Share2 className="size-4.5 mr-1" /> */}
+          <MaterialIcon name="share" fill={1} size={20} className="mr-1" />
           Share
         </Button>
 
@@ -88,8 +105,20 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
           className="flex border-none items-center"
         >
           <span className="text-base">{currentUserName || "Guest"}</span>
-          <ChevronDown className="size-4.5" />
-          <CircleUser className="size-7" color="#03699D" />
+          {/* <ChevronDown className="size-4.5" /> */}
+          <MaterialIcon
+            name="arrow_back_2"
+            fill={1}
+            size={20}
+            className="-rotate-90"
+          />
+          <MaterialIcon
+            name="account_circle"
+            fill
+            size={30}
+            className="text-accent-main"
+          />
+          {/* <CircleUser className="size-7" color="#03699D" /> */}
         </Button>
       </div>
     </div>

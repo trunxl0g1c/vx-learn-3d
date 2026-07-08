@@ -88,7 +88,13 @@ export default function ViewerPageLayout({ controller }) {
         setActiveSidebar={setActiveSidebar}
       />
 
-      <Activity mode={selectedObjectName ? "visible" : "hidden"}>
+      <Activity
+        mode={
+          selectedObjectName || rightTab === "chapter" || activeChapterId
+            ? "visible"
+            : "hidden"
+        }
+      >
         <EditorRightPanel
           rightTab={rightTab}
           setRightTab={setRightTab}

@@ -1,33 +1,25 @@
-import {
-  LayoutGrid,
-  FolderOpen,
-  Library,
-  Boxes,
-  BookOpen,
-  User,
-  LifeBuoy,
-} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import Button, { cn } from "../../../components/ui/button";
+import MaterialIcon from "../../../components/ui/material-icon";
 
 const menus = [
   {
     title: "My Catalogue",
     href: "/vxplore",
     match: "/vxplore",
-    icon: LayoutGrid,
+    icon: "package_2",
   },
   {
     title: "Workspace",
     href: "/workspace",
     match: "/workspace",
-    icon: FolderOpen,
+    icon: "work",
   },
   {
     title: "Library",
     href: "/library",
     match: "/library",
-    icon: Library,
+    icon: "video_library",
   },
 
   { divider: true },
@@ -36,19 +28,19 @@ const menus = [
     title: "Assets Marketplace",
     href: "/marketplace",
     match: "/marketplace",
-    icon: Boxes,
+    icon: "shopping_cart",
   },
   {
     title: "VR Learn",
     href: "/learn",
     match: "/learn",
-    icon: BookOpen,
+    icon: "movie",
   },
   {
     title: "GLB Compression",
     href: "/glb",
     match: "/glb",
-    icon: Boxes,
+    icon: "compress",
   },
 
   { divider: true },
@@ -57,19 +49,19 @@ const menus = [
     title: "Profile",
     href: "/profile",
     match: "/profile",
-    icon: User,
+    icon: "manage_accounts",
   },
   {
     title: "Documentation",
     href: "/documentation",
     match: "/documentation",
-    icon: BookOpen,
+    icon: "book_3",
   },
   {
     title: "Support",
     href: "/support",
     match: "/support",
-    icon: LifeBuoy,
+    icon: "support_agent",
   },
 ];
 
@@ -89,8 +81,6 @@ export default function ProjectHubSidebar() {
             );
           }
 
-          const Icon = item.icon;
-
           const isActive =
             item.match === "/"
               ? location.pathname === "/"
@@ -103,14 +93,17 @@ export default function ProjectHubSidebar() {
                 variant="sidebar"
                 size="sm"
                 className={cn(
-                  "w-full justify-start px-3",
+                  "w-full justify-start gap-3 px-3",
                   isActive &&
                     "bg-accent-dark! text-white hover:bg-accent-dark! hover:text-white!",
                 )}
               >
-                <Icon
+                <MaterialIcon
+                  name={item.icon}
+                  fill={1}
+                  size={20}
                   className={cn(
-                    "size-4 shrink-0",
+                    "shrink-0",
                     isActive ? "text-white" : "text-secondary-default",
                   )}
                 />

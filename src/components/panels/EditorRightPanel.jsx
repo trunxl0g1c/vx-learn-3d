@@ -6,6 +6,7 @@ import AnimationTab from "./right-tabs/AnimationTab";
 import ChapterTab from "./right-tabs/ChapterTab";
 import Button from "../ui/button";
 import InfoTab from "./right-tabs/InfoTab";
+import MaterialIcon from "../ui/material-icon";
 
 export default function EditorRightPanel({
   rightTab,
@@ -154,9 +155,19 @@ export default function EditorRightPanel({
             className="border-none"
           >
             {rightTab === "chapter" ? (
-              <Locate className="size-6 text-secondary-default" />
+              <MaterialIcon
+                name="my_location"
+                fill={1}
+                size={25}
+                className="text-secondary-default"
+              />
             ) : (
-              <LocateFixed className="size-6 text-secondary-default" />
+              <MaterialIcon
+                name="my_location"
+                fill={1}
+                size={25}
+                className="text-secondary-default"
+              />
             )}
           </Button>
 
@@ -169,7 +180,7 @@ export default function EditorRightPanel({
           >
             <Eye className="size-6 text-secondary-default" />
           </Button> */}
-          
+
           <Button
             size="xs"
             variant="ghost"
@@ -177,7 +188,13 @@ export default function EditorRightPanel({
             onClick={hideSelectedObject}
             className="border-none"
           >
-            <Eye className="size-6 text-secondary-default" />
+            <MaterialIcon
+              name="visibility"
+              fill={1}
+              size={25}
+              className="text-secondary-default"
+            />
+            {/* <Eye className="size-6 text-secondary-default" /> */}
           </Button>
 
           <Button
@@ -188,15 +205,25 @@ export default function EditorRightPanel({
             className="border-none"
           >
             {isOpen ? (
-              <Minus className="size-6 text-secondary-default" />
+              <MaterialIcon
+                name="remove"
+                fill={1}
+                size={25}
+                className="text-secondary-default"
+              />
             ) : (
-              <Plus className="size-6 text-secondary-default" />
+              <MaterialIcon
+                name="add_2"
+                fill={1}
+                size={25}
+                className="text-secondary-default"
+              />
             )}
           </Button>
         </div>
       </div>
 
-      {isOpen && !isInfoTab && !markerMode && (
+      {/* {isOpen && !isInfoTab && !markerMode && (
         <div className="flex shrink-0 items-center justify-center gap-3 border-b border-divider-main bg-primary/40 py-3 backdrop-blur-xl">
           {[
             // ["material", "Package"],
@@ -214,7 +241,7 @@ export default function EditorRightPanel({
             </Button>
           ))}
         </div>
-      )}
+      )} */}
 
       {isOpen && (
         <div
@@ -225,10 +252,12 @@ export default function EditorRightPanel({
               : "min-h-0 flex-1 overflow-y-auto",
           ].join(" ")}
         >
-          {/* {rightTab === "material" && <MaterialTab {...tabProps} />} */}
+          {rightTab === "material" && <MaterialTab {...tabProps} />}
           {rightTab === "visual" && <VisualTab {...tabProps} />}
           {rightTab === "animation" && <AnimationTab {...tabProps} />}
-          {rightTab === "chapter" && <ChapterTab {...tabProps} />}
+          {rightTab === "chapter" && (
+            <ChapterTab {...tabProps} variant="detail" />
+          )}
           {rightTab === "info" && <InfoTab {...tabProps} />}
         </div>
       )}

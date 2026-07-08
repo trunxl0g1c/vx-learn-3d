@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import MaterialIcon from "./material-icon";
 
 export default function SelectField({
   value,
@@ -34,8 +35,11 @@ export default function SelectField({
         ))}
       </select>
 
-      <ChevronDown
-        className={`pointer-events-none absolute right-4 top-1/2 size-5 -translate-y-1/2 text-accent-main ${iconClassName}`}
+      <MaterialIcon
+        name="arrow_back_2"
+        fill={1}
+        size={18}
+        className={`-rotate-90 text-secondary-default -translate-y-1/2 pointer-events-none absolute right-4 top-1/2 ${iconClassName}`}
       />
     </div>
   );

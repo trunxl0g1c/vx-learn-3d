@@ -1,6 +1,7 @@
 import { ChevronDown, CircleUser } from "lucide-react";
 import Button from "../../../components/ui/button";
 import { getCurrentUserName } from "../../../utils/authUser";
+import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubNavbar() {
   const currentUserName = getCurrentUserName();
@@ -24,8 +25,18 @@ export default function ProjectHubNavbar() {
           className="flex border-none items-center"
         >
           <span className="text-base">{currentUserName || "Jhon"}</span>
-          <ChevronDown className="size-4.5" />
-          <CircleUser className="size-7" color="#03699D" />
+          <MaterialIcon
+            name="arrow_back_2"
+            fill={1}
+            size={20}
+            className="-rotate-90"
+          />
+          <MaterialIcon
+            name="account_circle"
+            fill
+            size={30}
+            className="text-accent-main"
+          />
         </Button>
       </div>
     </header>

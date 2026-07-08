@@ -12,24 +12,29 @@ export default function EditorViewport({ controller }) {
     selectedObjectName,
     setActiveMenu,
     activeMenu,
+
     cameraRef,
     controlsRef,
     focusTargetRef,
+
     outlineObjects,
     modelUrl,
-    addMarker,
     handleModelLoaded,
     markerMode,
     setMarkerMode,
     selectObjectFromMesh,
+
     selectedAnimations,
     setSelectedAnimations,
     animationCommand,
+    setAnimationCommand,
+
     activeMarkers,
     modelScene,
     targetRotationY,
     isAutoRotating,
     setIsAutoRotating,
+
     selectedObject,
     isTransforming,
     setIsTransforming,
@@ -38,17 +43,13 @@ export default function EditorViewport({ controller }) {
     setSelectedObject,
     setOutlineObjects,
     setSelectedObjectName,
+
     cutEnabled,
-    cutAxis,
-    updateCutAxis,
-    cutValue,
     cutValues,
     cutRanges,
     updateCutValue,
     resetCutValues,
-    cutMin,
-    cutMax,
-    setCutValue,
+
     handleFile,
     toggleCutSection,
     hideSelectedObject,
@@ -57,19 +58,23 @@ export default function EditorViewport({ controller }) {
     resetAllTransforms,
     soloSelectedObject,
     showAllObjects,
+
     objectList,
     highlightObject,
     makeXrayExcept,
     focusObject,
     markers,
+
     treeDepth,
     setTreeDepth,
     maxTreeDepth,
     searchObject,
     setSearchObject,
     hideAllObjects,
+
     material,
     setMaterial,
+
     applyShaderMode,
     shaderMode,
     metalness,
@@ -79,11 +84,37 @@ export default function EditorViewport({ controller }) {
     viewerSettings,
     setViewerSettings,
     updateEnvIntensity,
+
     setAnimations,
+    animations,
+
     handleMarkerPointPicked,
     setRightTab,
-  } = controller;
 
+    activeChapterId,
+    setActiveChapterId,
+    createChapterFromSelectedObject,
+    saveCameraViewToActiveChapter,
+    panelSectionStyle,
+    inputStyle,
+    mediaButtonStyle,
+    updateChapterField,
+    addChapterParameter,
+    updateChapterParameter,
+    deleteChapterParameter,
+    deleteMarkerFromActiveChapter,
+    isChapterAnimationSelected,
+    getChapterAnimationConfig,
+    toggleChapterAnimation,
+    updateChapterAnimationField,
+    playAnimationPreview,
+    stopAnimationPreview,
+    addChapterMedia,
+    deleteChapterMedia,
+    requestAddMarker,
+    cancelAddMarker,
+  } = controller;
+  
   return (
     <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
       <SelectedObjectBadge selectedObjectName={selectedObjectName} />
@@ -150,6 +181,7 @@ export default function EditorViewport({ controller }) {
         setActiveSidebar={setActiveSidebar}
         objectList={objectList}
         selectedObject={selectedObject}
+        setSelectedObject={setSelectedObject}
         highlightObject={highlightObject}
         makeXrayExcept={makeXrayExcept}
         focusObject={focusObject}
@@ -162,8 +194,10 @@ export default function EditorViewport({ controller }) {
         setSearchObject={setSearchObject}
         showAllObjects={showAllObjects}
         hideAllObjects={hideAllObjects}
+        setRightTab={setRightTab}
         material={material}
         setMaterial={setMaterial}
+        selectedObjectName={selectedObjectName}
         applyShaderMode={applyShaderMode}
         shaderMode={shaderMode}
         metalness={metalness}
@@ -173,8 +207,33 @@ export default function EditorViewport({ controller }) {
         viewerSettings={viewerSettings}
         setViewerSettings={setViewerSettings}
         updateEnvIntensity={updateEnvIntensity}
-        setSelectedObject={setSelectedObject}
-        setRightTab={setRightTab}
+        activeChapterId={activeChapterId}
+        setActiveChapterId={setActiveChapterId}
+        createChapterFromSelectedObject={createChapterFromSelectedObject}
+        saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
+        panelSectionStyle={panelSectionStyle}
+        inputStyle={inputStyle}
+        mediaButtonStyle={mediaButtonStyle}
+        updateChapterField={updateChapterField}
+        addChapterParameter={addChapterParameter}
+        updateChapterParameter={updateChapterParameter}
+        deleteChapterParameter={deleteChapterParameter}
+        deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
+        animations={animations}
+        isChapterAnimationSelected={isChapterAnimationSelected}
+        getChapterAnimationConfig={getChapterAnimationConfig}
+        toggleChapterAnimation={toggleChapterAnimation}
+        updateChapterAnimationField={updateChapterAnimationField}
+        playAnimationPreview={playAnimationPreview}
+        stopAnimationPreview={stopAnimationPreview}
+        addChapterMedia={addChapterMedia}
+        deleteChapterMedia={deleteChapterMedia}
+        requestAddMarker={requestAddMarker}
+        cancelAddMarker={cancelAddMarker}
+        markerMode={markerMode}
+        selectedAnimations={selectedAnimations}
+        setSelectedAnimations={setSelectedAnimations}
+        setAnimationCommand={setAnimationCommand}
       />
     </div>
   );

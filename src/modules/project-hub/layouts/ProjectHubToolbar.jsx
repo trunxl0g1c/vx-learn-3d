@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import Input from "../../../components/ui/input";
 import Button from "../../../components/ui/button";
 import SelectField from "../../../components/ui/select";
+import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubToolbar({
   search,
@@ -18,7 +19,14 @@ export default function ProjectHubToolbar({
         onClick={(e) => e.stopPropagation()}
         onChange={(e) => setSearch(e.target.value)}
         className="w-100! rounded-lg border-accent-main! h-10!"
-        leftIcon={<Search className="size-5" />}
+        leftIcon={
+          <MaterialIcon
+            name="search"
+            fill={1}
+            size={27}
+            className="text-secondary-default"
+          />
+        }
         inputClassName="text-sm italic"
       />
 
@@ -28,7 +36,13 @@ export default function ProjectHubToolbar({
           variant="outline"
           className="border-secondary-default! h-10!"
         >
-          All Workspaces <span className="text-secondary-default">▼</span>
+          All Workspaces{" "}
+          <MaterialIcon
+            name="arrow_back_2"
+            fill={1}
+            size={18}
+            className="-rotate-90 text-secondary-default"
+          />
         </Button>
 
         <Button
@@ -36,7 +50,13 @@ export default function ProjectHubToolbar({
           variant="outline"
           className="border-secondary-default! h-10!"
         >
-          Last Viewed <span className="text-secondary-default">▼</span>
+          Last Viewed
+          <MaterialIcon
+            name="arrow_back_2"
+            fill={1}
+            size={18}
+            className="-rotate-90 text-secondary-default"
+          />
         </Button>
 
         <SelectField
@@ -51,7 +71,12 @@ export default function ProjectHubToolbar({
           iconClassName="text-secondary-default h-10!"
         />
 
-        <Button size="sm" variant="destructive" className="h-10!" onClick={onClearLocalDb}>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="h-10!"
+          onClick={onClearLocalDb}
+        >
           Clear Local DB
         </Button>
       </div>
