@@ -13,6 +13,11 @@ function normalizeSliderValue(value, fallback) {
   return numericValue
 }
 
+
+function normalizeShaderMode(mode) {
+  return mode === 'enhanced' ? 'original' : mode || 'original'
+}
+
 function getMaterialList(material) {
   if (!material) return []
 
@@ -103,6 +108,12 @@ function createShaderMaterial(originalMaterial, mode, settings) {
 
   const material = cloneMaterial(originalMaterial)
 
+  if (mode === 'original') {
+    applyPbrSettings(material, settings)
+    return material
+  }
+
+
   applyPbrSettings(material, settings)
 
   return material
@@ -113,7 +124,7 @@ function getActiveRenderers() {
 }
 
 export function useShaderManager({ modelScene, viewerSettings, setViewerSettings }) {
-  const [shaderMode, setShaderMode] = useState(viewerSettings?.shaderMode || 'original')
+  const [shaderMode, setShaderMode] = useState(() => normalizeShaderMode(viewerSettings?.shaderMode))
   const [metalness, setLocalMetalness] = useState(
     normalizeSliderValue(viewerSettings?.metalness, DEFAULT_METALNESS),
   )
@@ -151,12 +162,11 @@ export function useShaderManager({ modelScene, viewerSettings, setViewerSettings
     [syncViewerSetting],
   )
 
-  const applyShaderMode = useCallback(
+  const applyShaderModeToScene = useCallback(
     (mode) => {
       if (!modelScene) return
 
-      setShaderMode(mode)
-      syncViewerSetting('shaderMode', mode)
+      const nextMode = normalizeShaderMode(mode)
 
       const settings = {
         metalness,
@@ -173,11 +183,22 @@ export function useShaderManager({ modelScene, viewerSettings, setViewerSettings
         const original = ensureOriginalMaterial(child)
         if (!original) return
 
-        child.material = createShaderMaterial(original, mode, settings)
+        child.material = createShaderMaterial(original, nextMode, settings)
         markMaterialNeedsUpdate(child.material)
       })
     },
-    [metalness, modelScene, roughness, syncViewerSetting, viewerSettings?.envIntensity],
+    [metalness, modelScene, roughness, viewerSettings?.envIntensity],
+  )
+
+  const applyShaderMode = useCallback(
+    (mode) => {
+      const nextMode = normalizeShaderMode(mode)
+
+      setShaderMode(nextMode)
+      syncViewerSetting('shaderMode', nextMode)
+      applyShaderModeToScene(nextMode)
+    },
+    [applyShaderModeToScene, syncViewerSetting],
   )
 
   const updateEnvIntensity = useCallback(
@@ -211,7 +232,7 @@ export function useShaderManager({ modelScene, viewerSettings, setViewerSettings
 
   useEffect(() => {
     if (viewerSettings?.shaderMode) {
-      setShaderMode(viewerSettings.shaderMode)
+      setShaderMode(normalizeShaderMode(viewerSettings.shaderMode))
     }
   }, [viewerSettings?.shaderMode])
 
@@ -225,8 +246,8 @@ export function useShaderManager({ modelScene, viewerSettings, setViewerSettings
   useEffect(() => {
     if (!modelScene) return
 
-    applyShaderMode(shaderMode)
-  }, [applyShaderMode, modelScene, shaderMode])
+    applyShaderModeToScene(shaderMode)
+  }, [applyShaderModeToScene, modelScene, shaderMode])
 
   return {
     shaderMode,

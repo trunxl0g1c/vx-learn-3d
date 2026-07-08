@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useProjectStore } from "../modules/project-store/ProjectStoreContext";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useGlobalLoading } from "../modules/loading/LoadingContext";
 
 import {
@@ -15,15 +15,20 @@ import { useShaderManager } from "./useShaderManager";
 import { useCameraManager } from "./useCameraManager";
 import { useMarkerManager } from "./useMarkerManager";
 import { useViewerProject } from "./useViewerProject";
-import { useViewerAutosave } from "./useViewerAutosave";
+import { createViewerDraft, useViewerAutosave } from "./useViewerAutosave";
 import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
 import { useVXEngine } from "./useVXEngine";
 import { DEFAULT_VIEWER_BACKGROUND } from "../utils/viewerBackground";
+import {
+  saveProjectDraftToIndexedDb,
+  updateProjectInIndexedDb,
+} from "../modules/project-hub/storage/projectIndexedDb";
 
 export function useViewerPageController() {
   const vxEngine = useVXEngine();
+  const navigate = useNavigate();
   const { projectId } = useParams();
   const { updateLoading, hideLoading } = useGlobalLoading();
 
@@ -54,6 +59,12 @@ export function useViewerPageController() {
   const [cutEnabled, setCutEnabled] = useState(false);
   const [cutAxis, setCutAxis] = useState("x");
   const [cutValue, setCutValue] = useState(0);
+  const [cutValues, setCutValues] = useState({ x: 0, y: 0, z: 0 });
+  const [cutRanges, setCutRanges] = useState({
+    x: { min: -3, max: 3 },
+    y: { min: -3, max: 3 },
+    z: { min: -3, max: 3 },
+  });
   const [cutMin, setCutMin] = useState(-3);
   const [cutMax, setCutMax] = useState(3);
 
@@ -75,6 +86,7 @@ export function useViewerPageController() {
   const [selectedAnimations, setSelectedAnimations] = useState({});
   const [animationCommand, setAnimationCommand] = useState(null);
 
+
   const [viewerSettings, setViewerSettings] = useState({
     exposure: 0.75,
     ambientLight: 0.5,
@@ -92,10 +104,19 @@ export function useViewerPageController() {
     background: DEFAULT_VIEWER_BACKGROUND,
   });
 
-  const updateViewerSettings = (updater) => {
-    markDirty();
-    setViewerSettings(updater);
-  };
+  const updateViewerSettings = useCallback(
+    (updater) => {
+      setViewerSettings((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+
+        if (Object.is(prev, next)) return prev;
+
+        markDirty();
+        return next;
+      });
+    },
+    [markDirty],
+  );
 
   const {
     material,
@@ -128,6 +149,8 @@ export function useViewerPageController() {
     cutEnabled,
     cutAxis,
     cutValue,
+    cutValues,
+    cutRanges,
     setSaveStatus,
     markSaved,
     markSaveError,
@@ -145,7 +168,7 @@ export function useViewerPageController() {
   } = useShaderManager({
     modelScene,
     viewerSettings,
-    setViewerSettings,
+    setViewerSettings: updateViewerSettings,
   });
 
   const {
@@ -196,25 +219,35 @@ export function useViewerPageController() {
     controlsRef,
   });
 
-  const { updateCutAxis, toggleCutSection, handleModelLoadedWithCutBounds } =
-    useViewerCut({
-      vxEngine,
-      modelScene,
-      cutEnabled,
-      setCutEnabled,
-      cutAxis,
-      setCutAxis,
-      cutValue,
-      setCutValue,
-      setCutMin,
-      setCutMax,
-      setTargetRotationY,
-      setIsAutoRotating,
-      focusTargetRef,
-      updateLoading,
-      hideLoading,
-      handleModelLoaded,
-    });
+  const {
+    updateCutAxis,
+    updateCutValue,
+    resetCutValues,
+    cutRanges: engineCutRanges,
+    toggleCutSection,
+    handleModelLoadedWithCutBounds,
+  } = useViewerCut({
+    vxEngine,
+    modelScene,
+    cutEnabled,
+    setCutEnabled,
+    cutAxis,
+    setCutAxis,
+    cutValue,
+    setCutValue,
+    cutValues,
+    setCutValues,
+    cutRanges,
+    setCutRanges,
+    setCutMin,
+    setCutMax,
+    setTargetRotationY,
+    setIsAutoRotating,
+    focusTargetRef,
+    updateLoading,
+    hideLoading,
+    handleModelLoaded,
+  });
 
   const pullApartSelectedScope = () => {
     pullApart(selectedObject);
@@ -295,6 +328,79 @@ export function useViewerPageController() {
     vxEngine,
   });
 
+
+  const savePreviewDraft = async () => {
+    if (!projectId || projectId === "demo" || !material?.projectId) return;
+
+    const draftToSave = createViewerDraft({
+      projectId,
+      material,
+      viewerSettings,
+      markers,
+      cutEnabled,
+      cutAxis,
+      cutValue,
+      cutValues,
+      cutRanges,
+    });
+
+    await saveProjectDraftToIndexedDb(projectId, draftToSave);
+
+    await updateProjectInIndexedDb(projectId, {
+      thumbnail: material?.thumbnail || null,
+      material,
+      viewer: viewerSettings,
+      scene: draftToSave.scene,
+      autosave: {
+        status: "SAVED",
+        lastSavedAt: draftToSave.updatedAt,
+      },
+    });
+
+    setProjectDraft(draftToSave);
+    markSaved();
+  };
+
+  const openPlayerPreview = async () => {
+    if (!projectId || projectId === "demo") return;
+
+    try {
+      setSaveStatus("saving");
+
+      updateLoading({
+        title: "Opening Player Preview",
+        text: "Saving latest editor draft...",
+        progress: null,
+      });
+
+      await savePreviewDraft();
+
+      updateLoading({
+        text: "Preparing player preview...",
+      });
+
+      navigate(`/vxplore/player/${projectId}?preview=true`, {
+        state: {
+          preview: true,
+          fromEditor: true,
+        },
+      });
+    } catch (error) {
+      console.error("Gagal membuka preview player:", error);
+      markSaveError();
+
+      updateLoading({
+        title: "Failed to Open Preview",
+        text: error?.message || "Unknown error",
+        progress: null,
+      });
+
+      setTimeout(() => {
+        hideLoading();
+      }, 1200);
+    }
+  };
+
   const maxTreeDepth = getMaxTreeDepth(objectList);
 
   const deselectObject = () => {
@@ -306,6 +412,7 @@ export function useViewerPageController() {
 
   return {
     saveStatus,
+    openPlayerPreview,
     activeSidebar,
     setActiveSidebar,
     rightTab,
@@ -381,6 +488,10 @@ export function useViewerPageController() {
     cutAxis,
     updateCutAxis,
     cutValue,
+    cutValues,
+    cutRanges: engineCutRanges || cutRanges,
+    updateCutValue,
+    resetCutValues,
     cutMin,
     cutMax,
     setCutValue,

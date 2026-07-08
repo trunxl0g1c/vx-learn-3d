@@ -5,6 +5,14 @@ import {
   soloObject,
 } from "../../../engine/selection"
 
+function createNoCutValues(bounds) {
+  return {
+    x: bounds?.x?.max ?? 0,
+    y: bounds?.y?.max ?? 0,
+    z: bounds?.z?.max ?? 0,
+  }
+}
+
 export default function usePlayerFreePlay({
   modelScene,
   selectedObject,
@@ -16,29 +24,55 @@ export default function usePlayerFreePlay({
   setCutMin,
   setCutMax,
   setCutValue,
+  cutValues,
+  setCutValues,
+  setCutRanges,
   setCutEnabled,
   setSelectedObject,
   setOutlineObjects,
   focusTargetRef,
 }) {
+  const ensureCutBounds = () => {
+    if (!cutBoundsRef.current && modelScene) {
+      cutBoundsRef.current = createSceneBounds(modelScene)
+    }
+
+    if (cutBoundsRef.current) {
+      setCutRanges?.(cutBoundsRef.current)
+    }
+
+    return cutBoundsRef.current
+  }
+
   const applyCutBoundsForAxis = (axis) => {
-    const cutState = getCutStateForAxis(cutBoundsRef.current, axis)
+    const bounds = ensureCutBounds()
+    const cutState = getCutStateForAxis(bounds, axis)
 
     if (!cutState) return
 
     setCutMin(cutState.min)
     setCutMax(cutState.max)
-    setCutValue(cutState.value)
+    setCutValue(cutValues?.[axis] ?? cutState.max)
   }
 
   const updateCutAxis = (axis) => {
     setCutAxis(axis)
+    applyCutBoundsForAxis(axis)
+  }
 
-    if (!cutBoundsRef.current && modelScene) {
-      cutBoundsRef.current = createSceneBounds(modelScene)
+  const updateCutValue = (axis, value) => {
+    ensureCutBounds()
+
+    const nextValues = {
+      ...(cutValues || createNoCutValues(cutBoundsRef.current)),
+      [axis]: value,
     }
 
+    setCutAxis(axis)
+    setCutValues?.(nextValues)
+    setCutValue(value)
     applyCutBoundsForAxis(axis)
+    setCutEnabled(true)
   }
 
   const pullApart = () => {
@@ -86,12 +120,13 @@ export default function usePlayerFreePlay({
   }
 
   const resetSection = () => {
-    if (!modelScene) return
+    const bounds = ensureCutBounds()
 
-    if (!cutBoundsRef.current) {
-      cutBoundsRef.current = createSceneBounds(modelScene)
-    }
+    if (!bounds) return
 
+    const nextValues = createNoCutValues(bounds)
+    setCutValues?.(nextValues)
+    setCutValue(nextValues[cutAxis] ?? nextValues.x)
     applyCutBoundsForAxis(cutAxis)
     resetModelRotationForCut()
   }
@@ -134,6 +169,7 @@ export default function usePlayerFreePlay({
   return {
     applyCutBoundsForAxis,
     updateCutAxis,
+    updateCutValue,
     pullApart,
     resetParts,
     resetMovedObjects,

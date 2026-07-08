@@ -42,6 +42,10 @@ export default function EditorViewport({ controller }) {
     cutAxis,
     updateCutAxis,
     cutValue,
+    cutValues,
+    cutRanges,
+    updateCutValue,
+    resetCutValues,
     cutMin,
     cutMax,
     setCutValue,
@@ -133,12 +137,11 @@ export default function EditorViewport({ controller }) {
 
       {cutEnabled && (
         <CutSectionSlider
-          cutAxis={cutAxis}
-          setCutAxis={updateCutAxis}
-          cutValue={cutValue}
-          cutMin={cutMin}
-          cutMax={cutMax}
-          setCutValue={setCutValue}
+          cutValues={cutValues}
+          cutRanges={cutRanges}
+          updateCutValue={updateCutValue}
+          resetCutValues={resetCutValues}
+          onClose={toggleCutSection}
         />
       )}
 

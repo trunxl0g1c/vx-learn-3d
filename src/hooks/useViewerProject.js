@@ -3,6 +3,38 @@ import useProjectLoader from "../core/project/useProjectLoader";
 import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
 import { getCurrentUserName } from "../utils/authUser";
 
+
+const VIEWER_LIGHTING_DEFAULTS = {
+  exposure: 0.75,
+  ambientLight: 0.5,
+  mainLight: 0.8,
+  fillLight: 0.5,
+  hemiLight: 0.5,
+  envIntensity: 0.8,
+  metalness: 0.1,
+  roughness: 0.1,
+};
+
+function normalizeLoadedViewerSettings(viewer = {}) {
+  const normalizedViewer = {
+    ...viewer,
+  };
+
+  Object.entries(VIEWER_LIGHTING_DEFAULTS).forEach(([key, fallback]) => {
+    const numericValue = Number(normalizedViewer[key]);
+
+    normalizedViewer[key] = Number.isFinite(numericValue)
+      ? numericValue
+      : fallback;
+  });
+
+  if (normalizedViewer.shaderMode === "enhanced") {
+    normalizedViewer.shaderMode = "original";
+  }
+
+  return normalizedViewer;
+}
+
 function createInitialMaterial() {
   const currentUserName = getCurrentUserName();
 
@@ -107,17 +139,15 @@ export function useViewerProject({
         });
 
         if (viewer) {
+          const normalizedViewer = normalizeLoadedViewerSettings(viewer);
+
           setViewerSettings((prev) => ({
             ...prev,
-            ...viewer,
-            exposure: 0.75,
-            ambientLight: 0.5,
-            mainLight: 0.8,
-            fillLight: 0.5,
-            hemiLight: 0.5,
-            envIntensity: 0.8,
-            metalness: 0.1,
-            roughness: 0.1,
+            ...normalizedViewer,
+            background: {
+              ...(prev?.background || {}),
+              ...(normalizedViewer?.background || {}),
+            },
           }));
         }
 
@@ -179,9 +209,15 @@ export function useViewerProject({
         setMarkers([]);
 
         if (manifest.viewerSettings) {
+          const normalizedViewer = normalizeLoadedViewerSettings(manifest.viewerSettings);
+
           setViewerSettings((prev) => ({
             ...prev,
-            ...manifest.viewerSettings,
+            ...normalizedViewer,
+            background: {
+              ...(prev?.background || {}),
+              ...(normalizedViewer?.background || {}),
+            },
           }));
         }
 

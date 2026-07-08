@@ -77,7 +77,11 @@ export default function ViewerPageLayout({ controller }) {
         position: "relative",
       }}
     >
-      <EditorTopBar title={material.title} saveStatus={saveStatus} />
+      <EditorTopBar
+        title={material.title}
+        saveStatus={saveStatus}
+        onPlay={controller.openPlayerPreview}
+      />
 
       <EditorSidebarRail
         activeSidebar={activeSidebar}
