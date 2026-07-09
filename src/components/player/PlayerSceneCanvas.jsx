@@ -1,11 +1,12 @@
-import { Canvas, useThree } from "@react-three/fiber"
-import { Suspense, useEffect, useRef } from "react"
+import { Canvas, useFrame, useThree } from "@react-three/fiber"
+import { Suspense, useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 import {
   OrbitControls,
   Bounds,
   Center,
   Environment,
+  Html,
   TransformControls,
 } from "@react-three/drei"
 import { EffectComposer, Outline } from "@react-three/postprocessing"
@@ -18,6 +19,187 @@ import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
 import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment"
 import ViewerSceneBackground from '../canvas/ViewerSceneBackground'
 
+
+const GENERATED_ANNOTATION_COLOR = "#0ea5d8"
+
+function isMeaningfulSceneObject(object) {
+  return Boolean(
+    object &&
+      object.type !== "Bone" &&
+      object.type !== "SkeletonHelper" &&
+      object.type !== "Camera" &&
+      object.type !== "Light" &&
+      object.type !== "DirectionalLight" &&
+      object.type !== "AmbientLight" &&
+      object.type !== "HemisphereLight",
+  )
+}
+
+function hasRenderableContent(object) {
+  if (!object) return false
+
+  let hasMesh = false
+
+  object.traverse((child) => {
+    if (child.isMesh) hasMesh = true
+  })
+
+  return hasMesh
+}
+
+function getDirectAnnotationChildren(rootObject) {
+  if (!rootObject) return []
+
+  return rootObject.children.filter(
+    (child) => isMeaningfulSceneObject(child) && hasRenderableContent(child),
+  )
+}
+
+function resolveGeneratedAnnotationRoot(modelScene, selectedObject) {
+  if (selectedObject && hasRenderableContent(selectedObject)) {
+    return selectedObject
+  }
+
+  if (!modelScene) return null
+
+  const directChildren = getDirectAnnotationChildren(modelScene)
+
+  // GLTF files often wrap the real assembly in one Scene/root node. When that
+  // happens, use that wrapper as the root so annotations are generated for the
+  // first-level assembly children, not every descendant mesh.
+  if (directChildren.length === 1) {
+    const onlyChildChildren = getDirectAnnotationChildren(directChildren[0])
+
+    if (onlyChildChildren.length > 0) {
+      return directChildren[0]
+    }
+  }
+
+  return modelScene
+}
+
+function getAnnotationDisplayName(object, fallback) {
+  const name = object?.name || object?.userData?.name || object?.type || fallback
+
+  return String(name || fallback).replace(/[_-]+/g, " ").trim() || fallback
+}
+
+function useGeneratedAnnotationTargets(modelScene, selectedObject) {
+  return useMemo(() => {
+    const root = resolveGeneratedAnnotationRoot(modelScene, selectedObject)
+    const directChildren = getDirectAnnotationChildren(root)
+
+    if (directChildren.length > 0) {
+      return directChildren.map((object, index) => ({
+        object,
+        label: getAnnotationDisplayName(object, `Object ${index + 1}`),
+      }))
+    }
+
+    if (selectedObject && hasRenderableContent(selectedObject)) {
+      return [
+        {
+          object: selectedObject,
+          label: getAnnotationDisplayName(selectedObject, "Selected Object"),
+        },
+      ]
+    }
+
+    return []
+  }, [modelScene, selectedObject])
+}
+
+function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
+  const wrapperRef = useRef(null)
+  const { camera } = useThree()
+  const [hovered, setHovered] = useState(false)
+
+  useEffect(() => {
+    setHovered(false)
+  }, [object])
+
+  useFrame(() => {
+    if (!wrapperRef.current || !object || !rootRef?.current) return
+
+    object.updateWorldMatrix(true, true)
+
+    const box = new THREE.Box3().setFromObject(object)
+
+    if (box.isEmpty()) return
+
+    const center = box.getCenter(new THREE.Vector3())
+    const localCenter = rootRef.current.worldToLocal(center.clone())
+    const distance = camera.position.distanceTo(center)
+    const scale = THREE.MathUtils.clamp(distance * 0.0024, 0.45, 1.05)
+
+    wrapperRef.current.position.copy(localCenter)
+    wrapperRef.current.scale.setScalar(scale)
+  })
+
+  return (
+    <group ref={wrapperRef}>
+      <Html center occlude={false} zIndexRange={[30, 0]}>
+        <button
+          type="button"
+          onPointerOver={(event) => {
+            event.stopPropagation()
+            setHovered(true)
+          }}
+          onPointerOut={(event) => {
+            event.stopPropagation()
+            setHovered(false)
+          }}
+          onClick={(event) => event.stopPropagation()}
+          style={{
+            minWidth: hovered ? 96 : 28,
+            height: 28,
+            padding: hovered ? "0 10px" : 0,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 999,
+            border: `1px solid rgba(103, 232, 249, ${hovered ? 0.95 : 0.55})`,
+            background: hovered ? GENERATED_ANNOTATION_COLOR : "rgba(15, 49, 58, 0.86)",
+            color: "#ffffff",
+            fontSize: 10,
+            fontWeight: 800,
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            boxShadow: hovered
+              ? "0 10px 30px rgba(14, 165, 216, 0.35)"
+              : "0 8px 22px rgba(0, 0, 0, 0.28)",
+            cursor: "default",
+            pointerEvents: "auto",
+            transition: "all 140ms ease",
+          }}
+          title={label}
+        >
+          {hovered ? label : index + 1}
+        </button>
+      </Html>
+    </group>
+  )
+}
+
+function GeneratedObjectAnnotations({ modelScene, selectedObject, rootRef, enabled }) {
+  const targets = useGeneratedAnnotationTargets(modelScene, selectedObject)
+
+  if (!enabled || targets.length === 0) return null
+
+  return (
+    <>
+      {targets.map((target, index) => (
+        <GeneratedAnnotationMarker
+          key={target.object.uuid || `${target.label}-${index}`}
+          index={index}
+          label={target.label}
+          object={target.object}
+          rootRef={rootRef}
+        />
+      ))}
+    </>
+  )
+}
 
 function RenderSettingsSync({ viewerSettings }) {
   const { gl, scene, invalidate } = useThree()
@@ -38,6 +220,7 @@ function RenderSettingsSync({ viewerSettings }) {
 
 export default function PlayerSceneCanvas({
   material,
+  modelScene,
   viewerSettings,
   outlineObjects,
   setOutlineObjects,
@@ -55,6 +238,7 @@ export default function PlayerSceneCanvas({
   handleDoubleClickObjectFromPlayer,
   handleModelLoaded,
   setAnimations,
+  showAnnotations = true,
 }) {
   const modelRootRef = useRef(null)
 
@@ -175,9 +359,19 @@ export default function PlayerSceneCanvas({
               )}
 
               {!freePlay &&
+                showAnnotations &&
                 (activeChapter?.markers || []).map((marker, index) => (
                   <Marker key={marker.id || index} marker={marker} />
                 ))}
+
+              {showAnnotations && (
+                <GeneratedObjectAnnotations
+                  modelScene={modelScene}
+                  selectedObject={selectedObject}
+                  rootRef={modelRootRef}
+                  enabled={showAnnotations}
+                />
+              )}
             </group>
           </Center>
         </Bounds>

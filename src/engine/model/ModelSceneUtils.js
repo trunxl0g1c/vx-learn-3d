@@ -1,5 +1,4 @@
 import * as THREE from "three"
-import { createChapterHighlightPayload } from "../selection"
 
 
 function normalizeShaderMode(mode) {
@@ -189,7 +188,6 @@ export function applyChapterModelRotation(scene, chapter) {
 
 export function initializePlayerModelScene({
   scene,
-  material,
   viewerSettings,
   cutAxis = "x",
 }) {
@@ -214,19 +212,16 @@ export function initializePlayerModelScene({
 
   applyModelShaderMode(scene, viewerSettings)
 
-  const firstChapter = material?.chapters?.[0] || null
-
-  if (firstChapter) {
-    applyChapterModelRotation(scene, firstChapter)
-  }
-
   return {
     cutBounds,
     cutState,
     originalPositions: modelState.originalPositions,
     originalGroupPositions: modelState.originalGroupPositions,
-    firstChapter,
-    chapterHighlight: createChapterHighlightPayload(firstChapter, scene),
-    focusTarget: createChapterFocusTarget(firstChapter),
+    firstChapter: null,
+    chapterHighlight: {
+      selectedObject: null,
+      outlineObjects: [],
+    },
+    focusTarget: null,
   }
 }

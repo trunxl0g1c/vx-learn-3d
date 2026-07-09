@@ -1,4 +1,6 @@
-import { createSceneBounds, getCutStateForAxis } from "../../../engine/model"
+import { useRef, useState } from "react"
+import { createModelEngine, createSceneBounds, getCutStateForAxis } from "../../../engine/model"
+import { buildObjectTree } from "../../../utils/objectTreeUtils"
 import {
   hideObject,
   showAllObjectsInScene,
@@ -31,7 +33,25 @@ export default function usePlayerFreePlay({
   setSelectedObject,
   setOutlineObjects,
   focusTargetRef,
+  viewerSettings,
 }) {
+  const modelEngineRef = useRef(null)
+  const [isPullApartActive, setIsPullApartActive] = useState(false)
+
+  if (!modelEngineRef.current) {
+    modelEngineRef.current = createModelEngine({ buildObjectTree })
+  }
+
+  const getModelEngine = () => {
+    const engine = modelEngineRef.current
+
+    if (modelScene && engine.getScene() !== modelScene) {
+      engine.initialize(modelScene, viewerSettings || {})
+    }
+
+    return engine
+  }
+
   const ensureCutBounds = () => {
     if (!cutBoundsRef.current && modelScene) {
       cutBoundsRef.current = createSceneBounds(modelScene)
@@ -76,40 +96,33 @@ export default function usePlayerFreePlay({
   }
 
   const pullApart = () => {
-    if (!modelScene) return
+    if (!modelScene) return false
 
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
+    if (isPullApartActive) {
+      resetAllTransforms()
+      return false
+    }
 
-      const direction = child.position.clone().normalize()
-
-      if (direction.length() === 0) {
-        direction
-          .set(
-            Math.random() - 0.5,
-            Math.random() - 0.5,
-            Math.random() - 0.5
-          )
-          .normalize()
-      }
-
-      child.userData.targetPosition = child.position
-        .clone()
-        .add(direction.multiplyScalar(1.2))
+    const didPullApart = getModelEngine().pullApart(selectedObject, {
+      mode: "hierarchy",
+      strength: selectedObject ? 0.28 : 0.18,
+      animationDuration: 450,
+      hideOutsideSelection: true,
     })
+
+    if (didPullApart) {
+      setIsPullApartActive(true)
+    }
+
+    return didPullApart
   }
 
   const resetParts = () => {
-    originalPositions.forEach((item) => {
-      item.object.userData.targetPosition = item.position.clone()
-    })
+    getModelEngine().resetParts()
   }
 
   const resetMovedObjects = () => {
-    originalGroupPositions.forEach((item) => {
-      item.object.userData.moveTargetPosition = item.position.clone()
-      item.object.userData.moveTargetRotation = item.rotation.clone()
-    })
+    getModelEngine().resetMovedObjects()
   }
 
   const resetModelRotationForCut = () => {
@@ -164,6 +177,7 @@ export default function usePlayerFreePlay({
     resetModelRotationForCut()
     showAllObjects()
     setCutEnabled(false)
+    setIsPullApartActive(false)
   }
 
   return {
@@ -171,6 +185,7 @@ export default function usePlayerFreePlay({
     updateCutAxis,
     updateCutValue,
     pullApart,
+    isPullApartActive,
     resetParts,
     resetMovedObjects,
     resetModelRotationForCut,
