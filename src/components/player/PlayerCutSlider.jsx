@@ -1,4 +1,6 @@
+import { X } from "lucide-react";
 import { useState } from "react";
+import Button from "../ui/button";
 
 const AXIS_LABELS = {
   x: "X Axis",
@@ -107,7 +109,7 @@ export default function PlayerCutSlider({
 
       <div
         onMouseDown={startDrag}
-        className="absolute rounded-[22px] border border-divider-main bg-primary/85 p-5 text-white shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl backdrop-saturate-150"
+        className="absolute rounded-[22px] border border-grayout-extra-dark bg-[#182223B8] p-5 text-white backdrop-blur-md backdrop-saturate-150"
         style={{
           width: PANEL_WIDTH,
           left: position.x,
@@ -118,26 +120,22 @@ export default function PlayerCutSlider({
         }}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white">Cut Off</h3>
+          <h3 className="text-base font-bold text-white">Cut Off</h3>
           <button
             type="button"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => {
               if (typeof onClose === "function") onClose();
             }}
-            className="grid size-9 place-items-center rounded-full text-3xl leading-none text-white/90 transition hover:bg-white/10"
+            className="cursor-pointer size-9 flex items-center justify-center rounded-lg text-3xl leading-none text-white/90 transition hover:bg-white/10"
             aria-label="Close cut off panel"
           >
-            ×
+            <X className="size-5" />
           </button>
         </div>
 
         <div className="space-y-5">
-          {[
-            "x",
-            "y",
-            "z",
-          ].map((axis) => (
+          {["x", "y", "z"].map((axis) => (
             <AxisCutSlider
               key={axis}
               axis={axis}
@@ -148,17 +146,19 @@ export default function PlayerCutSlider({
           ))}
         </div>
 
-        <button
+        <Button
+          size="sm"
           type="button"
+          variant="outline"
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => {
             if (typeof resetCutValues === "function") resetCutValues();
           }}
-          className="mt-5 inline-flex items-center gap-2 rounded-lg border border-[#c8aa4a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#c8aa4a]/10"
+          className="mt-5 border-accent-contrast!"
         >
-          <span className="text-2xl leading-none text-accent-main">↻</span>
+          <span className="text-2xl leading-none text-secondary-default">↻</span>
           Reset
-        </button>
+        </Button>
       </div>
     </div>
   );

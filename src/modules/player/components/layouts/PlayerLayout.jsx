@@ -7,6 +7,7 @@ export default function PlayerLayout({
   sidebarItems = [],
   children,
   showSidebar = true,
+  onAnnotationClick,
 }) {
   const backgroundStyle = getViewerBackgroundStyle(
     player?.scene?.viewerSettings,
@@ -31,7 +32,10 @@ export default function PlayerLayout({
           ...backgroundStyle,
         }}
       >
-        <PlayerSceneCanvas {...player.scene} />
+        <PlayerSceneCanvas
+          {...player.scene}
+          onAnnotationClick={onAnnotationClick}
+        />
 
         {showSidebar && <PlayerSidebar items={sidebarItems} />}
 

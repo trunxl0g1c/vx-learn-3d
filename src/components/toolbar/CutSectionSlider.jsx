@@ -154,9 +154,9 @@ export default function CutSectionSlider({
           onClick={() => {
             if (typeof resetCutValues === "function") resetCutValues();
           }}
-          className="mt-5"
+          className="mt-5 border-accent-contrast!"
         >
-          <span className="text-2xl leading-none text-accent-main">↻</span>
+          <span className="text-2xl leading-none text-secondary-default">↻</span>
           Reset
         </Button>
       </div>

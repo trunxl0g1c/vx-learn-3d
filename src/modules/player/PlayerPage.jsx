@@ -18,6 +18,7 @@ import {
   Video,
   Volume2,
   X,
+  Copy,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -25,6 +26,9 @@ import PlayerLayout from "./components/layouts/PlayerLayout";
 import HierarchyObjectTree from "../../components/sidebar/left-panels/HierarchyObjectTree";
 import PlayerCutSlider from "../../components/player/PlayerCutSlider";
 import { getMaxTreeDepth } from "../../utils/objectTreeUtils";
+import Button from "../../components/ui/button";
+import MaterialIcon from "../../components/ui/material-icon";
+import Switch from "../../components/ui/switch";
 
 // export default function PlayerPage() {
 //   const player = usePlayerController()
@@ -122,6 +126,10 @@ export default function PlayerPage() {
   const location = useLocation();
   const { projectId } = useParams();
 
+  // annotation info
+  const [showAnnotationInfo, setShowAnnotationInfo] = useState(false);
+  const [selectedAnnotation, setSelectedAnnotation] = useState(null);
+
   const showBackToEditor = useMemo(() => {
     const params = new URLSearchParams(location.search);
 
@@ -186,7 +194,10 @@ export default function PlayerPage() {
       key: "project",
       label: "Project Information",
       icon: Clipboard,
-      active: activePanel === "project",
+      active:
+        activePanel === "project" ||
+        activePanel === "chapters" ||
+        activePanel === "chapter",
       onClick: handleOpenProjectPanel,
     },
     {
@@ -243,15 +254,30 @@ export default function PlayerPage() {
   }
 
   return (
-    <PlayerLayout player={player} sidebarItems={sidebarItems}>
+    <PlayerLayout
+      player={player}
+      sidebarItems={sidebarItems}
+      onAnnotationClick={(annotation) => {
+        setSelectedAnnotation(annotation);
+        setShowAnnotationInfo(true);
+      }}
+    >
       {showBackToEditor && (
-        <button
+        <Button
+          size="sm"
           type="button"
+          variant="cyanOutline"
           onClick={handleBackToEditor}
-          className="absolute right-16 top-5 z-50 rounded-xl border border-secondary-default/50 bg-dark-alpha px-4 py-2 text-xs font-bold text-secondary-default backdrop-blur-sm transition hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
+          className="absolute right-16 top-5 z-50"
         >
-          ← Back to Editor
-        </button>
+          <MaterialIcon
+            name="arrow_left_alt"
+            fill
+            size={20}
+            className="text-secondary-default"
+          />
+          Back to Editor
+        </Button>
       )}
 
       {activePanel === "project" && (
@@ -283,14 +309,15 @@ export default function PlayerPage() {
         />
       )}
 
-      {activePanel === "chapters" && player.chapterList.material?.chapters?.length > 0 && (
-        <PlayerChapterListPanel
-          material={player.chapterList.material}
-          activeChapterId={player.chapterList.activeChapterId}
-          handleSelectChapter={handleSelectChapter}
-          onClose={() => setActivePanel(null)}
-        />
-      )}
+      {activePanel === "chapters" &&
+        player.chapterList.material?.chapters?.length > 0 && (
+          <PlayerChapterListPanel
+            material={player.chapterList.material}
+            activeChapterId={player.chapterList.activeChapterId}
+            handleSelectChapter={handleSelectChapter}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
 
       {activePanel === "chapter" && player.chapterPanel.activeChapter && (
         <PlayerChapterReaderFloatingPanel
@@ -308,8 +335,6 @@ export default function PlayerPage() {
           onStopVoice={player.chapterPanel.stopSpeaking}
         />
       )}
-
-
 
       {activePanel === "cut" && (
         <PlayerCutSlider
@@ -333,8 +358,24 @@ export default function PlayerPage() {
         />
       )}
 
+      {showAnnotationInfo &&
+        player.settingsPanel.showAnnotations &&
+        selectedAnnotation && (
+          <PlayerAnnotationInfoPanel
+            title={selectedAnnotation.title || "Muffler"}
+            number={selectedAnnotation.number}
+            onClose={() => {
+              setShowAnnotationInfo(false);
+              setSelectedAnnotation(null);
+            }}
+          />
+        )}
+
       {activeMedia && (
-        <PlayerMediaViewer media={activeMedia} onClose={() => setActiveMedia(null)} />
+        <PlayerMediaViewer
+          media={activeMedia}
+          onClose={() => setActiveMedia(null)}
+        />
       )}
     </PlayerLayout>
   );
@@ -381,7 +422,9 @@ function getChapterMediaAssets(activeChapter) {
 }
 
 function getMediaKind(asset) {
-  const rawType = String(asset?.type || asset?.mediaType || asset?.mimeType || "").toUpperCase();
+  const rawType = String(
+    asset?.type || asset?.mediaType || asset?.mimeType || "",
+  ).toUpperCase();
 
   if (rawType.includes("IMAGE")) return "IMAGE";
   if (rawType.includes("VIDEO")) return "VIDEO";
@@ -396,7 +439,9 @@ function getMediaKind(asset) {
     return "DOCUMENT";
   }
 
-  const source = String(asset?.url || asset?.dataUrl || asset?.name || asset?.title || "").toLowerCase();
+  const source = String(
+    asset?.url || asset?.dataUrl || asset?.name || asset?.title || "",
+  ).toLowerCase();
 
   if (/\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/.test(source)) return "IMAGE";
   if (/\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/.test(source)) return "VIDEO";
@@ -405,7 +450,14 @@ function getMediaKind(asset) {
 }
 
 function getMediaSource(asset) {
-  return asset?.url || asset?.dataUrl || asset?.data || asset?.src || asset?.href || "";
+  return (
+    asset?.url ||
+    asset?.dataUrl ||
+    asset?.data ||
+    asset?.src ||
+    asset?.href ||
+    ""
+  );
 }
 
 function getMediaMimeType(asset) {
@@ -448,7 +500,8 @@ function PlayerProjectInfoFloatingPanel({
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
-  const canGoNext = activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+  const canGoNext =
+    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
@@ -465,7 +518,7 @@ function PlayerProjectInfoFloatingPanel({
   return (
     <PlayerFloatingPanel onClose={onClose}>
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <h3 className="mb-3 pr-8 text-sm font-bold">{title}</h3>
+        <h3 className="mb-3 pr-8 text-base font-bold">{title}</h3>
 
         <p className="text-xs leading-relaxed text-white/80 whitespace-pre-line">
           {description}
@@ -491,30 +544,31 @@ function PlayerProjectInfoFloatingPanel({
         )}
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_auto_auto] items-center gap-2 border-t border-white/10 pt-4">
+      <div className="mt-5 flex justify-between items-center border-t border-white/10 pt-4">
         <PanelFooterButton
           onClick={onOpenList}
           icon={List}
-          label="List"
+          // label="List"
           disabled={!hasChapters}
         />
-        <PanelFooterButton
-          onClick={handlePrevious}
-          icon={ChevronLeft}
-          label="Prev"
-          disabled={!canGoPrevious}
-        />
-        <PanelFooterButton
-          onClick={handleNext}
-          icon={ChevronRight}
-          label="Next"
-          disabled={!canGoNext}
-        />
+        <div className="flex gap-2">
+          <PanelFooterButton
+            onClick={handlePrevious}
+            icon={ChevronLeft}
+            // label="Prev"
+            disabled={!canGoPrevious}
+          />
+          <PanelFooterButton
+            onClick={handleNext}
+            icon={ChevronRight}
+            // label="Next"
+            disabled={!canGoNext}
+          />
+        </div>
       </div>
     </PlayerFloatingPanel>
   );
 }
-
 
 function PlayerChapterReaderFloatingPanel({
   material,
@@ -528,7 +582,8 @@ function PlayerChapterReaderFloatingPanel({
   onStopVoice,
 }) {
   const title = activeChapter?.title || "Untitled Chapter";
-  const description = activeChapter?.description || "Belum ada deskripsi chapter.";
+  const description =
+    activeChapter?.description || "Belum ada deskripsi chapter.";
   const mediaAssets = getChapterMediaAssets(activeChapter);
   const chapters = material?.chapters || [];
   const hasChapters = chapters.length > 0;
@@ -536,7 +591,8 @@ function PlayerChapterReaderFloatingPanel({
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
-  const canGoNext = activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+  const canGoNext =
+    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
@@ -549,39 +605,36 @@ function PlayerChapterReaderFloatingPanel({
   };
 
   return (
-    <PlayerFloatingPanel onClose={onClose} className="w-[420px]">
+    <PlayerFloatingPanel onClose={onClose} className="w-105">
       <div className="mb-5 flex shrink-0 items-start justify-between gap-3 pr-8">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-bold leading-tight text-white">
+          <h3 className="truncate text-base font-normal leading-tight text-white">
             {title}
           </h3>
           {activeChapter?.objectName && (
-            <div className="mt-1 truncate text-[11px] font-semibold text-white/45">
+            <div className="mt-1 truncate text-xs font-normal text-contrast-grayout">
               {activeChapter.objectName}
             </div>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={onPlayVoice}
-          disabled={!activeChapter?.description}
-          className={[
-            "flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-bold transition",
-            activeChapter?.description
-              ? "cursor-pointer border-secondary-default/50 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
-              : "cursor-not-allowed border-white/10 text-white/30",
-          ].join(" ")}
-          title="Play Voice"
-        >
-          <Volume2 className="size-4" />
-          Play Voice
-        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          onClick={onPlayVoice}
+          disabled={!activeChapter?.description}
+          title="Play Voice"
+          className="mb-3 w-full"
+        >
+          <MaterialIcon name="brand_awareness" size={20} />
+          Play Voice
+        </Button>
+
         <section>
-          <div className="mb-2 text-xs font-bold text-white/60">
+          <div className="mb-2 text-xs font-normal text-white/60">
             Description
           </div>
 
@@ -592,7 +645,7 @@ function PlayerChapterReaderFloatingPanel({
 
         {activeChapter?.parameters?.length > 0 && (
           <section className="mt-5 border-t border-white/10 pt-4">
-            <div className="mb-3 text-xs font-bold text-white/60">
+            <div className="mb-3 text-xs font-normal text-white/60">
               Parameters
             </div>
 
@@ -608,11 +661,13 @@ function PlayerChapterReaderFloatingPanel({
                     key={parameter.id || `${label}-${index}`}
                     className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs"
                   >
-                    <span className="min-w-0 truncate text-white/60">{label}</span>
-                    <strong className="text-right text-white">
+                    <span className="min-w-0 truncate text-white/60">
+                      {label}
+                    </span>
+                    <span className="text-right text-white">
                       {value}
                       {unit ? ` ${unit}` : ""}
-                    </strong>
+                    </span>
                   </div>
                 );
               })}
@@ -622,7 +677,7 @@ function PlayerChapterReaderFloatingPanel({
 
         {mediaAssets.length > 0 && (
           <section className="mt-5 border-t border-white/10 pt-4">
-            <div className="mb-3 text-xs font-bold text-white/60">
+            <div className="mb-3 text-xs font-normal text-white/60">
               Media ({mediaAssets.length})
             </div>
 
@@ -640,25 +695,27 @@ function PlayerChapterReaderFloatingPanel({
         )}
       </div>
 
-      <div className="mt-5 grid grid-cols-[1fr_auto_auto] items-center gap-2 border-t border-white/10 pt-4">
+      <div className="mt-5 flex justify-between items-center border-t border-white/10 pt-4">
         <PanelFooterButton
           onClick={onOpenList}
           icon={List}
-          label="List"
+          // label="List"
           disabled={!hasChapters}
         />
-        <PanelFooterButton
-          onClick={handlePrevious}
-          icon={ChevronLeft}
-          label="Prev"
-          disabled={!canGoPrevious}
-        />
-        <PanelFooterButton
-          onClick={handleNext}
-          icon={ChevronRight}
-          label="Next"
-          disabled={!canGoNext}
-        />
+        <div className="flex gap-2">
+          <PanelFooterButton
+            onClick={handlePrevious}
+            icon={ChevronLeft}
+            // label="Prev"
+            disabled={!canGoPrevious}
+          />
+          <PanelFooterButton
+            onClick={handleNext}
+            icon={ChevronRight}
+            // label="Next"
+            disabled={!canGoNext}
+          />
+        </div>
       </div>
     </PlayerFloatingPanel>
   );
@@ -682,32 +739,23 @@ function PlayerObjectListFloatingPanel({
   const maxTreeDepth = Math.max(getMaxTreeDepth(objectList || []), 1);
 
   return (
-    <aside className="absolute bottom-7 left-[92px] top-7 z-40 flex w-[400px] flex-col overflow-hidden rounded-xl border border-grayout-extra-dark bg-primary/95 text-white shadow-2xl backdrop-blur-sm">
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-[#14201f] px-4">
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-secondary-default transition hover:bg-white/10 hover:text-white"
-          title="Close object list"
-        >
-          <ChevronLeft className="size-5" />
-        </button>
-
-        <h3 className="min-w-0 flex-1 text-lg font-bold text-white">
+    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-xl border border-grayout-extra-dark bg-primary/95 text-white shadow-2xl backdrop-blur-xs">
+      <div className="flex h-16 shrink-0 items-center gap-3 bg-dark-alpha px-4">
+        <h3 className="min-w-0 flex-1 text-base font-bold text-white">
           Object List
         </h3>
 
         <button
           type="button"
           onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-secondary-default transition hover:bg-white/10 hover:text-white"
+          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white hover:bg-white/10"
           title="Close object list"
         >
           <X className="size-5" />
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden bg-[#182223B8]">
         <HierarchyObjectTree
           objectList={objectList || []}
           selectedObject={selectedObject}
@@ -737,7 +785,7 @@ function PlayerCameraSettingsFloatingPanel({
   onClose,
 }) {
   return (
-    <div className="absolute left-[92px] top-7 z-40 w-[340px] rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 text-white shadow-2xl backdrop-blur-sm">
+    <div className="absolute left-23 top-7 z-40 w-85 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
         <h3 className="text-base font-bold text-white">Camera Setting</h3>
 
@@ -755,31 +803,19 @@ function PlayerCameraSettingsFloatingPanel({
         <div className="flex items-center justify-between gap-4">
           <span className="text-sm text-white/90">Show Annotations</span>
 
-          <button
-            type="button"
-            role="switch"
-            aria-checked={showAnnotations}
-            onClick={() => setShowAnnotations?.((prev) => !prev)}
-            className={[
-              "relative h-6 w-12 rounded-full border transition",
-              showAnnotations
-                ? "border-secondary-default bg-secondary-default/30"
-                : "border-white/25 bg-white/10",
-            ].join(" ")}
-            title="Show annotations"
-          >
-            <span
-              className={[
-                "absolute top-1/2 size-4 -translate-y-1/2 rounded-full transition",
-                showAnnotations
-                  ? "right-1 bg-secondary-default"
-                  : "left-1 bg-white/45",
-              ].join(" ")}
-            />
-          </button>
+          <Switch
+            checked={showAnnotations}
+            onCheckedChange={(checked) => setShowAnnotations?.(checked)}
+          />
         </div>
 
-        <div className="border-t border-white/10 pt-4">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-sm text-white/90">Dark Theme</span>
+
+          <Switch checked={false} onCheckedChange={() => {}} />
+        </div>
+
+        {/* <div className="border-t border-white/10 pt-4">
           <button
             type="button"
             onClick={onResetAll}
@@ -788,7 +824,7 @@ function PlayerCameraSettingsFloatingPanel({
             <RotateCcw className="size-4" />
             Reset All
           </button>
-        </div>
+        </div> */}
       </div>
     </div>
   );
@@ -808,7 +844,7 @@ function PlayerMediaViewer({ media, onClose }) {
       className="absolute bottom-7 left-[470px] right-7 top-7 z-50 flex min-w-0 flex-col overflow-hidden rounded-xl border border-grayout-extra-dark bg-dark-alpha backdrop-blur-sm"
     >
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-        <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-white">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-normal text-white">
           {getMediaIcon(kind, "size-4 text-secondary-default")}
           <span className="min-w-0 truncate">{title}</span>
         </div>
@@ -818,7 +854,7 @@ function PlayerMediaViewer({ media, onClose }) {
             <a
               href={source}
               download={media?.name || media?.title || title}
-              className="grid size-8 place-items-center rounded-lg border border-secondary-default/40 text-secondary-default transition hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
+              className="grid size-8 place-items-center rounded-lg border border-secondary-default/40 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
               title="Download media"
             >
               <Download className="size-4" />
@@ -828,7 +864,7 @@ function PlayerMediaViewer({ media, onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="grid size-8 cursor-pointer place-items-center rounded-lg border border-secondary-default/40 text-secondary-default transition hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
+            className="grid size-8 cursor-pointer place-items-center rounded-lg border border-secondary-default/40 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
             title="Close media viewer"
           >
             <X className="size-4" />
@@ -859,8 +895,10 @@ function PlayerMediaViewer({ media, onClose }) {
           />
         )}
 
-        {source && kind === "DOCUMENT" && (
-          mimeType.includes("pdf") || String(source).startsWith("data:application/pdf") ? (
+        {source &&
+          kind === "DOCUMENT" &&
+          (mimeType.includes("pdf") ||
+          String(source).startsWith("data:application/pdf") ? (
             <iframe
               src={source}
               title={title}
@@ -873,7 +911,8 @@ function PlayerMediaViewer({ media, onClose }) {
               </div>
               <div className="mb-2 text-sm font-bold text-white">{title}</div>
               <p className="mb-4 text-xs leading-5 text-white/60">
-                Preview dokumen ini belum tersedia di browser. Gunakan tombol download untuk membuka file.
+                Preview dokumen ini belum tersedia di browser. Gunakan tombol
+                download untuk membuka file.
               </p>
               <a
                 href={source}
@@ -884,8 +923,7 @@ function PlayerMediaViewer({ media, onClose }) {
                 Download Document
               </a>
             </div>
-          )
-        )}
+          ))}
       </div>
     </aside>
   );
@@ -893,13 +931,16 @@ function PlayerMediaViewer({ media, onClose }) {
 
 function PlayerFloatingPanel({ children, onClose, className = "" }) {
   return (
-    <div className={`absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}>
+    <div
+      className={`absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
+    >
       <button
         type="button"
         onClick={onClose}
-        className="cursor-pointer absolute right-4 top-4 text-white/70 hover:text-white"
+        className="grid absolute right-4 top-4 size-8 cursor-pointer place-items-center rounded-lg text-white hover:bg-white/10"
+        title="Close"
       >
-        <X className="size-4" />
+        <X className="size-5" />
       </button>
 
       {children}
@@ -910,13 +951,14 @@ function PlayerFloatingPanel({ children, onClose, className = "" }) {
 function PanelAssetItem({ asset, label, onOpen }) {
   const kind = getMediaKind(asset);
   const source = getMediaSource(asset);
-  const meta = kind === "IMAGE" ? "Image" : kind === "VIDEO" ? "Video" : "Document";
+  const meta =
+    kind === "IMAGE" ? "Image" : kind === "VIDEO" ? "Video" : "Document";
 
   return (
     <button
       type="button"
       onClick={() => onOpen?.(asset)}
-      className="grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs text-white/75 transition hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white"
+      className="group grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs text-white/75 transition hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white"
     >
       {kind === "IMAGE" && source ? (
         <img
@@ -931,12 +973,14 @@ function PanelAssetItem({ asset, label, onOpen }) {
       )}
 
       <span className="min-w-0">
-        <span className="block truncate font-bold text-white/90">{label}</span>
-        <span className="mt-1 block text-[11px] text-white/45">{meta}</span>
+        <span className="block truncate font-normal text-white/90">
+          {label}
+        </span>
+        <span className="mt-1 block text-xs text-white/45">{meta}</span>
       </span>
 
       <span className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 text-white/65">
-        <Eye className="size-4" />
+        <Eye className="size-4 group-hover:text-white" />
       </span>
     </button>
   );
@@ -949,14 +993,83 @@ function PanelFooterButton({ icon: Icon, label, disabled = false, onClick }) {
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex h-9 items-center justify-center gap-2 rounded-lg border px-3 text-xs font-bold transition",
+        "flex rounded-full h-9 p-2 items-center justify-center gap-2 border text-xs font-normal transition",
         disabled
           ? "cursor-not-allowed border-white/10 text-white/30"
-          : "cursor-pointer border-secondary-default/50 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary",
+          : "cursor-pointer border-grayout-dark text-white hover:border-grayout-dark/80 hover:bg-dark-alpha/80",
       ].join(" ")}
     >
       {Icon && <Icon className="size-4" />}
-      <span>{label}</span>
+      {/* <span>{label}</span> */}
     </button>
+  );
+}
+
+function PlayerAnnotationInfoPanel({ title = "Muffler", number, onClose }) {
+  const properties = [
+    { label: "Part Type", value: "Baud 65" },
+    { label: "Width", value: "320", unit: "cm" },
+    { label: "Height", value: "480", unit: "cm" },
+    { label: "Average of Lorem Ipsum", value: "6400", unit: "m²" },
+    { label: "Long Value", value: "Lorem ipsum dolor sit amet..." },
+  ];
+
+  return (
+    <div className="absolute right-10 bottom-10 z-40 w-90 rounded-2xl border border-grayout-extra-dark bg-[#182223E6] p-5 text-white shadow-2xl backdrop-blur-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-white">
+          {title || `Annotation ${number}`}
+        </h3>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white"
+          title="Close annotation info"
+        >
+          <X className="size-5" />
+        </button>
+      </div>
+
+      <div className="space-y-1">
+        {properties.map((item) => (
+          <PlayerAnnotationInfoRow key={item.label} {...item} />
+        ))}
+      </div>
+
+      <button
+        type="button"
+        className="cursor-pointer mt-5 inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-accent-contrast px-3 text-sm font-normal text-white transition hover:border-secondary-default hover:bg-secondary-default/10"
+      >
+        <Clipboard className="size-5 text-secondary-default" />
+        Detail
+      </button>
+    </div>
+  );
+}
+
+function PlayerAnnotationInfoRow({ label, value, unit }) {
+  return (
+    <div className="grid min-h-7.5 grid-cols-[130px_1fr_28px] overflow-hidden rounded-md border border-divider-main bg-dark-alpha text-xs">
+      <div className="flex items-center border-r border-divider-main px-3 text-secondary-default bg-primary">
+        {label}
+      </div>
+
+      <div className="flex min-w-0 items-center justify-between gap-2 px-3 text-white">
+        <span className="line-clamp-2 leading-4">{value}</span>
+        {unit && <span className="shrink-0 text-white/80">{unit}</span>}
+      </div>
+
+      <button
+        type="button"
+        onClick={() =>
+          navigator.clipboard?.writeText(`${value}${unit ? ` ${unit}` : ""}`)
+        }
+        className="cursor-pointer grid place-items-center text-white hover:bg-white/5 hover:text-white"
+        title="Copy value"
+      >
+        <Copy className="size-3.5" />
+      </button>
+    </div>
   );
 }

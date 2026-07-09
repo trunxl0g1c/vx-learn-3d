@@ -1,6 +1,6 @@
-import { Canvas, useFrame, useThree } from "@react-three/fiber"
-import { Suspense, useEffect, useMemo, useRef, useState } from "react"
-import * as THREE from "three"
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
 import {
   OrbitControls,
   Bounds,
@@ -8,92 +8,96 @@ import {
   Environment,
   Html,
   TransformControls,
-} from "@react-three/drei"
-import { EffectComposer, Outline } from "@react-three/postprocessing"
+} from "@react-three/drei";
+import { EffectComposer, Outline } from "@react-three/postprocessing";
 
-import Model from "../Model"
-import Marker from "../Marker"
-import LoadingModel from "../viewer/LoadingModel"
-import CameraAnimator from "../viewer/CameraAnimator"
-import { getViewerBackgroundStyle } from "../../utils/viewerBackground"
-import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment"
-import ViewerSceneBackground from '../canvas/ViewerSceneBackground'
+import Model from "../Model";
+import Marker from "../Marker";
+import LoadingModel from "../viewer/LoadingModel";
+import CameraAnimator from "../viewer/CameraAnimator";
+import { getViewerBackgroundStyle } from "../../utils/viewerBackground";
+import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment";
+import ViewerSceneBackground from "../canvas/ViewerSceneBackground";
 
-
-const GENERATED_ANNOTATION_COLOR = "#0ea5d8"
+const GENERATED_ANNOTATION_COLOR = "#0ea5d8";
 
 function isMeaningfulSceneObject(object) {
   return Boolean(
     object &&
-      object.type !== "Bone" &&
-      object.type !== "SkeletonHelper" &&
-      object.type !== "Camera" &&
-      object.type !== "Light" &&
-      object.type !== "DirectionalLight" &&
-      object.type !== "AmbientLight" &&
-      object.type !== "HemisphereLight",
-  )
+    object.type !== "Bone" &&
+    object.type !== "SkeletonHelper" &&
+    object.type !== "Camera" &&
+    object.type !== "Light" &&
+    object.type !== "DirectionalLight" &&
+    object.type !== "AmbientLight" &&
+    object.type !== "HemisphereLight",
+  );
 }
 
 function hasRenderableContent(object) {
-  if (!object) return false
+  if (!object) return false;
 
-  let hasMesh = false
+  let hasMesh = false;
 
   object.traverse((child) => {
-    if (child.isMesh) hasMesh = true
-  })
+    if (child.isMesh) hasMesh = true;
+  });
 
-  return hasMesh
+  return hasMesh;
 }
 
 function getDirectAnnotationChildren(rootObject) {
-  if (!rootObject) return []
+  if (!rootObject) return [];
 
   return rootObject.children.filter(
     (child) => isMeaningfulSceneObject(child) && hasRenderableContent(child),
-  )
+  );
 }
 
 function resolveGeneratedAnnotationRoot(modelScene, selectedObject) {
   if (selectedObject && hasRenderableContent(selectedObject)) {
-    return selectedObject
+    return selectedObject;
   }
 
-  if (!modelScene) return null
+  if (!modelScene) return null;
 
-  const directChildren = getDirectAnnotationChildren(modelScene)
+  const directChildren = getDirectAnnotationChildren(modelScene);
 
   // GLTF files often wrap the real assembly in one Scene/root node. When that
   // happens, use that wrapper as the root so annotations are generated for the
   // first-level assembly children, not every descendant mesh.
   if (directChildren.length === 1) {
-    const onlyChildChildren = getDirectAnnotationChildren(directChildren[0])
+    const onlyChildChildren = getDirectAnnotationChildren(directChildren[0]);
 
     if (onlyChildChildren.length > 0) {
-      return directChildren[0]
+      return directChildren[0];
     }
   }
 
-  return modelScene
+  return modelScene;
 }
 
 function getAnnotationDisplayName(object, fallback) {
-  const name = object?.name || object?.userData?.name || object?.type || fallback
+  const name =
+    object?.name || object?.userData?.name || object?.type || fallback;
 
-  return String(name || fallback).replace(/[_-]+/g, " ").trim() || fallback
+  return (
+    String(name || fallback)
+      .replace(/[_-]+/g, " ")
+      .trim() || fallback
+  );
 }
 
 function useGeneratedAnnotationTargets(modelScene, selectedObject) {
   return useMemo(() => {
-    const root = resolveGeneratedAnnotationRoot(modelScene, selectedObject)
-    const directChildren = getDirectAnnotationChildren(root)
+    const root = resolveGeneratedAnnotationRoot(modelScene, selectedObject);
+    const directChildren = getDirectAnnotationChildren(root);
 
     if (directChildren.length > 0) {
       return directChildren.map((object, index) => ({
         object,
         label: getAnnotationDisplayName(object, `Object ${index + 1}`),
-      }))
+      }));
     }
 
     if (selectedObject && hasRenderableContent(selectedObject)) {
@@ -102,39 +106,45 @@ function useGeneratedAnnotationTargets(modelScene, selectedObject) {
           object: selectedObject,
           label: getAnnotationDisplayName(selectedObject, "Selected Object"),
         },
-      ]
+      ];
     }
 
-    return []
-  }, [modelScene, selectedObject])
+    return [];
+  }, [modelScene, selectedObject]);
 }
 
-function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
-  const wrapperRef = useRef(null)
-  const { camera } = useThree()
-  const [hovered, setHovered] = useState(false)
+function GeneratedAnnotationMarker({
+  index,
+  label,
+  object,
+  rootRef,
+  onAnnotationClick,
+}) {
+  const wrapperRef = useRef(null);
+  const { camera } = useThree();
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
-    setHovered(false)
-  }, [object])
+    setHovered(false);
+  }, [object]);
 
   useFrame(() => {
-    if (!wrapperRef.current || !object || !rootRef?.current) return
+    if (!wrapperRef.current || !object || !rootRef?.current) return;
 
-    object.updateWorldMatrix(true, true)
+    object.updateWorldMatrix(true, true);
 
-    const box = new THREE.Box3().setFromObject(object)
+    const box = new THREE.Box3().setFromObject(object);
 
-    if (box.isEmpty()) return
+    if (box.isEmpty()) return;
 
-    const center = box.getCenter(new THREE.Vector3())
-    const localCenter = rootRef.current.worldToLocal(center.clone())
-    const distance = camera.position.distanceTo(center)
-    const scale = THREE.MathUtils.clamp(distance * 0.0024, 0.45, 1.05)
+    const center = box.getCenter(new THREE.Vector3());
+    const localCenter = rootRef.current.worldToLocal(center.clone());
+    const distance = camera.position.distanceTo(center);
+    const scale = THREE.MathUtils.clamp(distance * 0.0024, 0.45, 1.05);
 
-    wrapperRef.current.position.copy(localCenter)
-    wrapperRef.current.scale.setScalar(scale)
-  })
+    wrapperRef.current.position.copy(localCenter);
+    wrapperRef.current.scale.setScalar(scale);
+  });
 
   return (
     <group ref={wrapperRef}>
@@ -142,14 +152,24 @@ function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
         <button
           type="button"
           onPointerOver={(event) => {
-            event.stopPropagation()
-            setHovered(true)
+            event.stopPropagation();
+            setHovered(true);
           }}
           onPointerOut={(event) => {
-            event.stopPropagation()
-            setHovered(false)
+            event.stopPropagation();
+            setHovered(false);
           }}
-          onClick={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+
+            onAnnotationClick?.({
+              index,
+              number: index + 1,
+              title: label,
+              objectName: object?.name || label,
+              object,
+            });
+          }}
           style={{
             minWidth: hovered ? 96 : 28,
             height: 28,
@@ -159,7 +179,9 @@ function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
             justifyContent: "center",
             borderRadius: 999,
             border: `1px solid rgba(103, 232, 249, ${hovered ? 0.95 : 0.55})`,
-            background: hovered ? GENERATED_ANNOTATION_COLOR : "rgba(15, 49, 58, 0.86)",
+            background: hovered
+              ? GENERATED_ANNOTATION_COLOR
+              : "rgba(15, 49, 58, 0.86)",
             color: "#ffffff",
             fontSize: 10,
             fontWeight: 800,
@@ -168,7 +190,7 @@ function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
             boxShadow: hovered
               ? "0 10px 30px rgba(14, 165, 216, 0.35)"
               : "0 8px 22px rgba(0, 0, 0, 0.28)",
-            cursor: "default",
+            cursor: "pointer",
             pointerEvents: "auto",
             transition: "all 140ms ease",
           }}
@@ -178,13 +200,19 @@ function GeneratedAnnotationMarker({ index, label, object, rootRef }) {
         </button>
       </Html>
     </group>
-  )
+  );
 }
 
-function GeneratedObjectAnnotations({ modelScene, selectedObject, rootRef, enabled }) {
-  const targets = useGeneratedAnnotationTargets(modelScene, selectedObject)
+function GeneratedObjectAnnotations({
+  modelScene,
+  selectedObject,
+  rootRef,
+  enabled,
+  onAnnotationClick,
+}) {
+  const targets = useGeneratedAnnotationTargets(modelScene, selectedObject);
 
-  if (!enabled || targets.length === 0) return null
+  if (!enabled || targets.length === 0) return null;
 
   return (
     <>
@@ -195,27 +223,34 @@ function GeneratedObjectAnnotations({ modelScene, selectedObject, rootRef, enabl
           label={target.label}
           object={target.object}
           rootRef={rootRef}
+          onAnnotationClick={onAnnotationClick}
         />
       ))}
     </>
-  )
+  );
 }
 
 function RenderSettingsSync({ viewerSettings }) {
-  const { gl, scene, invalidate } = useThree()
+  const { gl, scene, invalidate } = useThree();
 
   useEffect(() => {
-    gl.toneMapping = THREE.ACESFilmicToneMapping
-    gl.toneMappingExposure = Number(viewerSettings?.exposure ?? 1)
+    gl.toneMapping = THREE.ACESFilmicToneMapping;
+    gl.toneMappingExposure = Number(viewerSettings?.exposure ?? 1);
 
-    if ('environmentIntensity' in scene) {
-      scene.environmentIntensity = Number(viewerSettings?.envIntensity ?? 1)
+    if ("environmentIntensity" in scene) {
+      scene.environmentIntensity = Number(viewerSettings?.envIntensity ?? 1);
     }
 
-    invalidate()
-  }, [gl, scene, invalidate, viewerSettings?.exposure, viewerSettings?.envIntensity])
+    invalidate();
+  }, [
+    gl,
+    scene,
+    invalidate,
+    viewerSettings?.exposure,
+    viewerSettings?.envIntensity,
+  ]);
 
-  return null
+  return null;
 }
 
 export default function PlayerSceneCanvas({
@@ -239,8 +274,9 @@ export default function PlayerSceneCanvas({
   handleModelLoaded,
   setAnimations,
   showAnnotations = true,
+  onAnnotationClick,
 }) {
-  const modelRootRef = useRef(null)
+  const modelRootRef = useRef(null);
 
   if (!material?.modelUrl) {
     return (
@@ -256,7 +292,7 @@ export default function PlayerSceneCanvas({
       >
         Load JSON materi terlebih dahulu
       </div>
-    )
+    );
   }
 
   return (
@@ -270,14 +306,14 @@ export default function PlayerSceneCanvas({
         toneMapping: THREE.ACESFilmicToneMapping,
       }}
       onCreated={({ camera, gl }) => {
-        cameraRef.current = camera
-        gl.setClearColor(0x000000, 0)
-        gl.toneMappingExposure = viewerSettings.exposure
-        window.__PLAYER_RENDERER__ = gl
+        cameraRef.current = camera;
+        gl.setClearColor(0x000000, 0);
+        gl.toneMappingExposure = viewerSettings.exposure;
+        window.__PLAYER_RENDERER__ = gl;
       }}
       onPointerMissed={() => {
-        setSelectedObject(null)
-        setOutlineObjects([])
+        setSelectedObject(null);
+        setOutlineObjects([]);
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
@@ -297,7 +333,8 @@ export default function PlayerSceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+      {viewerSettings?.hdriSource === "custom" &&
+      viewerSettings?.customHdri?.dataUrl ? (
         <CustomHdriEnvironment viewerSettings={viewerSettings} />
       ) : (
         viewerSettings.hdri && (
@@ -336,12 +373,12 @@ export default function PlayerSceneCanvas({
                 onSelectObject={handleSelectObjectFromPlayer}
                 onDoubleClickObject={handleDoubleClickObjectFromPlayer}
                 onModelLoaded={(scene) => {
-                  handleModelLoaded(scene || modelRootRef.current)
+                  handleModelLoaded(scene || modelRootRef.current);
                 }}
                 selectedAnimations={selectedAnimations}
                 animationCommand={animationCommand}
                 onAnimationsLoaded={(clips) => {
-                  setAnimations(clips || [])
+                  setAnimations(clips || []);
                 }}
               />
 
@@ -350,10 +387,10 @@ export default function PlayerSceneCanvas({
                   object={selectedObject}
                   mode={transformMode}
                   onMouseDown={() => {
-                    controlsRef.current.enabled = false
+                    controlsRef.current.enabled = false;
                   }}
                   onMouseUp={() => {
-                    controlsRef.current.enabled = true
+                    controlsRef.current.enabled = true;
                   }}
                 />
               )}
@@ -370,6 +407,7 @@ export default function PlayerSceneCanvas({
                   selectedObject={selectedObject}
                   rootRef={modelRootRef}
                   enabled={showAnnotations}
+                  onAnnotationClick={onAnnotationClick}
                 />
               )}
             </group>
@@ -390,9 +428,9 @@ export default function PlayerSceneCanvas({
         enableZoom={true}
         enablePan={freePlay}
         onStart={() => {
-          focusTargetRef.current = null
+          focusTargetRef.current = null;
         }}
       />
     </Canvas>
-  )
+  );
 }
