@@ -739,8 +739,8 @@ function PlayerObjectListFloatingPanel({
   const maxTreeDepth = Math.max(getMaxTreeDepth(objectList || []), 1);
 
   return (
-    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-xl border border-grayout-extra-dark bg-primary/95 text-white shadow-2xl backdrop-blur-xs">
-      <div className="flex h-16 shrink-0 items-center gap-3 bg-dark-alpha px-4">
+    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-grayout-extra-dark bg-[#182223B8] text-white shadow-2xl backdrop-blur-sm">
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 backdrop-blur-sm">
         <h3 className="min-w-0 flex-1 text-base font-bold text-white">
           Object List
         </h3>
@@ -755,7 +755,7 @@ function PlayerObjectListFloatingPanel({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-[#182223B8]">
+      <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
         <HierarchyObjectTree
           objectList={objectList || []}
           selectedObject={selectedObject}
@@ -1015,8 +1015,8 @@ function PlayerAnnotationInfoPanel({ title = "Muffler", number, onClose }) {
   ];
 
   return (
-    <div className="absolute right-10 bottom-10 z-40 w-90 rounded-2xl border border-grayout-extra-dark bg-[#182223E6] p-5 text-white shadow-2xl backdrop-blur-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <div className="absolute right-10 bottom-10 z-40 w-90 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
+      <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
         <h3 className="text-sm font-bold text-white">
           {title || `Annotation ${number}`}
         </h3>
@@ -1039,7 +1039,7 @@ function PlayerAnnotationInfoPanel({ title = "Muffler", number, onClose }) {
 
       <button
         type="button"
-        className="cursor-pointer mt-5 inline-flex h-8 items-center justify-center gap-2 rounded-lg border border-accent-contrast px-3 text-sm font-normal text-white transition hover:border-secondary-default hover:bg-secondary-default/10"
+        className="mt-5 inline-flex h-8 cursor-pointer items-center justify-center gap-2 rounded-lg border border-accent-contrast px-3 text-sm font-normal text-white transition hover:border-secondary-default hover:bg-secondary-default/10"
       >
         <Clipboard className="size-5 text-secondary-default" />
         Detail
@@ -1050,8 +1050,8 @@ function PlayerAnnotationInfoPanel({ title = "Muffler", number, onClose }) {
 
 function PlayerAnnotationInfoRow({ label, value, unit }) {
   return (
-    <div className="grid min-h-7.5 grid-cols-[130px_1fr_28px] overflow-hidden rounded-md border border-divider-main bg-dark-alpha text-xs">
-      <div className="flex items-center border-r border-divider-main px-3 text-secondary-default bg-primary">
+    <div className="grid min-h-7.5 grid-cols-[130px_1fr_28px] overflow-hidden rounded-md border border-white/10 bg-white/[0.03] text-xs">
+      <div className="flex items-center border-r border-white/10 bg-white/[0.03] px-3 text-secondary-default">
         {label}
       </div>
 
@@ -1065,7 +1065,7 @@ function PlayerAnnotationInfoRow({ label, value, unit }) {
         onClick={() =>
           navigator.clipboard?.writeText(`${value}${unit ? ` ${unit}` : ""}`)
         }
-        className="cursor-pointer grid place-items-center text-white hover:bg-white/5 hover:text-white"
+        className="grid cursor-pointer place-items-center text-white/80 transition hover:bg-white/5 hover:text-white"
         title="Copy value"
       >
         <Copy className="size-3.5" />
