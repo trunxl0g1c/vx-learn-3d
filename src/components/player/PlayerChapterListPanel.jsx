@@ -61,8 +61,8 @@ export default function PlayerChapterListPanel({
       onClick={(event) => event.stopPropagation()}
       className={[
         "absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
-        "rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 text-white",
-        "backdrop-blur-sm backdrop-saturate-200",
+        "rounded-2xl border border-white/10 bg-[#182223]/75 p-5 text-white shadow-2xl",
+        "backdrop-blur-xl backdrop-saturate-200",
       ].join(" ")}
     >
       <button
@@ -90,8 +90,8 @@ export default function PlayerChapterListPanel({
               className={[
                 "cursor-pointer grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all",
                 active
-                  ? "border-secondary-default/70 bg-grayout-extra-dark text-white"
-                  : "border-grayout-dark bg-dark-alpha text-white/75 hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white",
+                  ? "border-secondary-default/70 bg-white/[0.08] text-white"
+                  : "border-white/10 bg-white/[0.03] text-white/75 hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white",
               ].join(" ")}
             >
               <span className="text-xs tabular-nums text-white/55">

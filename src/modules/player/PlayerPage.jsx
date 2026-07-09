@@ -739,8 +739,8 @@ function PlayerObjectListFloatingPanel({
   const maxTreeDepth = Math.max(getMaxTreeDepth(objectList || []), 1);
 
   return (
-    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-grayout-extra-dark bg-[#182223B8] text-white shadow-2xl backdrop-blur-sm">
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 bg-white/[0.03] px-4 backdrop-blur-sm">
+    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#182223]/75 text-white shadow-2xl backdrop-blur-xl">
+      <div className="flex h-14 shrink-0 items-center gap-3 px-6 pt-1">
         <h3 className="min-w-0 flex-1 text-base font-bold text-white">
           Object List
         </h3>
@@ -748,14 +748,14 @@ function PlayerObjectListFloatingPanel({
         <button
           type="button"
           onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white hover:bg-white/10"
+          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white transition hover:bg-white/10"
           title="Close object list"
         >
           <X className="size-5" />
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden bg-transparent">
+      <div className="min-h-0 flex-1 overflow-hidden px-6 pb-5">
         <HierarchyObjectTree
           objectList={objectList || []}
           selectedObject={selectedObject}
@@ -932,7 +932,7 @@ function PlayerMediaViewer({ media, onClose }) {
 function PlayerFloatingPanel({ children, onClose, className = "" }) {
   return (
     <div
-      className={`absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
+      className={`absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-2xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
     >
       <button
         type="button"
