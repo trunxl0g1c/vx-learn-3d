@@ -1,4 +1,5 @@
 import { Play, SquarePen } from "lucide-react";
+import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubCard({ project, onClick, formatLastOpened }) {
   const thumbnail =
@@ -43,9 +44,9 @@ export default function ProjectHubCard({ project, onClick, formatLastOpened }) {
 
         <div className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-main text-primary">
           {project.role === "EDITOR" ? (
-            <SquarePen className="w-4 h-4" />
+            <MaterialIcon name="edit_square" size={20} />
           ) : (
-            <Play className="w-4 h-4" />
+            <MaterialIcon name="play_arrow" size={25} />
           )}
         </div>
       </div>

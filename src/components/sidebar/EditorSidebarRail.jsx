@@ -1,21 +1,37 @@
-import { ArrowLeft, Box, CloudHail, Pencil, SquarePlay } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import MaterialIcon from "../../components/ui/material-icon";
 
 const sidebarItems = [
   {
     id: "settings",
-    icon: SquarePlay,
+    icon: "video_settings",
     label: "Project Settings",
     target: "settings",
   },
-  { id: "visual", icon: CloudHail, label: "Visual", target: "visual" },
+  {
+    id: "visual",
+    icon: "sunny_snowing",
+    label: "Visual",
+    target: "visual",
+  },
   {
     id: "hierarchy",
-    icon: Box,
+    icon: "package_2",
     label: "Object Hierarchy",
     target: "hierarchy",
   },
-  // { id: "annotation", icon: Pencil, label: "Annotation", target: "annotation" },
+  {
+    id: "chapters",
+    icon: "library_books",
+    label: "Object Chapters",
+    target: "chapters",
+  },
+  {
+    id: "animation",
+    icon: "animation",
+    label: "Object Animation",
+    target: "animation",
+  },
 ];
 
 export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
@@ -27,16 +43,13 @@ export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
         <button
           type="button"
           title="Back"
-          onClick={() => {
-            navigate("/");
-          }}
-          className="grid cursor-pointer size-14 place-items-center text-secondary-default transition hover:bg-white/5"
+          onClick={() => navigate("/")}
+          className="grid size-14 cursor-pointer place-items-center text-secondary-default transition hover:bg-white/5"
         >
-          <ArrowLeft className="size-7" />
+          <MaterialIcon name="arrow_back" fill={1} className="size-7" />
         </button>
 
         {sidebarItems.map((item) => {
-          const Icon = item.icon;
           const active = activeSidebar === item.target;
 
           return (
@@ -52,7 +65,11 @@ export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
                   : "border-transparent bg-transparent text-secondary-default hover:bg-white/5",
               ].join(" ")}
             >
-              <Icon className="size-7" />
+              <MaterialIcon
+                name={item.icon}
+                fill={item.id == "animation" ? 0 : 1}
+                className="size-7"
+              />
             </button>
           );
         })}

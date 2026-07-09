@@ -5,6 +5,7 @@ import {
   isObjectVisible,
   setObjectVisibility,
 } from "../../../utils/hierarchyTreeUtils";
+import MaterialIcon from "../../ui/material-icon";
 
 export default function HierarchyTreeItem({
   item,
@@ -85,10 +86,13 @@ export default function HierarchyTreeItem({
           className="grid size-4 cursor-pointer place-items-center text-secondary-default"
         >
           {hasChildren ? (
-            <ChevronRight
+            <MaterialIcon
+              name="arrow_back_2"
+              fill={1}
+              size={20}
               className={[
-                "size-4 transition-transform",
-                open ? "rotate-90" : "rotate-0",
+                "transition-transform duration-200 ease-in-out",
+                open ? "-rotate-90" : "rotate-180",
               ].join(" ")}
             />
           ) : (
@@ -101,7 +105,7 @@ export default function HierarchyTreeItem({
           onClick={handleSelect}
           title={displayName}
           className={[
-            "truncate cursor-pointer text-left transition hover:text-secondary-default",
+            "truncate pt-1 cursor-pointer text-left transition hover:text-secondary-default",
             selected ? "font-normal text-secondary-default" : "font-normal",
           ].join(" ")}
         >

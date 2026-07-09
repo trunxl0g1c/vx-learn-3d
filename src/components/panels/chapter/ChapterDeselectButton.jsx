@@ -1,12 +1,24 @@
-export default function ChapterDeselectButton({ setActiveChapterId }) {
+export default function ChapterDeselectButton({
+  selectedObjectName,
+  setActiveChapterId,
+  setRightTab,
+}) {
   return (
-    <div className="sticky bottom-0 p-4 backdrop-blur-3xl z-10 border-t border-t-grayout-dark w-full bg-primary">
+    <div className="shrink-0 border-t border-t-grayout-dark bg-primary p-4 backdrop-blur-3xl">
       <button
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
+
           setActiveChapterId(null);
+
+          if (selectedObjectName) {
+            setRightTab?.("info");
+          } else {
+            setRightTab?.(null);
+          }
         }}
-        className="w-full p-3 rounded-2xl bg-accent-contrast text-white uppercase cursor-pointer"
+        className="w-full cursor-pointer rounded-2xl bg-accent-contrast p-3 uppercase text-white"
       >
         DESELECT
       </button>

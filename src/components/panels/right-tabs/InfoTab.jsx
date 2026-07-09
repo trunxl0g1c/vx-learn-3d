@@ -3,10 +3,21 @@ import Button from "../../ui/button";
 
 export default function InfoTab({
   material,
+  selectedObjectName,
+  activeChapterId,
   setActiveChapterId,
   setRightTab,
   deselectObject,
+  createChapterFromSelectedObject,
 }) {
+  const chapters = material?.chapters || [];
+
+  const objectChapter = chapters.find(
+    (chapter) => chapter.objectName === selectedObjectName,
+  );
+
+  const hasContent = Boolean(objectChapter);
+
   const properties = [
     { label: "Part Type", value: material?.partType || "Baud 65" },
     { label: "Width", value: "320", unit: "cm" },
@@ -14,6 +25,17 @@ export default function InfoTab({
     { label: "Average of Lorem Ipsum", value: "6400", unit: "m²" },
     { label: "Long Value", value: "Lorem ipsum dolor sit amet..." },
   ];
+
+  const handleContentAction = () => {
+    if (hasContent) {
+      setActiveChapterId(objectChapter.id);
+      setRightTab("chapter");
+      return;
+    }
+
+    createChapterFromSelectedObject?.();
+    setRightTab("chapter");
+  };
 
   return (
     <div className="flex flex-col">
@@ -30,21 +52,20 @@ export default function InfoTab({
           variant="gold"
           className="flex-1"
           onClick={() => {
-            deselectObject();
+            deselectObject?.();
             setActiveChapterId(null);
+            setRightTab?.(null);
           }}
         >
           DESELECT
         </Button>
 
         <Button
-          onClick={() => {
-            setRightTab("chapter");
-          }}
+          onClick={handleContentAction}
           variant="outline"
           className="flex-1 border-accent-contrast!"
         >
-          EDIT CONTENT
+          {hasContent ? "EDIT CONTENT" : "CREATE CONTENT"}
         </Button>
       </div>
     </div>
@@ -60,7 +81,6 @@ function InfoPropertyRow({ label, value, unit }) {
 
       <div className="flex items-center justify-between gap-2 px-3 text-sm text-white">
         <span className="line-clamp-2 leading-5">{value}</span>
-
         {unit && <span className="shrink-0 font-medium">{unit}</span>}
       </div>
 
