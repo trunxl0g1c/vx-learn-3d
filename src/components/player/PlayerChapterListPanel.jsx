@@ -1,105 +1,127 @@
-import Button from "../ui/button";
+import { ArrowRight, ChevronLeft, ChevronRight, List, X } from "lucide-react";
+
+function getProjectTitle(material) {
+  return (
+    material?.projectName ||
+    material?.project?.name ||
+    material?.title ||
+    "Untitled Project"
+  );
+}
+
+function FooterButton({ icon: Icon, label, disabled = false, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "flex h-9 items-center justify-center gap-2 rounded-full border px-3 text-xs font-bold transition",
+        disabled
+          ? "cursor-not-allowed border-white/10 text-white/30"
+          : "cursor-pointer border-secondary-default/50 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary",
+      ].join(" ")}
+      title={label}
+    >
+      {Icon && <Icon className="size-4" />}
+      <span className="sr-only">{label}</span>
+    </button>
+  );
+}
 
 export default function PlayerChapterListPanel({
   material,
   activeChapterId,
   handleSelectChapter,
+  onClose,
 }) {
   if (!material) return null;
 
+  const chapters = material.chapters || [];
+  const activeChapterIndex = chapters.findIndex(
+    (chapter) => chapter.id === activeChapterId,
+  );
+  const canGoPrevious = activeChapterIndex > 0;
+  const canGoNext =
+    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+
+  const handlePrevious = () => {
+    if (!canGoPrevious) return;
+    handleSelectChapter?.(chapters[activeChapterIndex - 1].id);
+  };
+
+  const handleNext = () => {
+    if (!canGoNext) return;
+    handleSelectChapter?.(chapters[activeChapterIndex + 1].id);
+  };
+
   return (
     <aside
-      onClick={(e) => e.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
       className={[
-        "absolute left-0 top-0 z-[110]",
-        "flex w-[380px] h-full flex-col overflow-hidden",
-        "border border-divider-main",
-        "bg-primary/75 text-white",
+        "absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
+        "rounded-xl border border-grayout-extra-dark bg-dark-alpha p-5 text-white",
         "backdrop-blur-sm backdrop-saturate-200",
       ].join(" ")}
     >
-      <div className="flex h-16 shrink-0 items-center border-b border-divider-main bg-dark-alpha/80 px-5">
-        <div>
-          <div className="text-lg font-semibold">Chapters</div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 cursor-pointer text-white/70 transition hover:text-white"
+        title="Close chapter list"
+      >
+        <X className="size-4" />
+      </button>
 
-          <div className="text-xs text-contrast-grayout">
-            {material.chapters.length} Chapters Available
-          </div>
-        </div>
-      </div>
+      <h3 className="mb-6 pr-8 text-base font-bold leading-tight text-white">
+        {getProjectTitle(material)}
+      </h3>
 
-      <div className="sidebar-scroll flex-1 space-y-3 overflow-y-auto p-4">
-        {material.chapters.map((chapter, index) => {
+      <div className="sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+        {chapters.map((chapter, index) => {
           const active = activeChapterId === chapter.id;
 
           return (
             <button
-              key={chapter.id}
-              onClick={() => handleSelectChapter(chapter.id)}
+              key={chapter.id || `${chapter.title}-${index}`}
+              type="button"
+              onClick={() => handleSelectChapter?.(chapter.id)}
               className={[
-                "group w-full rounded-xl border p-4 text-left transition-all",
+                "grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all",
                 active
-                  ? "border-secondary-default bg-secondary-default/20"
-                  : "border-divider-main bg-primary/60 hover:border-secondary-default/60 hover:bg-primary/80",
+                  ? "border-secondary-default/70 bg-secondary-default/15 text-white"
+                  : "border-white/10 bg-white/[0.03] text-white/75 hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white",
               ].join(" ")}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <span
-                  className={[
-                    "rounded-full px-2.5 py-1 text-[11px] font-bold",
-                    active
-                      ? "bg-secondary-default text-white"
-                      : "bg-dark-alpha text-contrast-grayout",
-                  ].join(" ")}
-                >
-                  Chapter {index + 1}
-                </span>
+              <span className="text-xs tabular-nums text-white/55">
+                {index + 1}.
+              </span>
 
-                {active && (
-                  <span className="text-xs font-semibold text-secondary-default">
-                    ACTIVE
-                  </span>
-                )}
-              </div>
+              <span className="min-w-0 truncate text-sm font-semibold">
+                {chapter.title || `Chapter ${index + 1}`}
+              </span>
 
-              <h3 className="line-clamp-2 text-base font-semibold text-white">
-                {chapter.title}
-              </h3>
-
-              <p className="mt-2 text-xs text-contrast-grayout">Object</p>
-
-              <div className="truncate text-sm text-white">
-                {chapter.objectName}
-              </div>
-
-              {chapter.description && (
-                <p className="mt-3 line-clamp-2 text-xs leading-5 text-contrast-grayout">
-                  {chapter.description}
-                </p>
-              )}
-
-              <div className="mt-4 flex items-center justify-between">
-                <div className="flex gap-2">
-                  {chapter.parameters?.length > 0 && (
-                    <div className="rounded-md bg-dark-alpha px-2 py-1 text-[10px] font-semibold text-secondary-default">
-                      {chapter.parameters.length} Params
-                    </div>
-                  )}
-
-                  {chapter.animations?.length > 0 && (
-                    <div className="rounded-md bg-dark-alpha px-2 py-1 text-[10px] font-semibold text-secondary-default">
-                      {chapter.animations.length} Anim
-                    </div>
-                  )}
-                </div>
-
-                <Button size="sm" variant={active ? "default" : "outline"}>
-                  {active ? "Selected" : "Open"}
-                </Button>
-              </div>
+              <ArrowRight className="size-4 text-secondary-default" />
             </button>
           );
         })}
+      </div>
+
+      <div className="mt-5 grid grid-cols-[auto_1fr_auto_auto] items-center gap-2 border-t border-white/10 pt-4">
+        <FooterButton icon={List} label="Chapter List" disabled />
+        <div />
+        <FooterButton
+          icon={ChevronLeft}
+          label="Previous Chapter"
+          disabled={!canGoPrevious}
+          onClick={handlePrevious}
+        />
+        <FooterButton
+          icon={ChevronRight}
+          label="Next Chapter"
+          disabled={!canGoNext}
+          onClick={handleNext}
+        />
       </div>
     </aside>
   );

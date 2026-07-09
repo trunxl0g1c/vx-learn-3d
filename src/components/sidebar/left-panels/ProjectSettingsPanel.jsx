@@ -1,4 +1,4 @@
-import { ImageIcon } from "lucide-react";
+import { FileText, ImageIcon, Trash2, Video } from "lucide-react";
 import Switch from "../../ui/switch";
 import Slider from "../../ui/slider";
 import {
@@ -65,6 +65,29 @@ function resizeImageDataUrl(
 async function readImageFileAsThumbnail(file) {
   const dataUrl = await readFileAsDataUrl(file);
   return resizeImageDataUrl(dataUrl);
+}
+
+function getMediaAccept(type) {
+  if (type === "IMAGE") return "image/*";
+  if (type === "VIDEO") return "video/*";
+  return ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+}
+
+function getMediaIcon(type, className = "size-7 text-secondary-default") {
+  if (type === "IMAGE") return <ImageIcon className={className} />;
+  if (type === "VIDEO") return <Video className={className} />;
+  return <FileText className={className} />;
+}
+
+function getMediaLabel(type) {
+  if (type === "IMAGE") return "Image";
+  if (type === "VIDEO") return "Video";
+  return "Document";
+}
+
+function getMediaTitle(file, type) {
+  if (file?.name) return file.name;
+  return `Untitled ${getMediaLabel(type)}`;
 }
 
 function waitForNextFrame() {
@@ -193,6 +216,39 @@ export default function ProjectSettingsPanel({
     }
   };
 
+  const addProjectMedia = async (type, file) => {
+    if (!file) return;
+
+    const dataUrl = await readFileAsDataUrl(file);
+
+    setMaterial((prev) => ({
+      ...prev,
+      media: [
+        ...(prev.media || []),
+        {
+          id: crypto.randomUUID(),
+          type,
+          title: getMediaTitle(file, type),
+          name: file.name || getMediaTitle(file, type),
+          mimeType: file.type || "application/octet-stream",
+          size: file.size || 0,
+          url: dataUrl,
+          dataUrl,
+          addedAt: new Date().toISOString(),
+        },
+      ],
+    }));
+  };
+
+  const removeProjectMedia = (mediaId) => {
+    setMaterial((prev) => ({
+      ...prev,
+      media: (prev.media || []).filter((item) => item.id !== mediaId),
+    }));
+  };
+
+  const mediaList = Array.isArray(material.media) ? material.media : [];
+
   return (
     <div className="flex h-full flex-col text-white">
       <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
@@ -306,7 +362,7 @@ export default function ProjectSettingsPanel({
 
         <div>
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-            Media Content
+            Project Thumbnail
           </label>
 
           <div className="rounded-lg border border-secondary-default bg-primary p-3">
@@ -315,7 +371,7 @@ export default function ProjectSettingsPanel({
                 {material.thumbnail ? (
                   <img
                     src={material.thumbnail}
-                    alt="Thumbnail"
+                    alt="Project thumbnail"
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -364,6 +420,82 @@ export default function ProjectSettingsPanel({
               >
                 Remove
               </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
+            Media
+          </label>
+
+          <div className="space-y-3">
+            {mediaList.length > 0 && (
+              <div className="space-y-2">
+                {mediaList.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 rounded-lg border border-secondary-default bg-primary p-3"
+                  >
+                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#315b64] bg-dark-alpha">
+                      {item.type === "IMAGE" && item.url ? (
+                        <img
+                          src={item.url}
+                          alt={item.title || item.name || "Project media"}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        getMediaIcon(item.type, "size-6 text-secondary-default")
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-normal text-white">
+                        {item.title || item.name || `Untitled ${getMediaLabel(item.type)}`}
+                      </div>
+                      <div className="mt-1 text-xs font-normal text-contrast-grayout">
+                        {getMediaLabel(item.type)}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => removeProjectMedia(item.id)}
+                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#315b64] text-contrast-grayout transition hover:border-secondary-default hover:text-white"
+                      aria-label="Remove media"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { type: "IMAGE", label: "Add Image" },
+                { type: "VIDEO", label: "Add Video" },
+                { type: "DOCUMENT", label: "Add Document" },
+              ].map((item) => (
+                <label
+                  key={item.type}
+                  title={item.label}
+                  aria-label={item.label}
+                  className="grid h-12 cursor-pointer place-items-center rounded-lg border border-secondary-default bg-primary text-white transition hover:border-secondary-default hover:bg-dark-alpha"
+                >
+                  {getMediaIcon(item.type, "size-5 text-secondary-default")}
+                  <input
+                    type="file"
+                    accept={getMediaAccept(item.type)}
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      await addProjectMedia(item.type, file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              ))}
             </div>
           </div>
         </div>

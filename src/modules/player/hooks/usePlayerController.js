@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import * as THREE from "three"
 
 import { applyCutAway } from "../../../utils/cutAwayUtils"
 import {
@@ -6,6 +7,8 @@ import {
   initializePlayerModelScene,
 } from "../../../engine/model"
 import { createPlayerObjectSelectionPayload } from "../../../engine/selection"
+import { buildObjectTree } from "../../../utils/objectTreeUtils"
+import { createFocusTargetFromObject, createFocusTargetFromScene } from "../../../engine/camera"
 
 import usePlayerAnimation from "./usePlayerAnimation"
 import usePlayerSpeech from "./usePlayerSpeech"
@@ -13,10 +16,66 @@ import usePlayerProject, { DEFAULT_VIEWER_SETTINGS } from "./usePlayerProject"
 import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
 
+const DEFAULT_PLAYER_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1)
+
+function getMaterialList(material) {
+  if (!material) return []
+
+  return Array.isArray(material) ? material.filter(Boolean) : [material]
+}
+
+function clonePlayerMaterial(material) {
+  if (Array.isArray(material)) {
+    return material.map((item) => item?.clone?.() || item)
+  }
+
+  return material?.clone?.() || material
+}
+
+function applyPlayerPbrSettings(material, settings = {}) {
+  const envIntensity = Number.isFinite(Number(settings.envIntensity))
+    ? Number(settings.envIntensity)
+    : 0.8
+  const metalness = Number.isFinite(Number(settings.metalness))
+    ? Number(settings.metalness)
+    : 0.1
+  const roughness = Number.isFinite(Number(settings.roughness))
+    ? Number(settings.roughness)
+    : 0.1
+
+  getMaterialList(material).forEach((item) => {
+    if (!item) return
+
+    if ("envMapIntensity" in item) item.envMapIntensity = envIntensity
+    if ("metalness" in item) item.metalness = metalness
+    if ("roughness" in item) item.roughness = roughness
+
+    item.needsUpdate = true
+  })
+}
+
+function restorePlayerSceneMaterials(scene, settings = {}) {
+  if (!scene) return
+
+  scene.traverse((child) => {
+    if (!child.isMesh) return
+
+    const originalMaterial = child.userData?.originalMaterial
+
+    if (originalMaterial) {
+      child.material = clonePlayerMaterial(originalMaterial)
+    }
+
+    applyPlayerPbrSettings(child.material, settings)
+    child.renderOrder = 0
+  })
+}
+
 export default function usePlayerController() {
   const [material, setMaterial] = useState(null)
   const [activeChapterId, setActiveChapterId] = useState(null)
   const [modelScene, setModelScene] = useState(null)
+  const [objectList, setObjectList] = useState([])
 
   const [freePlay, setFreePlay] = useState(false)
   const [freePlayMenu, setFreePlayMenu] = useState(false)
@@ -44,6 +103,7 @@ export default function usePlayerController() {
   const cutBoundsRef = useRef(null)
 
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
+  const [showAnnotations, setShowAnnotations] = useState(true)
 
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
@@ -106,6 +166,7 @@ export default function usePlayerController() {
     setSelectedObject,
     setOutlineObjects,
     focusTargetRef,
+    viewerSettings,
   })
 
   useEffect(() => {
@@ -132,12 +193,177 @@ export default function usePlayerController() {
     })
   }, [viewerSettings, modelScene])
 
+  const createPlayerObjectList = (scene) => {
+    if (!scene) return []
+
+    return scene.children
+      .filter((child) => child.type !== "Bone")
+      .map((child) => buildObjectTree(child, 0))
+  }
+
+  const focusObject = (object) => {
+    if (!object || !focusTargetRef) return
+
+    const focusTarget = createFocusTargetFromObject(
+      object,
+      cameraRef?.current,
+      controlsRef?.current,
+      {
+        distanceMultiplier: 1.8,
+        minimumDistance: 0.1,
+      },
+    )
+
+    if (!focusTarget) return
+
+    focusTargetRef.current = focusTarget
+  }
+
+  const resetCameraToOverview = () => {
+    if (!cameraRef?.current) return
+
+    if (!modelScene) {
+      cameraRef.current.position.set(0, 0, 5)
+      controlsRef?.current?.target?.set?.(0, 0, 0)
+      controlsRef?.current?.update?.()
+      focusTargetRef.current = null
+      return
+    }
+
+    const focusTarget = createFocusTargetFromScene(modelScene, {
+      camera: cameraRef.current,
+      distanceMultiplier: 1.7,
+      minimumDistance: 1.1,
+      direction: DEFAULT_PLAYER_CAMERA_DIRECTION,
+    })
+
+    if (!focusTarget) return
+
+    if (focusTarget.cameraPosition) {
+      cameraRef.current.position.copy(focusTarget.cameraPosition)
+    }
+
+    if (controlsRef?.current && focusTarget.target) {
+      controlsRef.current.target.copy(focusTarget.target)
+      controlsRef.current.update()
+    }
+
+    focusTargetRef.current = null
+  }
+
+  const xrayMaterialRef = useRef(
+    new THREE.MeshPhysicalMaterial({
+      color: "#4fc3f7",
+      transparent: true,
+      opacity: 0.22,
+      roughness: 0.2,
+      metalness: 0,
+      depthWrite: false,
+      depthTest: true,
+    }),
+  )
+
+  const isObjectInsideTarget = (object, targetObject) => {
+    let current = object
+
+    while (current) {
+      if (current === targetObject) return true
+      current = current.parent
+    }
+
+    return false
+  }
+
+  const resetPlayerObjectXray = () => {
+    if (!modelScene) {
+      setSelectedObject(null)
+      setOutlineObjects([])
+      return
+    }
+
+    // Restore directly from the immutable GLB material cache. This is more
+    // reliable than re-applying a shader mode after object-list xray because
+    // several meshes may currently share the temporary xray material.
+    restorePlayerSceneMaterials(modelScene, viewerSettings)
+
+    setSelectedObject(null)
+    setOutlineObjects([])
+  }
+
+  const makePlayerXrayExcept = (targetObject) => {
+    if (!modelScene || !targetObject) {
+      resetPlayerObjectXray()
+      return
+    }
+
+    // Always start from the original material cache before applying xray so
+    // repeated Select/Deselect operations cannot leave stale xray materials.
+    restorePlayerSceneMaterials(modelScene, viewerSettings)
+
+    const outlineMeshes = []
+
+    modelScene.traverse((child) => {
+      if (!child.isMesh) return
+
+      if (isObjectInsideTarget(child, targetObject)) {
+        outlineMeshes.push(child)
+        child.renderOrder = 999
+
+        if (child.material) {
+          child.material.needsUpdate = true
+        }
+
+        return
+      }
+
+      child.material = xrayMaterialRef.current
+      child.renderOrder = 0
+      child.material.needsUpdate = true
+    })
+
+    setSelectedObject(targetObject)
+    setOutlineObjects(outlineMeshes)
+  }
+
+  const setObjectListSelectedObject = (targetObject) => {
+    if (!targetObject) {
+      resetPlayerObjectXray()
+      return
+    }
+
+    makePlayerXrayExcept(targetObject)
+  }
+
+  const hideAllObjects = () => {
+    if (!modelScene) return
+
+    modelScene.traverse((child) => {
+      if (child.isMesh) child.visible = false
+    })
+
+    setSelectedObject(null)
+    setOutlineObjects([])
+  }
+
+  const resetAllPlayerView = () => {
+    playerFreePlay.resetAllTransforms?.()
+    playerFreePlay.resetSection?.()
+    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setActiveChapterId(null)
+    playerAnimation.stopChapterAnimations?.()
+    resetCameraToOverview()
+  }
+
   const handleModelLoaded = (scene) => {
     setModelScene(scene)
+    setObjectList(createPlayerObjectList(scene))
 
     const modelInit = initializePlayerModelScene({
       scene,
       material,
+      modelScene,
       viewerSettings,
       cutAxis: "x",
     })
@@ -163,17 +389,15 @@ export default function usePlayerController() {
     setOriginalPositions(modelInit.originalPositions)
     setOriginalGroupPositions(modelInit.originalGroupPositions)
 
-    setSelectedObject(modelInit.chapterHighlight.selectedObject)
-    setOutlineObjects(modelInit.chapterHighlight.outlineObjects)
+    // Initial player load must show the full model overview.
+    // Chapter selection, object highlight, and camera focus happen only after
+    // the user explicitly selects a chapter/object.
+    setSelectedObject(null)
+    setOutlineObjects([])
+    focusTargetRef.current = null
 
-    if (modelInit.focusTarget) {
-      focusTargetRef.current = modelInit.focusTarget
-    }
-
-    setTimeout(() => {
-      setActiveMenu("chapters")
-      setShowInfoPanel(true)
-    }, 300)
+    setActiveMenu(null)
+    setShowInfoPanel(false)
   }
 
   const handleSelectObjectFromPlayer = (object) => {
@@ -200,6 +424,7 @@ export default function usePlayerController() {
 
     scene: {
       material,
+      modelScene,
       viewerSettings,
       outlineObjects,
       setOutlineObjects,
@@ -210,12 +435,18 @@ export default function usePlayerController() {
       freePlay,
       selectedObject,
       transformMode,
+      objectList,
+      focusObject,
+      makeXrayExcept: makePlayerXrayExcept,
+      resetXray: resetPlayerObjectXray,
+      setObjectListSelectedObject,
       activeChapter: playerChapter.activeChapter,
       selectedAnimations: playerAnimation.selectedAnimations,
       animationCommand: playerAnimation.animationCommand,
       handleSelectObjectFromPlayer,
       handleModelLoaded,
       setAnimations: playerAnimation.setAnimations,
+      showAnnotations,
     },
 
     chapterPanel: {
@@ -235,9 +466,11 @@ export default function usePlayerController() {
       toggleCutSection: playerFreePlay.toggleCutSection,
       hideSelectedObject: playerFreePlay.hideSelectedObject,
       pullApart: playerFreePlay.pullApart,
-      resetAllTransforms: playerFreePlay.resetAllTransforms,
+      isPullApartActive: playerFreePlay.isPullApartActive,
+      resetAllTransforms: resetAllPlayerView,
       soloSelectedObject: playerFreePlay.soloSelectedObject,
       showAllObjects: playerFreePlay.showAllObjects,
+      hideAllObjects,
     },
 
     cutSlider: {
@@ -263,6 +496,12 @@ export default function usePlayerController() {
       handleSelectChapter: playerChapter.handleSelectChapter,
     },
 
+    settingsPanel: {
+      showAnnotations,
+      setShowAnnotations,
+      resetAll: resetAllPlayerView,
+    },
+
     toolbar: {
       loadPlayerFile: playerProject.loadPlayerFile,
       freePlay,
@@ -274,7 +513,7 @@ export default function usePlayerController() {
       stopChapterAnimations: playerAnimation.stopChapterAnimations,
       setCutEnabled,
       showAllObjects: playerFreePlay.showAllObjects,
-      resetAllTransforms: playerFreePlay.resetAllTransforms,
+      resetAllTransforms: resetAllPlayerView,
       activeChapterId,
       handleSelectChapter: playerChapter.handleSelectChapter,
       freePlayMenu,

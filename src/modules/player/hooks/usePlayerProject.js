@@ -89,7 +89,7 @@ export default function usePlayerProject({
             },
           })
 
-          setActiveChapterId(nextMaterial.chapters?.[0]?.id || null)
+          setActiveChapterId(null)
         }
 
         if (nextViewer) {
@@ -100,10 +100,10 @@ export default function usePlayerProject({
         }
 
         resetPlayerState?.({
-          activeMenu: "chapters",
+          activeMenu: null,
           freePlay: false,
           freePlayMenu: false,
-          showInfoPanel: true,
+          showInfoPanel: false,
         })
         resetAnimationState?.()
       } catch (error) {
@@ -136,7 +136,7 @@ export default function usePlayerProject({
       }
 
       setMaterial(json)
-      setActiveChapterId(json.chapters?.[0]?.id || null)
+      setActiveChapterId(null)
       resetPlayerState?.({
         activeMenu: null,
         freePlay: false,

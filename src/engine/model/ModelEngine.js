@@ -177,12 +177,35 @@ export function createModelEngine(options = {}) {
     return meshes
   }
 
+  const getMeaningfulDirectChildren = (rootObject) => (
+    Array.isArray(rootObject?.children)
+      ? rootObject.children.filter((child) => !ignoreObjectTypes.includes(child.type))
+      : []
+  )
+
+  const resolvePullApartRootObject = (targetObject) => {
+    if (targetObject || !scene) return targetObject || scene
+
+    const sceneChildren = getMeaningfulDirectChildren(scene)
+
+    // GLB files often wrap the real hierarchy inside one top-level group
+    // named "Scene". When no object is selected, explode the first-level
+    // children of that real root instead of treating the wrapper as one part
+    // or traversing down into every mesh.
+    if (sceneChildren.length === 1) {
+      const onlyChild = sceneChildren[0]
+      const childBranches = getMeaningfulDirectChildren(onlyChild)
+
+      if (childBranches.length > 0) return onlyChild
+    }
+
+    return scene
+  }
+
   const getDirectPullApartBranches = (rootObject) => {
     if (!rootObject) return []
 
-    const directChildren = Array.isArray(rootObject.children)
-      ? rootObject.children.filter((child) => !ignoreObjectTypes.includes(child.type))
-      : []
+    const directChildren = getMeaningfulDirectChildren(rootObject)
 
     const branches = directChildren
       .map((child) => ({
@@ -542,7 +565,7 @@ export function createModelEngine(options = {}) {
       hideOutsideSelection = true,
     } = options
 
-    const rootObject = targetObject || scene
+    const rootObject = resolvePullApartRootObject(targetObject)
 
     scene.updateMatrixWorld(true)
 
