@@ -1,73 +1,105 @@
-import { Html, Line } from '@react-three/drei'
-import { useFrame, useThree } from '@react-three/fiber'
-import { useRef } from 'react'
+import { Html } from '@react-three/drei'
 
+const MARKER_SIZE = 24
+const CONNECTOR_LENGTH = 76
+const CONNECTOR_ANGLE = -132
+
+function resolveMarkerPosition(marker) {
+  if (Array.isArray(marker?.position)) {
+    return marker.position
+  }
+
+  return [
+    marker?.position?.x || 0,
+    marker?.position?.y || 0,
+    marker?.position?.z || 0,
+  ]
+}
+
+/**
+ * Screen-space marker callout.
+ *
+ * The marker is rendered with Drei Html instead of world-space geometry so its
+ * dot, connector, and label keep the same pixel size while the camera zooms.
+ * The zero-sized root keeps the white dot centered exactly on the stored 3D
+ * position, similar to a Google Maps marker.
+ */
 function Marker({ marker }) {
-  const groupRef = useRef()
-  const { camera } = useThree()
-
-  const position = Array.isArray(marker.position)
-    ? marker.position
-    : [
-        marker.position?.x || 0,
-        marker.position?.y || 0,
-        marker.position?.z || 0,
-      ]
-
-  useFrame(() => {
-    if (!groupRef.current) return
-
-    const distance = camera.position.distanceTo(groupRef.current.position)
-    const scale = distance * 0.015
-
-    groupRef.current.scale.setScalar(
-      Math.min(Math.max(scale, 0.03), 0.18)
-    )
-  })
-
- const linePoints = [
-  [0, 0, 0],
-  [4, 0, 0],
-  [8, 0, 0],
-]
-
-const labelPos = [9, 0, 0]
+  const position = resolveMarkerPosition(marker)
+  const label = marker?.text || marker?.label || 'Marker'
 
   return (
-    <group ref={groupRef} position={position}>
-      <mesh>
-        <sphereGeometry args={[1.15, 24, 24]} />
-        <meshBasicMaterial color="#423D48" />
-      </mesh>
+    <Html
+      position={position}
+      center
+      occlude={false}
+      zIndexRange={[40, 0]}
+      style={{
+        pointerEvents: 'none',
+        userSelect: 'none',
+      }}
+    >
+      <div
+        aria-label={label}
+        style={{
+          position: 'relative',
+          width: 0,
+          height: 0,
+          overflow: 'visible',
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: `${CONNECTOR_LENGTH}px`,
+            height: '1.5px',
+            background: 'rgba(18, 20, 22, 0.88)',
+            transformOrigin: '0 50%',
+            transform: `rotate(${CONNECTOR_ANGLE}deg)`,
+          }}
+        />
 
-      <mesh>
-        <sphereGeometry args={[0.82, 24, 24]} />
-        <meshStandardMaterial color="#ef4444" />
-      </mesh>
-
-      <Line
-        points={linePoints}
-        color="#1D1E1F"
-        lineWidth={3}
-      />
-
-      <Html position={labelPos} center occlude={false}>
         <div
           style={{
-            background: '#1D1E1F',
-            padding: '8px 12px',
-            borderRadius: '8px',
-            border: '2px solid #1D1E1F',
+            position: 'absolute',
+            right: '44px',
+            bottom: '52px',
+            minWidth: 'max-content',
+            padding: '7px 12px',
+            border: '1px solid rgba(74, 78, 84, 0.9)',
+            borderRadius: '7px',
+            background: 'rgba(29, 30, 31, 0.96)',
+            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.24)',
+            color: '#ffffff',
             fontSize: '13px',
-            fontWeight: 'bold',
+            fontWeight: 600,
+            lineHeight: 1.2,
             whiteSpace: 'nowrap',
-            color: 'white',
           }}
         >
-          {marker.text}
+          {label}
         </div>
-      </Html>
-    </group>
+
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            left: `${-MARKER_SIZE / 2}px`,
+            top: `${-MARKER_SIZE / 2}px`,
+            width: `${MARKER_SIZE}px`,
+            height: `${MARKER_SIZE}px`,
+            boxSizing: 'border-box',
+            border: '2px solid #4a4650',
+            borderRadius: '50%',
+            background: '#ffffff',
+            boxShadow: '0 2px 7px rgba(0, 0, 0, 0.34)',
+          }}
+        />
+      </div>
+    </Html>
   )
 }
 

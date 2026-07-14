@@ -127,7 +127,6 @@ export default function PlayerPage() {
   const { projectId } = useParams();
 
   // annotation info
-  const [showAnnotationInfo, setShowAnnotationInfo] = useState(false);
   const [selectedAnnotation, setSelectedAnnotation] = useState(null);
 
   const showBackToEditor = useMemo(() => {
@@ -159,8 +158,21 @@ export default function PlayerPage() {
   };
 
   const handleOpenProjectPanel = () => {
+    const shouldClose = activePanel === "project";
+
     setActiveMedia(null);
-    togglePanel("project");
+    setSelectedAnnotation(null);
+
+    if (shouldClose) {
+      setActivePanel(null);
+      return;
+    }
+
+    // The Chapter/Project button is also the entry point back to the default
+    // Player overview. Clear every temporary interaction before showing the
+    // project panel so the model returns to the same state as the initial load.
+    player.settingsPanel.resetAll?.();
+    setActivePanel("project");
   };
 
   const handleOpenObjectPanel = () => {
@@ -181,6 +193,13 @@ export default function PlayerPage() {
     player.chapterList.handleSelectChapter?.(chapterId);
     setActiveMedia(null);
     setActivePanel("chapter");
+  };
+
+  const handleOpenAnnotationDetail = (chapterId) => {
+    if (!chapterId) return;
+
+    handleSelectChapter(chapterId);
+    setSelectedAnnotation(null);
   };
 
   const sidebarItems = [
@@ -257,10 +276,10 @@ export default function PlayerPage() {
     <PlayerLayout
       player={player}
       sidebarItems={sidebarItems}
-      onAnnotationClick={(annotation) => {
-        setSelectedAnnotation(annotation);
-        setShowAnnotationInfo(true);
-      }}
+      selectedAnnotationId={selectedAnnotation?.id || null}
+      onAnnotationClick={setSelectedAnnotation}
+      onAnnotationClose={() => setSelectedAnnotation(null)}
+      onAnnotationOpenDetail={handleOpenAnnotationDetail}
     >
       {showBackToEditor && (
         <Button
@@ -358,18 +377,6 @@ export default function PlayerPage() {
         />
       )}
 
-      {showAnnotationInfo &&
-        player.settingsPanel.showAnnotations &&
-        selectedAnnotation && (
-          <PlayerAnnotationInfoPanel
-            title={selectedAnnotation.title || "Muffler"}
-            number={selectedAnnotation.number}
-            onClose={() => {
-              setShowAnnotationInfo(false);
-              setSelectedAnnotation(null);
-            }}
-          />
-        )}
 
       {activeMedia && (
         <PlayerMediaViewer

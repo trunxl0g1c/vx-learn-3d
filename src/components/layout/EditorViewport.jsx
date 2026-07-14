@@ -93,7 +93,9 @@ export default function EditorViewport({ controller }) {
 
     activeChapterId,
     setActiveChapterId,
+    previewChapterInEditor,
     createChapterFromSelectedObject,
+    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     panelSectionStyle,
     inputStyle,
@@ -209,6 +211,7 @@ export default function EditorViewport({ controller }) {
         updateEnvIntensity={updateEnvIntensity}
         activeChapterId={activeChapterId}
         setActiveChapterId={setActiveChapterId}
+        previewChapterInEditor={previewChapterInEditor}
         createChapterFromSelectedObject={createChapterFromSelectedObject}
         saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
         panelSectionStyle={panelSectionStyle}

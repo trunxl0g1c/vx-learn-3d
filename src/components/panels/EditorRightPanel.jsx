@@ -12,7 +12,9 @@ export default function EditorRightPanel({
   rightTab,
   setRightTab,
   selectedObjectName,
+  authoringObjectName,
   createChapterFromSelectedObject,
+  saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
   saveMaterial,
   isSavingPackage,
@@ -50,6 +52,7 @@ export default function EditorRightPanel({
   stopAnimationPreview,
   addChapterMedia,
   deleteChapterMedia,
+  deleteChapterContent,
   setMarkerMode,
   requestAddMarker,
   markerMode,
@@ -69,6 +72,7 @@ export default function EditorRightPanel({
   const tabProps = {
     selectedObjectName,
     createChapterFromSelectedObject,
+    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     saveMaterial,
     isSavingPackage,
@@ -106,6 +110,7 @@ export default function EditorRightPanel({
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    deleteChapterContent,
     setMarkerMode,
     requestAddMarker,
     markerMode,
@@ -129,7 +134,9 @@ export default function EditorRightPanel({
     >
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl">
         <span className="truncate text-base font-normal">
-          {selectedObjectName || "Object Settings"}
+          {activeChapterId
+            ? authoringObjectName || "Active Chapter Object"
+            : selectedObjectName || "Object Settings"}
         </span>
 
         <div className="flex">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { createSelectionEngine } from "../engine/selection";
 
@@ -11,9 +11,13 @@ export function useViewerSelection({
   setSelectedObjectName,
   setOrbitEnabled,
   focusTargetRef,
+  focusObject,
   setIsAutoRotating,
   setRightTab,
+  activeChapterId,
 }) {
+  const [xrayTargetObject, setXrayTargetObject] = useState(null);
+
   const xrayMaterialRef = useRef(
     new THREE.MeshPhysicalMaterial({
       color: "#4fc3f7",
@@ -45,22 +49,26 @@ export function useViewerSelection({
   };
 
   const highlightObject = (targetObject) => {
+    setXrayTargetObject(null);
     applySelectionPayload(
       selectionEngine.highlightObject(targetObject)
     );
   };
 
   const makeXrayExcept = (targetObject) => {
+    setXrayTargetObject(targetObject || null);
     applySelectionPayload(
       selectionEngine.makeXrayExcept(targetObject)
     );
   };
 
   const resetXray = () => {
+    setXrayTargetObject(null);
     applySelectionPayload(selectionEngine.resetXray());
   };
 
   const selectObjectFromMesh = (mesh) => {
+    setXrayTargetObject(null);
     const payload = selectionEngine.selectFromMesh(mesh);
 
     if (!payload) return;
@@ -69,10 +77,23 @@ export function useViewerSelection({
     setSelectedObject(payload.selectedObject);
     setOutlineObjects(payload.outlineObjects);
     setOrbitEnabled(payload.orbitEnabled);
-    focusTargetRef.current = payload.focusTarget;
     setIsAutoRotating(payload.isAutoRotating);
 
-    setRightTab?.("info");
+    // Keep viewport selection behavior consistent with the hierarchy tree.
+    // Focusing the exact selected group also moves OrbitControls.target to
+    // the object's bounding-box center, so small parts can be zoomed closely.
+    if (payload.selectedObject) {
+      focusObject?.(payload.selectedObject);
+    } else {
+      focusTargetRef.current = payload.focusTarget || null;
+    }
+
+    // Keep the active chapter editor locked while tools select other objects.
+    // The tool target may change, but chapter authoring is released only by
+    // the explicit Deselect action in the chapter panel.
+    if (!activeChapterId) {
+      setRightTab?.("info");
+    }
   };
 
   return {
@@ -81,5 +102,6 @@ export function useViewerSelection({
     makeXrayExcept,
     resetXray,
     selectObjectFromMesh,
+    xrayTargetObject,
   };
 }

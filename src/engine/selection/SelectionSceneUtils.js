@@ -48,6 +48,20 @@ export function findObjectByName(root, objectName) {
   return found
 }
 
+
+export function findObjectByIndexPath(root, path) {
+  if (!root || !Array.isArray(path)) return null
+
+  let current = root
+
+  for (const index of path) {
+    if (!current?.children?.[index]) return null
+    current = current.children[index]
+  }
+
+  return current
+}
+
 export function collectMeshes(object) {
   const meshes = []
 
@@ -218,16 +232,37 @@ export function createSelectionFromMeshPayload(mesh, objectTree = []) {
   }
 }
 
+export function findExactChapterForObject(object, chapters = []) {
+  if (!object || !Array.isArray(chapters)) return null
+
+  const objectUuid = String(object.uuid || "").trim()
+  const objectName = normalizeObjectName(object.name)
+
+  return (
+    chapters.find((chapter) => {
+      const chapterObjectUuid = String(
+        chapter?.objectUuid || chapter?.objectUUID || ""
+      ).trim()
+
+      if (objectUuid && chapterObjectUuid && chapterObjectUuid === objectUuid) {
+        return true
+      }
+
+      return (
+        objectName.length > 0 &&
+        normalizeObjectName(chapter?.objectName) === objectName
+      )
+    }) || null
+  )
+}
+
 export function findChapterForObject(object, chapters = []) {
   if (!object || !Array.isArray(chapters)) return null
 
   let current = object
 
   while (current) {
-    const foundChapter = chapters.find(
-      (chapter) =>
-        normalizeObjectName(chapter.objectName) === normalizeObjectName(current.name)
-    )
+    const foundChapter = findExactChapterForObject(current, chapters)
 
     if (foundChapter) return foundChapter
 
@@ -238,11 +273,16 @@ export function findChapterForObject(object, chapters = []) {
 }
 
 export function createChapterHighlightPayload(chapter, scene) {
-  if (!scene || !chapter?.objectName) {
+  if (!scene || (!chapter?.objectUuid && !chapter?.objectName)) {
     return createClearSelectionPayload()
   }
 
-  const targetObject = findObjectByName(scene, chapter.objectName)
+  const targetObject =
+    findObjectByIndexPath(scene, chapter?.objectPath) ||
+    (chapter?.objectUuid
+      ? scene.getObjectByProperty?.("uuid", chapter.objectUuid)
+      : null) ||
+    findObjectByName(scene, chapter.objectName)
 
   return createSelectionPayload(targetObject)
 }

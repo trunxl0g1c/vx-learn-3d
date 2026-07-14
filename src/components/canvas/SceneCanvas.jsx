@@ -224,6 +224,10 @@ export default function SceneCanvas({
         ref={controlsRef}
         enabled={orbitEnabled && !isTransforming}
         enableRotate={orbitEnabled && !isTransforming}
+        enableZoom={orbitEnabled && !isTransforming}
+        enablePan={orbitEnabled && !isTransforming}
+        zoomToCursor
+        minDistance={0.001}
         onStart={() => {
           if (!orbitEnabled || isTransforming) return
 
