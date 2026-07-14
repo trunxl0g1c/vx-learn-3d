@@ -4,9 +4,11 @@ import ChapterDescriptionSection from "../chapter/ChapterDescriptionSection";
 import ChapterParameterSection from "../chapter/ChapterParameterSection";
 import ChapterMarkerSection from "../chapter/ChapterMarkerSection";
 import ChapterCameraSection from "../chapter/ChapterCameraSection";
+import ChapterVisualStateSection from "../chapter/ChapterVisualStateSection";
 import ChapterAnimationSection from "../chapter/ChapterAnimationSection";
 import ChapterMediaSection from "../chapter/ChapterMediaSection";
 import ChapterDeselectButton from "../chapter/ChapterDeselectButton";
+import ChapterDeleteButton from "../chapter/ChapterDeleteButton";
 import Button, { cn } from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
 
@@ -16,6 +18,7 @@ export default function ChapterTab(props) {
     material,
     activeChapterId,
     setActiveChapterId,
+    previewChapterInEditor,
     createChapterFromSelectedObject,
     selectedObjectName,
     panelSectionStyle,
@@ -26,6 +29,7 @@ export default function ChapterTab(props) {
     updateChapterParameter,
     deleteChapterParameter,
     deleteMarkerFromActiveChapter,
+    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     animations,
     isChapterAnimationSelected,
@@ -36,6 +40,7 @@ export default function ChapterTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    deleteChapterContent,
     requestAddMarker,
     cancelAddMarker,
     markerMode,
@@ -48,6 +53,11 @@ export default function ChapterTab(props) {
   );
 
   const openChapterDetail = (chapterId) => {
+    if (previewChapterInEditor) {
+      previewChapterInEditor(chapterId);
+      return;
+    }
+
     setActiveChapterId(chapterId);
     setRightTab?.("chapter");
   };
@@ -92,7 +102,12 @@ export default function ChapterTab(props) {
             <Button
               size="sm"
               onClick={createChapterFromSelectedObject}
-              disabled={!selectedObjectName}
+              disabled={!selectedObjectName || Boolean(activeChapterId)}
+              title={
+                activeChapterId
+                  ? "Deselect the active chapter before creating a new one"
+                  : undefined
+              }
               className="w-full"
             >
               Create Chapter from Selected Object
@@ -182,6 +197,13 @@ export default function ChapterTab(props) {
               deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
             />
 
+            <ChapterVisualStateSection
+              chapter={activeChapter}
+              saveVisualStateToActiveChapter={
+                saveVisualStateToActiveChapter
+              }
+            />
+
             <ChapterCameraSection
               panelSectionStyle={panelSectionStyle}
               saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
@@ -211,11 +233,18 @@ export default function ChapterTab(props) {
       </div>
 
       {activeChapter && (
-        <ChapterDeselectButton
-          selectedObjectName={selectedObjectName}
-          setActiveChapterId={setActiveChapterId}
-          setRightTab={setRightTab}
-        />
+        <div className="shrink-0">
+          <ChapterDeselectButton
+            selectedObjectName={selectedObjectName}
+            setActiveChapterId={setActiveChapterId}
+            setRightTab={setRightTab}
+          />
+
+          <ChapterDeleteButton
+            chapter={activeChapter}
+            onDelete={deleteChapterContent}
+          />
+        </div>
       )}
     </div>
   );

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 
-import { applyCutAway } from "../../../utils/cutAwayUtils"
 import {
   applyModelShaderMode,
   initializePlayerModelScene,
@@ -71,6 +70,47 @@ function restorePlayerSceneMaterials(scene, settings = {}) {
   })
 }
 
+function findObjectByReference(scene, reference) {
+  if (!scene || !reference) return null
+
+  if (Array.isArray(reference.path)) {
+    let current = scene
+    let pathIsValid = true
+
+    reference.path.forEach((index) => {
+      if (!pathIsValid || !current?.children?.[index]) {
+        pathIsValid = false
+        return
+      }
+
+      current = current.children[index]
+    })
+
+    if (pathIsValid && current) return current
+  }
+
+  if (reference.uuid) {
+    const uuidMatch = scene.getObjectByProperty?.("uuid", reference.uuid)
+    if (uuidMatch) return uuidMatch
+  }
+
+  const targetName = String(reference.name || "").trim()
+
+  if (!targetName) return null
+
+  let nameMatch = null
+
+  scene.traverse((object) => {
+    if (nameMatch) return
+
+    if (String(object?.name || "").trim() === targetName) {
+      nameMatch = object
+    }
+  })
+
+  return nameMatch
+}
+
 export default function usePlayerController() {
   const [material, setMaterial] = useState(null)
   const [activeChapterId, setActiveChapterId] = useState(null)
@@ -108,6 +148,7 @@ export default function usePlayerController() {
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const focusTargetRef = useRef(null)
+  const initialCameraStateRef = useRef(null)
 
   const playerAnimation = usePlayerAnimation(
     material?.chapters?.find((chapter) => chapter.id === activeChapterId)
@@ -153,6 +194,7 @@ export default function usePlayerController() {
     selectedObject,
     originalPositions,
     originalGroupPositions,
+    cutEnabled,
     cutAxis,
     cutBoundsRef,
     setCutAxis,
@@ -168,10 +210,6 @@ export default function usePlayerController() {
     focusTargetRef,
     viewerSettings,
   })
-
-  useEffect(() => {
-    applyCutAway(modelScene, cutEnabled, cutValues, cutAxis, cutBoundsRef.current)
-  }, [modelScene, cutEnabled, cutValues, cutAxis])
 
   useEffect(() => {
     if (!modelScene) return
@@ -219,8 +257,43 @@ export default function usePlayerController() {
     focusTargetRef.current = focusTarget
   }
 
+  const captureInitialCameraState = (cameraState) => {
+    if (!cameraState?.position || !cameraState?.target) return
+
+    initialCameraStateRef.current = {
+      sceneId: cameraState.sceneId || null,
+      position: cameraState.position.clone(),
+      quaternion: cameraState.quaternion?.clone?.() || null,
+      target: cameraState.target.clone(),
+      zoom: Number.isFinite(Number(cameraState.zoom))
+        ? Number(cameraState.zoom)
+        : 1,
+    }
+  }
+
   const resetCameraToOverview = () => {
     if (!cameraRef?.current) return
+
+    const initialCameraState = initialCameraStateRef.current
+
+    if (initialCameraState) {
+      cameraRef.current.position.copy(initialCameraState.position)
+
+      if (initialCameraState.quaternion) {
+        cameraRef.current.quaternion.copy(initialCameraState.quaternion)
+      }
+
+      cameraRef.current.zoom = initialCameraState.zoom
+      cameraRef.current.updateProjectionMatrix?.()
+
+      if (controlsRef?.current) {
+        controlsRef.current.target.copy(initialCameraState.target)
+        controlsRef.current.update()
+      }
+
+      focusTargetRef.current = null
+      return
+    }
 
     if (!modelScene) {
       cameraRef.current.position.set(0, 0, 5)
@@ -230,6 +303,7 @@ export default function usePlayerController() {
       return
     }
 
+    // Fallback for projects loaded before the initial camera snapshot is ready.
     const focusTarget = createFocusTargetFromScene(modelScene, {
       camera: cameraRef.current,
       distanceMultiplier: 1.7,
@@ -357,6 +431,7 @@ export default function usePlayerController() {
   }
 
   const handleModelLoaded = (scene) => {
+    initialCameraStateRef.current = null
     setModelScene(scene)
     setObjectList(createPlayerObjectList(scene))
 
@@ -400,6 +475,85 @@ export default function usePlayerController() {
     setShowInfoPanel(false)
   }
 
+  const applyHiddenVisualObjects = (visualState) => {
+    const hiddenObjects = visualState?.visibility?.hiddenObjects || []
+
+    hiddenObjects.forEach((reference) => {
+      const object = findObjectByReference(modelScene, reference)
+      if (object) object.visible = false
+    })
+  }
+
+  const handleSelectChapter = (chapterId) => {
+    const chapter = material?.chapters?.find((item) => item.id === chapterId)
+
+    if (!chapter) return
+
+    playerFreePlay.resetVisualState?.()
+    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    setSelectedObject(null)
+    setOutlineObjects([])
+
+    playerChapter.handleSelectChapter(chapterId)
+
+    const visualState = chapter.visualState
+
+    if (!visualState) return
+
+    const pullApartTarget = findObjectByReference(
+      modelScene,
+      visualState.pullApart?.targetObject,
+    )
+    playerFreePlay.applySavedPullApart?.(
+      visualState.pullApart,
+      pullApartTarget,
+    )
+
+    applyHiddenVisualObjects(visualState)
+
+    const xrayTarget = findObjectByReference(
+      modelScene,
+      visualState.xray?.targetObject,
+    )
+
+    if (visualState.xray?.enabled && xrayTarget) {
+      makePlayerXrayExcept(xrayTarget)
+    } else {
+      const savedSelectedObject = findObjectByReference(
+        modelScene,
+        visualState.selectedObject,
+      )
+
+      if (savedSelectedObject) {
+        const selection = createPlayerObjectSelectionPayload(
+          savedSelectedObject,
+          material?.chapters || [],
+        )
+
+        setSelectedObject(selection.selectedObject)
+        setOutlineObjects(selection.outlineObjects)
+      }
+    }
+
+    const savedCuts = Array.isArray(visualState.cuts)
+      ? visualState.cuts
+      : visualState.cut
+        ? [visualState.cut]
+        : []
+
+    const resolvedCuts = savedCuts
+      .map((cutState) => ({
+        cutState,
+        targetObject: findObjectByReference(
+          modelScene,
+          cutState?.targetObject,
+        ),
+      }))
+      .filter((entry) => entry.targetObject)
+
+    playerFreePlay.applySavedCuts?.(resolvedCuts)
+  }
+
   const handleSelectObjectFromPlayer = (object) => {
     if (!object) return
 
@@ -412,8 +566,14 @@ export default function usePlayerController() {
     setOutlineObjects(selection.outlineObjects)
 
     if (selection.chapterId) {
-      playerChapter.handleSelectChapter(selection.chapterId)
+      handleSelectChapter(selection.chapterId)
     }
+
+    // Match the Editor viewport-selection flow. Opening an assigned chapter
+    // may restore its saved camera first, so focus the exact clicked object
+    // afterwards. This moves OrbitControls.target to the object's bounds
+    // center and keeps close zoom behavior consistent with the hierarchy list.
+    focusObject(selection.selectedObject || object)
   }
 
   return {
@@ -445,6 +605,7 @@ export default function usePlayerController() {
       animationCommand: playerAnimation.animationCommand,
       handleSelectObjectFromPlayer,
       handleModelLoaded,
+      captureInitialCameraState,
       setAnimations: playerAnimation.setAnimations,
       showAnnotations,
     },
@@ -493,7 +654,7 @@ export default function usePlayerController() {
       activeMenu,
       material,
       activeChapterId,
-      handleSelectChapter: playerChapter.handleSelectChapter,
+      handleSelectChapter,
     },
 
     settingsPanel: {
@@ -515,7 +676,7 @@ export default function usePlayerController() {
       showAllObjects: playerFreePlay.showAllObjects,
       resetAllTransforms: resetAllPlayerView,
       activeChapterId,
-      handleSelectChapter: playerChapter.handleSelectChapter,
+      handleSelectChapter,
       freePlayMenu,
       activeMenu,
       showInfoPanel,

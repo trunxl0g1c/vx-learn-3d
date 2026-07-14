@@ -2,8 +2,80 @@ import { useEffect, useRef, useState } from "react";
 import { exportVXPack } from "../utils/vxpackUtils";
 import { createAnimationEngine } from "../engine/animation";
 
+function createObjectIndexPath(object, root) {
+  if (!object || !root) return null;
+  if (object === root) return [];
+
+  const path = [];
+  let current = object;
+
+  while (current && current !== root) {
+    const parent = current.parent;
+
+    if (!parent) return null;
+
+    const index = parent.children.indexOf(current);
+
+    if (index < 0) return null;
+
+    path.unshift(index);
+    current = parent;
+  }
+
+  return current === root ? path : null;
+}
+
+function createObjectReference(object, root = null) {
+  if (!object) return null;
+
+  return {
+    uuid: object.uuid || null,
+    name: object.name || object.userData?.name || null,
+    path: createObjectIndexPath(object, root),
+  };
+}
+
+function createCutPercentages(values = {}, ranges = {}) {
+  return ["x", "y", "z"].reduce((result, axis) => {
+    const min = Number(ranges?.[axis]?.min);
+    const max = Number(ranges?.[axis]?.max);
+    const value = Number(values?.[axis]);
+    const span = max - min;
+
+    result[axis] =
+      Number.isFinite(min) &&
+      Number.isFinite(max) &&
+      Number.isFinite(value) &&
+      Math.abs(span) > 0.000001
+        ? Math.max(0, Math.min(100, ((max - value) / span) * 100))
+        : 0;
+
+    return result;
+  }, {});
+}
+
+function collectHiddenObjectReferences(scene) {
+  if (!scene) return [];
+
+  const hiddenObjects = [];
+
+  scene.traverse((object) => {
+    if (object === scene || object.visible !== false) return;
+
+    const reference = createObjectReference(object, scene);
+
+    if (reference?.uuid || reference?.name) {
+      hiddenObjects.push(reference);
+    }
+  });
+
+  return hiddenObjects;
+}
+
 export function useChapterManager({
   selectedObjectName,
+  selectedObject,
+  authoringObject,
   cameraRef,
   controlsRef,
   modelScene,
@@ -15,6 +87,12 @@ export function useChapterManager({
   shaderMode,
   metalness,
   roughness,
+  cutEnabled,
+  cutValues,
+  cutRanges,
+  getCutStates,
+  xrayTargetObject,
+  pullApartState,
   activeChapterId,
   setActiveChapterId,
   setRightTab,
@@ -80,6 +158,8 @@ export function useChapterManager({
       id: crypto.randomUUID(),
       title: selectedObjectName,
       objectName: selectedObjectName,
+      objectUuid: selectedObject?.uuid || null,
+      objectPath: createObjectIndexPath(selectedObject, modelScene),
       description: "",
       parameters: [],
       markers: [],
@@ -191,6 +271,103 @@ export function useChapterManager({
         chapter.id === chapterId ? { ...chapter, [field]: value } : chapter
       ),
     }));
+  };
+
+  const saveVisualStateToActiveChapter = () => {
+    if (!activeChapterId) {
+      alert("Pilih Bab terlebih dahulu");
+      return;
+    }
+
+    if (!modelScene) {
+      alert("Model belum siap");
+      return;
+    }
+
+    // An active chapter owns a stable authoring object. Tool selection may
+    // move to other objects for Cut/X-Ray/Pull Apart without rebinding the
+    // chapter or changing the object restored by its visual state.
+    const visualStateObject = activeChapter ? authoringObject : selectedObject;
+    const selectedReference = createObjectReference(
+      visualStateObject,
+      modelScene,
+    );
+    const xrayReference = createObjectReference(xrayTargetObject, modelScene);
+    const pullApartReference = createObjectReference(
+      pullApartState?.targetObject,
+      modelScene,
+    );
+
+    const persistentCutStates = getCutStates?.() || [];
+    const cuts = persistentCutStates
+      .map((cutState) => {
+        const targetReference = createObjectReference(
+          cutState?.target,
+          modelScene,
+        );
+
+        if (!cutState?.enabled || !targetReference) return null;
+
+        return {
+          enabled: true,
+          targetObject: targetReference,
+          values: {
+            x: Number(cutState?.values?.x ?? 0),
+            y: Number(cutState?.values?.y ?? 0),
+            z: Number(cutState?.values?.z ?? 0),
+          },
+          percentages: createCutPercentages(
+            cutState?.values,
+            cutState?.bounds,
+          ),
+        };
+      })
+      .filter(Boolean);
+
+    // Keep the legacy single-cut field so older packages/players can still
+    // read the first saved cut. New Player versions use visualState.cuts.
+    const legacyCut = cuts[0] || {
+      enabled: Boolean(cutEnabled),
+      targetObject: selectedReference,
+      values: {
+        x: Number(cutValues?.x ?? 0),
+        y: Number(cutValues?.y ?? 0),
+        z: Number(cutValues?.z ?? 0),
+      },
+      percentages: createCutPercentages(cutValues, cutRanges),
+    };
+
+    const visualState = {
+      version: 2,
+      selectedObject: selectedReference,
+      visibility: {
+        hiddenObjects: collectHiddenObjectReferences(modelScene),
+      },
+      xray: {
+        enabled: Boolean(xrayReference),
+        targetObject: xrayReference,
+      },
+      pullApart: {
+        enabled: Boolean(pullApartState?.enabled),
+        targetObject: pullApartReference,
+      },
+      cuts,
+      cut: legacyCut,
+    };
+
+    setMaterial((prev) => ({
+      ...prev,
+      chapters: prev.chapters.map((chapter) =>
+        chapter.id === activeChapterId
+          ? {
+              ...chapter,
+              visualState,
+            }
+          : chapter,
+      ),
+    }));
+
+    alert("Visual state berhasil disimpan ke Bab aktif");
   };
 
   const saveCameraViewToActiveChapter = () => {
@@ -429,6 +606,38 @@ export function useChapterManager({
     }));
   };
 
+  const deleteChapterContent = (chapterId) => {
+    const targetChapterId = chapterId || activeChapterId;
+
+    if (!targetChapterId) return false;
+
+    setMaterial((prev) => {
+      const chapters = Array.isArray(prev?.chapters) ? prev.chapters : [];
+      const nextChapters = chapters.filter(
+        (chapter) => chapter.id !== targetChapterId,
+      );
+
+      if (nextChapters.length === chapters.length) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        chapters: nextChapters,
+      };
+    });
+
+    if (activeChapterId === targetChapterId) {
+      setActiveChapterId(null);
+      setRightTab(selectedObjectName ? "info" : null);
+    }
+
+    setSelectedAnimations({});
+    setAnimationCommand(animationEngine.stop({ reset: true }));
+
+    return true;
+  };
+
   return {
     activeChapter,
     activeMarkers,
@@ -438,6 +647,7 @@ export function useChapterManager({
     savePackageProgress,
     savePackageStatus,
     updateChapterField,
+    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     deleteMarkerFromActiveChapter,
     isChapterAnimationSelected,
@@ -451,5 +661,6 @@ export function useChapterManager({
     deleteChapterParameter,
     addChapterMedia,
     deleteChapterMedia,
+    deleteChapterContent,
   };
 }

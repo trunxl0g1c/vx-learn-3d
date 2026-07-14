@@ -42,7 +42,9 @@ export default function EditorLeftSidebar({
 
   activeChapterId,
   setActiveChapterId,
+  previewChapterInEditor,
   createChapterFromSelectedObject,
+  saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
   panelSectionStyle,
   inputStyle,
@@ -106,7 +108,7 @@ export default function EditorLeftSidebar({
             showAllObjects={showAllObjects}
             hideAllObjects={hideAllObjects}
             setSelectedObject={setSelectedObject}
-            setRightTab={setRightTab}
+            setRightTab={activeChapterId ? undefined : setRightTab}
           />
         )}
 
@@ -140,6 +142,7 @@ export default function EditorLeftSidebar({
             material={material}
             activeChapterId={activeChapterId}
             setActiveChapterId={setActiveChapterId}
+            previewChapterInEditor={previewChapterInEditor}
             createChapterFromSelectedObject={createChapterFromSelectedObject}
             selectedObjectName={selectedObjectName}
             panelSectionStyle={panelSectionStyle}
@@ -150,6 +153,7 @@ export default function EditorLeftSidebar({
             updateChapterParameter={updateChapterParameter}
             deleteChapterParameter={deleteChapterParameter}
             deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
+            saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
             saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
             animations={animations}
             isChapterAnimationSelected={isChapterAnimationSelected}

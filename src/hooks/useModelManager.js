@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { buildObjectTree } from '../utils/objectTreeUtils'
 import { createModelEngine, getAxisMidValue } from '../engine/model'
 
@@ -23,6 +23,10 @@ export function useModelManager({
   controlsRef,
 }) {
   const modelEngineRef = useRef(null)
+  const [pullApartState, setPullApartState] = useState({
+    enabled: false,
+    targetObject: null,
+  })
 
   if (!modelEngineRef.current) {
     modelEngineRef.current =
@@ -117,17 +121,27 @@ export function useModelManager({
   }
 
   const pullApart = (selectedObject = null) => {
-    return getModelEngine().pullApart(selectedObject, {
+    const didPullApart = getModelEngine().pullApart(selectedObject, {
       mode: 'hierarchy',
       strength: selectedObject ? 0.28 : 0.18,
       maxDepthMultiplier: 1.8,
       animationDuration: 450,
       hideOutsideSelection: true,
     })
+
+    if (didPullApart) {
+      setPullApartState({
+        enabled: true,
+        targetObject: selectedObject || null,
+      })
+    }
+
+    return didPullApart
   }
 
   const resetParts = () => {
     getModelEngine().resetParts()
+    setPullApartState({ enabled: false, targetObject: null })
   }
 
   const resetMovedObjects = () => {
@@ -188,6 +202,32 @@ export function useModelManager({
     resetModelRotationForCut()
   }
 
+  const resetVisualState = () => {
+    resetAllTransforms()
+    showAllObjects()
+  }
+
+  const applySavedPullApart = (savedState, targetObject = null) => {
+    if (!savedState?.enabled || !modelScene) return false
+
+    const didPullApart = getModelEngine().pullApart(targetObject || null, {
+      mode: 'hierarchy',
+      strength: targetObject ? 0.28 : 0.18,
+      maxDepthMultiplier: 1.8,
+      animationDuration: 450,
+      hideOutsideSelection: true,
+    })
+
+    if (didPullApart) {
+      setPullApartState({
+        enabled: true,
+        targetObject: targetObject || null,
+      })
+    }
+
+    return didPullApart
+  }
+
   return {
     handleModelLoaded,
     pullApart,
@@ -201,5 +241,8 @@ export function useModelManager({
     showAllObjects,
     hideAllObjects,
     resetAllTransforms,
+    resetVisualState,
+    applySavedPullApart,
+    pullApartState,
   }
 }

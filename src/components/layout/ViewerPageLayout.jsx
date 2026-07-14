@@ -13,7 +13,9 @@ export default function ViewerPageLayout({ controller }) {
     rightTab,
     setRightTab,
     selectedObjectName,
+    authoringObjectName,
     createChapterFromSelectedObject,
+    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     saveMaterial,
     isSavingPackage,
@@ -51,6 +53,7 @@ export default function ViewerPageLayout({ controller }) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    deleteChapterContent,
     setMarkerMode,
     markerDialogOpen,
     pendingMarkerName,
@@ -99,7 +102,9 @@ export default function ViewerPageLayout({ controller }) {
           rightTab={rightTab}
           setRightTab={setRightTab}
           selectedObjectName={selectedObjectName}
+          authoringObjectName={authoringObjectName}
           createChapterFromSelectedObject={createChapterFromSelectedObject}
+          saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
           saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
           saveMaterial={saveMaterial}
           isSavingPackage={isSavingPackage}
@@ -137,6 +142,7 @@ export default function ViewerPageLayout({ controller }) {
           stopAnimationPreview={stopAnimationPreview}
           addChapterMedia={addChapterMedia}
           deleteChapterMedia={deleteChapterMedia}
+          deleteChapterContent={deleteChapterContent}
           setMarkerMode={setMarkerMode}
           requestAddMarker={requestAddMarker}
           markerMode={markerMode}
