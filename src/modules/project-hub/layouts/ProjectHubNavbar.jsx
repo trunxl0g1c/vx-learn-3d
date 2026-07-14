@@ -1,4 +1,3 @@
-import { ChevronDown, CircleUser } from "lucide-react";
 import Button from "../../../components/ui/button";
 import { getCurrentUserName } from "../../../utils/authUser";
 import MaterialIcon from "../../../components/ui/material-icon";
@@ -12,11 +11,16 @@ export default function ProjectHubNavbar() {
         <img
           src="/images/logo.svg"
           alt="VXplore Studio"
-          className="h-8 w-8 rounded-full"
+          className="h-8 w-8"
         />
-        <span className="text-2xl font-normal text-accent-main">
+        <img
+          src="/images/logo-label.svg"
+          alt="VXplore Studio"
+          className="h-5.5 w-full"
+        />
+        {/* <span className="text-2xl font-normal text-accent-main">
           VXplore <span className="text-secondary-default">Studio</span>
-        </span>
+        </span> */}
       </div>
       <div className="flex items-center gap-5">
         <Button

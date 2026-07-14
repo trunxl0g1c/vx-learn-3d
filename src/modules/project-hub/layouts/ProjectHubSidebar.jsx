@@ -94,8 +94,8 @@ export default function ProjectHubSidebar() {
                 size="sm"
                 className={cn(
                   "w-full justify-start gap-3 px-3",
-                  isActive &&
-                    "bg-accent-dark! text-white hover:bg-accent-dark! hover:text-white!",
+                  isActive ?
+                    "bg-accent-main! text-white hover:bg-accent-main!" : "hover:bg-accent-main/80!",
                 )}
               >
                 <MaterialIcon

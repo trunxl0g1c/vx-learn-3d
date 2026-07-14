@@ -3,14 +3,13 @@
 @theme {
   --color-dark: #1A1B1C;
   --color-primary: #1D1E1F;
-  --color-divider-main: #423D48;
+  --color-divider-main: #3C3C45;
   --color-secondary-dark: #373047;
   --color-secondary-default: #66B0C0;
-  --color-accent-main: #03699D;
+  --color-accent-main: #4362AD;
   --color-dark-alpha: #182223B8;
   --color-contrast-grayout: #86899B;
   --color-contrast-main: #86899B;
-  --color-accent-main: #03699D;
   --color-warning-main: #C42525;
   --color-accent-contrast: #AC9857;
   --color-accent-dark: #0A4563;

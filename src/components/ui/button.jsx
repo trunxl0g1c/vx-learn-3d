@@ -11,7 +11,7 @@ const variants = {
   cyanSolid: "bg-[#0b7fb2] text-white border-[#3ab9e8] hover:bg-[#0a91ca]",
   gold: "bg-[#b9a15a] text-white border-transparent hover:bg-[#c5ad64]",
   darkOutline: "bg-[#111b1d] text-white border-[#6f7f86] hover:bg-white/10",
-  destructive: "border-red-500/40 px-4 text-sm text-red-300 hover:bg-red-500/10",
+  destructive: "border-red-500/40 text-red-300 hover:bg-red-500/10",
 
   // layouts
   sidebar:

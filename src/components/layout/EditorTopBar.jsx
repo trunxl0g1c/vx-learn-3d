@@ -52,7 +52,7 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
         <img
           src="/images/logo.svg"
           alt="VXplore Studio"
-          className="rounded-full size-8"
+          className="size-8"
         />
 
         <span className="font-normal text-xl">{title || "VX Learn 3D"}</span>

@@ -24,7 +24,8 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
 
   if (!chapter) return null;
 
-  const chapterTitle = chapter.title || chapter.objectName || "Untitled Content";
+  const chapterTitle =
+    chapter.title || chapter.objectName || "Untitled Content";
 
   const handleConfirmDelete = () => {
     setIsConfirmOpen(false);
@@ -68,18 +69,16 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
             </div>
 
             <div id="delete-content-description" className="px-7 py-7">
-              <p className="text-sm leading-6 text-white/80">
+              <p className="text-base leading-6 text-white/80">
                 Content{" "}
-                <strong className="font-normal text-white">
-                  “{chapterTitle}”
-                </strong>{" "}
+                <span className="font-normal text-white">“{chapterTitle}”</span>{" "}
                 will be permanently deleted.
               </p>
 
               <p className="mt-3 text-sm leading-6 text-grayout-main">
-                Description, parameters, markers, media, animations, camera view,
-                and visual state belonging to this content will also be removed.
-                The 3D object itself will not be deleted.
+                Description, parameters, markers, media, animations, camera
+                view, and visual state belonging to this content will also be
+                removed. The 3D object itself will not be deleted.
               </p>
             </div>
 
@@ -96,10 +95,10 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
 
                 <Button
                   type="button"
+                  variant="destructive"
                   onClick={handleConfirmDelete}
-                  className="flex-1 rounded-xl border-red-500 bg-red-600 text-white hover:bg-red-500"
+                  className="flex-1 rounded-xl"
                 >
-                  <Trash2 className="size-4" />
                   Delete
                 </Button>
               </div>
@@ -113,18 +112,17 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
   return (
     <>
       <div className="shrink-0 border-t border-divider-main bg-primary px-4 pb-4 pt-3 backdrop-blur-3xl">
-        <div className="mb-2 text-xs font-normal uppercase tracking-[0.14em] text-red-300/80">
+        {/* <div className="mb-2 text-xs font-normal uppercase tracking-[0.14em] text-red-300/80">
           Danger Zone
-        </div>
+        </div> */}
 
         <Button
           type="button"
           variant="destructive"
-          size="md"
           onClick={() => setIsConfirmOpen(true)}
-          className="w-full rounded-2xl bg-red-500/5"
+          className="w-full rounded-2xl! bg-red-500/5 uppercase"
         >
-          <Trash2 className="size-4" />
+          {/* <Trash2 className="size-4" /> */}
           Delete Content
         </Button>
       </div>
