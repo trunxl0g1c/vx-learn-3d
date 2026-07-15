@@ -104,7 +104,7 @@ export function useChapterManager({
   const animationEngine = vxEngine?.animation || createAnimationEngine();
 
   const activeChapter = material.chapters.find(
-    (chapter) => chapter.id === activeChapterId
+    (chapter) => chapter.id === activeChapterId,
   );
 
   const activeMarkers = activeChapter?.markers || [];
@@ -164,6 +164,9 @@ export function useChapterManager({
       parameters: [],
       markers: [],
       animations: [],
+
+      cameraViewSaved: false,
+
       cameraPosition: cameraRef.current
         ? [
             cameraRef.current.position.x,
@@ -171,6 +174,7 @@ export function useChapterManager({
             cameraRef.current.position.z,
           ]
         : [0, 0, 5],
+
       cameraTarget: controlsRef.current
         ? [
             controlsRef.current.target.x,
@@ -178,13 +182,11 @@ export function useChapterManager({
             controlsRef.current.target.z,
           ]
         : [0, 0, 0],
+
       modelRotation: modelScene
-        ? [
-            modelScene.rotation.x,
-            modelScene.rotation.y,
-            modelScene.rotation.z,
-          ]
+        ? [modelScene.rotation.x, modelScene.rotation.y, modelScene.rotation.z]
         : [0, 0, 0],
+
       callouts: [],
     };
 
@@ -268,7 +270,7 @@ export function useChapterManager({
     setMaterial((prev) => ({
       ...prev,
       chapters: prev.chapters.map((chapter) =>
-        chapter.id === chapterId ? { ...chapter, [field]: value } : chapter
+        chapter.id === chapterId ? { ...chapter, [field]: value } : chapter,
       ),
     }));
   };
@@ -316,10 +318,7 @@ export function useChapterManager({
             y: Number(cutState?.values?.y ?? 0),
             z: Number(cutState?.values?.z ?? 0),
           },
-          percentages: createCutPercentages(
-            cutState?.values,
-            cutState?.bounds,
-          ),
+          percentages: createCutPercentages(cutState?.values, cutState?.bounds),
         };
       })
       .filter(Boolean);
@@ -370,6 +369,44 @@ export function useChapterManager({
     alert("Visual state berhasil disimpan ke Bab aktif");
   };
 
+  const deleteVisualStateFromActiveChapter = () => {
+    if (!activeChapterId) return false;
+
+    let deleted = false;
+
+    setMaterial((prev) => {
+      const chapters = Array.isArray(prev?.chapters) ? prev.chapters : [];
+
+      const nextChapters = chapters.map((chapter) => {
+        if (chapter.id !== activeChapterId) {
+          return chapter;
+        }
+
+        if (!chapter.visualState) {
+          return chapter;
+        }
+
+        deleted = true;
+
+        return {
+          ...chapter,
+          visualState: null,
+        };
+      });
+
+      if (!deleted) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        chapters: nextChapters,
+      };
+    });
+
+    return deleted;
+  };
+
   const saveCameraViewToActiveChapter = () => {
     if (!activeChapterId) {
       alert("Pilih Bab terlebih dahulu");
@@ -390,7 +427,7 @@ export function useChapterManager({
     if (currentDistance < minDistance) {
       const direction = cameraPos.clone().sub(cameraTarget).normalize();
       cameraPos.copy(
-        cameraTarget.clone().add(direction.multiplyScalar(minDistance))
+        cameraTarget.clone().add(direction.multiplyScalar(minDistance)),
       );
     }
 
@@ -400,6 +437,7 @@ export function useChapterManager({
         chapter.id === activeChapterId
           ? {
               ...chapter,
+              cameraViewSaved: true,
               cameraPosition: [cameraPos.x, cameraPos.y, cameraPos.z],
               cameraTarget: [cameraTarget.x, cameraTarget.y, cameraTarget.z],
               modelRotation: modelScene
@@ -410,11 +448,30 @@ export function useChapterManager({
                   ]
                 : [0, 0, 0],
             }
-          : chapter
+          : chapter,
       ),
     }));
 
     alert("Camera view berhasil disimpan ke Bab aktif");
+  };
+
+  const deleteCameraViewFromActiveChapter = () => {
+    if (!activeChapterId) return;
+
+    setMaterial((prev) => ({
+      ...prev,
+      chapters: prev.chapters.map((chapter) =>
+        chapter.id === activeChapterId
+          ? {
+              ...chapter,
+              cameraViewSaved: false,
+              cameraPosition: null,
+              cameraTarget: null,
+              modelRotation: null,
+            }
+          : chapter,
+      ),
+    }));
   };
 
   const deleteMarkerFromActiveChapter = (markerId) => {
@@ -427,10 +484,10 @@ export function useChapterManager({
           ? {
               ...chapter,
               markers: (chapter.markers || []).filter(
-                (marker) => marker.id !== markerId
+                (marker) => marker.id !== markerId,
               ),
             }
-          : chapter
+          : chapter,
       ),
     }));
   };
@@ -449,8 +506,8 @@ export function useChapterManager({
         prev,
         chapterId,
         animationName,
-        checked
-      )
+        checked,
+      ),
     );
   };
 
@@ -458,7 +515,7 @@ export function useChapterManager({
     chapterId,
     animationName,
     field,
-    value
+    value,
   ) => {
     setMaterial((prev) =>
       animationEngine.updateChapterAnimationFieldInMaterial(
@@ -466,8 +523,8 @@ export function useChapterManager({
         chapterId,
         animationName,
         field,
-        value
-      )
+        value,
+      ),
     );
   };
 
@@ -481,7 +538,7 @@ export function useChapterManager({
 
     const nextSelectedAnimations = animationEngine.createSelectedAnimationMap(
       animations,
-      chapterAnimations
+      chapterAnimations,
     );
 
     animationEngine.setAnimations?.(animations);
@@ -494,7 +551,7 @@ export function useChapterManager({
       setAnimationCommand(
         animationEngine.play({
           selectedAnimations: nextSelectedAnimations,
-        })
+        }),
       );
     }, 10);
   };
@@ -520,7 +577,7 @@ export function useChapterManager({
                 },
               ],
             }
-          : chapter
+          : chapter,
       ),
     }));
   };
@@ -535,10 +592,10 @@ export function useChapterManager({
               parameters: (chapter.parameters || []).map((parameter) =>
                 parameter.id === parameterId
                   ? { ...parameter, [field]: value }
-                  : parameter
+                  : parameter,
               ),
             }
-          : chapter
+          : chapter,
       ),
     }));
   };
@@ -551,10 +608,10 @@ export function useChapterManager({
           ? {
               ...chapter,
               parameters: (chapter.parameters || []).filter(
-                (parameter) => parameter.id !== parameterId
+                (parameter) => parameter.id !== parameterId,
               ),
             }
-          : chapter
+          : chapter,
       ),
     }));
   };
@@ -582,7 +639,7 @@ export function useChapterManager({
                   },
                 ],
               }
-            : chapter
+            : chapter,
         ),
       }));
     };
@@ -598,10 +655,10 @@ export function useChapterManager({
           ? {
               ...chapter,
               media: (chapter.media || []).filter(
-                (media) => media.id !== mediaId
+                (media) => media.id !== mediaId,
               ),
             }
-          : chapter
+          : chapter,
       ),
     }));
   };
@@ -649,6 +706,7 @@ export function useChapterManager({
     updateChapterField,
     saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
+    deleteCameraViewFromActiveChapter,
     deleteMarkerFromActiveChapter,
     isChapterAnimationSelected,
     getChapterAnimationConfig,
@@ -662,5 +720,6 @@ export function useChapterManager({
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    deleteVisualStateFromActiveChapter,
   };
 }

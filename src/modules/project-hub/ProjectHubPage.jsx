@@ -12,6 +12,7 @@ import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
+import { useAlert } from "../../components/dialog/AlertContext";
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -28,12 +29,13 @@ function getAccessLabel(role) {
   return "Unknown Access";
 }
 
-
 function getProjectThumbnail(project) {
   return project?.thumbnail || project?.material?.thumbnail || "";
 }
 
 export default function ProjectHubPage() {
+  const { showAlert } = useAlert();
+
   const [glbValidation, setGlbValidation] = useState(null);
   const [isValidatingGlb, setIsValidatingGlb] = useState(false);
   const navigate = useNavigate();
@@ -90,12 +92,24 @@ export default function ProjectHubPage() {
     if (isSubmitting) return;
 
     if (!projectName.trim()) {
-      alert("Project name wajib diisi");
+      showAlert({
+        title: "Cek kembali isi form",
+        message: "Project name wajib diisi.",
+        type: "warning",
+        confirmText: "OK",
+      });
+
       return;
     }
 
     if (!file) {
-      alert("Pilih file GLB");
+      showAlert({
+        title: "Cek kembali isi form",
+        message: "Harap pilih file GLB terlebih dahulu.",
+        type: "warning",
+        confirmText: "OK",
+      });
+
       return;
     }
 
