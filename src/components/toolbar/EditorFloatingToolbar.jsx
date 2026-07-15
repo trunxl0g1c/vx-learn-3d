@@ -59,7 +59,7 @@ export default function EditorFloatingToolbar({
             onClick={toggleCutSection}
             className="h-10! w-36 border-contrast-main! text-sm"
           >
-            {cutEnabled ? "Cut ON" : "Cut OFF"}
+            {cutEnabled ? "Cut On" : "Cut Off"}
           </Button>
 
           <Button
@@ -90,35 +90,39 @@ export default function EditorFloatingToolbar({
       {activeMenu === "view" && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute bottom-20 left-1/2 z-[120] flex -translate-x-1/4 transform flex-col gap-3 rounded-xl bg-[#182223B8] p-3"
+          className="pointer-events-auto absolute bottom-20 left-[48.5%] z-[120] flex -translate-x-1/4 transform flex-col gap-3 rounded-xl bg-[#182223B8] p-3"
         >
           <Button
-            className="border-contrast-main! text-sm"
             size="sm"
+            variant="outline"
+            className="border-contrast-main! text-sm"
             onClick={pullApart}
           >
             Pull Apart
           </Button>
 
           <Button
-            className="border-contrast-main! text-sm"
             size="sm"
+            variant="outline"
+            className="border-contrast-main! text-sm"
             onClick={resetAllTransforms}
           >
             Reset All
           </Button>
 
           <Button
-            className="border-contrast-main! text-sm"
             size="sm"
+            variant="outline"
+            className="border-contrast-main! text-sm"
             onClick={soloSelectedObject}
           >
             Solo
           </Button>
 
           <Button
-            className="border-contrast-main! text-sm"
             size="sm"
+            variant="outline"
+            className="border-contrast-main! text-sm"
             onClick={showAllObjects}
           >
             Show All

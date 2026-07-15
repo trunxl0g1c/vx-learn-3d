@@ -93,7 +93,7 @@ export function useViewerPageController() {
   const [markers, setMarkers] = useState([]);
   const [objectList, setObjectList] = useState([]);
   const [selectedObject, setSelectedObject] = useState(null);
-  const [activeSidebar, setActiveSidebar] = useState("hierarchy");
+  const [activeSidebar, setActiveSidebar] = useState("settings");
 
   const [targetRotationY, setTargetRotationY] = useState(0);
   const [isAutoRotating, setIsAutoRotating] = useState(false);
@@ -131,7 +131,6 @@ export function useViewerPageController() {
   const [animations, setAnimations] = useState([]);
   const [selectedAnimations, setSelectedAnimations] = useState({});
   const [animationCommand, setAnimationCommand] = useState(null);
-
 
   const [viewerSettings, setViewerSettings] = useState({
     exposure: 0.75,
@@ -280,7 +279,8 @@ export function useViewerPageController() {
   const authoringObject = useMemo(() => {
     if (!activeChapter || !modelScene) return null;
 
-    return createChapterHighlightPayload(activeChapter, modelScene).selectedObject;
+    return createChapterHighlightPayload(activeChapter, modelScene)
+      .selectedObject;
   }, [activeChapter, modelScene]);
 
   const authoringObjectName = activeChapter
@@ -468,6 +468,8 @@ export function useViewerPageController() {
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    deleteVisualStateFromActiveChapter,
+    deleteCameraViewFromActiveChapter,
   } = useChapterManager({
     selectedObjectName,
     selectedObject,
@@ -511,9 +513,7 @@ export function useViewerPageController() {
   };
 
   const previewChapterInEditor = (chapterId) => {
-    const chapter = material?.chapters?.find(
-      (item) => item.id === chapterId,
-    );
+    const chapter = material?.chapters?.find((item) => item.id === chapterId);
 
     if (!chapter || !modelScene) return;
 
@@ -532,18 +532,19 @@ export function useViewerPageController() {
 
     applyChapterModelRotation(modelScene, chapter);
 
-    const chapterSelection = createChapterHighlightPayload(
-      chapter,
-      modelScene,
-    );
+    const chapterSelection = createChapterHighlightPayload(chapter, modelScene);
     const chapterObject = chapterSelection.selectedObject;
 
     if (chapterObject) {
       setSelectedObject(chapterObject);
       setOutlineObjects(chapterSelection.outlineObjects);
       setSelectedObjectName(
-        (chapterObject.name || chapter.objectName || chapter.title || "")
-          .replaceAll("_", " "),
+        (
+          chapterObject.name ||
+          chapter.objectName ||
+          chapter.title ||
+          ""
+        ).replaceAll("_", " "),
       );
     }
 
@@ -562,10 +563,7 @@ export function useViewerPageController() {
       visualState.pullApart?.targetObject,
     );
 
-    applySavedPullApart(
-      visualState.pullApart,
-      pullApartTarget,
-    );
+    applySavedPullApart(visualState.pullApart, pullApartTarget);
 
     applyHiddenChapterObjects(visualState);
 
@@ -583,14 +581,22 @@ export function useViewerPageController() {
     if (visualState.xray?.enabled && xrayTarget) {
       makeXrayExcept(xrayTarget);
       setSelectedObjectName(
-        (xrayTarget.name || chapter.objectName || chapter.title || "")
-          .replaceAll("_", " "),
+        (
+          xrayTarget.name ||
+          chapter.objectName ||
+          chapter.title ||
+          ""
+        ).replaceAll("_", " "),
       );
     } else if (savedSelectedObject) {
       highlightObject(savedSelectedObject);
       setSelectedObjectName(
-        (savedSelectedObject.name || chapter.objectName || chapter.title || "")
-          .replaceAll("_", " "),
+        (
+          savedSelectedObject.name ||
+          chapter.objectName ||
+          chapter.title ||
+          ""
+        ).replaceAll("_", " "),
       );
     }
 
@@ -603,19 +609,12 @@ export function useViewerPageController() {
     const resolvedCuts = savedCuts
       .map((cutState) => ({
         cutState,
-        targetObject: findObjectByReference(
-          modelScene,
-          cutState?.targetObject,
-        ),
+        targetObject: findObjectByReference(modelScene, cutState?.targetObject),
       }))
       .filter((entry) => entry.targetObject);
 
-    applySavedCuts(
-      resolvedCuts,
-      preferredSelection || modelScene,
-    );
+    applySavedCuts(resolvedCuts, preferredSelection || modelScene);
   };
-
 
   const savePreviewDraft = async () => {
     if (!projectId || projectId === "demo" || !material?.projectId) return;
@@ -810,6 +809,8 @@ export function useViewerPageController() {
     hideAllObjects,
     renameObject,
     deselectObject,
+    deleteVisualStateFromActiveChapter,
+    deleteCameraViewFromActiveChapter,
     ...dialogs,
   };
 }

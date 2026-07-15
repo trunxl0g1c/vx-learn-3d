@@ -5,7 +5,7 @@ export default function ProjectHubCreateCard({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="cursor-pointer flex h-50 w-full flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark text-white transition hover:border-accent-main hover:bg-white/2"
+      className="cursor-pointer flex h-50 w-full flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark text-white transition hover:border-accent-main hover:bg-dark-alpha/72"
     >
       <MaterialIcon
         name="add_circle"

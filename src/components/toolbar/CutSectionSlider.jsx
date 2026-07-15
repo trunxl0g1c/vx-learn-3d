@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Button from "../ui/button";
 import { X } from "lucide-react";
+import MaterialIcon from "../ui/material-icon";
 
 const AXIS_LABELS = {
   x: "X Axis",
@@ -30,10 +31,11 @@ function AxisCutSlider({ axis, value, range, onChange }) {
   const percent = getAxisPercent(axis, value, range);
 
   return (
-    <div className="space-y-2" onMouseDown={(e) => e.stopPropagation()}>
+    <div className="space-y-1" onMouseDown={(event) => event.stopPropagation()}>
       <div className="flex items-center justify-between text-sm font-normal">
-        <span className="text-accent-main">{AXIS_LABELS[axis]}</span>
-        <span className="text-secondary-default">{percent}%</span>
+        <span className="text-secondary-default">{AXIS_LABELS[axis]}</span>
+
+        <span className="text-sm text-grayout-main">{percent}%</span>
       </div>
 
       <input
@@ -44,9 +46,22 @@ function AxisCutSlider({ axis, value, range, onChange }) {
         value={percent}
         onChange={(event) => {
           if (typeof onChange !== "function") return;
-          onChange(axis, getValueFromPercent(event.target.value, range));
+
+          const nextPercent = Number(event.target.value);
+          const nextValue = getValueFromPercent(nextPercent, range);
+
+          onChange(axis, nextValue);
         }}
-        className="vx-cut-axis-range w-full"
+        className="vx-cut-axis-range h-1 w-full cursor-pointer appearance-none rounded-full bg-transparent outline-none"
+        style={{
+          background: `linear-gradient(
+            to right,
+            var(--color-accent-main) 0%,
+            var(--color-accent-main) ${percent}%,
+            #5E6875 ${percent}%,
+            #5E6875 100%
+          )`,
+        }}
       />
     </div>
   );
@@ -109,7 +124,7 @@ export default function CutSectionSlider({
 
       <div
         onMouseDown={startDrag}
-        className="absolute rounded-[22px] border border-divider-main bg-primary/85 p-5 text-white backdrop-blur-md backdrop-saturate-150"
+        className="absolute rounded-2xl bg-[#182223B8] p-5 text-white backdrop-blur-md backdrop-saturate-150"
         style={{
           width: PANEL_WIDTH,
           left: position.x,
@@ -127,10 +142,11 @@ export default function CutSectionSlider({
             onClick={() => {
               if (typeof onClose === "function") onClose();
             }}
-            className="cursor-pointer size-9 flex items-center justify-center rounded-full text-3xl leading-none text-white/90 transition hover:bg-white/10"
+            className="grid size-8 cursor-pointer place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white"
+            title="Close cut off panel"
             aria-label="Close cut off panel"
           >
-            <X className="size-5" />
+            <X className="size-6 text-secondary-default" />
           </button>
         </div>
 
@@ -154,9 +170,14 @@ export default function CutSectionSlider({
           onClick={() => {
             if (typeof resetCutValues === "function") resetCutValues();
           }}
-          className="mt-5 border-accent-contrast!"
+          className="mt-5 border-grayout-dark!"
         >
-          <span className="text-2xl leading-none text-secondary-default">↻</span>
+          <MaterialIcon
+            name="refresh"
+            fill={1}
+            size={25}
+            className="text-secondary-default"
+          />
           Reset
         </Button>
       </div>

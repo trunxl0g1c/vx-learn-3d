@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Eye, Locate, LocateFixed, Minus, Plus } from "lucide-react";
 import MaterialTab from "./right-tabs/MaterialTab";
 import VisualTab from "./right-tabs/VisualTab";
 import AnimationTab from "./right-tabs/AnimationTab";
@@ -62,6 +61,8 @@ export default function EditorRightPanel({
   soloSelectedObject,
   resetAllTransforms,
   deselectObject,
+  deleteVisualStateFromActiveChapter,
+  deleteCameraViewFromActiveChapter,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
@@ -117,6 +118,8 @@ export default function EditorRightPanel({
     cancelAddMarker,
     setRightTab,
     deselectObject,
+    deleteVisualStateFromActiveChapter,
+    deleteCameraViewFromActiveChapter,
   };
 
   return (

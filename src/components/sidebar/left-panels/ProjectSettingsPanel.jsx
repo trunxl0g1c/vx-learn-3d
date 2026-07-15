@@ -9,6 +9,7 @@ import {
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
 import ColorFieldInput from "./attributes/ColorFieldInput";
+import { useAlert } from "../../dialog/AlertContext";
 
 const HDRI_PRESETS = [
   { label: "None", value: "" },
@@ -128,6 +129,8 @@ export default function ProjectSettingsPanel({
   viewerSettings,
   setViewerSettings,
 }) {
+  const { showAlert } = useAlert();
+
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
   const background = getViewerBackground(viewerSettings);
@@ -158,7 +161,13 @@ export default function ProjectSettingsPanel({
       lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
 
     if (!isSupported) {
-      alert("File HDRI harus berformat .hdr atau .exr");
+      showAlert({
+        title: "Unsupported HDRI File",
+        message: "File HDRI harus berformat .hdr atau .exr.",
+        type: "warning",
+        confirmText: "Understand",
+      });
+
       return;
     }
 
@@ -451,7 +460,9 @@ export default function ProjectSettingsPanel({
 
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-normal text-white">
-                        {item.title || item.name || `Untitled ${getMediaLabel(item.type)}`}
+                        {item.title ||
+                          item.name ||
+                          `Untitled ${getMediaLabel(item.type)}`}
                       </div>
                       <div className="mt-1 text-xs font-normal text-contrast-grayout">
                         {getMediaLabel(item.type)}
@@ -727,9 +738,7 @@ export default function ProjectSettingsPanel({
             )}
 
             <div>
-              <div className="mb-2 text-sm font-normal text-white">
-                Preview
-              </div>
+              <div className="mb-2 text-sm font-normal text-white">Preview</div>
               <div
                 className="h-[132px] w-full rounded-lg border border-[#6b7280]"
                 style={getViewerBackgroundStyle(viewerSettings)}

@@ -1,4 +1,3 @@
-import { ChevronDown } from "lucide-react";
 import MaterialIcon from "./material-icon";
 
 export default function SelectField({

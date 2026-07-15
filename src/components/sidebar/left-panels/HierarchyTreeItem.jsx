@@ -238,15 +238,24 @@ export default function HierarchyTreeItem({
           type="button"
           onClick={handleToggleVisibility}
           title={visible ? "Hide object" : "Show object"}
+          aria-label={visible ? "Hide object" : "Show object"}
           className={[
-            "cursor-pointer grid size-4.5 place-items-center rounded-full border transition",
-            visible ? "border-secondary-default" : "border-contrast-grayout",
+            "grid size-4.5 cursor-pointer place-items-center rounded-full border transition",
+            selected
+              ? "border-grayout-main"
+              : visible
+                ? "border-grayout-main"
+                : "border-contrast-grayout",
           ].join(" ")}
         >
           <span
             className={[
-              "block size-2 rounded-full",
-              visible ? "bg-secondary-default" : "bg-transparent",
+              "block size-2 rounded-full transition",
+              selected
+                ? "bg-primary! hidden"
+                : visible
+                  ? "bg-secondary-default!"
+                  : "bg-transparent",
             ].join(" ")}
           />
         </button>
