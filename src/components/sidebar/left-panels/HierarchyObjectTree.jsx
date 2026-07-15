@@ -16,6 +16,7 @@ export default function HierarchyObjectTree({
   setSelectedObject,
   highlightObject,
   makeXrayExcept,
+  resetXray,
   focusObject,
   setSelectedObjectName,
   treeDepth,
@@ -26,6 +27,7 @@ export default function HierarchyObjectTree({
   showAllObjects,
   hideAllObjects,
   setRightTab,
+  renameObject,
 }) {
   const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
@@ -149,6 +151,7 @@ export default function HierarchyObjectTree({
               setSelectedObject={setSelectedObject}
               highlightObject={highlightObject}
               makeXrayExcept={makeXrayExcept}
+              resetXray={resetXray}
               focusObject={focusObject}
               setSelectedObjectName={setSelectedObjectName}
               treeDepth={treeDepth}
@@ -156,6 +159,7 @@ export default function HierarchyObjectTree({
               setOpenMap={setOpenMap}
               refreshVisibility={refreshVisibility}
               setRightTab={setRightTab}
+              renameObject={renameObject}
             />
           ))}
         </div>

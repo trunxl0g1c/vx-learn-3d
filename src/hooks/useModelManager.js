@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { buildObjectTree } from '../utils/objectTreeUtils'
+import { buildObjectTree, buildObjectTreeList } from '../utils/objectTreeUtils'
 import { createModelEngine, getAxisMidValue } from '../engine/model'
 
 export function useModelManager({
@@ -33,6 +33,7 @@ export function useModelManager({
       vxEngine?.model ||
       createModelEngine({
         buildObjectTree,
+        buildObjectTreeList,
       })
   }
 

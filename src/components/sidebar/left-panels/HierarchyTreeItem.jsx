@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import {
   formatObjectName,
   getNodeKey,
@@ -12,6 +13,7 @@ export default function HierarchyTreeItem({
   setSelectedObject,
   highlightObject,
   makeXrayExcept,
+  resetXray,
   focusObject,
   setSelectedObjectName,
   treeDepth,
@@ -19,6 +21,7 @@ export default function HierarchyTreeItem({
   setOpenMap,
   refreshVisibility,
   setRightTab,
+  renameObject,
 }) {
   const nodeKey = getNodeKey(item);
   const open = openMap?.[nodeKey] ?? true;
@@ -26,12 +29,22 @@ export default function HierarchyTreeItem({
   const displayName = formatObjectName(item.name);
   const visible = isObjectVisible(item.object);
   const selected = selectedObject === item.object;
+  const canRename = typeof renameObject === "function";
 
-  const handleSelect = () => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftName, setDraftName] = useState(displayName);
+  const cancelEditRef = useRef(false);
+
+  const clearSelection = () => {
+    resetXray?.();
+    setSelectedObject?.(null);
+    setSelectedObjectName("");
+    setRightTab?.(null);
+  };
+
+  const handleSelect = ({ shouldFocus = false } = {}) => {
     if (selected) {
-      setSelectedObject?.(null);
-      setSelectedObjectName("");
-      setRightTab?.(null);
+      clearSelection();
       return;
     }
 
@@ -39,6 +52,20 @@ export default function HierarchyTreeItem({
     setSelectedObjectName(displayName);
     setRightTab?.("info");
 
+    highlightObject(item.object);
+    makeXrayExcept(item.object);
+
+    if (shouldFocus) {
+      focusObject?.(item.object);
+    }
+  };
+
+  const handleFocus = (event) => {
+    event.stopPropagation();
+
+    setSelectedObject?.(item.object);
+    setSelectedObjectName(displayName);
+    setRightTab?.("info");
     highlightObject(item.object);
     makeXrayExcept(item.object);
     focusObject(item.object);
@@ -55,25 +82,75 @@ export default function HierarchyTreeItem({
     }));
   };
 
+  const isSelectionInsideObject = () => {
+    if (!selectedObject || !item.object) return false;
+
+    let current = selectedObject;
+
+    while (current) {
+      if (current === item.object) return true;
+      current = current.parent;
+    }
+
+    return false;
+  };
+
   const handleToggleVisibility = (event) => {
     event.stopPropagation();
 
     const nextVisible = !visible;
+    const hidesCurrentSelection = !nextVisible && isSelectionInsideObject();
+
     setObjectVisibility(item.object, nextVisible);
 
-    if (!nextVisible && selected) {
-      setSelectedObject?.(null);
-      setSelectedObjectName("");
+    // Hiding a selected object (or one of its ancestors) must end the
+    // selection session. Otherwise the old selection can appear active again
+    // when the object is shown because the selected object reference survives.
+    if (hidesCurrentSelection) {
+      clearSelection();
     }
 
     refreshVisibility();
+  };
+
+  const startEditing = (event) => {
+    event.stopPropagation();
+    cancelEditRef.current = false;
+    setDraftName(displayName);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    cancelEditRef.current = true;
+    setDraftName(displayName);
+    setIsEditing(false);
+  };
+
+  const commitEditing = () => {
+    if (cancelEditRef.current) {
+      cancelEditRef.current = false;
+      return;
+    }
+
+    const nextName = draftName.trim();
+
+    if (!nextName || nextName === displayName) {
+      setDraftName(displayName);
+      setIsEditing(false);
+      return;
+    }
+
+    renameObject?.(item.object, nextName);
+    setIsEditing(false);
   };
 
   return (
     <div>
       <div
         className={[
-          "grid grid-cols-[18px_minmax(0,1fr)_68px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition",
+          canRename
+            ? "grid grid-cols-[18px_minmax(0,1fr)_68px_22px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition"
+            : "grid grid-cols-[18px_minmax(0,1fr)_68px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition",
           selected ? "text-secondary-default" : "text-white",
           visible ? "opacity-100" : "opacity-50",
         ].join(" ")}
@@ -99,23 +176,53 @@ export default function HierarchyTreeItem({
           )}
         </button>
 
-        <button
-          type="button"
-          onClick={handleSelect}
-          title={displayName}
-          className={[
-            "truncate pt-1 cursor-pointer text-left transition hover:text-secondary-default",
-            selected ? "font-normal text-secondary-default" : "font-normal",
-          ].join(" ")}
-        >
-          {displayName}
-        </button>
+        {isEditing ? (
+          <input
+            autoFocus
+            value={draftName}
+            maxLength={64}
+            onClick={(event) => event.stopPropagation()}
+            onChange={(event) => setDraftName(event.target.value)}
+            onBlur={commitEditing}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                cancelEditing();
+              }
+            }}
+            className="h-7 min-w-0 rounded-md border border-secondary-default bg-primary px-2 text-xs text-white outline-none"
+            aria-label={`Rename ${displayName}`}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              if (event.detail > 1) return;
+              handleSelect({ shouldFocus: false });
+            }}
+            onDoubleClick={handleFocus}
+            title={`${displayName} — double click to focus`}
+            className={[
+              "truncate pt-1 cursor-pointer text-left transition hover:text-secondary-default",
+              selected ? "font-normal text-secondary-default" : "font-normal",
+            ].join(" ")}
+          >
+            {displayName}
+          </button>
+        )}
 
         <button
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            handleSelect();
+            handleSelect({ shouldFocus: true });
           }}
           className={[
             "h-5 cursor-pointer rounded-full border px-2 text-[9px] font-normal uppercase transition",
@@ -152,6 +259,17 @@ export default function HierarchyTreeItem({
             ].join(" ")}
           />
         </button>
+
+        {canRename && (
+          <button
+            type="button"
+            onClick={startEditing}
+            title={`Rename ${displayName}`}
+            className="grid size-5 cursor-pointer place-items-center rounded text-secondary-default transition hover:bg-white/10 hover:text-white"
+          >
+            <MaterialIcon name="edit" size={16} />
+          </button>
+        )}
       </div>
 
       {open &&
@@ -165,6 +283,7 @@ export default function HierarchyTreeItem({
             setSelectedObject={setSelectedObject}
             highlightObject={highlightObject}
             makeXrayExcept={makeXrayExcept}
+            resetXray={resetXray}
             focusObject={focusObject}
             setSelectedObjectName={setSelectedObjectName}
             treeDepth={treeDepth}
@@ -172,6 +291,7 @@ export default function HierarchyTreeItem({
             setOpenMap={setOpenMap}
             refreshVisibility={refreshVisibility}
             setRightTab={setRightTab}
+            renameObject={renameObject}
           />
         ))}
     </div>

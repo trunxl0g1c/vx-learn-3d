@@ -49,6 +49,7 @@ export default function SceneCanvas({
   handleModelLoaded,
   markerMode,
   selectObjectFromMesh,
+  focusObjectFromMesh,
   selectedAnimations,
   animationCommand,
   setAnimations,
@@ -151,6 +152,7 @@ export default function SceneCanvas({
                 }}
                 markerMode={markerMode}
                 onSelectObject={selectObjectFromMesh}
+                onDoubleClickObject={focusObjectFromMesh}
                 selectedAnimations={selectedAnimations}
                 animationCommand={animationCommand}
                 onAnimationsLoaded={(clips) => {

@@ -44,6 +44,7 @@ export function getAxisMidValue(boundsMap, axis = "x") {
 export function createModelEngine(options = {}) {
   const {
     buildObjectTree,
+    buildObjectTreeList,
     ignoreObjectTypes = ["Bone"],
   } = options
 
@@ -88,7 +89,13 @@ export function createModelEngine(options = {}) {
   }
 
   const createObjectList = () => {
-    if (!scene || typeof buildObjectTree !== "function") return []
+    if (!scene) return []
+
+    if (typeof buildObjectTreeList === "function") {
+      return buildObjectTreeList(scene)
+    }
+
+    if (typeof buildObjectTree !== "function") return []
 
     return scene.children
       .filter((child) => !ignoreObjectTypes.includes(child.type))

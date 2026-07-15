@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectStore } from "../modules/project-store/ProjectStoreContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGlobalLoading } from "../modules/loading/LoadingContext";
@@ -8,7 +8,7 @@ import {
   inputStyle,
   mediaButtonStyle,
 } from "../constants/viewerStyles";
-import { getMaxTreeDepth } from "../utils/objectTreeUtils";
+import { buildObjectTreeList, getMaxTreeDepth, resolveObjectTreeRoot } from "../utils/objectTreeUtils";
 import { useChapterManager } from "./useChapterManager";
 import { useModelManager } from "./useModelManager";
 import { useShaderManager } from "./useShaderManager";
@@ -25,6 +25,11 @@ import { createChapterHighlightPayload } from "../engine/selection";
 import {
   applyChapterModelRotation,
   createChapterFocusTarget,
+  applyObjectNameOverrides,
+  areObjectPathsEqual,
+  createObjectIndexPath,
+  resolveObjectByStoredIndexPath,
+  upsertObjectNameOverride,
 } from "../engine/model";
 import {
   saveProjectDraftToIndexedDb,
@@ -35,19 +40,13 @@ function findObjectByReference(scene, reference) {
   if (!scene || !reference) return null;
 
   if (Array.isArray(reference.path)) {
-    let current = scene;
-    let pathIsValid = true;
+    const pathMatch = resolveObjectByStoredIndexPath(
+      scene,
+      reference.path,
+      reference.name,
+    );
 
-    reference.path.forEach((index) => {
-      if (!pathIsValid || !current?.children?.[index]) {
-        pathIsValid = false;
-        return;
-      }
-
-      current = current.children[index];
-    });
-
-    if (pathIsValid && current) return current;
+    if (pathMatch) return pathMatch;
   }
 
   if (reference.uuid) {
@@ -184,6 +183,92 @@ export function useViewerPageController() {
     hideLoading,
   });
 
+  const rebuildObjectList = useCallback((scene = modelScene) => {
+    if (!scene) {
+      setObjectList([]);
+      return;
+    }
+
+    setObjectList(buildObjectTreeList(scene));
+  }, [modelScene]);
+
+  const renameObject = useCallback(
+    (object, requestedName) => {
+      if (!object || !modelScene) return false;
+
+      const nextName = String(requestedName || "").trim();
+
+      if (!nextName) return false;
+
+      const previousName = String(object.name || "").trim();
+      const objectPath = createObjectIndexPath(object, modelScene);
+
+      const hierarchyRoot = resolveObjectTreeRoot(modelScene) || modelScene;
+
+      if (objectPath.length === 0 && object !== hierarchyRoot) return false;
+      if (previousName === nextName) return true;
+
+      const originalName =
+        String(object.userData?.vxOriginalObjectName || previousName).trim();
+
+      object.userData.vxOriginalObjectName = originalName;
+      object.name = nextName;
+
+      updateMaterialState((prev) => ({
+        ...prev,
+        objectNameOverrides: upsertObjectNameOverride(
+          prev?.objectNameOverrides,
+          {
+            path: objectPath,
+            name: nextName,
+            originalName,
+          },
+        ),
+        chapters: (prev?.chapters || []).map((chapter) => {
+          const samePath = areObjectPathsEqual(
+            chapter?.objectPath,
+            objectPath,
+          );
+          const sameUuid =
+            Boolean(chapter?.objectUuid) && chapter.objectUuid === object.uuid;
+          const sameLegacyName =
+            !Array.isArray(chapter?.objectPath) &&
+            String(chapter?.objectName || "").trim() === previousName;
+
+          return samePath || sameUuid || sameLegacyName
+            ? { ...chapter, objectName: nextName }
+            : chapter;
+        }),
+      }));
+
+      if (selectedObject === object) {
+        setSelectedObjectName(nextName.replaceAll("_", " "));
+      }
+
+      rebuildObjectList(modelScene);
+      return true;
+    },
+    [
+      modelScene,
+      rebuildObjectList,
+      selectedObject,
+      updateMaterialState,
+    ],
+  );
+
+  useEffect(() => {
+    if (!modelScene) return;
+
+    const didApplyOverrides = applyObjectNameOverrides(
+      modelScene,
+      material?.objectNameOverrides,
+    );
+
+    if (didApplyOverrides) {
+      rebuildObjectList(modelScene);
+    }
+  }, [material?.objectNameOverrides, modelScene, rebuildObjectList]);
+
   const activeChapter = useMemo(
     () =>
       material?.chapters?.find((chapter) => chapter.id === activeChapterId) ||
@@ -250,6 +335,7 @@ export function useViewerPageController() {
     makeXrayExcept,
     resetXray,
     selectObjectFromMesh,
+    focusObjectFromMesh,
     selectionEngine,
     xrayTargetObject,
   } = useViewerSelection({
@@ -673,6 +759,7 @@ export function useViewerPageController() {
     markerMode,
     setMarkerMode,
     selectObjectFromMesh,
+    focusObjectFromMesh,
     selectedAnimations,
     setSelectedAnimations,
     animationCommand,
@@ -720,6 +807,7 @@ export function useViewerPageController() {
     searchObject,
     setSearchObject,
     hideAllObjects,
+    renameObject,
     deselectObject,
     deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,

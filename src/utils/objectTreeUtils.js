@@ -1,12 +1,40 @@
+const IGNORED_OBJECT_TREE_TYPES = new Set(["Bone"])
+
+export const isObjectTreeNode = (object) => {
+  return Boolean(object && !IGNORED_OBJECT_TREE_TYPES.has(object.type))
+}
+
+export const resolveObjectTreeRoot = (scene) => {
+  if (!scene) return null
+
+  const meaningfulChildren = (scene.children || []).filter(isObjectTreeNode)
+  const sceneName = String(scene.name || "").trim()
+
+  // Editor renders the GLTF inside an anonymous R3F wrapper group, while the
+  // Player receives the GLTF scene directly. Unwrap only that anonymous
+  // single-child container so both surfaces build the exact same hierarchy.
+  if (!sceneName && !scene.isMesh && meaningfulChildren.length === 1) {
+    return meaningfulChildren[0]
+  }
+
+  return scene
+}
+
 export const buildObjectTree = (object, level = 0) => {
   return {
     name: object.name || object.type || "Unnamed Object",
     object,
     level,
-    children: object.children
-      .filter((child) => child.type !== "Bone")
+    children: (object.children || [])
+      .filter(isObjectTreeNode)
       .map((child) => buildObjectTree(child, level + 1)),
   }
+}
+
+export const buildObjectTreeList = (scene) => {
+  const root = resolveObjectTreeRoot(scene)
+
+  return root ? [buildObjectTree(root, 0)] : []
 }
 
 export const flattenObjectTree = (items) => {

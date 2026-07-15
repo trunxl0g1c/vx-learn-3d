@@ -5,6 +5,7 @@ export default function HierarchyPanel({
   selectedObject,
   highlightObject,
   makeXrayExcept,
+  resetXray,
   focusObject,
   markers,
   setSelectedObjectName,
@@ -17,6 +18,7 @@ export default function HierarchyPanel({
   showAllObjects,
   hideAllObjects,
   setRightTab,
+  renameObject,
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -30,6 +32,7 @@ export default function HierarchyPanel({
           selectedObject={selectedObject}
           highlightObject={highlightObject}
           makeXrayExcept={makeXrayExcept}
+          resetXray={resetXray}
           focusObject={focusObject}
           markers={markers}
           setSelectedObjectName={setSelectedObjectName}
@@ -42,6 +45,7 @@ export default function HierarchyPanel({
           hideAllObjects={hideAllObjects}
           setSelectedObject={setSelectedObject}
           setRightTab={setRightTab}
+          renameObject={renameObject}
         />
       </div>
     </div>

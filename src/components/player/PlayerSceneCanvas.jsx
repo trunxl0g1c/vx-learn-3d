@@ -839,8 +839,6 @@ export default function PlayerSceneCanvas({
   modelScene,
   viewerSettings,
   outlineObjects,
-  setOutlineObjects,
-  setSelectedObject,
   cameraRef,
   controlsRef,
   focusTargetRef,
@@ -860,8 +858,21 @@ export default function PlayerSceneCanvas({
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
+  onObjectSelectInteraction,
 }) {
   const modelRootRef = useRef(null);
+
+  const handleObjectSelect = (object) => {
+    const selection = handleSelectObjectFromPlayer?.(object);
+    onObjectSelectInteraction?.(selection?.selectedObject || object);
+
+    return selection;
+  };
+
+  const handleObjectDoubleClick = (object) => {
+    onObjectSelectInteraction?.(object);
+    handleDoubleClickObjectFromPlayer?.(object);
+  };
 
   if (!material?.modelUrl) {
     return (
@@ -895,10 +906,6 @@ export default function PlayerSceneCanvas({
         gl.setClearColor(0x000000, 0);
         gl.toneMappingExposure = viewerSettings.exposure;
         window.__PLAYER_RENDERER__ = gl;
-      }}
-      onPointerMissed={() => {
-        setSelectedObject(null);
-        setOutlineObjects([]);
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
@@ -955,8 +962,8 @@ export default function PlayerSceneCanvas({
               <Model
                 modelUrl={material.modelUrl}
                 markerMode={false}
-                onSelectObject={handleSelectObjectFromPlayer}
-                onDoubleClickObject={handleDoubleClickObjectFromPlayer}
+                onSelectObject={handleObjectSelect}
+                onDoubleClickObject={handleObjectDoubleClick}
                 onModelLoaded={(scene) => {
                   handleModelLoaded(scene || modelRootRef.current);
                 }}

@@ -3,10 +3,11 @@ import * as THREE from "three"
 
 import {
   applyModelShaderMode,
+  applyObjectNameOverrides,
   initializePlayerModelScene,
 } from "../../../engine/model"
 import { createPlayerObjectSelectionPayload } from "../../../engine/selection"
-import { buildObjectTree } from "../../../utils/objectTreeUtils"
+import { buildObjectTreeList } from "../../../utils/objectTreeUtils"
 import { createFocusTargetFromObject, createFocusTargetFromScene } from "../../../engine/camera"
 
 import usePlayerAnimation from "./usePlayerAnimation"
@@ -189,6 +190,13 @@ export default function usePlayerController() {
 
   const playerSpeech = usePlayerSpeech(playerChapter.activeChapter)
 
+  const clearActiveChapter = () => {
+    setActiveChapterId(null)
+    focusTargetRef.current = null
+    playerAnimation.stopChapterAnimations?.()
+    playerSpeech.stopSpeaking?.()
+  }
+
   const playerFreePlay = usePlayerFreePlay({
     modelScene,
     selectedObject,
@@ -232,11 +240,7 @@ export default function usePlayerController() {
   }, [viewerSettings, modelScene])
 
   const createPlayerObjectList = (scene) => {
-    if (!scene) return []
-
-    return scene.children
-      .filter((child) => child.type !== "Bone")
-      .map((child) => buildObjectTree(child, 0))
+    return buildObjectTreeList(scene)
   }
 
   const focusObject = (object) => {
@@ -432,6 +436,7 @@ export default function usePlayerController() {
 
   const handleModelLoaded = (scene) => {
     initialCameraStateRef.current = null
+    applyObjectNameOverrides(scene, material?.objectNameOverrides)
     setModelScene(scene)
     setObjectList(createPlayerObjectList(scene))
 
@@ -555,25 +560,27 @@ export default function usePlayerController() {
   }
 
   const handleSelectObjectFromPlayer = (object) => {
-    if (!object) return
+    if (!object) return null
 
     const selection = createPlayerObjectSelectionPayload(
       object,
-      material?.chapters || []
+      material?.chapters || [],
     )
 
     setSelectedObject(selection.selectedObject)
     setOutlineObjects(selection.outlineObjects)
 
-    if (selection.chapterId) {
-      handleSelectChapter(selection.chapterId)
-    }
+    // A single click is selection-only. Chapter camera/visual state remains
+    // controlled by the explicit Chapter UI, while camera focus is reserved
+    // for a double click on the object.
+    return selection
+  }
 
-    // Match the Editor viewport-selection flow. Opening an assigned chapter
-    // may restore its saved camera first, so focus the exact clicked object
-    // afterwards. This moves OrbitControls.target to the object's bounds
-    // center and keeps close zoom behavior consistent with the hierarchy list.
-    focusObject(selection.selectedObject || object)
+  const handleDoubleClickObjectFromPlayer = (object) => {
+    if (!object) return
+
+    const selection = handleSelectObjectFromPlayer(object)
+    focusObject(selection?.selectedObject || object)
   }
 
   return {
@@ -604,6 +611,7 @@ export default function usePlayerController() {
       selectedAnimations: playerAnimation.selectedAnimations,
       animationCommand: playerAnimation.animationCommand,
       handleSelectObjectFromPlayer,
+      handleDoubleClickObjectFromPlayer,
       handleModelLoaded,
       captureInitialCameraState,
       setAnimations: playerAnimation.setAnimations,
@@ -655,6 +663,7 @@ export default function usePlayerController() {
       material,
       activeChapterId,
       handleSelectChapter,
+      clearActiveChapter,
     },
 
     settingsPanel: {

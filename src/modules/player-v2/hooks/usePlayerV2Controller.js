@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import {
   applyChapterModelRotation,
   applyModelShaderMode,
+  applyObjectNameOverrides,
   createChapterFocusTarget,
   initializePlayerModelScene,
 } from "../../../engine/model"
@@ -81,6 +82,10 @@ export default function usePlayerV2Controller() {
   const handleModelLoaded = (scene) => {
     if (!scene) return
 
+    applyObjectNameOverrides(
+      scene,
+      playerProject.material?.objectNameOverrides,
+    )
     setModelScene(scene)
 
     const modelState = initializePlayerModelScene({
@@ -108,15 +113,11 @@ export default function usePlayerV2Controller() {
   }
 
   const handleSelectObjectFromPlayer = (object) => {
-    if (!object) return
+    if (!object) return null
 
-    const payload = selection.selectObject(object)
-
-    if (payload.chapterId) {
-      setActiveChapterId(payload.chapterId)
-      const chapter = chapters.find((item) => item.id === payload.chapterId)
-      if (chapter) applyChapterView(chapter)
-    }
+    // A single click only selects the exact object. Chapter playback remains
+    // an explicit action and camera focus is handled by double click.
+    return selection.selectObject(object)
   }
 
   const handleFocusSelectedObject = () => {
