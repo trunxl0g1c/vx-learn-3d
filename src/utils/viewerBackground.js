@@ -5,6 +5,11 @@ export const DEFAULT_VIEWER_BACKGROUND = {
   edgeColor: "#0d0d0d",
   intensity: 1,
   size: 1,
+  linearStartColor: "#824040",
+  linearEndColor: "#0d0d0d",
+  linearWidth: 0.35,
+  linearPosition: 0.5,
+  linearRotation: 90,
   imageUrl: "",
   imageName: "",
   imageFit: "cover",
@@ -31,7 +36,12 @@ function clampNumber(value, min, max, fallback) {
 }
 
 function normalizeBackgroundType(type) {
-  if (type === "solid" || type === "radialGradient" || type === "image") {
+  if (
+    type === "solid" ||
+    type === "radialGradient" ||
+    type === "linearGradient" ||
+    type === "image"
+  ) {
     return type;
   }
 
@@ -67,6 +77,30 @@ export function normalizeViewerBackground(background = {}) {
       DEFAULT_VIEWER_BACKGROUND.intensity,
     ),
     size: clampNumber(source.size, 0.2, 3, DEFAULT_VIEWER_BACKGROUND.size),
+    linearStartColor: isValidHexColor(source.linearStartColor)
+      ? source.linearStartColor
+      : DEFAULT_VIEWER_BACKGROUND.linearStartColor,
+    linearEndColor: isValidHexColor(source.linearEndColor)
+      ? source.linearEndColor
+      : DEFAULT_VIEWER_BACKGROUND.linearEndColor,
+    linearWidth: clampNumber(
+      source.linearWidth,
+      0.05,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.linearWidth,
+    ),
+    linearPosition: clampNumber(
+      source.linearPosition,
+      0,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.linearPosition,
+    ),
+    linearRotation: clampNumber(
+      source.linearRotation,
+      0,
+      360,
+      DEFAULT_VIEWER_BACKGROUND.linearRotation,
+    ),
     imageUrl:
       typeof source.imageUrl === "string"
         ? source.imageUrl
@@ -94,6 +128,20 @@ export function getViewerBackgroundCss(viewerSettings = {}) {
 
   if (background.type === "solid") {
     return background.solidColor;
+  }
+
+  if (background.type === "linearGradient") {
+    const halfWidth = background.linearWidth / 2;
+    const startStop = Math.max(0, background.linearPosition - halfWidth);
+    const endStop = Math.min(1, background.linearPosition + halfWidth);
+
+    return [
+      `linear-gradient(${background.linearRotation}deg,`,
+      `${background.linearStartColor} 0%,`,
+      `${background.linearStartColor} ${Math.round(startStop * 100)}%,`,
+      `${background.linearEndColor} ${Math.round(endStop * 100)}%,`,
+      `${background.linearEndColor} 100%)`,
+    ].join(" ");
   }
 
   if (background.type === "image" && background.imageUrl) {

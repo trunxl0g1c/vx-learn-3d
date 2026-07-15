@@ -1,4 +1,8 @@
 import { resolveObjectByStoredIndexPath } from "../model/ObjectNameOverrides"
+import {
+  releaseGeneratedModelMaterial,
+  syncSketchEdgeVisibility,
+} from "../model/ModelSceneUtils"
 
 export function normalizeObjectName(name) {
   return (name || "")
@@ -20,7 +24,9 @@ function cloneMaterial(material) {
 function restoreOriginalMaterial(child) {
   if (!child?.isMesh || !child.userData?.originalMaterial) return
 
+  releaseGeneratedModelMaterial(child)
   child.material = cloneMaterial(child.userData.originalMaterial)
+  child.userData.__vxGeneratedShaderMaterial = false
 }
 
 function markMaterialNeedsUpdate(material) {
@@ -127,21 +133,39 @@ export function flattenSelectionTree(items = []) {
   return result
 }
 
-export function resetSceneMaterialState(scene) {
+export function resetSceneMaterialState(
+  scene,
+  restoreMaterialState = null,
+) {
+  if (typeof restoreMaterialState === "function") {
+    restoreMaterialState(scene)
+  } else {
+    scene?.traverse?.((child) => {
+      if (!child.isMesh || !child.material) return
+      restoreOriginalMaterial(child)
+    })
+  }
+
   scene?.traverse?.((child) => {
     if (!child.isMesh || !child.material) return
 
-    restoreOriginalMaterial(child)
+    const materials = Array.isArray(child.material)
+      ? child.material
+      : [child.material]
 
-    child.material.emissive?.set(0x000000)
+    materials.forEach((material) => material?.emissive?.set?.(0x000000))
     markMaterialNeedsUpdate(child.material)
   })
 }
 
-export function createObjectHighlightPayload(targetObject, scene = null) {
+export function createObjectHighlightPayload(
+  targetObject,
+  scene = null,
+  restoreMaterialState = null,
+) {
   if (!targetObject) return createClearSelectionPayload()
 
-  resetSceneMaterialState(scene)
+  resetSceneMaterialState(scene, restoreMaterialState)
 
   return createSelectionPayload(targetObject)
 }
@@ -150,10 +174,13 @@ export function applyXrayExcept({
   targetObject,
   scene,
   xrayMaterial,
+  restoreMaterialState = null,
 }) {
   if (!targetObject || !scene || !xrayMaterial) {
     return createClearSelectionPayload()
   }
+
+  resetSceneMaterialState(scene, restoreMaterialState)
 
   const selectedMeshes = []
 
@@ -168,12 +195,17 @@ export function applyXrayExcept({
 
     if (isSelected) {
       selectedMeshes.push(child)
-
-      restoreOriginalMaterial(child)
       child.renderOrder = 999
-      child.material.emissive?.set(0x000000)
+
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material]
+
+      materials.forEach((material) => material?.emissive?.set?.(0x000000))
     } else {
+      releaseGeneratedModelMaterial(child)
       child.material = xrayMaterial
+      child.userData.__vxGeneratedShaderMaterial = false
       child.renderOrder = 0
     }
 
@@ -186,7 +218,21 @@ export function applyXrayExcept({
   }
 }
 
-export function resetXrayObjects(objectTree = []) {
+export function resetXrayObjects(
+  objectTree = [],
+  scene = null,
+  restoreMaterialState = null,
+) {
+  if (scene) {
+    resetSceneMaterialState(scene, restoreMaterialState)
+
+    scene.traverse((child) => {
+      if (child.isMesh) child.renderOrder = 0
+    })
+
+    return createClearSelectionPayload()
+  }
+
   flattenSelectionTree(objectTree).forEach((item) => {
     item.object.traverse((child) => {
       if (!child.isMesh) return
@@ -337,4 +383,6 @@ export function showAllObjectsInScene(scene) {
   scene.traverse((child) => {
     child.visible = true
   })
+
+  syncSketchEdgeVisibility(scene)
 }

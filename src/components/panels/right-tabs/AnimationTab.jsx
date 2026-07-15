@@ -2,13 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import Button from "../../ui/button";
 import Checkbox from "../../ui/checkbox";
 import MaterialIcon from "../../ui/material-icon";
+import { createUpdateAnimationConfigCommand } from "../../../engine/animation";
 
-export default function AnimationTab({ animations = [], setAnimationCommand }) {
+const DEFAULT_ANIMATION_SPEED = 1;
+
+function normalizeSpeed(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) && numericValue > 0
+    ? numericValue
+    : DEFAULT_ANIMATION_SPEED;
+}
+
+function getAnimationName(animation, index) {
+  return animation?.name || `Animation Name ${index + 1}`;
+}
+
+export default function AnimationTab({
+  animations = [],
+  selectedAnimations = {},
+  setSelectedAnimations,
+  setAnimationCommand,
+}) {
   const [playingMode, setPlayingMode] = useState(null);
   const [playingAnimationName, setPlayingAnimationName] = useState(null);
-
-  const [loopUiState, setLoopUiState] = useState({});
-  const [speedUiState, setSpeedUiState] = useState({});
 
   const commandTimerRef = useRef(null);
   const finishTimerRef = useRef(null);
@@ -16,21 +32,38 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
   const isPlayingAll = playingMode === "all";
   const isPlayingSingle = playingMode === "single";
 
-  const clearAnimationTimers = () => {
-    if (commandTimerRef.current) {
-      clearTimeout(commandTimerRef.current);
-      commandTimerRef.current = null;
-    }
+  const clearCommandTimer = () => {
+    if (!commandTimerRef.current) return;
 
-    if (finishTimerRef.current) {
-      clearTimeout(finishTimerRef.current);
-      finishTimerRef.current = null;
-    }
+    clearTimeout(commandTimerRef.current);
+    commandTimerRef.current = null;
+  };
+
+  const clearFinishTimer = () => {
+    if (!finishTimerRef.current) return;
+
+    clearTimeout(finishTimerRef.current);
+    finishTimerRef.current = null;
+  };
+
+  const clearAnimationTimers = () => {
+    clearCommandTimer();
+    clearFinishTimer();
   };
 
   const resetPlayingState = () => {
     setPlayingMode(null);
     setPlayingAnimationName(null);
+  };
+
+  const getAnimationConfig = (animationName) => {
+    const config = selectedAnimations?.[animationName] || {};
+
+    return {
+      selected: Boolean(config.selected),
+      loop: Boolean(config.loop),
+      speed: normalizeSpeed(config.speed),
+    };
   };
 
   const stopAnimation = () => {
@@ -43,8 +76,13 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
     });
   };
 
-  const scheduleFinish = (durationInSeconds) => {
-    if (!Number.isFinite(durationInSeconds) || durationInSeconds <= 0) {
+  const scheduleFinish = (durationInSeconds, speed = 1) => {
+    clearFinishTimer();
+
+    const normalizedDuration = Number(durationInSeconds);
+    const normalizedSpeed = normalizeSpeed(speed);
+
+    if (!Number.isFinite(normalizedDuration) || normalizedDuration <= 0) {
       return;
     }
 
@@ -53,12 +91,37 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
         resetPlayingState();
         finishTimerRef.current = null;
       },
-      durationInSeconds * 1000 + 100,
+      (normalizedDuration / normalizedSpeed) * 1000 + 100,
     );
   };
 
-  const playSingleAnimation = (anim, index) => {
-    const animationName = anim?.name || `Animation Name ${index + 1}`;
+  const scheduleAllFinish = (configsByName) => {
+    const hasLoopingAnimation = animations.some((animation, index) => {
+      const animationName = getAnimationName(animation, index);
+      return configsByName[animationName]?.loop === true;
+    });
+
+    if (hasLoopingAnimation) {
+      clearFinishTimer();
+      return;
+    }
+
+    const maximumDuration = animations.reduce((highestDuration, animation, index) => {
+      const animationName = getAnimationName(animation, index);
+      const duration = Number(animation?.duration);
+      const speed = normalizeSpeed(configsByName[animationName]?.speed);
+
+      if (!Number.isFinite(duration)) return highestDuration;
+
+      return Math.max(highestDuration, duration / speed);
+    }, 0);
+
+    scheduleFinish(maximumDuration, 1);
+  };
+
+  const playSingleAnimation = (animation, index) => {
+    const animationName = getAnimationName(animation, index);
+    const config = getAnimationConfig(animationName);
 
     const isCurrentAnimationPlaying =
       isPlayingSingle && playingAnimationName === animationName;
@@ -84,7 +147,8 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
         selectedAnimations: {
           [animationName]: {
             selected: true,
-            loop: false,
+            loop: config.loop,
+            speed: config.speed,
           },
         },
         id: crypto.randomUUID(),
@@ -93,7 +157,11 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
       commandTimerRef.current = null;
     }, 10);
 
-    scheduleFinish(Number(anim?.duration));
+    if (config.loop) {
+      clearFinishTimer();
+    } else {
+      scheduleFinish(Number(animation?.duration), config.speed);
+    }
   };
 
   const playAllAnimations = () => {
@@ -111,16 +179,21 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
       id: crypto.randomUUID(),
     });
 
-    const selectedAnimations = animations.reduce((result, anim, index) => {
-      const animationName = anim?.name || `Animation Name ${index + 1}`;
+    const nextSelectedAnimations = animations.reduce(
+      (result, animation, index) => {
+        const animationName = getAnimationName(animation, index);
+        const config = getAnimationConfig(animationName);
 
-      result[animationName] = {
-        selected: true,
-        loop: false,
-      };
+        result[animationName] = {
+          selected: true,
+          loop: config.loop,
+          speed: config.speed,
+        };
 
-      return result;
-    }, {});
+        return result;
+      },
+      {},
+    );
 
     setPlayingMode("all");
     setPlayingAnimationName(null);
@@ -128,39 +201,101 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
     commandTimerRef.current = setTimeout(() => {
       setAnimationCommand?.({
         type: "play",
-        selectedAnimations,
+        selectedAnimations: nextSelectedAnimations,
         id: crypto.randomUUID(),
       });
 
       commandTimerRef.current = null;
     }, 10);
 
-    const maximumDuration = animations.reduce((highestDuration, anim) => {
-      const duration = Number(anim?.duration);
-
-      if (!Number.isFinite(duration)) {
-        return highestDuration;
-      }
-
-      return Math.max(highestDuration, duration);
-    }, 0);
-
-    scheduleFinish(maximumDuration);
+    scheduleAllFinish(nextSelectedAnimations);
   };
 
-  const updateLoopUi = (animationName, checked) => {
-    setLoopUiState((previousState) => ({
-      ...previousState,
-      [animationName]: checked === true,
+  const updateAnimationConfig = (animation, index, changes) => {
+    const animationName = getAnimationName(animation, index);
+    const currentConfig = getAnimationConfig(animationName);
+    const nextConfig = {
+      ...currentConfig,
+      ...changes,
+      speed: normalizeSpeed(changes.speed ?? currentConfig.speed),
+    };
+
+    setSelectedAnimations?.((previousState) => ({
+      ...(previousState || {}),
+      [animationName]: {
+        ...(previousState?.[animationName] || {}),
+        ...nextConfig,
+      },
     }));
+
+    const isAnimationCurrentlyPlaying =
+      isPlayingAll ||
+      (isPlayingSingle && playingAnimationName === animationName);
+
+    if (!isAnimationCurrentlyPlaying) return;
+
+    setAnimationCommand?.(
+      createUpdateAnimationConfigCommand(animationName, nextConfig),
+    );
+
+    if (isPlayingAll) {
+      const nextAllConfigs = animations.reduce((result, item, itemIndex) => {
+        const itemName = getAnimationName(item, itemIndex);
+
+        result[itemName] =
+          itemName === animationName
+            ? nextConfig
+            : getAnimationConfig(itemName);
+
+        return result;
+      }, {});
+
+      scheduleAllFinish(nextAllConfigs);
+      return;
+    }
+
+    if (nextConfig.loop) {
+      clearFinishTimer();
+    } else {
+      scheduleFinish(Number(animation?.duration), nextConfig.speed);
+    }
   };
 
-  const updateSpeedUi = (animationName, value) => {
-    setSpeedUiState((previousState) => ({
-      ...previousState,
-      [animationName]: value,
-    }));
-  };
+  useEffect(() => {
+    if (!setSelectedAnimations) return;
+
+    setSelectedAnimations((previousState) => {
+      const nextState = { ...(previousState || {}) };
+      let changed = false;
+
+      animations.forEach((animation, index) => {
+        const animationName = getAnimationName(animation, index);
+        const currentConfig = nextState[animationName];
+
+        if (!currentConfig) {
+          nextState[animationName] = {
+            selected: false,
+            loop: false,
+            speed: DEFAULT_ANIMATION_SPEED,
+          };
+          changed = true;
+          return;
+        }
+
+        const normalizedSpeed = normalizeSpeed(currentConfig.speed);
+
+        if (currentConfig.speed !== normalizedSpeed) {
+          nextState[animationName] = {
+            ...currentConfig,
+            speed: normalizedSpeed,
+          };
+          changed = true;
+        }
+      });
+
+      return changed ? nextState : previousState;
+    });
+  }, [animations, setSelectedAnimations]);
 
   useEffect(() => {
     return () => {
@@ -182,17 +317,13 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
         ) : (
           <>
             <div className="flex flex-col gap-4">
-              {animations.map((anim, index) => {
-                const animationName =
-                  anim?.name || `Animation Name ${index + 1}`;
+              {animations.map((animation, index) => {
+                const animationName = getAnimationName(animation, index);
+                const config = getAnimationConfig(animationName);
 
                 const isPlaying =
                   isPlayingAll ||
                   (isPlayingSingle && playingAnimationName === animationName);
-
-                const isLoopChecked = loopUiState[animationName] === true;
-
-                const speedValue = speedUiState[animationName] || "1";
 
                 return (
                   <div
@@ -201,14 +332,11 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
                     className={[
                       "w-full overflow-hidden rounded-lg border",
                       "bg-dark-alpha",
+                      "border-contrast-grayout",
                       "transition-colors duration-200",
-                      isPlaying
-                        ? "border-contrast-grayout"
-                        : "border-contrast-grayout",
                       "hover:border-accent-main",
                     ].join(" ")}
                   >
-                    {/* Header animasi */}
                     <div className="flex h-12 items-center justify-between gap-3 px-3">
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-normal text-white">
@@ -216,7 +344,7 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
                         </div>
 
                         <div className="mt-0.5 text-[10px] text-contrast-grayout">
-                          {anim?.duration?.toFixed?.(2) || 0}s
+                          {animation?.duration?.toFixed?.(2) || 0}s
                         </div>
                       </div>
 
@@ -230,7 +358,7 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
                         }
                         onClick={(event) => {
                           event.stopPropagation();
-                          playSingleAnimation(anim, index);
+                          playSingleAnimation(animation, index);
                         }}
                         className={[
                           "grid size-8 shrink-0 cursor-pointer",
@@ -259,9 +387,11 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
                       >
                         <Checkbox
                           label="Loop"
-                          checked={isLoopChecked}
+                          checked={config.loop}
                           onCheckedChange={(checked) => {
-                            updateLoopUi(animationName, checked);
+                            updateAnimationConfig(animation, index, {
+                              loop: checked === true,
+                            });
                           }}
                           labelClassName="text-xs font-normal text-white"
                         />
@@ -281,9 +411,11 @@ export default function AnimationTab({ animations = [], setAnimationCommand }) {
 
                         <select
                           id={`animation-speed-${index}`}
-                          value={speedValue}
+                          value={String(config.speed)}
                           onChange={(event) => {
-                            updateSpeedUi(animationName, event.target.value);
+                            updateAnimationConfig(animation, index, {
+                              speed: Number(event.target.value),
+                            });
                           }}
                           className={[
                             "h-8 w-20 cursor-pointer rounded-md",

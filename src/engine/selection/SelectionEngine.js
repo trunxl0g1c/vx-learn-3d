@@ -1,9 +1,9 @@
 import {
   applyXrayExcept,
   createClearSelectionPayload,
-  createObjectHighlightPayload,
   createSelectionFromMeshPayload,
   createSelectionPayload,
+  resetSceneMaterialState,
   resetXrayObjects,
 } from "./SelectionSceneUtils"
 
@@ -13,6 +13,8 @@ export function createSelectionEngine(options = {}) {
   let scene = options.scene || null
   let objectTree = options.objectTree || []
   let xrayMaterial = options.xrayMaterial || null
+  let materialRestorer = options.materialRestorer || null
+  let materialOverrideActive = false
 
   const setSelection = (payload) => {
     selectedObject = payload?.selectedObject || null
@@ -25,6 +27,14 @@ export function createSelectionEngine(options = {}) {
     }
   }
 
+  const restoreMaterialOverrideIfNeeded = (targetScene = scene) => {
+    if (!materialOverrideActive) return false
+
+    resetSceneMaterialState(targetScene, materialRestorer)
+    materialOverrideActive = false
+    return true
+  }
+
   return {
     getSelectedObject() {
       return selectedObject
@@ -35,15 +45,23 @@ export function createSelectionEngine(options = {}) {
     },
 
     clear() {
+      restoreMaterialOverrideIfNeeded()
       return setSelection(createClearSelectionPayload())
     },
 
     selectObject(object) {
+      restoreMaterialOverrideIfNeeded()
       return setSelection(createSelectionPayload(object))
     },
 
     setScene(nextScene) {
-      scene = nextScene || null
+      const resolvedScene = nextScene || null
+
+      if (scene !== resolvedScene) {
+        materialOverrideActive = false
+      }
+
+      scene = resolvedScene
       return scene
     },
 
@@ -57,8 +75,23 @@ export function createSelectionEngine(options = {}) {
       return xrayMaterial
     },
 
+    setMaterialRestorer(nextMaterialRestorer) {
+      materialRestorer =
+        typeof nextMaterialRestorer === "function"
+          ? nextMaterialRestorer
+          : null
+
+      return materialRestorer
+    },
+
     registerModelState(modelState = {}) {
-      scene = modelState.scene || scene
+      const nextScene = modelState.scene || scene
+
+      if (scene !== nextScene) {
+        materialOverrideActive = false
+      }
+
+      scene = nextScene
       objectTree = modelState.objectList || objectTree
 
       return {
@@ -68,24 +101,47 @@ export function createSelectionEngine(options = {}) {
     },
 
     highlightObject(targetObject, targetScene = scene) {
-      return setSelection(createObjectHighlightPayload(targetObject, targetScene))
+      restoreMaterialOverrideIfNeeded(targetScene)
+      return setSelection(createSelectionPayload(targetObject))
     },
 
-    makeXrayExcept(targetObject, targetScene = scene, targetXrayMaterial = xrayMaterial) {
-      return setSelection(
-        applyXrayExcept({
-          targetObject,
-          scene: targetScene,
-          xrayMaterial: targetXrayMaterial,
-        })
+    makeXrayExcept(
+      targetObject,
+      targetScene = scene,
+      targetXrayMaterial = xrayMaterial,
+    ) {
+      const payload = applyXrayExcept({
+        targetObject,
+        scene: targetScene,
+        xrayMaterial: targetXrayMaterial,
+        restoreMaterialState: materialRestorer,
+      })
+
+      materialOverrideActive = Boolean(
+        targetObject && targetScene && targetXrayMaterial,
       )
+
+      return setSelection(payload)
     },
 
     resetXray(targetObjectTree = objectTree) {
-      return setSelection(resetXrayObjects(targetObjectTree))
+      if (!materialOverrideActive) {
+        return setSelection(createClearSelectionPayload())
+      }
+
+      const payload = resetXrayObjects(
+        targetObjectTree,
+        scene,
+        materialRestorer,
+      )
+      materialOverrideActive = false
+
+      return setSelection(payload)
     },
 
     selectFromMesh(mesh, targetObjectTree = objectTree) {
+      restoreMaterialOverrideIfNeeded()
+
       const payload = createSelectionFromMeshPayload(mesh, targetObjectTree)
 
       if (!payload) return null
@@ -103,6 +159,8 @@ export function createSelectionEngine(options = {}) {
       scene = null
       objectTree = []
       xrayMaterial = null
+      materialRestorer = null
+      materialOverrideActive = false
 
       return {
         selectedObject,

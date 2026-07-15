@@ -18,6 +18,8 @@ export default function EditorViewport({ controller }) {
     focusTargetRef,
 
     outlineObjects,
+    shaderOutlineObjects,
+    shaderOutlineStyle,
     modelUrl,
     handleModelLoaded,
     markerMode,
@@ -129,6 +131,8 @@ export default function EditorViewport({ controller }) {
         focusTargetRef={focusTargetRef}
         viewerSettings={viewerSettings}
         outlineObjects={outlineObjects}
+        shaderOutlineObjects={shaderOutlineObjects}
+        shaderOutlineStyle={shaderOutlineStyle}
         modelUrl={modelUrl}
         // addMarker={addMarker}
         addMarker={handleMarkerPointPicked}

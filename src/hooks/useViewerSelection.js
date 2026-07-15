@@ -15,6 +15,7 @@ export function useViewerSelection({
   setIsAutoRotating,
   setRightTab,
   activeChapterId,
+  restoreShaderMode,
 }) {
   const [xrayTargetObject, setXrayTargetObject] = useState(null);
 
@@ -39,7 +40,13 @@ export function useViewerSelection({
     selectionEngine.setScene(modelScene);
     selectionEngine.setObjectTree(objectList);
     selectionEngine.setXrayMaterial(xrayMaterialRef.current);
-  }, [selectionEngine, modelScene, objectList]);
+    selectionEngine.setMaterialRestorer(() => restoreShaderMode?.());
+  }, [
+    selectionEngine,
+    modelScene,
+    objectList,
+    restoreShaderMode,
+  ]);
 
   const applySelectionPayload = (payload) => {
     if (!payload) return;

@@ -15,6 +15,8 @@ export default function usePlayerV2Controller() {
   const playerProject = usePlayerV2Project()
 
   const [modelScene, setModelScene] = useState(null)
+  const [shaderOutlineObjects, setShaderOutlineObjects] = useState([])
+  const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [, setAnimations] = useState([])
   const [activeChapterId, setActiveChapterId] = useState(null)
 
@@ -49,9 +51,18 @@ export default function usePlayerV2Controller() {
   }, [chapters])
 
   useEffect(() => {
-    if (!modelScene) return
+    if (!modelScene) {
+      setShaderOutlineObjects([])
+      setShaderOutlineStyle(null)
+      return
+    }
 
-    applyModelShaderMode(modelScene, playerProject.viewerSettings)
+    const shaderState = applyModelShaderMode(
+      modelScene,
+      playerProject.viewerSettings,
+    )
+    setShaderOutlineObjects(shaderState.outlineObjects)
+    setShaderOutlineStyle(shaderState.outlineStyle || null)
 
     if (window.__PLAYER_RENDERER__) {
       window.__PLAYER_RENDERER__.toneMappingExposure =
@@ -94,6 +105,9 @@ export default function usePlayerV2Controller() {
       viewerSettings: playerProject.viewerSettings,
       cutAxis: "x",
     })
+
+    setShaderOutlineObjects(modelState.shaderOutlineObjects || [])
+    setShaderOutlineStyle(modelState.shaderOutlineStyle || null)
 
     const firstChapter = modelState.firstChapter || chapters[0] || null
 
@@ -182,6 +196,8 @@ export default function usePlayerV2Controller() {
       material: playerProject.material,
       viewerSettings: playerProject.viewerSettings,
       outlineObjects: selection.outlineObjects,
+      shaderOutlineObjects,
+      shaderOutlineStyle,
       setOutlineObjects: selection.setOutlineObjects,
       setSelectedObject: selection.setSelectedObject,
       cameraRef,

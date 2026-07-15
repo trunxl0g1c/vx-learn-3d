@@ -6,6 +6,7 @@ export const ANIMATION_COMMAND_TYPES = {
   STOP: "stop",
   SEEK: "seek",
   SET_SPEED: "setSpeed",
+  UPDATE_CONFIG: "updateAnimationConfig",
 }
 
 export function normalizeAnimationName(animation) {
@@ -212,6 +213,21 @@ export function createSetSpeedCommand(speed = 1, options = {}) {
   })
 }
 
+export function createUpdateAnimationConfigCommand(
+  animationName,
+  config = {},
+  options = {},
+) {
+  return createAnimationCommand(ANIMATION_COMMAND_TYPES.UPDATE_CONFIG, {
+    animationName,
+    config: {
+      loop: Boolean(config.loop),
+      speed: Number(config.speed) || 1,
+    },
+    ...options,
+  })
+}
+
 export function createAnimationEngine() {
   let animations = []
   let selectedAnimations = {}
@@ -284,6 +300,23 @@ export function createAnimationEngine() {
     return dispatch(createSetSpeedCommand(speed, options))
   }
 
+  const updateAnimationConfig = (animationName, config = {}, options = {}) => {
+    if (!animationName) return lastCommand
+
+    selectedAnimations = {
+      ...selectedAnimations,
+      [animationName]: {
+        ...(selectedAnimations[animationName] || {}),
+        loop: Boolean(config.loop),
+        speed: Number(config.speed) || 1,
+      },
+    }
+
+    return dispatch(
+      createUpdateAnimationConfigCommand(animationName, config, options),
+    )
+  }
+
   const clear = () => {
     animations = []
     selectedAnimations = {}
@@ -325,6 +358,7 @@ export function createAnimationEngine() {
     createResumeCommand,
     createSeekCommand,
     createSetSpeedCommand,
+    createUpdateAnimationConfigCommand,
     play,
     playChapter,
     pause,
@@ -332,6 +366,7 @@ export function createAnimationEngine() {
     stop,
     seek,
     setSpeed,
+    updateAnimationConfig,
     clear,
     reset: clear,
     dispose: clear,

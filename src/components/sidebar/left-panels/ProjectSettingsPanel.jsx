@@ -613,7 +613,7 @@ export default function ProjectSettingsPanel({
             Background Type
           </label>
 
-          <div className="mb-4 grid grid-cols-3 gap-2">
+          <div className="mb-4 grid grid-cols-2 gap-2">
             <Button
               size="sm"
               type="button"
@@ -632,6 +632,17 @@ export default function ProjectSettingsPanel({
               onClick={() => updateBackground({ type: "radialGradient" })}
             >
               Radial
+            </Button>
+
+            <Button
+              size="sm"
+              type="button"
+              variant={
+                background.type === "linearGradient" ? "default" : "outline"
+              }
+              onClick={() => updateBackground({ type: "linearGradient" })}
+            >
+              Linear
             </Button>
 
             <Button
@@ -704,6 +715,60 @@ export default function ProjectSettingsPanel({
                   max={2}
                   step={0.05}
                   onChange={(value) => updateBackground({ intensity: value })}
+                />
+              </>
+            )}
+
+
+            {background.type === "linearGradient" && (
+              <>
+                <ColorFieldInput
+                  label="Start Color"
+                  value={background.linearStartColor}
+                  onChange={(value) =>
+                    updateBackground({ linearStartColor: value })
+                  }
+                />
+
+                <ColorFieldInput
+                  label="End Color"
+                  value={background.linearEndColor}
+                  onChange={(value) =>
+                    updateBackground({ linearEndColor: value })
+                  }
+                />
+
+                <Slider
+                  label="Linear Width"
+                  value={background.linearWidth}
+                  min={0.05}
+                  max={1}
+                  step={0.05}
+                  onChange={(value) =>
+                    updateBackground({ linearWidth: value })
+                  }
+                />
+
+                <Slider
+                  label="Linear Position"
+                  value={background.linearPosition}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(value) =>
+                    updateBackground({ linearPosition: value })
+                  }
+                />
+
+                <Slider
+                  label="Linear Rotation"
+                  value={background.linearRotation}
+                  min={0}
+                  max={360}
+                  step={5}
+                  onChange={(value) =>
+                    updateBackground({ linearRotation: value })
+                  }
                 />
               </>
             )}
