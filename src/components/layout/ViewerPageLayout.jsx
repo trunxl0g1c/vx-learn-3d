@@ -65,6 +65,10 @@ export default function ViewerPageLayout({ controller }) {
 
     hideSelectedObject,
     deselectObject,
+
+    activeMarkers,
+    deleteCameraViewFromActiveChapter,
+    deleteVisualStateFromActiveChapter,
   } = controller;
 
   return (
@@ -151,6 +155,11 @@ export default function ViewerPageLayout({ controller }) {
           soloSelectedObject={controller.soloSelectedObject}
           resetAllTransforms={controller.resetAllTransforms}
           deselectObject={controller.deselectObject}
+          deleteVisualStateFromActiveChapter={
+            deleteVisualStateFromActiveChapter
+          }
+          saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
+          deleteCameraViewFromActiveChapter={deleteCameraViewFromActiveChapter}
         />
       </Activity>
 

@@ -16,7 +16,7 @@ export default function PlayerToolsMenu({
   return (
     <div onClick={(e) => e.stopPropagation()} style={playerMenuStyle}>
       <Button size="sm" onClick={toggleCutSection}>
-        {cutEnabled ? "Cut ON" : "Cut OFF"}
+        {cutEnabled ? "Cut On" : "Cut Off"}
       </Button>
 
       <Button size="sm" onClick={hideSelectedObject}>

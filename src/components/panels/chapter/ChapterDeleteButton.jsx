@@ -35,7 +35,7 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
   const confirmationDialog = isConfirmOpen
     ? createPortal(
         <div
-          className="fixed inset-0 z-[1000] grid place-items-center bg-black/55 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[1000] grid place-items-center bg-black/45 p-4 backdrop-blur-sm"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) {
@@ -48,7 +48,7 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
             aria-modal="true"
             aria-labelledby="delete-content-title"
             aria-describedby="delete-content-description"
-            className="w-full max-w-[460px] overflow-hidden rounded-[22px] border border-divider-main bg-[#1d1e1f] text-white shadow-[0_22px_45px_rgba(0,0,0,0.55)]"
+            className="w-full max-w-[460px] overflow-hidden rounded-[22px] border border-divider-main bg-[#151d1d] text-white shadow-[0_22px_45px_rgba(0,0,0,0.55)]"
           >
             <div className="flex min-h-[70px] items-center justify-between bg-dark-alpha px-5">
               <h3

@@ -45,6 +45,8 @@ export default function ChapterTab(props) {
     cancelAddMarker,
     markerMode,
     setRightTab,
+    deleteVisualStateFromActiveChapter,
+    deleteCameraViewFromActiveChapter,
   } = props;
 
   const chapters = material?.chapters || [];
@@ -127,8 +129,8 @@ export default function ChapterTab(props) {
                   onClick={() => openChapterDetail(chapter.id)}
                   className={cn(
                     "mx-4 mb-3 flex w-[calc(100%-2rem)] cursor-pointer items-center justify-between gap-3 rounded-lg border border-contrast-grayout bg-dark-alpha p-3 text-left transition",
-                    "hover:border-secondary-default hover:bg-primary/50",
-                    isActive && "border-secondary-default bg-primary",
+                    "hover:border-accent-main hover:bg-primary/50",
+                    isActive && "border-accent-main! bg-primary",
                   )}
                 >
                   <div className="min-w-0 flex-1">
@@ -199,17 +201,21 @@ export default function ChapterTab(props) {
 
             <ChapterVisualStateSection
               chapter={activeChapter}
-              saveVisualStateToActiveChapter={
-                saveVisualStateToActiveChapter
+              saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
+              deleteVisualStateFromActiveChapter={
+                deleteVisualStateFromActiveChapter
               }
             />
 
             <ChapterCameraSection
-              panelSectionStyle={panelSectionStyle}
+              chapter={activeChapter}
               saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
+              deleteCameraViewFromActiveChapter={
+                deleteCameraViewFromActiveChapter
+              }
             />
 
-            <ChapterAnimationSection
+            {/* <ChapterAnimationSection
               chapter={activeChapter}
               panelSectionStyle={panelSectionStyle}
               animations={animations}
@@ -219,7 +225,7 @@ export default function ChapterTab(props) {
               updateChapterAnimationField={updateChapterAnimationField}
               playAnimationPreview={playAnimationPreview}
               stopAnimationPreview={stopAnimationPreview}
-            />
+            /> */}
 
             <ChapterMediaSection
               chapter={activeChapter}
