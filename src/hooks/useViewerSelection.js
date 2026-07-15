@@ -67,32 +67,40 @@ export function useViewerSelection({
     applySelectionPayload(selectionEngine.resetXray());
   };
 
-  const selectObjectFromMesh = (mesh) => {
+  const applyMeshSelection = (mesh) => {
     setXrayTargetObject(null);
     const payload = selectionEngine.selectFromMesh(mesh);
 
-    if (!payload) return;
+    if (!payload) return null;
 
     setSelectedObjectName(payload.selectedObjectName);
     setSelectedObject(payload.selectedObject);
     setOutlineObjects(payload.outlineObjects);
     setOrbitEnabled(payload.orbitEnabled);
     setIsAutoRotating(payload.isAutoRotating);
-
-    // Keep viewport selection behavior consistent with the hierarchy tree.
-    // Focusing the exact selected group also moves OrbitControls.target to
-    // the object's bounding-box center, so small parts can be zoomed closely.
-    if (payload.selectedObject) {
-      focusObject?.(payload.selectedObject);
-    } else {
-      focusTargetRef.current = payload.focusTarget || null;
-    }
+    focusTargetRef.current = payload.focusTarget || null;
 
     // Keep the active chapter editor locked while tools select other objects.
     // The tool target may change, but chapter authoring is released only by
     // the explicit Deselect action in the chapter panel.
     if (!activeChapterId) {
       setRightTab?.("info");
+    }
+
+    return payload;
+  };
+
+  const selectObjectFromMesh = (mesh) => {
+    // A single click only selects/highlights the exact raycast object.
+    // Camera focus is intentionally reserved for a double click.
+    applyMeshSelection(mesh);
+  };
+
+  const focusObjectFromMesh = (mesh) => {
+    const payload = applyMeshSelection(mesh);
+
+    if (payload?.selectedObject) {
+      focusObject?.(payload.selectedObject);
     }
   };
 
@@ -102,6 +110,7 @@ export function useViewerSelection({
     makeXrayExcept,
     resetXray,
     selectObjectFromMesh,
+    focusObjectFromMesh,
     xrayTargetObject,
   };
 }

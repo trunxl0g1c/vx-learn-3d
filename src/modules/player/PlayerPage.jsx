@@ -20,7 +20,7 @@ import {
   X,
   Copy,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import PlayerLayout from "./components/layouts/PlayerLayout";
 import HierarchyObjectTree from "../../components/sidebar/left-panels/HierarchyObjectTree";
@@ -128,6 +128,7 @@ export default function PlayerPage() {
 
   // annotation info
   const [selectedAnnotation, setSelectedAnnotation] = useState(null);
+  const chapterReturnPanelRef = useRef(null);
 
   const showBackToEditor = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -155,6 +156,42 @@ export default function PlayerPage() {
 
   const togglePanel = (panelName) => {
     setActivePanel((prev) => (prev === panelName ? null : panelName));
+  };
+
+  const restorePanelBeforeChapterDetail = () => {
+    if (activePanel !== "chapter") return;
+
+    const previousPanel = chapterReturnPanelRef.current;
+    const hasChapters =
+      (player.chapterList.material?.chapters || []).length > 0;
+
+    const nextPanel =
+      previousPanel === "chapters" && !hasChapters
+        ? "project"
+        : previousPanel;
+
+    player.chapterList.clearActiveChapter?.();
+    setActiveMedia(null);
+    setActivePanel(nextPanel || null);
+  };
+
+  const handleAnnotationClick = (annotation) => {
+    restorePanelBeforeChapterDetail();
+    setSelectedAnnotation(annotation);
+  };
+
+  const handleObjectInteraction = () => {
+    restorePanelBeforeChapterDetail();
+  };
+
+  const handleSetObjectListSelectedObject = (targetObject) => {
+    restorePanelBeforeChapterDetail();
+
+    if (!targetObject) {
+      setSelectedAnnotation(null);
+    }
+
+    player.scene.setObjectListSelectedObject?.(targetObject);
   };
 
   const handleOpenProjectPanel = () => {
@@ -190,6 +227,10 @@ export default function PlayerPage() {
   };
 
   const handleSelectChapter = (chapterId) => {
+    if (activePanel !== "chapter") {
+      chapterReturnPanelRef.current = activePanel;
+    }
+
     player.chapterList.handleSelectChapter?.(chapterId);
     setActiveMedia(null);
     setActivePanel("chapter");
@@ -277,9 +318,10 @@ export default function PlayerPage() {
       player={player}
       sidebarItems={sidebarItems}
       selectedAnnotationId={selectedAnnotation?.id || null}
-      onAnnotationClick={setSelectedAnnotation}
+      onAnnotationClick={handleAnnotationClick}
       onAnnotationClose={() => setSelectedAnnotation(null)}
       onAnnotationOpenDetail={handleOpenAnnotationDetail}
+      onObjectSelectInteraction={handleObjectInteraction}
     >
       {showBackToEditor && (
         <Button
@@ -314,7 +356,7 @@ export default function PlayerPage() {
         <PlayerObjectListFloatingPanel
           objectList={player.scene.objectList || []}
           selectedObject={player.scene.selectedObject}
-          setSelectedObject={player.scene.setObjectListSelectedObject}
+          setSelectedObject={handleSetObjectListSelectedObject}
           onClose={() => setActivePanel(null)}
           searchObject={playerObjectSearch}
           setSearchObject={setPlayerObjectSearch}
@@ -322,6 +364,7 @@ export default function PlayerPage() {
           setTreeDepth={setPlayerObjectTreeDepth}
           highlightObject={player.scene.handleSelectObjectFromPlayer}
           makeXrayExcept={player.scene.makeXrayExcept}
+          resetXray={player.scene.resetXray}
           focusObject={player.scene.focusObject}
           showAllObjects={player.toolsMenu.showAllObjects}
           hideAllObjects={player.toolsMenu.hideAllObjects}
@@ -372,6 +415,7 @@ export default function PlayerPage() {
           onResetAll={() => {
             player.settingsPanel.resetAll?.();
             setActiveMedia(null);
+            setSelectedAnnotation(null);
           }}
           onClose={() => setActivePanel(null)}
         />
@@ -739,6 +783,7 @@ function PlayerObjectListFloatingPanel({
   setTreeDepth,
   highlightObject,
   makeXrayExcept,
+  resetXray,
   focusObject,
   showAllObjects,
   hideAllObjects,
@@ -769,6 +814,7 @@ function PlayerObjectListFloatingPanel({
           setSelectedObject={setSelectedObject}
           highlightObject={highlightObject || (() => {})}
           makeXrayExcept={makeXrayExcept || (() => {})}
+          resetXray={resetXray}
           focusObject={focusObject || (() => {})}
           setSelectedObjectName={() => {}}
           treeDepth={treeDepth}

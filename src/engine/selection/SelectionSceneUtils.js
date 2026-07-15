@@ -1,3 +1,5 @@
+import { resolveObjectByStoredIndexPath } from "../model/ObjectNameOverrides"
+
 export function normalizeObjectName(name) {
   return (name || "")
     .toLowerCase()
@@ -202,30 +204,30 @@ export function resetXrayObjects(objectTree = []) {
 }
 
 export function createSelectionFromMeshPayload(mesh, objectTree = []) {
-  let selectedGroup = null
+  if (!mesh) return null
+
   const flattenedTree = flattenSelectionTree(objectTree)
+  const treeItemByObject = new Map(
+    flattenedTree.map((item) => [item.object, item]),
+  )
 
-  flattenedTree.forEach((item) => {
-    let current = mesh
+  // Resolve the deepest selectable object hit by the raycast. The previous
+  // implementation iterated every tree item and could keep replacing the
+  // result with a higher ancestor, which made clicks select the parent group.
+  let selectedObject = mesh
 
-    while (current) {
-      if (current === item.object) {
-        selectedGroup = item.object
-        break
-      }
+  while (selectedObject && !treeItemByObject.has(selectedObject)) {
+    selectedObject = selectedObject.parent
+  }
 
-      current = current.parent
-    }
-  })
+  if (!selectedObject) return null
 
-  if (!selectedGroup) return null
-
-  const selectedItem = flattenedTree.find((item) => item.object === selectedGroup)
+  const selectedItem = treeItemByObject.get(selectedObject)
 
   return {
-    selectedObject: selectedGroup,
+    selectedObject,
     selectedObjectName: (selectedItem?.name || "Unnamed Object").replaceAll("_", " "),
-    outlineObjects: collectMeshes(selectedGroup),
+    outlineObjects: collectMeshes(selectedObject),
     orbitEnabled: true,
     focusTarget: null,
     isAutoRotating: false,
@@ -278,7 +280,11 @@ export function createChapterHighlightPayload(chapter, scene) {
   }
 
   const targetObject =
-    findObjectByIndexPath(scene, chapter?.objectPath) ||
+    resolveObjectByStoredIndexPath(
+      scene,
+      chapter?.objectPath,
+      chapter?.objectName,
+    ) ||
     (chapter?.objectUuid
       ? scene.getObjectByProperty?.("uuid", chapter.objectUuid)
       : null) ||
@@ -289,7 +295,7 @@ export function createChapterHighlightPayload(chapter, scene) {
 
 export function createPlayerObjectSelectionPayload(object, chapters = []) {
   const selection = createSelectionPayload(object)
-  const chapter = findChapterForObject(object, chapters)
+  const chapter = findExactChapterForObject(object, chapters)
 
   return {
     ...selection,

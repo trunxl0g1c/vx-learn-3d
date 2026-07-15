@@ -11,6 +11,7 @@ export default function PlayerLayout({
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
+  onObjectSelectInteraction,
 }) {
   const backgroundStyle = getViewerBackgroundStyle(
     player?.scene?.viewerSettings,
@@ -41,6 +42,7 @@ export default function PlayerLayout({
           onAnnotationClick={onAnnotationClick}
           onAnnotationClose={onAnnotationClose}
           onAnnotationOpenDetail={onAnnotationOpenDetail}
+          onObjectSelectInteraction={onObjectSelectInteraction}
         />
 
         {showSidebar && <PlayerSidebar items={sidebarItems} />}

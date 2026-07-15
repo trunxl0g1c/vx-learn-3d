@@ -23,6 +23,7 @@ export default function EditorViewport({ controller }) {
     markerMode,
     setMarkerMode,
     selectObjectFromMesh,
+    focusObjectFromMesh,
 
     selectedAnimations,
     setSelectedAnimations,
@@ -71,6 +72,7 @@ export default function EditorViewport({ controller }) {
     searchObject,
     setSearchObject,
     hideAllObjects,
+    renameObject,
 
     material,
     setMaterial,
@@ -133,6 +135,7 @@ export default function EditorViewport({ controller }) {
         handleModelLoaded={handleModelLoaded}
         markerMode={markerMode}
         selectObjectFromMesh={selectObjectFromMesh}
+        focusObjectFromMesh={focusObjectFromMesh}
         selectedAnimations={selectedAnimations}
         animationCommand={animationCommand}
         setAnimations={setAnimations}
@@ -186,6 +189,7 @@ export default function EditorViewport({ controller }) {
         setSelectedObject={setSelectedObject}
         highlightObject={highlightObject}
         makeXrayExcept={makeXrayExcept}
+        resetXray={resetXray}
         focusObject={focusObject}
         markers={markers}
         setSelectedObjectName={setSelectedObjectName}
@@ -197,6 +201,7 @@ export default function EditorViewport({ controller }) {
         showAllObjects={showAllObjects}
         hideAllObjects={hideAllObjects}
         setRightTab={setRightTab}
+        renameObject={renameObject}
         material={material}
         setMaterial={setMaterial}
         selectedObjectName={selectedObjectName}

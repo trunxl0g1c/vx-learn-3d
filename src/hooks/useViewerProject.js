@@ -48,6 +48,7 @@ function createInitialMaterial() {
     availableOnMarketplace: false,
     modelUrl: "",
     chapters: [],
+    objectNameOverrides: [],
   };
 }
 

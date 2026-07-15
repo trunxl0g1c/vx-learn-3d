@@ -13,28 +13,30 @@ function createSelectedObjectInfo(object, chapters = []) {
   const meshes = collectMeshes(object)
   const normalizedName = object.name || object.type || "Selected Object"
 
-  let matchedChapter = null
-  let current = object
+  const objectUuid = String(object.uuid || "").trim()
+  const objectName = (object.name || "")
+    .toLowerCase()
+    .replaceAll("_", " ")
+    .replace(/\s+/g, " ")
+    .trim()
 
-  while (current && !matchedChapter) {
-    matchedChapter = chapters.find((chapter) => {
-      const chapterObjectName = (chapter.objectName || "")
-        .toLowerCase()
-        .replaceAll("_", " ")
-        .replace(/\s+/g, " ")
-        .trim()
+  const matchedChapter = chapters.find((chapter) => {
+    const chapterObjectUuid = String(
+      chapter?.objectUuid || chapter?.objectUUID || "",
+    ).trim()
 
-      const objectName = (current.name || "")
-        .toLowerCase()
-        .replaceAll("_", " ")
-        .replace(/\s+/g, " ")
-        .trim()
+    if (objectUuid && chapterObjectUuid && chapterObjectUuid === objectUuid) {
+      return true
+    }
 
-      return chapterObjectName && chapterObjectName === objectName
-    })
+    const chapterObjectName = (chapter.objectName || "")
+      .toLowerCase()
+      .replaceAll("_", " ")
+      .replace(/\s+/g, " ")
+      .trim()
 
-    current = current.parent
-  }
+    return objectName && chapterObjectName === objectName
+  })
 
   return {
     name: normalizedName,

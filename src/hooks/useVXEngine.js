@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import { createVXEngine } from "../engine"
-import { buildObjectTree } from "../utils/objectTreeUtils"
+import { buildObjectTree, buildObjectTreeList } from "../utils/objectTreeUtils"
 
 export function useVXEngine(options = {}) {
   return useMemo(
@@ -9,6 +9,7 @@ export function useVXEngine(options = {}) {
         ...options,
         model: {
           buildObjectTree,
+          buildObjectTreeList,
           ...(options.model || {}),
         },
       }),

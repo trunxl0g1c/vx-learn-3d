@@ -14,6 +14,7 @@ export default function EditorLeftSidebar({
   setSelectedObject,
   highlightObject,
   makeXrayExcept,
+  resetXray,
   focusObject,
   markers,
   setSelectedObjectName,
@@ -25,6 +26,7 @@ export default function EditorLeftSidebar({
   showAllObjects,
   hideAllObjects,
   setRightTab,
+  renameObject,
 
   material,
   setMaterial,
@@ -97,6 +99,7 @@ export default function EditorLeftSidebar({
             selectedObject={selectedObject}
             highlightObject={highlightObject}
             makeXrayExcept={makeXrayExcept}
+            resetXray={resetXray}
             focusObject={focusObject}
             markers={markers}
             setSelectedObjectName={setSelectedObjectName}
@@ -109,6 +112,7 @@ export default function EditorLeftSidebar({
             hideAllObjects={hideAllObjects}
             setSelectedObject={setSelectedObject}
             setRightTab={activeChapterId ? undefined : setRightTab}
+            renameObject={renameObject}
           />
         )}
 

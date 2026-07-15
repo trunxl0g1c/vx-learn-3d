@@ -3,4 +3,5 @@ export const createDefaultMaterial = () => ({
   title: "Materi 3D Baru",
   modelUrl: "",
   chapters: [],
+  objectNameOverrides: [],
 });
