@@ -1,4 +1,10 @@
 import * as THREE from "three"
+import {
+  applyModelShaderMode,
+  captureOriginalModelMaterial,
+  cloneModelMaterial,
+  syncSketchEdgeVisibility,
+} from "./ModelSceneUtils"
 
 export function computeModelBounds(scene) {
   if (!scene) return null
@@ -83,9 +89,24 @@ export function createModelEngine(options = {}) {
     scene.traverse((child) => {
       if (!child.isMesh || !child.material) return
 
-      child.material.envMapIntensity = viewerSettings.envIntensity ?? 3
-      child.material.needsUpdate = true
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material]
+
+      materials.forEach((material) => {
+        if (!material) return
+
+        if ("envMapIntensity" in material) {
+          material.envMapIntensity = viewerSettings.envIntensity ?? 0.8
+        }
+
+        material.needsUpdate = true
+      })
     })
+  }
+
+  const applyShaderMode = (viewerSettings = {}) => {
+    return applyModelShaderMode(scene, viewerSettings)
   }
 
   const createObjectList = () => {
@@ -123,8 +144,11 @@ export function createModelEngine(options = {}) {
       if (!child.isMesh) return
 
       if (child.material) {
-        child.material = child.material.clone()
-        child.userData.originalMaterial = child.material
+        const originalMaterial = captureOriginalModelMaterial(child)
+
+        if (originalMaterial) {
+          child.material = cloneModelMaterial(originalMaterial)
+        }
       }
 
       originalPositions.push({
@@ -558,6 +582,8 @@ export function createModelEngine(options = {}) {
         child.visible = false
       }
     })
+
+    syncSketchEdgeVisibility(scene)
   }
 
   const pullApart = (targetObject = null, options = {}) => {
@@ -646,6 +672,8 @@ export function createModelEngine(options = {}) {
     scene.traverse((child) => {
       child.visible = true
     })
+
+    syncSketchEdgeVisibility(scene)
   }
 
   const hideAllObjects = () => {
@@ -723,6 +751,7 @@ export function createModelEngine(options = {}) {
     initialize,
     createObjectList,
     applyViewerMaterialSettings,
+    applyShaderMode,
     captureOriginalTransforms,
     computeBounds: () => computeModelBounds(scene),
     createBoundsMap: () => createModelBoundsMap(scene),

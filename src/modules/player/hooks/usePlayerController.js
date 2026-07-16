@@ -5,6 +5,7 @@ import {
   applyModelShaderMode,
   applyObjectNameOverrides,
   initializePlayerModelScene,
+  releaseGeneratedModelMaterial,
 } from "../../../engine/model"
 import { createPlayerObjectSelectionPayload } from "../../../engine/selection"
 import { buildObjectTreeList } from "../../../utils/objectTreeUtils"
@@ -17,59 +18,6 @@ import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
 
 const DEFAULT_PLAYER_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1)
-
-function getMaterialList(material) {
-  if (!material) return []
-
-  return Array.isArray(material) ? material.filter(Boolean) : [material]
-}
-
-function clonePlayerMaterial(material) {
-  if (Array.isArray(material)) {
-    return material.map((item) => item?.clone?.() || item)
-  }
-
-  return material?.clone?.() || material
-}
-
-function applyPlayerPbrSettings(material, settings = {}) {
-  const envIntensity = Number.isFinite(Number(settings.envIntensity))
-    ? Number(settings.envIntensity)
-    : 0.8
-  const metalness = Number.isFinite(Number(settings.metalness))
-    ? Number(settings.metalness)
-    : 0.1
-  const roughness = Number.isFinite(Number(settings.roughness))
-    ? Number(settings.roughness)
-    : 0.1
-
-  getMaterialList(material).forEach((item) => {
-    if (!item) return
-
-    if ("envMapIntensity" in item) item.envMapIntensity = envIntensity
-    if ("metalness" in item) item.metalness = metalness
-    if ("roughness" in item) item.roughness = roughness
-
-    item.needsUpdate = true
-  })
-}
-
-function restorePlayerSceneMaterials(scene, settings = {}) {
-  if (!scene) return
-
-  scene.traverse((child) => {
-    if (!child.isMesh) return
-
-    const originalMaterial = child.userData?.originalMaterial
-
-    if (originalMaterial) {
-      child.material = clonePlayerMaterial(originalMaterial)
-    }
-
-    applyPlayerPbrSettings(child.material, settings)
-    child.renderOrder = 0
-  })
-}
 
 function findObjectByReference(scene, reference) {
   if (!scene || !reference) return null
@@ -124,6 +72,8 @@ export default function usePlayerController() {
   const [showInfoPanel, setShowInfoPanel] = useState(false)
 
   const [outlineObjects, setOutlineObjects] = useState([])
+  const [shaderOutlineObjects, setShaderOutlineObjects] = useState([])
+  const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [selectedObject, setSelectedObject] = useState(null)
   const [originalPositions, setOriginalPositions] = useState([])
   const [originalGroupPositions, setOriginalGroupPositions] = useState([])
@@ -220,23 +170,20 @@ export default function usePlayerController() {
   })
 
   useEffect(() => {
-    if (!modelScene) return
+    if (!modelScene) {
+      setShaderOutlineObjects([])
+      setShaderOutlineStyle(null)
+      return
+    }
 
-    applyModelShaderMode(modelScene, viewerSettings)
+    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
+    setShaderOutlineObjects(shaderState.outlineObjects)
+    setShaderOutlineStyle(shaderState.outlineStyle || null)
 
     if (window.__PLAYER_RENDERER__) {
       window.__PLAYER_RENDERER__.toneMappingExposure =
         viewerSettings.exposure
     }
-
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
-
-      if (child.material) {
-        child.material.envMapIntensity = viewerSettings.envIntensity ?? 3
-        child.material.needsUpdate = true
-      }
-    })
   }, [viewerSettings, modelScene])
 
   const createPlayerObjectList = (scene) => {
@@ -341,6 +288,13 @@ export default function usePlayerController() {
     }),
   )
 
+  const restorePlayerRenderMode = () => {
+    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
+    setShaderOutlineObjects(shaderState.outlineObjects)
+
+    return shaderState
+  }
+
   const isObjectInsideTarget = (object, targetObject) => {
     let current = object
 
@@ -359,10 +313,9 @@ export default function usePlayerController() {
       return
     }
 
-    // Restore directly from the immutable GLB material cache. This is more
-    // reliable than re-applying a shader mode after object-list xray because
-    // several meshes may currently share the temporary xray material.
-    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    // Restore the active project render mode from the immutable GLB material
+    // cache so Toon/Clay/2D remain active after object-list X-Ray is cleared.
+    restorePlayerRenderMode()
 
     setSelectedObject(null)
     setOutlineObjects([])
@@ -376,7 +329,7 @@ export default function usePlayerController() {
 
     // Always start from the original material cache before applying xray so
     // repeated Select/Deselect operations cannot leave stale xray materials.
-    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    restorePlayerRenderMode()
 
     const outlineMeshes = []
 
@@ -394,7 +347,9 @@ export default function usePlayerController() {
         return
       }
 
+      releaseGeneratedModelMaterial(child)
       child.material = xrayMaterialRef.current
+      child.userData.__vxGeneratedShaderMaterial = false
       child.renderOrder = 0
       child.material.needsUpdate = true
     })
@@ -426,7 +381,7 @@ export default function usePlayerController() {
   const resetAllPlayerView = () => {
     playerFreePlay.resetAllTransforms?.()
     playerFreePlay.resetSection?.()
-    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    restorePlayerRenderMode()
     setSelectedObject(null)
     setOutlineObjects([])
     setActiveChapterId(null)
@@ -468,6 +423,8 @@ export default function usePlayerController() {
 
     setOriginalPositions(modelInit.originalPositions)
     setOriginalGroupPositions(modelInit.originalGroupPositions)
+    setShaderOutlineObjects(modelInit.shaderOutlineObjects || [])
+    setShaderOutlineStyle(modelInit.shaderOutlineStyle || null)
 
     // Initial player load must show the full model overview.
     // Chapter selection, object highlight, and camera focus happen only after
@@ -495,7 +452,7 @@ export default function usePlayerController() {
     if (!chapter) return
 
     playerFreePlay.resetVisualState?.()
-    restorePlayerSceneMaterials(modelScene, viewerSettings)
+    restorePlayerRenderMode()
     setSelectedObject(null)
     setOutlineObjects([])
 
@@ -594,6 +551,8 @@ export default function usePlayerController() {
       modelScene,
       viewerSettings,
       outlineObjects,
+      shaderOutlineObjects,
+      shaderOutlineStyle,
       setOutlineObjects,
       setSelectedObject,
       cameraRef,

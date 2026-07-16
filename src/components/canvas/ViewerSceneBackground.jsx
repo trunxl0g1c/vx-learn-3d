@@ -57,6 +57,45 @@ function createRadialGradientTexture(background, width, height) {
   return texture;
 }
 
+function createLinearGradientTexture(background, width, height) {
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext("2d");
+
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const angle = (Number(background.linearRotation || 0) * Math.PI) / 180;
+  const directionX = Math.sin(angle);
+  const directionY = -Math.cos(angle);
+  const halfLength =
+    Math.abs(directionX) * (canvas.width / 2) +
+    Math.abs(directionY) * (canvas.height / 2);
+
+  const startX = centerX - directionX * halfLength;
+  const startY = centerY - directionY * halfLength;
+  const endX = centerX + directionX * halfLength;
+  const endY = centerY + directionY * halfLength;
+
+  const widthRatio = Math.min(1, Math.max(0.05, Number(background.linearWidth || 0.35)));
+  const positionRatio = Math.min(1, Math.max(0, Number(background.linearPosition ?? 0.5)));
+  const halfWidth = widthRatio / 2;
+  const startStop = Math.max(0, positionRatio - halfWidth);
+  const endStop = Math.min(1, positionRatio + halfWidth);
+
+  const gradient = context.createLinearGradient(startX, startY, endX, endY);
+  gradient.addColorStop(0, background.linearStartColor);
+  gradient.addColorStop(startStop, background.linearStartColor);
+  gradient.addColorStop(endStop, background.linearEndColor);
+  gradient.addColorStop(1, background.linearEndColor);
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function drawImageFit(context, image, fit, width, height) {
   if (fit === "stretch") {
     context.drawImage(image, 0, 0, width, height);
@@ -120,6 +159,10 @@ function createSceneBackground(background, width, height, onReady) {
     return new THREE.Color(background.solidColor);
   }
 
+  if (background.type === "linearGradient") {
+    return createLinearGradientTexture(background, width, height);
+  }
+
   if (background.type === "image" && background.imageUrl) {
     return createImageBackgroundTexture(background, width, height, onReady);
   }
@@ -133,11 +176,16 @@ function disposeSceneBackground(background) {
   }
 }
 
-export default function ViewerSceneBackground({ viewerSettings }) {
+export default function ViewerSceneBackground({
+  viewerSettings,
+  backgroundOverrideColor = null,
+}) {
   const { scene, size, invalidate } = useThree();
   const ownedBackgroundRef = useRef(null);
   const background = getViewerBackground(viewerSettings);
-  const showHdriBackground = Boolean(viewerSettings?.showHdriBackground);
+  const hasBackgroundOverride = Boolean(backgroundOverrideColor);
+  const showHdriBackground =
+    !hasBackgroundOverride && Boolean(viewerSettings?.showHdriBackground);
 
   useEffect(() => {
     if (showHdriBackground) {
@@ -150,21 +198,26 @@ export default function ViewerSceneBackground({ viewerSettings }) {
     let disposed = false;
 
     if (typeof window !== "undefined") {
-      window.__VX_VIEWER_BACKGROUND_READY__ = background.type !== "image" || !background.imageUrl;
+      window.__VX_VIEWER_BACKGROUND_READY__ =
+        hasBackgroundOverride ||
+        background.type !== "image" ||
+        !background.imageUrl;
     }
 
-    const nextBackground = createSceneBackground(
-      background,
-      size.width,
-      size.height,
-      () => {
-        if (typeof window !== "undefined") {
-          window.__VX_VIEWER_BACKGROUND_READY__ = true;
-        }
+    const nextBackground = hasBackgroundOverride
+      ? new THREE.Color(backgroundOverrideColor)
+      : createSceneBackground(
+          background,
+          size.width,
+          size.height,
+          () => {
+            if (typeof window !== "undefined") {
+              window.__VX_VIEWER_BACKGROUND_READY__ = true;
+            }
 
-        if (!disposed) invalidate();
-      },
-    );
+            if (!disposed) invalidate();
+          },
+        );
 
     disposeSceneBackground(ownedBackgroundRef.current);
     ownedBackgroundRef.current = nextBackground?.isTexture ? nextBackground : null;
@@ -189,6 +242,8 @@ export default function ViewerSceneBackground({ viewerSettings }) {
     scene,
     invalidate,
     showHdriBackground,
+    hasBackgroundOverride,
+    backgroundOverrideColor,
     size.width,
     size.height,
     background.type,
@@ -197,6 +252,11 @@ export default function ViewerSceneBackground({ viewerSettings }) {
     background.edgeColor,
     background.intensity,
     background.size,
+    background.linearStartColor,
+    background.linearEndColor,
+    background.linearWidth,
+    background.linearPosition,
+    background.linearRotation,
     background.imageUrl,
     background.imageFit,
     background.imageOpacity,

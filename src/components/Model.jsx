@@ -4,6 +4,23 @@ import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.j
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
+function applyAnimationActionConfig(action, config = {}) {
+  if (!action) return;
+
+  const speed = Number(config.speed);
+  action.setEffectiveTimeScale(
+    Number.isFinite(speed) && speed > 0 ? speed : 1,
+  );
+
+  if (config.loop) {
+    action.setLoop(THREE.LoopRepeat, Infinity);
+    action.clampWhenFinished = false;
+  } else {
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+  }
+}
+
 function Model({
   modelUrl,
   onAddMarker,
@@ -78,14 +95,7 @@ function Model({
         action.enabled = true;
         action.reset();
 
-        if (config.loop) {
-          action.setLoop(THREE.LoopRepeat, Infinity);
-          action.clampWhenFinished = false;
-        } else {
-          action.setLoop(THREE.LoopOnce, 1);
-          action.clampWhenFinished = true;
-        }
-
+        applyAnimationActionConfig(action, config);
         action.play();
       });
     }
@@ -106,14 +116,7 @@ function Model({
         action.enabled = true;
         action.reset();
 
-        if (config.loop) {
-          action.setLoop(THREE.LoopRepeat, Infinity);
-          action.clampWhenFinished = false;
-        } else {
-          action.setLoop(THREE.LoopOnce, 1);
-          action.clampWhenFinished = true;
-        }
-
+        applyAnimationActionConfig(action, config);
         action.play();
       });
     }
@@ -139,10 +142,21 @@ function Model({
 
     if (animationCommand.type === "setSpeed") {
       const speed = Number(animationCommand.speed) || 1;
+      const targetName = animationCommand.animationName;
 
-      Object.values(actionsRef.current).forEach((action) => {
+      Object.entries(actionsRef.current).forEach(([name, action]) => {
+        if (targetName && name !== targetName) return;
         action.setEffectiveTimeScale(speed);
       });
+    }
+
+    if (animationCommand.type === "updateAnimationConfig") {
+      const animationName = animationCommand.animationName;
+      const action = actionsRef.current[animationName];
+
+      if (action) {
+        applyAnimationActionConfig(action, animationCommand.config);
+      }
     }
 
     if (animationCommand.type === "stop") {
@@ -151,12 +165,13 @@ function Model({
         action.reset();
         action.enabled = false;
         action.paused = false;
+        action.setEffectiveTimeScale(1);
       });
 
       mixerRef.current?.setTime(0);
       mixerRef.current?.update(0);
     }
-  }, [animationCommand, selectedAnimations]);
+  }, [animationCommand]);
 
   useFrame((_, delta) => {
     mixerRef.current?.update(delta);

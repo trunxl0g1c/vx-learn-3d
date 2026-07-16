@@ -19,6 +19,7 @@ export default function usePlayerAnimation(activeChapter) {
       next[name] = {
         selected: true,
         loop: Boolean(animation?.loop),
+        speed: Number(animation?.speed) || 1,
       }
     })
 

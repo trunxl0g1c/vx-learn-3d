@@ -22,6 +22,22 @@ import { findExactChapterForObject } from "../../engine/selection";
 
 const GENERATED_ANNOTATION_COLOR = "#0ea5d8";
 
+function getShaderOutlineConfig(shaderOutlineStyle) {
+  if (shaderOutlineStyle === "sketch") {
+    return {
+      edgeStrength: 2,
+      visibleEdgeColor: "#111111",
+      hiddenEdgeColor: "#ffffff",
+    };
+  }
+
+  return {
+    edgeStrength: 2.5,
+    visibleEdgeColor: "#172033",
+    hiddenEdgeColor: "#172033",
+  };
+}
+
 function isMeaningfulSceneObject(object) {
   return Boolean(
     object &&
@@ -839,6 +855,8 @@ export default function PlayerSceneCanvas({
   modelScene,
   viewerSettings,
   outlineObjects,
+  shaderOutlineObjects = [],
+  shaderOutlineStyle = null,
   cameraRef,
   controlsRef,
   focusTargetRef,
@@ -891,10 +909,16 @@ export default function PlayerSceneCanvas({
     );
   }
 
+  const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle);
+  const isSketchMode = shaderOutlineStyle === "sketch";
+  const canvasStyle = isSketchMode
+    ? { background: "#ffffff" }
+    : getViewerBackgroundStyle(viewerSettings);
+
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
-      style={getViewerBackgroundStyle(viewerSettings)}
+      style={canvasStyle}
       gl={{
         alpha: true,
         localClippingEnabled: true,
@@ -909,9 +933,22 @@ export default function PlayerSceneCanvas({
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
-      <ViewerSceneBackground viewerSettings={viewerSettings} />
+      <ViewerSceneBackground
+        viewerSettings={viewerSettings}
+        backgroundOverrideColor={isSketchMode ? "#ffffff" : null}
+      />
 
       <EffectComposer autoClear={false}>
+        {shaderOutlineObjects.length > 0 && (
+          <Outline
+            selection={shaderOutlineObjects}
+            edgeStrength={shaderOutlineConfig.edgeStrength}
+            visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
+            hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
+            blur={false}
+          />
+        )}
+
         {outlineObjects.length > 0 && (
           <Outline
             selection={outlineObjects}
@@ -925,17 +962,19 @@ export default function PlayerSceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings?.hdriSource === "custom" &&
-      viewerSettings?.customHdri?.dataUrl ? (
-        <CustomHdriEnvironment viewerSettings={viewerSettings} />
-      ) : (
-        viewerSettings.hdri && (
-          <Environment
-            files={viewerSettings.hdri}
-            background={viewerSettings.showHdriBackground}
-            environmentIntensity={viewerSettings.envIntensity}
-            backgroundIntensity={viewerSettings.envIntensity}
-          />
+      {!isSketchMode && (
+        viewerSettings?.hdriSource === "custom" &&
+        viewerSettings?.customHdri?.dataUrl ? (
+          <CustomHdriEnvironment viewerSettings={viewerSettings} />
+        ) : (
+          viewerSettings.hdri && (
+            <Environment
+              files={viewerSettings.hdri}
+              background={viewerSettings.showHdriBackground}
+              environmentIntensity={viewerSettings.envIntensity}
+              backgroundIntensity={viewerSettings.envIntensity}
+            />
+          )
         )
       )}
 

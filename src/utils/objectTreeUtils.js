@@ -1,7 +1,11 @@
 const IGNORED_OBJECT_TREE_TYPES = new Set(["Bone"])
 
 export const isObjectTreeNode = (object) => {
-  return Boolean(object && !IGNORED_OBJECT_TREE_TYPES.has(object.type))
+  return Boolean(
+    object &&
+    !object.userData?.__vxInternal &&
+    !IGNORED_OBJECT_TREE_TYPES.has(object.type),
+  )
 }
 
 export const resolveObjectTreeRoot = (scene) => {

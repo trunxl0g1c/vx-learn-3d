@@ -20,6 +20,21 @@ import ViewerSceneBackground from './ViewerSceneBackground'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 
+function getShaderOutlineConfig(shaderOutlineStyle) {
+  if (shaderOutlineStyle === 'sketch') {
+    return {
+      edgeStrength: 2,
+      visibleEdgeColor: '#111111',
+      hiddenEdgeColor: '#ffffff',
+    }
+  }
+
+  return {
+    edgeStrength: 2.5,
+    visibleEdgeColor: '#172033',
+    hiddenEdgeColor: '#172033',
+  }
+}
 
 function RenderSettingsSync({ viewerSettings }) {
   const { gl, scene, invalidate } = useThree()
@@ -44,6 +59,8 @@ export default function SceneCanvas({
   focusTargetRef,
   viewerSettings,
   outlineObjects,
+  shaderOutlineObjects = [],
+  shaderOutlineStyle = null,
   modelUrl,
   addMarker,
   handleModelLoaded,
@@ -69,10 +86,16 @@ export default function SceneCanvas({
   setSelectedObjectName,
 }) {
   const modelRootRef = useRef(null)
+  const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle)
+  const isSketchMode = shaderOutlineStyle === 'sketch'
+  const canvasStyle = isSketchMode
+    ? { background: '#ffffff' }
+    : getViewerBackgroundStyle(viewerSettings)
+
   return (
     <Canvas
       camera={{ position: [0, 0, 5] }}
-      style={getViewerBackgroundStyle(viewerSettings)}
+      style={canvasStyle}
       gl={{
         alpha: true,
         preserveDrawingBuffer: true,
@@ -93,9 +116,22 @@ export default function SceneCanvas({
       }}
     >
       <RenderSettingsSync viewerSettings={viewerSettings} />
-      <ViewerSceneBackground viewerSettings={viewerSettings} />
+      <ViewerSceneBackground
+        viewerSettings={viewerSettings}
+        backgroundOverrideColor={isSketchMode ? '#ffffff' : null}
+      />
 
       <EffectComposer autoClear={false}>
+        {shaderOutlineObjects.length > 0 && (
+          <Outline
+            selection={shaderOutlineObjects}
+            edgeStrength={shaderOutlineConfig.edgeStrength}
+            visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
+            hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
+            blur={false}
+          />
+        )}
+
         {outlineObjects.length > 0 && (
           <Outline
             selection={outlineObjects}
@@ -109,16 +145,18 @@ export default function SceneCanvas({
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
-      {viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
-        <CustomHdriEnvironment viewerSettings={viewerSettings} />
-      ) : (
-        viewerSettings.hdri && (
-          <Environment
-            files={viewerSettings.hdri}
-            background={viewerSettings.showHdriBackground}
-            environmentIntensity={viewerSettings.envIntensity}
-            backgroundIntensity={viewerSettings.envIntensity}
-          />
+      {!isSketchMode && (
+        viewerSettings?.hdriSource === "custom" && viewerSettings?.customHdri?.dataUrl ? (
+          <CustomHdriEnvironment viewerSettings={viewerSettings} />
+        ) : (
+          viewerSettings.hdri && (
+            <Environment
+              files={viewerSettings.hdri}
+              background={viewerSettings.showHdriBackground}
+              environmentIntensity={viewerSettings.envIntensity}
+              backgroundIntensity={viewerSettings.envIntensity}
+            />
+          )
         )
       )}
 
@@ -164,6 +202,7 @@ export default function SceneCanvas({
                     initial[clip.name] = {
                       selected: false,
                       loop: false,
+                      speed: 1,
                     }
                   })
 

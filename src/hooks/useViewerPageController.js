@@ -308,13 +308,17 @@ export function useViewerPageController() {
 
   const {
     shaderMode,
+    shaderOutlineObjects,
+    shaderOutlineStyle,
     metalness,
     setMetalness,
     roughness,
     setRoughness,
     applyShaderMode,
+    restoreShaderMode,
     updateEnvIntensity,
   } = useShaderManager({
+    vxEngine,
     modelScene,
     viewerSettings,
     setViewerSettings: updateViewerSettings,
@@ -351,6 +355,7 @@ export function useViewerPageController() {
     setIsAutoRotating,
     setRightTab,
     activeChapterId,
+    restoreShaderMode,
   });
 
   const {
@@ -717,6 +722,8 @@ export function useViewerPageController() {
     savePackageStatus,
     applyShaderMode,
     shaderMode,
+    shaderOutlineObjects,
+    shaderOutlineStyle,
     metalness,
     setMetalness,
     roughness,
