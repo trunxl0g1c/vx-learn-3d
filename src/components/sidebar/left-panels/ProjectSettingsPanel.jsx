@@ -9,7 +9,8 @@ import {
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
 import ColorFieldInput from "./attributes/ColorFieldInput";
-import { useAlert } from "../../dialog/AlertContext";
+import InlineAlert from "../../ui/inline-alert";
+import { useState } from "react";
 
 const HDRI_PRESETS = [
   { label: "None", value: "" },
@@ -129,12 +130,20 @@ export default function ProjectSettingsPanel({
   viewerSettings,
   setViewerSettings,
 }) {
-  const { showAlert } = useAlert();
-
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
   const background = getViewerBackground(viewerSettings);
   const hdri = normalizeViewerHdri(viewerSettings);
+
+  const [panelError, setPanelError] = useState("");
+
+  const showPanelError = (message) => {
+    setPanelError(message);
+  };
+
+  const clearPanelError = () => {
+    setPanelError("");
+  };
 
   const updateBackground = (patch) => {
     setViewerSettings?.((prev) => ({
@@ -161,13 +170,6 @@ export default function ProjectSettingsPanel({
       lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
 
     if (!isSupported) {
-      showAlert({
-        title: "Unsupported HDRI File",
-        message: "File HDRI harus berformat .hdr atau .exr.",
-        type: "warning",
-        confirmText: "Understand",
-      });
-
       return;
     }
 
@@ -200,7 +202,7 @@ export default function ProjectSettingsPanel({
     if (!file) return;
 
     if (!file.type?.startsWith("image/")) {
-      alert("Thumbnail harus berupa file gambar.");
+      alert("Thumbnail must be an image.");
       return;
     }
 
@@ -221,7 +223,7 @@ export default function ProjectSettingsPanel({
         type: "image/jpeg",
       });
     } catch (error) {
-      alert(error?.message || "Gagal mengambil thumbnail dari viewport.");
+      alert(error?.message || "Failed to capture viewport.");
     }
   };
 
@@ -265,6 +267,13 @@ export default function ProjectSettingsPanel({
       </div>
 
       <div className="flex-1 space-y-6 overflow-auto p-4">
+        <InlineAlert
+          type="error"
+          message={panelError}
+          duration={3000}
+          onClose={() => setPanelError("")}
+        />
+
         <div>
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Title
@@ -275,12 +284,14 @@ export default function ProjectSettingsPanel({
               value={material.title || ""}
               maxLength={48}
               placeholder="Project title"
-              onChange={(e) =>
-                setMaterial((prev) => ({
-                  ...prev,
-                  title: e.target.value,
-                }))
-              }
+              onChange={(event) => {
+                clearPanelError();
+
+                setMaterial((previousMaterial) => ({
+                  ...previousMaterial,
+                  title: event.target.value,
+                }));
+              }}
               className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
             />
 
@@ -305,8 +316,6 @@ export default function ProjectSettingsPanel({
             }
           />
         </div>
-
-        {/* THUMBNAIL */}
 
         <div>
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
@@ -719,7 +728,6 @@ export default function ProjectSettingsPanel({
               </>
             )}
 
-
             {background.type === "linearGradient" && (
               <>
                 <ColorFieldInput
@@ -744,9 +752,7 @@ export default function ProjectSettingsPanel({
                   min={0.05}
                   max={1}
                   step={0.05}
-                  onChange={(value) =>
-                    updateBackground({ linearWidth: value })
-                  }
+                  onChange={(value) => updateBackground({ linearWidth: value })}
                 />
 
                 <Slider

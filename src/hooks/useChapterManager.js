@@ -114,6 +114,26 @@ export function useChapterManager({
   const [savePackageTargetProgress, setSavePackageTargetProgress] = useState(0);
   const [savePackageStatus, setSavePackageStatus] = useState("");
 
+  const [chapterFeedback, setChapterFeedback] = useState(null);
+
+  const showChapterError = (message) => {
+    setChapterFeedback({
+      type: "error",
+      message,
+    });
+  };
+
+  const showChapterSuccess = (message) => {
+    setChapterFeedback({
+      type: "success",
+      message,
+    });
+  };
+
+  const clearChapterFeedback = () => {
+    setChapterFeedback(null);
+  };
+
   const progressRef = useRef(0);
 
   useEffect(() => {
@@ -149,8 +169,12 @@ export function useChapterManager({
   };
 
   const createChapterFromSelectedObject = () => {
+    clearChapterFeedback();
+
     if (!selectedObjectName) {
-      alert("Pilih object 3D dulu");
+      showChapterError(
+        "Pilih object 3D terlebih dahulu sebelum membuat chapter.",
+      );
       return;
     }
 
@@ -164,7 +188,6 @@ export function useChapterManager({
       parameters: [],
       markers: [],
       animations: [],
-
       cameraViewSaved: false,
 
       cameraPosition: cameraRef.current
@@ -197,6 +220,8 @@ export function useChapterManager({
 
     setActiveChapterId(newChapter.id);
     setRightTab("chapter");
+
+    showChapterSuccess("Chapter berhasil dibuat.");
   };
 
   const saveMaterial = async () => {
@@ -276,13 +301,17 @@ export function useChapterManager({
   };
 
   const saveVisualStateToActiveChapter = () => {
+    clearChapterFeedback();
+
     if (!activeChapterId) {
-      alert("Pilih Bab terlebih dahulu");
+      showChapterError("Choose a chapter before saving visual state.");
       return;
     }
 
     if (!modelScene) {
-      alert("Model belum siap");
+      showChapterError(
+        "3D model is not loaded. Please refresh the page and try again.",
+      );
       return;
     }
 
@@ -366,11 +395,16 @@ export function useChapterManager({
       ),
     }));
 
-    alert("Visual state berhasil disimpan ke Bab aktif");
+    showChapterSuccess("Visual state saved.");
   };
 
   const deleteVisualStateFromActiveChapter = () => {
-    if (!activeChapterId) return false;
+    clearChapterFeedback();
+
+    if (!activeChapterId) {
+      showChapterError("Choose a chapter before deleting visual state.");
+      return false;
+    }
 
     let deleted = false;
 
@@ -404,17 +438,23 @@ export function useChapterManager({
       };
     });
 
+    showChapterSuccess("Visual state deleted successfully.");
+
     return deleted;
   };
 
   const saveCameraViewToActiveChapter = () => {
+    clearChapterFeedback();
+
     if (!activeChapterId) {
-      alert("Pilih Bab terlebih dahulu");
+      showChapterError("Choose a chapter before saving camera view.");
       return;
     }
 
     if (!cameraRef.current || !controlsRef.current) {
-      alert("Camera belum siap");
+      showChapterError(
+        "Camera is not loaded. Please refresh the page and try again.",
+      );
       return;
     }
 
@@ -452,11 +492,16 @@ export function useChapterManager({
       ),
     }));
 
-    alert("Camera view berhasil disimpan ke Bab aktif");
+    showChapterSuccess("Camera view saved.");
   };
 
   const deleteCameraViewFromActiveChapter = () => {
-    if (!activeChapterId) return;
+    clearChapterFeedback();
+
+    if (!activeChapterId) {
+      showChapterError("Choose a chapter before deleting camera view.");
+      return;
+    }
 
     setMaterial((prev) => ({
       ...prev,
@@ -472,6 +517,8 @@ export function useChapterManager({
           : chapter,
       ),
     }));
+
+    showChapterSuccess("Camera view deleted successfully.");
   };
 
   const deleteMarkerFromActiveChapter = (markerId) => {
@@ -529,10 +576,12 @@ export function useChapterManager({
   };
 
   const playAnimationPreview = (chapter) => {
-    const chapterAnimations = chapter.animations || [];
+    clearChapterFeedback();
+
+    const chapterAnimations = chapter?.animations || [];
 
     if (chapterAnimations.length === 0) {
-      alert("Pilih animasi untuk bab ini terlebih dahulu");
+      showChapterError("Chapter has no animations. Please add animations.");
       return;
     }
 
@@ -698,6 +747,8 @@ export function useChapterManager({
   return {
     activeChapter,
     activeMarkers,
+    chapterFeedback,
+    clearChapterFeedback,
     createChapterFromSelectedObject,
     saveMaterial,
     isSavingPackage,

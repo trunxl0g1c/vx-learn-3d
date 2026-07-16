@@ -69,6 +69,9 @@ export default function ViewerPageLayout({ controller }) {
     activeMarkers,
     deleteCameraViewFromActiveChapter,
     deleteVisualStateFromActiveChapter,
+
+    chapterFeedback,
+    clearChapterFeedback,
   } = controller;
 
   return (
@@ -103,6 +106,8 @@ export default function ViewerPageLayout({ controller }) {
         }
       >
         <EditorRightPanel
+          chapterFeedback={chapterFeedback}
+          clearChapterFeedback={clearChapterFeedback}
           rightTab={rightTab}
           setRightTab={setRightTab}
           selectedObjectName={selectedObjectName}

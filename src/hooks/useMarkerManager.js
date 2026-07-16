@@ -1,10 +1,15 @@
-import { processLoadedMarkers, saveMarkersToFile } from '../utils/markerUtils'
+import { processLoadedMarkers, saveMarkersToFile } from "../utils/markerUtils";
 
-export function useMarkerManager({ activeChapterId, setMaterial, markers, setMarkers }) {
+export function useMarkerManager({
+  activeChapterId,
+  setMaterial,
+  markers,
+  setMarkers,
+}) {
   const addMarker = (marker) => {
     if (!activeChapterId) {
-      alert('Pilih atau buat Bab dulu sebelum menambahkan marker')
-      return
+      alert("Creaete or select a chapter first to add markers.");
+      return;
     }
 
     const fixedMarker = {
@@ -13,7 +18,7 @@ export function useMarkerManager({ activeChapterId, setMaterial, markers, setMar
         ? marker.position
         : [marker.position.x, marker.position.y, marker.position.z],
       text: marker.text,
-    }
+    };
 
     setMaterial((prev) => ({
       ...prev,
@@ -23,29 +28,29 @@ export function useMarkerManager({ activeChapterId, setMaterial, markers, setMar
               ...chapter,
               markers: [...(chapter.markers || []), fixedMarker],
             }
-          : chapter
+          : chapter,
       ),
-    }))
-  }
+    }));
+  };
 
   const loadMarkers = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0];
+    if (!file) return;
 
-    const reader = new FileReader()
+    const reader = new FileReader();
 
     reader.onload = (event) => {
-      const json = JSON.parse(event.target.result)
-      const fixedMarkers = processLoadedMarkers(json)
-      setMarkers(fixedMarkers)
-    }
+      const json = JSON.parse(event.target.result);
+      const fixedMarkers = processLoadedMarkers(json);
+      setMarkers(fixedMarkers);
+    };
 
-    reader.readAsText(file)
-  }
+    reader.readAsText(file);
+  };
 
   const saveMarkers = () => {
-    saveMarkersToFile(markers)
-  }
+    saveMarkersToFile(markers);
+  };
 
-  return { addMarker, loadMarkers, saveMarkers }
+  return { addMarker, loadMarkers, saveMarkers };
 }

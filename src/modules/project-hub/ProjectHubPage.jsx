@@ -12,7 +12,6 @@ import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
-import { useAlert } from "../../components/dialog/AlertContext";
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -20,39 +19,77 @@ function formatLastOpened(project) {
   if (!value) return "Never opened";
 
   const date = new Date(value);
+
   return `Last opened ${date.toLocaleString()}`;
 }
 
 function getAccessLabel(role) {
   if (role === "EDITOR") return "Editor Access";
   if (role === "PLAYER") return "Player Access";
+
   return "Unknown Access";
 }
 
-function getProjectThumbnail(project) {
-  return project?.thumbnail || project?.material?.thumbnail || "";
+function getGlbValidationError(validation) {
+  const errors = Array.isArray(validation?.errors)
+    ? validation.errors.filter(Boolean)
+    : [];
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  return "GLB file is not valid.";
 }
 
 export default function ProjectHubPage() {
-  const { showAlert } = useAlert();
-
-  const [glbValidation, setGlbValidation] = useState(null);
-  const [isValidatingGlb, setIsValidatingGlb] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
   const { showLoading, updateLoading } = useGlobalLoading();
+
   const [openCreate, setOpenCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
   const [file, setFile] = useState(null);
   const [createRole, setCreateRole] = useState("EDITOR");
+
   const [progress, setProgress] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [glbValidation, setGlbValidation] = useState(null);
+  const [isValidatingGlb, setIsValidatingGlb] = useState(false);
+
+  const [createProjectError, setCreateProjectError] = useState("");
+
   const [projects, setProjects] = useState([]);
   const [search, setSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState("ALL");
+
   useEffect(() => {
     getAllProjectsFromIndexedDb().then(setProjects);
   }, [location.key]);
+
+  const clearCreateProjectError = () => {
+    setCreateProjectError("");
+  };
+
+  const resetCreateProjectForm = () => {
+    setProjectName("");
+    setFile(null);
+    setCreateRole("EDITOR");
+    setGlbValidation(null);
+    setIsValidatingGlb(false);
+    setProgress(0);
+    setCreateProjectError("");
+  };
+
+  const handleCloseCreateProject = () => {
+    if (isSubmitting) return;
+
+    setOpenCreate(false);
+    resetCreateProjectForm();
+  };
+
   function handleOpenProject(project) {
     showLoading({
       title: "Opening VXplore Project",
@@ -77,85 +114,115 @@ export default function ProjectHubPage() {
   async function handleSelectGlbFile(selectedFile) {
     setFile(selectedFile);
     setGlbValidation(null);
+    setCreateProjectError("");
 
-    if (!selectedFile) return;
+    if (!selectedFile) {
+      setIsValidatingGlb(false);
+      return;
+    }
 
-    setIsValidatingGlb(true);
+    const isGlbFile = selectedFile.name.toLowerCase().endsWith(".glb");
 
-    const result = await validateGlbFile(selectedFile);
+    if (!isGlbFile) {
+      setCreateProjectError("Model file must be in .glb format.");
 
-    setGlbValidation(result);
-    setIsValidatingGlb(false);
+      setFile(null);
+      return;
+    }
+
+    try {
+      setIsValidatingGlb(true);
+
+      const result = await validateGlbFile(selectedFile);
+
+      setGlbValidation(result);
+
+      if (!result?.valid) {
+        setCreateProjectError(getGlbValidationError(result));
+      }
+    } catch (error) {
+      console.error("Error validating GLB:", error);
+
+      setGlbValidation(null);
+
+      setCreateProjectError(
+        error?.message || "Error encountered while validating GLB.",
+      );
+    } finally {
+      setIsValidatingGlb(false);
+    }
   }
 
   async function handleSubmitCreateProject() {
     if (isSubmitting) return;
 
-    if (!projectName.trim()) {
-      showAlert({
-        title: "Cek kembali isi form",
-        message: "Project name wajib diisi.",
-        type: "warning",
-        confirmText: "OK",
-      });
+    setCreateProjectError("");
 
+    if (!projectName.trim()) {
+      setCreateProjectError("Project name is required.");
       return;
     }
 
     if (!file) {
-      showAlert({
-        title: "Cek kembali isi form",
-        message: "Harap pilih file GLB terlebih dahulu.",
-        type: "warning",
-        confirmText: "OK",
-      });
-
+      setCreateProjectError("Choose a model file.");
       return;
     }
 
     if (!file.name.toLowerCase().endsWith(".glb")) {
-      alert("File harus format .glb");
+      setCreateProjectError("Model file must be in .glb format.");
       return;
     }
 
     if (isValidatingGlb) {
-      alert("GLB masih divalidasi, tunggu sebentar.");
+      setCreateProjectError(
+        "Validating GLB file. Wait for a moment.",
+      );
       return;
     }
 
     if (!glbValidation) {
-      alert("GLB belum divalidasi.");
+      setCreateProjectError("GLB file is not valid.");
       return;
     }
 
     if (!glbValidation.valid) {
-      alert("GLB tidak valid.");
+      setCreateProjectError(getGlbValidationError(glbValidation));
       return;
     }
 
-    setIsSubmitting(true);
-    setProgress(100);
+    try {
+      setIsSubmitting(true);
+      setProgress(10);
 
-    const project = createProjectRecord({
-      name: projectName.trim(),
-      file,
-      role: createRole,
-    });
+      const project = createProjectRecord({
+        name: projectName.trim(),
+        file,
+        role: createRole,
+      });
 
-    await saveProjectToIndexedDb(project, file);
+      setProgress(40);
 
-    const updatedProjects = await getAllProjectsFromIndexedDb();
-    setProjects(updatedProjects);
+      await saveProjectToIndexedDb(project, file);
 
-    setCreateRole("EDITOR");
+      setProgress(80);
 
-    setOpenCreate(false);
-    setProjectName("");
-    setFile(null);
-    setGlbValidation(null);
-    setIsValidatingGlb(false);
-    setProgress(0);
-    setIsSubmitting(false);
+      const updatedProjects = await getAllProjectsFromIndexedDb();
+
+      setProjects(updatedProjects);
+      setProgress(100);
+
+      setOpenCreate(false);
+      resetCreateProjectForm();
+    } catch (error) {
+      console.error("Gagal membuat project:", error);
+
+      setCreateProjectError(
+        error?.message || "Error encountered while creating project.",
+      );
+    } finally {
+      setIsSubmitting(false);
+      setProgress(0);
+    }
   }
 
   const filteredProjects = projects.filter((project) => {
@@ -193,7 +260,10 @@ export default function ProjectHubPage() {
 
       <ProjectHubGrid
         projects={filteredProjects}
-        onCreate={() => setOpenCreate(true)}
+        onCreate={() => {
+          setCreateProjectError("");
+          setOpenCreate(true);
+        }}
         onOpenProject={handleOpenProject}
         getAccessLabel={getAccessLabel}
         formatLastOpened={formatLastOpened}
@@ -201,12 +271,7 @@ export default function ProjectHubPage() {
 
       <CreateProjectDialog
         open={openCreate}
-        onClose={() => {
-          setOpenCreate(false);
-          setFile(null);
-          setGlbValidation(null);
-          setIsValidatingGlb(false);
-        }}
+        onClose={handleCloseCreateProject}
         projectName={projectName}
         setProjectName={setProjectName}
         file={file}
@@ -218,6 +283,8 @@ export default function ProjectHubPage() {
         onSubmit={handleSubmitCreateProject}
         progress={progress}
         isSubmitting={isSubmitting}
+        error={createProjectError}
+        onClearError={clearCreateProjectError}
       />
     </ProjectHubLayout>
   );

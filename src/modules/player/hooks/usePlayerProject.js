@@ -153,7 +153,7 @@ export default function usePlayerProject({
       }
     } catch (error) {
       console.error("Gagal membuka file player:", error)
-      alert(error.message || "Gagal membuka file player")
+      alert(error.message || "Failed to open file.")
     }
   }
 

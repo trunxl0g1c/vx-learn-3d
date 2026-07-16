@@ -8,7 +8,11 @@ import {
   inputStyle,
   mediaButtonStyle,
 } from "../constants/viewerStyles";
-import { buildObjectTreeList, getMaxTreeDepth, resolveObjectTreeRoot } from "../utils/objectTreeUtils";
+import {
+  buildObjectTreeList,
+  getMaxTreeDepth,
+  resolveObjectTreeRoot,
+} from "../utils/objectTreeUtils";
 import { useChapterManager } from "./useChapterManager";
 import { useModelManager } from "./useModelManager";
 import { useShaderManager } from "./useShaderManager";
@@ -183,14 +187,17 @@ export function useViewerPageController() {
     hideLoading,
   });
 
-  const rebuildObjectList = useCallback((scene = modelScene) => {
-    if (!scene) {
-      setObjectList([]);
-      return;
-    }
+  const rebuildObjectList = useCallback(
+    (scene = modelScene) => {
+      if (!scene) {
+        setObjectList([]);
+        return;
+      }
 
-    setObjectList(buildObjectTreeList(scene));
-  }, [modelScene]);
+      setObjectList(buildObjectTreeList(scene));
+    },
+    [modelScene],
+  );
 
   const renameObject = useCallback(
     (object, requestedName) => {
@@ -208,8 +215,9 @@ export function useViewerPageController() {
       if (objectPath.length === 0 && object !== hierarchyRoot) return false;
       if (previousName === nextName) return true;
 
-      const originalName =
-        String(object.userData?.vxOriginalObjectName || previousName).trim();
+      const originalName = String(
+        object.userData?.vxOriginalObjectName || previousName,
+      ).trim();
 
       object.userData.vxOriginalObjectName = originalName;
       object.name = nextName;
@@ -225,10 +233,7 @@ export function useViewerPageController() {
           },
         ),
         chapters: (prev?.chapters || []).map((chapter) => {
-          const samePath = areObjectPathsEqual(
-            chapter?.objectPath,
-            objectPath,
-          );
+          const samePath = areObjectPathsEqual(chapter?.objectPath, objectPath);
           const sameUuid =
             Boolean(chapter?.objectUuid) && chapter.objectUuid === object.uuid;
           const sameLegacyName =
@@ -248,12 +253,7 @@ export function useViewerPageController() {
       rebuildObjectList(modelScene);
       return true;
     },
-    [
-      modelScene,
-      rebuildObjectList,
-      selectedObject,
-      updateMaterialState,
-    ],
+    [modelScene, rebuildObjectList, selectedObject, updateMaterialState],
   );
 
   useEffect(() => {
@@ -452,6 +452,8 @@ export function useViewerPageController() {
 
   const {
     activeMarkers,
+    chapterFeedback,
+    clearChapterFeedback,
     createChapterFromSelectedObject,
     saveMaterial,
     isSavingPackage,
@@ -818,6 +820,8 @@ export function useViewerPageController() {
     deselectObject,
     deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
+    chapterFeedback,
+    clearChapterFeedback,
     ...dialogs,
   };
 }

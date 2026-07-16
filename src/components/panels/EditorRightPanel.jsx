@@ -8,6 +8,8 @@ import InfoTab from "./right-tabs/InfoTab";
 import MaterialIcon from "../ui/material-icon";
 
 export default function EditorRightPanel({
+  chapterFeedback,
+  clearChapterFeedback,
   rightTab,
   setRightTab,
   selectedObjectName,
@@ -71,6 +73,8 @@ export default function EditorRightPanel({
   const isFitHeight = isInfoTab || isPackageTab || markerMode;
 
   const tabProps = {
+    chapterFeedback,
+    clearChapterFeedback,
     selectedObjectName,
     createChapterFromSelectedObject,
     saveVisualStateToActiveChapter,

@@ -11,9 +11,12 @@ import ChapterDeselectButton from "../chapter/ChapterDeselectButton";
 import ChapterDeleteButton from "../chapter/ChapterDeleteButton";
 import Button, { cn } from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
+import InlineAlert from "../../ui/inline-alert";
 
 export default function ChapterTab(props) {
   const {
+    chapterFeedback,
+    clearChapterFeedback,
     variant = "detail",
     material,
     activeChapterId,
@@ -167,6 +170,15 @@ export default function ChapterTab(props) {
           <ChapterEmptyState />
         ) : (
           <>
+            <div className="px-4">
+              <InlineAlert
+                type={chapterFeedback?.type || "error"}
+                message={chapterFeedback?.message}
+                duration={3000}
+                onClose={clearChapterFeedback}
+              />
+            </div>
+
             <ChapterIdentitySection
               chapter={activeChapter}
               panelSectionStyle={panelSectionStyle}

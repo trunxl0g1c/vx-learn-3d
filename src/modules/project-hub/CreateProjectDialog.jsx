@@ -1,6 +1,7 @@
 import { ImageIcon, Play, SquarePen, X } from "lucide-react";
 import Button from "../../components/ui/button";
 import Input from "../../components/ui/input";
+import InlineAlert from "../../components/ui/inline-alert";
 
 export default function CreateProjectDialog({
   open,
@@ -16,6 +17,8 @@ export default function CreateProjectDialog({
   isSubmitting,
   glbValidation,
   isValidatingGlb,
+  error,
+  onClearError,
 }) {
   if (!open) return null;
 
@@ -82,26 +85,38 @@ export default function CreateProjectDialog({
           </>
         ) : (
           <>
-            <div className="px-5 pb-5 pt-4 space-y-6">
-              <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-                Project Name
-              </label>
+            <div className="space-y-6 px-5 pb-5 pt-4">
+              <InlineAlert type="error" message={error} />
 
-              <div className="relative">
-                <Input
-                  value={projectName}
-                  maxLength={16}
-                  placeholder="Type project name here"
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  disabled={isSubmitting}
-                  className="h-[44px] rounded-lg bg-dark-alpha!"
-                  inputClassName="text-sm italic"
-                />
+              <div className="space-y-2">
+                <label className="block text-sm font-normal text-contrast-grayout">
+                  Project Name
+                </label>
 
-                <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
-                  {projectName.length}/16
-                </span>
+                <div className="relative">
+                  <Input
+                    value={projectName}
+                    maxLength={16}
+                    placeholder="Type project name here"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onChange={(event) => {
+                      setProjectName(event.target.value);
+                      onClearError?.();
+                    }}
+                    disabled={isSubmitting}
+                    className={[
+                      "h-[44px] rounded-lg bg-dark-alpha!",
+                      error ? "border-warning-main!" : "",
+                    ].join(" ")}
+                    inputClassName="text-sm italic"
+                  />
+
+                  <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
+                    {projectName.length}/16
+                  </span>
+                </div>
               </div>
 
               <label className="mb-4 flex min-h-35 cursor-pointer items-center gap-6 rounded-lg border border-grayout-dark bg-dark-alpha px-5 transition hover:border-secondary-default">
@@ -204,10 +219,14 @@ export default function CreateProjectDialog({
                     variant={
                       createRole === "EDITOR" ? "cyanSolid" : "cyanOutline"
                     }
-                    onClick={() => setCreateRole("EDITOR")}
+                    onClick={() => {
+                      setCreateRole("EDITOR");
+                      onClearError?.();
+                    }}
                     disabled={isSubmitting}
                   >
-                    <SquarePen className="size-4" /> Editor
+                    <SquarePen className="size-4" />
+                    Editor
                   </Button>
 
                   <Button
@@ -215,10 +234,14 @@ export default function CreateProjectDialog({
                     variant={
                       createRole === "PLAYER" ? "cyanSolid" : "cyanOutline"
                     }
-                    onClick={() => setCreateRole("PLAYER")}
+                    onClick={() => {
+                      setCreateRole("PLAYER");
+                      onClearError?.();
+                    }}
                     disabled={isSubmitting}
                   >
-                    <Play className="size-4" /> Player
+                    <Play className="size-4" />
+                    Player
                   </Button>
                 </div>
               </div>

@@ -239,7 +239,7 @@ export function useViewerProject({
       e.target.value = "";
     } catch (error) {
       console.error("Gagal load file:", error);
-      alert(error.message || "Gagal membuka file");
+      alert(error.message || "Failed to load file.");
     }
   };
 
