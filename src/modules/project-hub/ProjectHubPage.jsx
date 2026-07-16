@@ -12,6 +12,7 @@ import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
+import ConfirmationDialog from "../../components/dialog/ConfirmationDialog";
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -64,6 +65,9 @@ export default function ProjectHubPage() {
   const [projects, setProjects] = useState([]);
   const [search, setSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState("ALL");
+
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
+  const [isClearingProjects, setIsClearingProjects] = useState(false);
 
   useEffect(() => {
     getAllProjectsFromIndexedDb().then(setProjects);
@@ -174,9 +178,7 @@ export default function ProjectHubPage() {
     }
 
     if (isValidatingGlb) {
-      setCreateProjectError(
-        "Validating GLB file. Wait for a moment.",
-      );
+      setCreateProjectError("Validating GLB file. Wait for a moment.");
       return;
     }
 
@@ -239,6 +241,23 @@ export default function ProjectHubPage() {
     return matchSearch && matchAccess;
   });
 
+  const handleClearLocalProjects = async () => {
+    if (isClearingProjects) return;
+
+    try {
+      setIsClearingProjects(true);
+
+      await clearVXploreIndexedDb();
+
+      setProjects([]);
+      setIsClearConfirmOpen(false);
+    } catch (error) {
+      console.error("Failed to clear local projects:", error);
+    } finally {
+      setIsClearingProjects(false);
+    }
+  };
+
   return (
     <ProjectHubLayout>
       <ProjectHubToolbar
@@ -246,15 +265,8 @@ export default function ProjectHubPage() {
         setSearch={setSearch}
         accessFilter={accessFilter}
         setAccessFilter={setAccessFilter}
-        onClearLocalDb={async () => {
-          const confirmed = window.confirm(
-            "Clear all local VXplore projects? This is for development only.",
-          );
-
-          if (!confirmed) return;
-
-          await clearVXploreIndexedDb();
-          setProjects([]);
+        onClearLocalDb={() => {
+          setIsClearConfirmOpen(true);
         }}
       />
 
@@ -285,6 +297,33 @@ export default function ProjectHubPage() {
         isSubmitting={isSubmitting}
         error={createProjectError}
         onClearError={clearCreateProjectError}
+      />
+
+      <ConfirmationDialog
+        open={isClearConfirmOpen}
+        title="Clear Local Projects?"
+        message={
+          <>
+            All projects stored locally in this browser will be permanently
+            deleted.
+          </>
+        }
+        description={
+          <>
+            Project files, editor data, thumbnails, chapters, settings, and
+            local drafts will be removed. This action cannot be undone.
+          </>
+        }
+        confirmText="Clear All"
+        cancelText="Cancel"
+        confirmVariant="destructive"
+        isLoading={isClearingProjects}
+        onClose={() => {
+          if (!isClearingProjects) {
+            setIsClearConfirmOpen(false);
+          }
+        }}
+        onConfirm={handleClearLocalProjects}
       />
     </ProjectHubLayout>
   );

@@ -86,7 +86,7 @@ export default function CreateProjectDialog({
         ) : (
           <>
             <div className="space-y-6 px-5 pb-5 pt-4">
-              <InlineAlert type="error" message={error} />
+              <InlineAlert type="error" message={error} autoHide={false} />
 
               <div className="space-y-2">
                 <label className="block text-sm font-normal text-contrast-grayout">

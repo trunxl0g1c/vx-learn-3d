@@ -32,30 +32,32 @@ export default function ProjectHubToolbar({
 
       <div className="flex gap-3">
         <Button
+          disabled
           size="sm"
           variant="outline"
-          className="border-secondary-default! h-10!"
+          className="border-accent-main! h-10!"
         >
           All Workspaces{" "}
           <MaterialIcon
             name="arrow_back_2"
             fill={1}
             size={18}
-            className="-rotate-90 text-secondary-default"
+            className="-rotate-90 text-accent-main"
           />
         </Button>
 
         <Button
+          disabled
           size="sm"
           variant="outline"
-          className="border-secondary-default! h-10!"
+          className="border-accent-main! h-10!"
         >
           Last Viewed
           <MaterialIcon
             name="arrow_back_2"
             fill={1}
             size={18}
-            className="-rotate-90 text-secondary-default"
+            className="-rotate-90 text-accent-main"
           />
         </Button>
 
@@ -68,7 +70,7 @@ export default function ProjectHubToolbar({
             { label: "Player Access", value: "PLAYER" },
           ]}
           className="h-10! w-fit!"
-          iconClassName="text-secondary-default h-10!"
+          iconClassName="text-accent-main h-10!"
         />
 
         <Button
