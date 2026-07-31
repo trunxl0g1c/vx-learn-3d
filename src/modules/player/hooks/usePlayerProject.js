@@ -1,9 +1,12 @@
-import { useEffect } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams } from "react-router-dom"
 import useProjectLoader from "../../../engine/project/useProjectLoader"
 import { useGlobalLoading } from "../../loading/LoadingContext"
 import { importVXPack, isVXPackFile } from "../../../utils/vxpackUtils"
 import { DEFAULT_VIEWER_BACKGROUND } from "../../../utils/viewerBackground"
+import { normalizePlayerSettings } from "../../material/playerSettings"
+import { normalizeFlowDefinitions } from "../../../engine/flow"
+import { normalizeProceduralDefinitions } from "../../../engine/procedural"
 
 export const DEFAULT_VIEWER_SETTINGS = {
   exposure: 0.75,
@@ -19,6 +22,7 @@ export const DEFAULT_VIEWER_SETTINGS = {
   shaderMode: "original",
   metalness: 0.1,
   roughness: 0.1,
+  cameraProjectionMode: "perspective",
   background: DEFAULT_VIEWER_BACKGROUND,
 }
 
@@ -31,35 +35,114 @@ export default function usePlayerProject({
 }) {
   const { projectId } = useParams()
   const { updateLoading, hideLoading } = useGlobalLoading()
+  const loadingSessionRef = useRef(0)
+  const expectedSceneIdRef = useRef(null)
+  const readyTimerRef = useRef(null)
+  const [isSceneReady, setIsSceneReady] = useState(
+    !projectId || projectId === "demo",
+  )
 
   const {
     loadProject,
-    glbFileName,
     isLoadingProject,
     loadError,
   } = useProjectLoader()
 
-  useEffect(() => {
-    hideLoading()
-  }, [hideLoading])
+  const clearReadyTimer = useCallback(() => {
+    if (readyTimerRef.current !== null) {
+      clearTimeout(readyTimerRef.current)
+      readyTimerRef.current = null
+    }
+  }, [])
+
+  const beginPlayerSceneLoad = useCallback(
+    ({ title = "Opening Player", text = "Loading project for player..." } = {}) => {
+      loadingSessionRef.current += 1
+      expectedSceneIdRef.current = null
+      clearReadyTimer()
+      setIsSceneReady(false)
+      updateLoading({
+        title,
+        text,
+        progress: 10,
+      })
+
+      return loadingSessionRef.current
+    },
+    [clearReadyTimer, updateLoading],
+  )
+
+  const notifyModelLoaded = useCallback(
+    (scene) => {
+      expectedSceneIdRef.current = scene?.uuid || scene?.id || null
+      updateLoading({
+        title: "Opening Player",
+        text: "Preparing scene and applying default camera view...",
+        progress: 88,
+      })
+    },
+    [updateLoading],
+  )
+
+  const notifySceneReady = useCallback(
+    ({ sceneId } = {}) => {
+      const expectedSceneId = expectedSceneIdRef.current
+
+      if (expectedSceneId && sceneId && expectedSceneId !== sceneId) {
+        return
+      }
+
+      const sessionId = loadingSessionRef.current
+      clearReadyTimer()
+      updateLoading({
+        title: "Opening Player",
+        text: "Player is ready.",
+        progress: 100,
+      })
+
+      // Keep the cover visible for one final paint after the camera, projection,
+      // controls target, and stored model rotation have all settled.
+      readyTimerRef.current = setTimeout(() => {
+        if (loadingSessionRef.current !== sessionId) return
+
+        setIsSceneReady(true)
+        hideLoading()
+        readyTimerRef.current = null
+      }, 120)
+    },
+    [clearReadyTimer, hideLoading, updateLoading],
+  )
 
   useEffect(() => {
-    if (!projectId || projectId === "demo") return
+    if (!projectId || projectId === "demo") {
+      expectedSceneIdRef.current = null
+      setIsSceneReady(true)
+      hideLoading()
+      return undefined
+    }
 
     let cancelled = false
+    const sessionId = beginPlayerSceneLoad()
 
     async function openProjectForPlayer() {
       try {
-        updateLoading({
-          title: "Opening Player",
-          text: "Loading project for player...",
-          progress: null,
-        })
-
         const loaded = await loadProject(projectId)
 
-        if (!loaded || cancelled) {
-          hideLoading()
+        if (cancelled || loadingSessionRef.current !== sessionId) return
+
+        if (!loaded) {
+          setIsSceneReady(false)
+          updateLoading({
+            title: "Failed to Open Player",
+            text: "Project data or GLB file could not be loaded.",
+            progress: 0,
+          })
+
+          readyTimerRef.current = setTimeout(() => {
+            if (loadingSessionRef.current !== sessionId) return
+            hideLoading()
+            readyTimerRef.current = null
+          }, 1200)
           return
         }
 
@@ -75,17 +158,26 @@ export default function usePlayerProject({
           loaded.project?.viewer ||
           null
 
+        updateLoading({
+          title: "Opening Player",
+          text: "Loading 3D object...",
+          progress: 62,
+        })
+
         if (nextMaterial) {
           setMaterial({
             ...nextMaterial,
+            playerSettings: normalizePlayerSettings(nextMaterial.playerSettings),
+            flows: normalizeFlowDefinitions(nextMaterial.flows),
+            procedures: normalizeProceduralDefinitions(nextMaterial.procedures),
 
             modelUrl: loaded.glbUrl,
-            modelFileName: loaded.glbFileName || glbFileName,
+            modelFileName: loaded.glbFileName || "model.glb",
 
             model: {
               ...(nextMaterial.model || {}),
               uri: loaded.glbUrl,
-              fileName: loaded.glbFileName || glbFileName,
+              fileName: loaded.glbFileName || "model.glb",
             },
           })
 
@@ -96,6 +188,10 @@ export default function usePlayerProject({
           setViewerSettings((prev) => ({
             ...prev,
             ...nextViewer,
+            background: {
+              ...(prev?.background || {}),
+              ...(nextViewer?.background || {}),
+            },
           }))
         }
 
@@ -106,10 +202,30 @@ export default function usePlayerProject({
           showInfoPanel: false,
         })
         resetAnimationState?.()
+
+        const hasModel = Boolean(
+          loaded.glbUrl || nextMaterial?.modelUrl || nextMaterial?.model?.uri,
+        )
+
+        if (!nextMaterial || !hasModel) {
+          notifySceneReady()
+        }
       } catch (error) {
+        if (cancelled || loadingSessionRef.current !== sessionId) return
+
         console.error("Gagal membuka project player:", error)
-      } finally {
-        hideLoading()
+        setIsSceneReady(false)
+        updateLoading({
+          title: "Failed to Open Player",
+          text: error?.message || "Unknown error",
+          progress: null,
+        })
+
+        readyTimerRef.current = setTimeout(() => {
+          if (loadingSessionRef.current !== sessionId) return
+          hideLoading()
+          readyTimerRef.current = null
+        }, 1200)
       }
     }
 
@@ -117,12 +233,27 @@ export default function usePlayerProject({
 
     return () => {
       cancelled = true
+      loadingSessionRef.current += 1
+      expectedSceneIdRef.current = null
+      clearReadyTimer()
       hideLoading()
     }
-  }, [projectId, loadProject, glbFileName, updateLoading, hideLoading])
+  }, [
+    projectId,
+    loadProject,
+    beginPlayerSceneLoad,
+    clearReadyTimer,
+    hideLoading,
+    notifySceneReady,
+    updateLoading,
+  ])
 
   const loadPlayerFile = async (file) => {
     if (!file) return
+
+    const sessionId = beginPlayerSceneLoad({
+      text: "Reading Player package...",
+    })
 
     try {
       let json = null
@@ -135,7 +266,19 @@ export default function usePlayerProject({
         json = JSON.parse(text)
       }
 
-      setMaterial(json)
+      if (loadingSessionRef.current !== sessionId) return
+
+      updateLoading({
+        text: "Loading 3D object...",
+        progress: 62,
+      })
+
+      setMaterial({
+        ...json,
+        playerSettings: normalizePlayerSettings(json.playerSettings),
+        flows: normalizeFlowDefinitions(json.flows),
+        procedures: normalizeProceduralDefinitions(json.procedures),
+      })
       setActiveChapterId(null)
       resetPlayerState?.({
         activeMenu: null,
@@ -149,17 +292,29 @@ export default function usePlayerProject({
         setViewerSettings((prev) => ({
           ...prev,
           ...json.viewerSettings,
+          background: {
+            ...(prev?.background || {}),
+            ...(json.viewerSettings?.background || {}),
+          },
         }))
       }
+
+      const hasModel = Boolean(json.modelUrl || json.model?.uri)
+      if (!hasModel) notifySceneReady()
     } catch (error) {
       console.error("Gagal membuka file player:", error)
+      setIsSceneReady(false)
+      hideLoading()
       alert(error.message || "Failed to open file.")
     }
   }
 
   return {
     isLoadingProject,
+    isSceneReady,
     loadError,
     loadPlayerFile,
+    notifyModelLoaded,
+    notifySceneReady,
   }
 }

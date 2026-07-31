@@ -1,11 +1,23 @@
-const STORAGE_KEY = "vxplore-projects";
+const STORAGE_KEY = "viqubed-projects";
+const PREVIOUS_BRAND_STORAGE_KEY = ["vi", "cubed-projects"].join("");
+const LEGACY_STORAGE_KEY = ["vx", "plore-projects"].join("");
+const LEGACY_STORAGE_KEYS = [PREVIOUS_BRAND_STORAGE_KEY, LEGACY_STORAGE_KEY];
 
 export function getProjects() {
-  const data = localStorage.getItem(STORAGE_KEY);
+  const currentData = localStorage.getItem(STORAGE_KEY);
 
-  if (!data) return [];
+  if (currentData) return JSON.parse(currentData);
 
-  return JSON.parse(data);
+  for (const legacyKey of LEGACY_STORAGE_KEYS) {
+    const legacyData = localStorage.getItem(legacyKey);
+
+    if (!legacyData) continue;
+
+    localStorage.setItem(STORAGE_KEY, legacyData);
+    return JSON.parse(legacyData);
+  }
+
+  return [];
 }
 
 export function saveProjects(projects) {

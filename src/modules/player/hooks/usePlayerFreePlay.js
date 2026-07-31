@@ -37,6 +37,17 @@ function createCutValuesFromPercentages(percentages = {}, bounds = {}, fallback 
   }, {})
 }
 
+function hasActiveCutValues(values = {}, bounds = {}) {
+  return ["x", "y", "z"].some((axis) => {
+    const max = Number(bounds?.[axis]?.max)
+    const value = Number(values?.[axis])
+
+    return Number.isFinite(max) && Number.isFinite(value)
+      ? value < max - 0.000001
+      : false
+  })
+}
+
 export default function usePlayerFreePlay({
   modelScene,
   selectedObject,
@@ -56,11 +67,11 @@ export default function usePlayerFreePlay({
   setSelectedObject,
   setOutlineObjects,
   focusTargetRef,
-  viewerSettings,
 }) {
   const modelEngineRef = useRef(null)
   const cutEngineRef = useRef(null)
   const [isPullApartActive, setIsPullApartActive] = useState(false)
+  const [cutAllObjects, setCutAllObjectsState] = useState(true)
 
   if (!modelEngineRef.current) {
     modelEngineRef.current = createModelEngine({ buildObjectTree })
@@ -70,17 +81,37 @@ export default function usePlayerFreePlay({
     cutEngineRef.current = createCutEngine()
   }
 
+  useEffect(() => {
+    const engine = modelEngineRef.current
+
+    if (!modelScene) {
+      engine.setScene?.(null)
+      return
+    }
+
+    engine.setScene?.(modelScene)
+    engine.setOriginalTransforms?.({
+      positions: originalPositions,
+      groupPositions: originalGroupPositions,
+    })
+  }, [modelScene, originalPositions, originalGroupPositions])
+
   const getModelEngine = () => {
     const engine = modelEngineRef.current
 
     if (modelScene && engine.getScene() !== modelScene) {
-      engine.initialize(modelScene, viewerSettings || {})
+      engine.setScene?.(modelScene)
+      engine.setOriginalTransforms?.({
+        positions: originalPositions,
+        groupPositions: originalGroupPositions,
+      })
     }
 
     return engine
   }
 
-  const getCutTarget = () => selectedObject || modelScene
+  const getCutTarget = () => (cutAllObjects ? modelScene : selectedObject)
+  const cutTargetAvailable = Boolean(getCutTarget())
 
   const syncCutState = (state) => {
     if (!state?.bounds) return
@@ -99,20 +130,28 @@ export default function usePlayerFreePlay({
     }
   }
 
-  // Selection changes only switch the cut state being edited. Cuts already
-  // applied to other objects stay registered and visible.
+  // Each object and the whole-scene scope keep independent Cut values.
+  // Selecting another object only changes which cached state is edited.
   useEffect(() => {
     if (!modelScene) return
 
     const cutEngine = cutEngineRef.current
     const target = getCutTarget()
 
-    if (!target) return
+    if (!target) {
+      cutEngine.apply(modelScene)
+      return
+    }
 
-    const state = cutEngine.setTarget(target)
+    let state = cutEngine.setTarget(target)
+
+    if (cutEnabled && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, target)
+    }
+
     syncCutState(state)
     cutEngine.apply(modelScene)
-  }, [modelScene, selectedObject])
+  }, [cutAllObjects, cutEnabled, modelScene, selectedObject])
 
   useEffect(() => {
     if (!modelScene) return
@@ -161,10 +200,18 @@ export default function usePlayerFreePlay({
   }
 
   const updateCutValue = (axis, value) => {
-    ensureCutBounds()
+    const target = getCutTarget()
+    if (!target) return
 
     const cutEngine = cutEngineRef.current
-    let state = cutEngine.setAxisValue(axis, value)
+    const previousState = cutEngine.setTarget(target)
+    const nextValues = {
+      ...(previousState.values || createNoCutValues(previousState.bounds)),
+      [axis]: value,
+    }
+
+    cutEngine.setTarget(target)
+    let state = cutEngine.setValues(nextValues)
 
     cutEngine.setEnabled(true)
     cutEngine.apply(modelScene)
@@ -172,6 +219,41 @@ export default function usePlayerFreePlay({
 
     state = cutEngine.getState()
     syncCutState(state)
+  }
+
+  const setCutAllObjects = (nextValue) => {
+    const nextAllObjects = Boolean(nextValue)
+    const cutEngine = cutEngineRef.current
+    const nextTarget = nextAllObjects ? modelScene : selectedObject
+
+    // Scope switching preserves every target's values. Only the previous
+    // scope is temporarily disabled to avoid stacking whole-scene and
+    // per-object clipping planes unintentionally.
+    if (nextAllObjects) {
+      cutEngine.getTargetStates().forEach((state) => {
+        if (state.target && state.target !== modelScene) {
+          cutEngine.setTargetEnabled(false, state.target)
+        }
+      })
+    } else if (modelScene) {
+      cutEngine.setTargetEnabled(false, modelScene)
+    }
+
+    setCutAllObjectsState(nextAllObjects)
+
+    if (!nextTarget) {
+      cutEngine.apply(modelScene)
+      return
+    }
+
+    let nextState = cutEngine.setTarget(nextTarget)
+    nextState = cutEngine.setTargetEnabled(
+      cutEnabled && hasActiveCutValues(nextState.values, nextState.bounds),
+      nextTarget,
+    )
+
+    cutEngine.apply(modelScene)
+    syncCutState(nextState)
   }
 
   const pullApart = () => {
@@ -201,8 +283,22 @@ export default function usePlayerFreePlay({
     setIsPullApartActive(false)
   }
 
-  const resetMovedObjects = () => {
-    getModelEngine().resetMovedObjects()
+  const resetMovedObjects = ({ animationDuration = 560 } = {}) => {
+    const engine = getModelEngine()
+
+    engine.setOriginalTransforms?.({
+      positions: originalPositions,
+      groupPositions: originalGroupPositions,
+    })
+
+    const animatedObjectCount = engine.resetMovedObjects?.({
+      animationDuration,
+    }) || 0
+
+    setIsPullApartActive(false)
+    modelScene?.updateMatrixWorld?.(true)
+
+    return animatedObjectCount
   }
 
   const resetModelRotationForCut = () => {
@@ -229,15 +325,24 @@ export default function usePlayerFreePlay({
     const cutEngine = cutEngineRef.current
 
     if (cutEnabled) {
-      const state = cutEngine.clear(modelScene)
+      const state = cutEngine.setEnabled(false)
+      cutEngine.apply(modelScene)
       syncCutState(state)
       setCutEnabled(false)
       resetModelRotationForCut()
       return
     }
 
+    const target = getCutTarget()
+    let state = target ? cutEngine.setTarget(target) : cutEngine.getState()
+
+    if (target && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, target)
+    }
+
     cutEngine.setEnabled(true)
     cutEngine.apply(modelScene)
+    syncCutState(state)
     setCutEnabled(true)
   }
 
@@ -263,15 +368,20 @@ export default function usePlayerFreePlay({
     showAllObjectsInScene(modelScene)
   }
 
-  const resetVisualState = () => {
+  const resetSavedPresentationState = () => {
     resetParts()
-    resetMovedObjects()
-    resetModelRotationForCut()
     showAllObjects()
 
     const cutEngine = cutEngineRef.current
     cutEngine.clear(modelScene)
+    setCutAllObjectsState(true)
     setCutEnabled(false)
+  }
+
+  const resetVisualState = ({ animationDuration = 560 } = {}) => {
+    resetMovedObjects({ animationDuration })
+    resetModelRotationForCut()
+    resetSavedPresentationState()
   }
 
   const resetAllTransforms = () => {
@@ -292,7 +402,7 @@ export default function usePlayerFreePlay({
     return didPullApart
   }
 
-  const applySavedCuts = (savedCuts = []) => {
+  const applySavedCuts = (savedCuts = [], preferredTarget = null) => {
     const cutEngine = cutEngineRef.current
 
     cutEngine.clear(modelScene)
@@ -302,6 +412,7 @@ export default function usePlayerFreePlay({
     )
 
     if (!modelScene || validCuts.length === 0) {
+      setCutAllObjectsState(true)
       setCutEnabled(false)
       return false
     }
@@ -321,8 +432,11 @@ export default function usePlayerFreePlay({
     cutEngine.apply(modelScene)
     setCutEnabled(true)
 
-    const preferredTarget = selectedObject || validCuts[0]?.targetObject || modelScene
-    const activeState = cutEngine.setTarget(preferredTarget)
+    const activeTarget =
+      preferredTarget || selectedObject || validCuts[0]?.targetObject || modelScene
+    const activeState = cutEngine.setTarget(activeTarget)
+
+    setCutAllObjectsState(activeTarget === modelScene)
     syncCutState(activeState)
 
     return true
@@ -335,6 +449,9 @@ export default function usePlayerFreePlay({
     applyCutBoundsForAxis,
     updateCutAxis,
     updateCutValue,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
     pullApart,
     isPullApartActive,
     resetParts,
@@ -345,6 +462,7 @@ export default function usePlayerFreePlay({
     hideSelectedObject,
     soloSelectedObject,
     showAllObjects,
+    resetSavedPresentationState,
     resetVisualState,
     resetAllTransforms,
     applySavedPullApart,

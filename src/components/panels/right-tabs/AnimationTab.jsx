@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createId } from "../../../utils/createId";
 import Button from "../../ui/button";
 import Checkbox from "../../ui/checkbox";
 import MaterialIcon from "../../ui/material-icon";
@@ -22,6 +23,9 @@ export default function AnimationTab({
   selectedAnimations = {},
   setSelectedAnimations,
   setAnimationCommand,
+  showHeader = true,
+  className = "",
+  contentClassName = "p-4",
 }) {
   const [playingMode, setPlayingMode] = useState(null);
   const [playingAnimationName, setPlayingAnimationName] = useState(null);
@@ -72,7 +76,7 @@ export default function AnimationTab({
 
     setAnimationCommand?.({
       type: "stop",
-      id: crypto.randomUUID(),
+      id: createId(),
     });
   };
 
@@ -135,7 +139,7 @@ export default function AnimationTab({
 
     setAnimationCommand?.({
       type: "stop",
-      id: crypto.randomUUID(),
+      id: createId(),
     });
 
     setPlayingMode("single");
@@ -151,7 +155,7 @@ export default function AnimationTab({
             speed: config.speed,
           },
         },
-        id: crypto.randomUUID(),
+        id: createId(),
       });
 
       commandTimerRef.current = null;
@@ -176,7 +180,7 @@ export default function AnimationTab({
 
     setAnimationCommand?.({
       type: "stop",
-      id: crypto.randomUUID(),
+      id: createId(),
     });
 
     const nextSelectedAnimations = animations.reduce(
@@ -202,7 +206,7 @@ export default function AnimationTab({
       setAnimationCommand?.({
         type: "play",
         selectedAnimations: nextSelectedAnimations,
-        id: crypto.randomUUID(),
+        id: createId(),
       });
 
       commandTimerRef.current = null;
@@ -304,12 +308,18 @@ export default function AnimationTab({
   }, []);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="flex h-16 shrink-0 items-center bg-dark-alpha px-4 text-lg font-normal">
-        Animation
-      </div>
+    <div
+      className={`flex h-full min-h-0 flex-col overflow-hidden ${className}`}
+    >
+      {showHeader && (
+        <div className="flex h-16 shrink-0 items-center bg-dark-alpha px-4 text-lg font-normal">
+          Animation
+        </div>
+      )}
 
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
+      <div
+        className={`sidebar-scroll min-h-0 flex-1 overflow-y-auto ${contentClassName}`}
+      >
         {animations.length === 0 ? (
           <div className="rounded-lg border border-dashed border-divider-main px-3 py-3 text-sm text-contrast-grayout">
             No animations available for this model.

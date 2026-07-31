@@ -29,6 +29,7 @@ export default function PlayerV2Page() {
       }}
     >
       <div
+        className="vx-player-v2-debug"
         style={{
           position: "absolute",
           top: 12,
@@ -92,6 +93,9 @@ export default function PlayerV2Page() {
             stopSpeaking={player.chapter.stopSpeaking}
             playChapterAnimations={player.chapter.playChapterAnimations}
             stopChapterAnimations={player.chapter.stopChapterAnimations}
+            cameraViews={player.chapter.cameraViews}
+            activeCameraViewIndex={player.chapter.activeCameraViewIndex}
+            onSelectCameraView={player.chapter.handleSelectCameraView}
           />
         )}
       </main>

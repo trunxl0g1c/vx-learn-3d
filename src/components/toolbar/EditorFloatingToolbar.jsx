@@ -4,9 +4,14 @@ export default function EditorFloatingToolbar({
   activeMenu,
   setActiveMenu,
   cutEnabled,
+  multipleSelectEnabled,
+  toggleMultipleSelect,
   handleFile,
   toggleCutSection,
   hideSelectedObject,
+  hideMultipleSelectedObjects,
+  makeSelectedObjectsXray,
+  selectedObjectCount = 0,
   resetXray,
   pullApart,
   resetAllTransforms,
@@ -37,19 +42,19 @@ export default function EditorFloatingToolbar({
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="pointer-events-none absolute bottom-5 left-0 right-0 z-[120] flex justify-center"
+        className="vx-editor-toolbar-dock pointer-events-none absolute bottom-5 left-0 right-0 z-[120] flex justify-center"
       >
-        <div className="pointer-events-auto flex gap-2 rounded-2xl bg-[#182223B8] p-2">
+        <div className="vx-editor-toolbar-inner pointer-events-auto flex gap-2 rounded-2xl bg-[#182223B8] p-2">
           {/* <Button
             onClick={() => document.getElementById("upload-model")?.click()}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             Upload Model
           </Button> */}
 
           {/* <Button
             onClick={() => document.getElementById("open-vxpack")?.click()}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             Open Package
           </Button> */}
@@ -57,22 +62,63 @@ export default function EditorFloatingToolbar({
           <Button
             variant={cutEnabled ? "default" : "outline"}
             onClick={toggleCutSection}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             {cutEnabled ? "Cut On" : "Cut Off"}
           </Button>
 
+          <div className="relative">
+            {multipleSelectEnabled && (
+              <div className="absolute bottom-full left-1/2 mb-3 flex w-52 -translate-x-1/2 flex-col gap-2 rounded-xl border border-contrast-main/40 bg-[#182223F2] p-3 shadow-xl backdrop-blur-md">
+                <div className="px-1 text-[11px] font-medium text-contrast-grayout">
+                  {selectedObjectCount > 0
+                    ? `${selectedObjectCount} object selected`
+                    : "Select objects in the viewport"}
+                </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedObjectCount === 0}
+                  className="w-full border-contrast-main! text-xs"
+                  onClick={hideMultipleSelectedObjects}
+                >
+                  Hide Selected Objects
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedObjectCount === 0}
+                  className="w-full border-contrast-main! text-xs"
+                  onClick={makeSelectedObjectsXray}
+                >
+                  X-Ray Selected Objects
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant={multipleSelectEnabled ? "default" : "outline"}
+              onClick={toggleMultipleSelect}
+              className="vx-editor-toolbar-button h-10! w-40 border-contrast-main! text-sm"
+              aria-pressed={multipleSelectEnabled}
+            >
+              Multiple Select
+            </Button>
+          </div>
+
           <Button
             variant={activeMenu === "view" ? "default" : "outline"}
             onClick={() => toggleMenu("view")}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             View
           </Button>
 
           {/* <Button
             onClick={hideSelectedObject}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             Hide Selected
           </Button> */}
@@ -80,7 +126,7 @@ export default function EditorFloatingToolbar({
           <Button
             variant="outline"
             onClick={resetXray}
-            className="h-10! w-36 border-contrast-main! text-sm"
+            className="vx-editor-toolbar-button h-10! w-36 border-contrast-main! text-sm"
           >
             Reset X-Ray
           </Button>
@@ -90,7 +136,7 @@ export default function EditorFloatingToolbar({
       {activeMenu === "view" && (
         <div
           onClick={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute bottom-20 left-[48.5%] z-[120] flex -translate-x-1/4 transform flex-col gap-3 rounded-xl bg-[#182223B8] p-3"
+          className="vx-editor-view-menu pointer-events-auto absolute bottom-20 left-[48.5%] z-[120] flex -translate-x-1/4 transform flex-col gap-3 rounded-xl bg-[#182223B8] p-3"
         >
           <Button
             size="sm"

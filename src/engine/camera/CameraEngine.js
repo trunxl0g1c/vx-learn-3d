@@ -1,4 +1,6 @@
+import * as THREE from "three"
 import {
+  applyCameraFocusConstraints,
   cloneCameraFocusTarget,
   createCameraFocusTargetFromBox,
   createCameraState,
@@ -10,9 +12,25 @@ import {
 function applyFocusTarget(focusTarget, camera, controls) {
   if (!focusTarget) return null
 
+  applyCameraFocusConstraints(focusTarget, camera, controls)
+
   if (camera?.position && focusTarget.cameraPosition) {
     camera.position.copy(focusTarget.cameraPosition)
   }
+
+  if (camera?.up && focusTarget.cameraUp) {
+    camera.up.copy(focusTarget.cameraUp).normalize()
+  }
+
+  if (Number.isFinite(Number(focusTarget.zoom))) {
+    camera.zoom = Number(focusTarget.zoom)
+  }
+
+  if (Number.isFinite(Number(focusTarget.fov)) && "fov" in camera) {
+    camera.fov = Number(focusTarget.fov)
+  }
+
+  camera?.updateProjectionMatrix?.()
 
   if (controls?.target && focusTarget.target) {
     controls.target.copy(focusTarget.target)
@@ -96,6 +114,43 @@ export function createCameraEngine(initialState = {}) {
 
     focusBox(box, options = {}) {
       const focusTarget = createCameraFocusTargetFromBox(box, options)
+      return setFocusTarget(focusTarget, options)
+    },
+
+    setViewDirection(direction, options = {}) {
+      const activeCamera = options.camera || camera
+      const activeControls = options.controls || controls
+
+      if (!activeCamera?.position || !activeControls?.target) return null
+
+      const target = options.target?.clone?.() || activeControls.target.clone()
+      const nextDirection = direction?.clone?.() || new THREE.Vector3(
+        direction?.x ?? 0,
+        direction?.y ?? 0,
+        direction?.z ?? 0,
+      )
+
+      if (nextDirection.lengthSq() === 0) return null
+
+      const currentDistance = activeCamera.position.distanceTo(target)
+      const requestedDistance = Number(options.distance)
+      const distance = Number.isFinite(requestedDistance) && requestedDistance > 0
+        ? requestedDistance
+        : Math.max(currentDistance, Number(options.minimumDistance) || 0.1)
+
+      if (options.up && activeCamera.up) {
+        activeCamera.up.copy(options.up)
+      }
+
+      activeCamera.updateProjectionMatrix?.()
+
+      const focusTarget = {
+        cameraPosition: target
+          .clone()
+          .add(nextDirection.normalize().multiplyScalar(distance)),
+        target,
+      }
+
       return setFocusTarget(focusTarget, options)
     },
 

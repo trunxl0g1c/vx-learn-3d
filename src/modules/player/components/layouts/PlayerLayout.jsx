@@ -11,6 +11,7 @@ export default function PlayerLayout({
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
+  onAnnotationHierarchyBack,
   onObjectSelectInteraction,
 }) {
   const backgroundStyle = getViewerBackgroundStyle(
@@ -19,6 +20,7 @@ export default function PlayerLayout({
 
   return (
     <div
+      className="vx-player-layout"
       style={{
         width: "100vw",
         height: "100vh",
@@ -38,10 +40,17 @@ export default function PlayerLayout({
       >
         <PlayerSceneCanvas
           {...player.scene}
+          preserveSelectionOnPointerMiss={
+            Boolean(player.scene.activeChapter) ||
+            Boolean(player.scene.activeFlow) ||
+            (player.scene.activeChapterFlows?.length || 0) > 0 ||
+            Boolean(player.procedurePanel.activeProcedureId)
+          }
           selectedAnnotationId={selectedAnnotationId}
           onAnnotationClick={onAnnotationClick}
           onAnnotationClose={onAnnotationClose}
           onAnnotationOpenDetail={onAnnotationOpenDetail}
+          onAnnotationHierarchyBack={onAnnotationHierarchyBack}
           onObjectSelectInteraction={onObjectSelectInteraction}
         />
 

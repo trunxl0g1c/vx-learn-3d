@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { getViewerBackground } from "../../utils/viewerBackground";
+import { getStageGradientStops, getViewerBackground } from "../../utils/viewerBackground";
 
 const MIN_BACKGROUND_SIZE = 256;
 const MAX_BACKGROUND_SIZE = 2048;
@@ -96,6 +96,25 @@ function createLinearGradientTexture(background, width, height) {
   return texture;
 }
 
+function createStageBackgroundTexture(background, width, height) {
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext("2d");
+  const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+  const stops = getStageGradientStops(background);
+
+  stops.forEach(({ offset, color }) => {
+    gradient.addColorStop(offset, color);
+  });
+
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 function drawImageFit(context, image, fit, width, height) {
   if (fit === "stretch") {
     context.drawImage(image, 0, 0, width, height);
@@ -161,6 +180,10 @@ function createSceneBackground(background, width, height, onReady) {
 
   if (background.type === "linearGradient") {
     return createLinearGradientTexture(background, width, height);
+  }
+
+  if (background.type === "stage") {
+    return createStageBackgroundTexture(background, width, height);
   }
 
   if (background.type === "image" && background.imageUrl) {
@@ -257,6 +280,8 @@ export default function ViewerSceneBackground({
     background.linearWidth,
     background.linearPosition,
     background.linearRotation,
+    background.stageBackdropColor,
+    background.stageFloorColor,
     background.imageUrl,
     background.imageFit,
     background.imageOpacity,

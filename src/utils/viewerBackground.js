@@ -10,6 +10,13 @@ export const DEFAULT_VIEWER_BACKGROUND = {
   linearWidth: 0.35,
   linearPosition: 0.5,
   linearRotation: 90,
+  stageBackdropColor: "#e9dcc6",
+  stageFloorColor: "#f5e7d5",
+  stageShadowOpacity: 0.4,
+  stageShadowSoftness: 0.65,
+  stageShadowBlurRadius: 4,
+  stageShadowSpread: 1,
+  stageFloorGlossiness: 0.12,
   imageUrl: "",
   imageName: "",
   imageFit: "cover",
@@ -40,6 +47,7 @@ function normalizeBackgroundType(type) {
     type === "solid" ||
     type === "radialGradient" ||
     type === "linearGradient" ||
+    type === "stage" ||
     type === "image"
   ) {
     return type;
@@ -101,6 +109,42 @@ export function normalizeViewerBackground(background = {}) {
       360,
       DEFAULT_VIEWER_BACKGROUND.linearRotation,
     ),
+    stageBackdropColor: isValidHexColor(source.stageBackdropColor)
+      ? source.stageBackdropColor
+      : DEFAULT_VIEWER_BACKGROUND.stageBackdropColor,
+    stageFloorColor: isValidHexColor(source.stageFloorColor)
+      ? source.stageFloorColor
+      : DEFAULT_VIEWER_BACKGROUND.stageFloorColor,
+    stageShadowOpacity: clampNumber(
+      source.stageShadowOpacity,
+      0,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.stageShadowOpacity,
+    ),
+    stageShadowSoftness: clampNumber(
+      source.stageShadowSoftness,
+      0,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.stageShadowSoftness,
+    ),
+    stageShadowBlurRadius: clampNumber(
+      source.stageShadowBlurRadius,
+      0,
+      12,
+      DEFAULT_VIEWER_BACKGROUND.stageShadowBlurRadius,
+    ),
+    stageShadowSpread: clampNumber(
+      source.stageShadowSpread,
+      0.5,
+      2.5,
+      DEFAULT_VIEWER_BACKGROUND.stageShadowSpread,
+    ),
+    stageFloorGlossiness: clampNumber(
+      source.stageFloorGlossiness,
+      0,
+      1,
+      DEFAULT_VIEWER_BACKGROUND.stageFloorGlossiness,
+    ),
     imageUrl:
       typeof source.imageUrl === "string"
         ? source.imageUrl
@@ -123,6 +167,49 @@ export function getViewerBackground(viewerSettings = {}) {
   return normalizeViewerBackground(viewerSettings?.background);
 }
 
+function blendHexChannel(start, end, amount) {
+  return Math.round(start + (end - start) * amount);
+}
+
+export function blendHexColors(startHex, endHex, amount = 0.5) {
+  const safeAmount = Math.min(1, Math.max(0, Number(amount) || 0));
+  const start = startHex.replace("#", "");
+  const end = endHex.replace("#", "");
+
+  const startRed = Number.parseInt(start.slice(0, 2), 16);
+  const startGreen = Number.parseInt(start.slice(2, 4), 16);
+  const startBlue = Number.parseInt(start.slice(4, 6), 16);
+  const endRed = Number.parseInt(end.slice(0, 2), 16);
+  const endGreen = Number.parseInt(end.slice(2, 4), 16);
+  const endBlue = Number.parseInt(end.slice(4, 6), 16);
+
+  const mixed = [
+    blendHexChannel(startRed, endRed, safeAmount),
+    blendHexChannel(startGreen, endGreen, safeAmount),
+    blendHexChannel(startBlue, endBlue, safeAmount),
+  ]
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+
+  return `#${mixed}`;
+}
+
+export function getStageGradientStops(background) {
+  const transitionColor = blendHexColors(
+    background.stageBackdropColor,
+    background.stageFloorColor,
+    0.5,
+  );
+
+  return [
+    { offset: 0, color: background.stageBackdropColor },
+    { offset: 0.52, color: background.stageBackdropColor },
+    { offset: 0.66, color: transitionColor },
+    { offset: 0.82, color: background.stageFloorColor },
+    { offset: 1, color: background.stageFloorColor },
+  ];
+}
+
 export function getViewerBackgroundCss(viewerSettings = {}) {
   const background = getViewerBackground(viewerSettings);
 
@@ -141,6 +228,18 @@ export function getViewerBackgroundCss(viewerSettings = {}) {
       `${background.linearStartColor} ${Math.round(startStop * 100)}%,`,
       `${background.linearEndColor} ${Math.round(endStop * 100)}%,`,
       `${background.linearEndColor} 100%)`,
+    ].join(" ");
+  }
+
+  if (background.type === "stage") {
+    const stops = getStageGradientStops(background);
+
+    return [
+      "linear-gradient(180deg,",
+      stops
+        .map(({ offset, color }) => `${color} ${Math.round(offset * 100)}%`)
+        .join(", "),
+      ")",
     ].join(" ");
   }
 

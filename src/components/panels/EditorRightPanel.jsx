@@ -6,21 +6,25 @@ import ChapterTab from "./right-tabs/ChapterTab";
 import Button from "../ui/button";
 import InfoTab from "./right-tabs/InfoTab";
 import MaterialIcon from "../ui/material-icon";
+import {
+  EDITOR_RIGHT_PANEL_WIDTH,
+  EDITOR_TOP_BAR_HEIGHT,
+} from "../../constants/editorLayout";
 
 export default function EditorRightPanel({
   chapterFeedback,
   clearChapterFeedback,
   rightTab,
   setRightTab,
+  selectedObject,
   selectedObjectName,
   authoringObjectName,
   createChapterFromSelectedObject,
+  previewChapterInEditor,
+  contentAuthoringLocked = false,
+  contentAuthoringLockReason = "",
   saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
-  saveMaterial,
-  isSavingPackage,
-  savePackageProgress,
-  savePackageStatus,
   applyShaderMode,
   shaderMode,
   metalness,
@@ -29,6 +33,7 @@ export default function EditorRightPanel({
   setRoughness,
   viewerSettings,
   setViewerSettings,
+  modelScene,
   updateEnvIntensity,
   material,
   activeChapterId,
@@ -49,11 +54,18 @@ export default function EditorRightPanel({
   getChapterAnimationConfig,
   toggleChapterAnimation,
   updateChapterAnimationField,
+  addChapterAnimation,
+  updateChapterAnimation,
+  removeChapterAnimation,
+  addChapterFlow,
+  updateChapterFlow,
+  removeChapterFlow,
   playAnimationPreview,
   stopAnimationPreview,
   addChapterMedia,
   deleteChapterMedia,
   deleteChapterContent,
+  moveChapter,
   setMarkerMode,
   requestAddMarker,
   markerMode,
@@ -61,28 +73,32 @@ export default function EditorRightPanel({
 
   hideSelectedObject,
   soloSelectedObject,
+  toggleSelectedObjectXray,
+  isSelectedObjectXray,
   resetAllTransforms,
   deselectObject,
   deleteVisualStateFromActiveChapter,
   deleteCameraViewFromActiveChapter,
+  leftPanelOpen = false,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
   const isInfoTab = rightTab === "info";
   const isPackageTab = rightTab === "material";
   const isFitHeight = isInfoTab || isPackageTab || markerMode;
+  const shouldHideObjectContentPanel = contentAuthoringLocked && isInfoTab;
 
   const tabProps = {
     chapterFeedback,
     clearChapterFeedback,
+    selectedObject,
     selectedObjectName,
     createChapterFromSelectedObject,
+    previewChapterInEditor,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
     saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
-    saveMaterial,
-    isSavingPackage,
-    savePackageProgress,
-    savePackageStatus,
     applyShaderMode,
     shaderMode,
     metalness,
@@ -91,6 +107,7 @@ export default function EditorRightPanel({
     setRoughness,
     viewerSettings,
     setViewerSettings,
+    modelScene,
     updateEnvIntensity,
     material,
     activeChapterId,
@@ -111,11 +128,18 @@ export default function EditorRightPanel({
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     setMarkerMode,
     requestAddMarker,
     markerMode,
@@ -126,10 +150,17 @@ export default function EditorRightPanel({
     deleteCameraViewFromActiveChapter,
   };
 
+  if (shouldHideObjectContentPanel) return null;
+
   return (
     <aside
+      style={{
+        top: EDITOR_TOP_BAR_HEIGHT,
+        width: EDITOR_RIGHT_PANEL_WIDTH,
+      }}
       className={[
-        "absolute right-0 top-14 z-[120] flex w-[500px] flex-col overflow-hidden",
+        "vx-editor-right-panel absolute right-0 z-[120] flex flex-col overflow-hidden",
+        leftPanelOpen ? "vx-editor-right-panel--behind-left" : "",
         "border border-divider-main text-white transition-all duration-200",
         "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
         isOpen
@@ -194,6 +225,30 @@ export default function EditorRightPanel({
           >
             <Eye className="size-6 text-secondary-default" />
           </Button> */}
+
+          <Button
+            size="xs"
+            variant="ghost"
+            type="button"
+            onClick={toggleSelectedObjectXray}
+            className={[
+              "border-none",
+              isSelectedObjectXray ? "bg-accent-main/25" : "",
+            ].join(" ")}
+            title={isSelectedObjectXray ? "Reset X-Ray" : "X-Ray Selected"}
+            aria-pressed={isSelectedObjectXray}
+          >
+            <MaterialIcon
+              name="blur_on"
+              fill={isSelectedObjectXray ? 1 : 0}
+              size={25}
+              className={
+                isSelectedObjectXray
+                  ? "text-accent-contrast"
+                  : "text-secondary-default"
+              }
+            />
+          </Button>
 
           <Button
             size="xs"

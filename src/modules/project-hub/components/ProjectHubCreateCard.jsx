@@ -5,14 +5,16 @@ export default function ProjectHubCreateCard({ onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="cursor-pointer flex h-50 w-full flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark text-white transition hover:border-accent-main hover:bg-dark-alpha/72"
+      className="flex min-h-[190px] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-secondary-dark bg-dark px-4 text-center text-white transition hover:border-accent-main hover:bg-dark-alpha/72 sm:min-h-[200px] xl:min-h-[210px]"
     >
       <MaterialIcon
         name="add_circle"
         size={55}
         className="text-accent-main"
       />
-      <span className="text-sm font-normal mt-6">Create New Project</span>
+      <span className="mt-5 text-sm font-normal sm:mt-6">
+        Create New Project
+      </span>
     </button>
   );
 }

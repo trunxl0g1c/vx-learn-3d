@@ -13,7 +13,7 @@ export default function MarkerDialog({
 
   return (
     <div className="fixed inset-0 z-[999] grid place-items-center backdrop-blur-sm bg-[#0000007A]">
-      <div className="w-[450px] overflow-hidden rounded-[22px] bg-[#1d1e1f] text-white shadow-[0_22px_45px_rgba(0,0,0,0.55)]">
+      <div className="vx-responsive-dialog w-[450px] overflow-hidden rounded-[22px] bg-[#1d1e1f] text-white shadow-[0_22px_45px_rgba(0,0,0,0.55)]">
         <div className="flex h-[70px] items-center justify-between bg-dark-alpha px-5">
           <h3 className="text-[21px] font-normal tracking-[-0.2px]">
             Marker Dialog

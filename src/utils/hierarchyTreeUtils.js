@@ -1,3 +1,5 @@
+import { resolveLogicalObject } from "./objectTreeUtils"
+
 export const formatObjectName = (name) => {
   return (name || "Unnamed Object").replaceAll("_", " ").trim()
 }
@@ -73,6 +75,29 @@ export const filterTree = (nodes, search, treeDepth) => {
   }
 
   return walk(nodes)
+}
+
+export const findObjectTreePath = (nodes, targetObject) => {
+  const logicalTargetObject = resolveLogicalObject(targetObject)
+
+  if (!logicalTargetObject) return []
+
+  const walk = (items, parents = []) => {
+    for (const item of items || []) {
+      const path = [...parents, item]
+
+      if (item.object === logicalTargetObject) {
+        return path
+      }
+
+      const childPath = walk(item.children || [], path)
+      if (childPath.length > 0) return childPath
+    }
+
+    return []
+  }
+
+  return walk(nodes || [])
 }
 
 export const collectOpenMap = (nodes, value = true) => {

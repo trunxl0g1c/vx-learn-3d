@@ -21,6 +21,7 @@ export default function PlayerBottomToolbar({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
+      className="vx-player-bottom-toolbar"
       style={{
         position: "absolute",
         left: 0,
@@ -31,7 +32,7 @@ export default function PlayerBottomToolbar({
         justifyContent: "center",
       }}
     >
-      <div className="flex gap-2 rounded-2xl bg-primary p-2">
+      <div className="vx-player-bottom-toolbar__inner flex gap-2 rounded-2xl bg-primary p-2">
         <Button className="text-sm border-contrast-main! w-36 h-10!">
           <label>
             Open Package

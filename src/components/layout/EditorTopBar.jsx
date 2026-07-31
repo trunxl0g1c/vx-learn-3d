@@ -1,16 +1,12 @@
 import {
-  ChevronDown,
   CircleCheckBig,
-  CircleUser,
-  Share2,
   Loader2,
   CloudOff,
-  Download,
-  PlayCircle,
 } from "lucide-react";
 import Button from "../ui/button";
 import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
+import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -39,28 +35,39 @@ function SaveStatusBadge({ status }) {
   );
 }
 
-export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
+export default function EditorTopBar({
+  title,
+  saveStatus = "saved",
+  onPlay,
+  onExport,
+  isExporting = false,
+  exportProgress = 0,
+  exportStatus = "",
+}) {
   const currentUserName = getCurrentUserName();
 
   return (
-    <div className="h-[56px] z-150 border-b border-divider-main bg-primary flex items-center justify-between px-5">
-      <div className="flex justify-center items-center gap-7">
+    <div
+      style={{ height: EDITOR_TOP_BAR_HEIGHT }}
+      className="vx-editor-topbar z-150 shrink-0 border-b border-divider-main bg-primary flex items-center justify-between px-5"
+    >
+      <div className="vx-editor-topbar__left flex items-center gap-7">
         {/* <div className="text-[#3997FB] font-bold text-2xl">
           VX
           <span className="italic text-[#90C6FF]">E</span>
         </div> */}
         <img
           src="/images/logo.svg"
-          alt="VXplore Studio"
-          className="size-8"
+          alt="Viqubed Studio"
+          className="vx-editor-topbar__logo size-8"
         />
 
-        <span className="font-normal text-xl">{title || "VX Learn 3D"}</span>
+        <span className="vx-editor-topbar__title max-w-[34vw] truncate font-normal text-xl">{title || "VX Learn 3D"}</span>
 
-        <SaveStatusBadge status={saveStatus} />
+        <div className="vx-editor-topbar__save"><SaveStatusBadge status={saveStatus} /></div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <div className="vx-editor-topbar__actions flex items-center gap-3.5">
         <Button
           variant="ghost"
           size="xs"
@@ -76,7 +83,7 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
           />
           {/* <PlayCircle className="size-6.5" color="#66B0C0" /> */}
         </Button>
-        <Button variant="cyanOutline" size="sm" className="uppercase">
+        <Button variant="cyanOutline" size="sm" className="uppercase" title="Publish project">
           {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
           <MaterialIcon
             name="published_with_changes"
@@ -84,33 +91,53 @@ export default function EditorTopBar({ title, saveStatus = "saved", onPlay }) {
             size={20}
             className="mr-1"
           />
-          Publish
+          <span className="vx-editor-action-label">Publish</span>
         </Button>
 
-        <Button disabled variant="cyanOutline" size="sm" className="uppercase">
-          {/* <Download className="size-4.5 mr-1" /> */}
-          <MaterialIcon name="download_2" fill={1} size={20} className="mr-1" />
-          Export
+        <Button
+          variant="cyanOutline"
+          size="sm"
+          className="uppercase"
+          onClick={onExport}
+          disabled={!onExport || isExporting}
+          title={exportStatus || "Export project package"}
+        >
+          {isExporting ? (
+            <Loader2 className="mr-1 size-4.5 animate-spin" />
+          ) : (
+            <MaterialIcon
+              name="download_2"
+              fill={1}
+              size={20}
+              className="mr-1"
+            />
+          )}
+          <span className="vx-editor-action-label">
+            {isExporting
+              ? `Export ${Math.max(0, Math.min(100, Math.round(exportProgress)))}%`
+              : "Export"}
+          </span>
         </Button>
 
-        <Button disabled variant="cyanOutline" size="sm" className="uppercase">
+        <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
           {/* <Share2 className="size-4.5 mr-1" /> */}
           <MaterialIcon name="share" fill={1} size={20} className="mr-1" />
-          Share
+          <span className="vx-editor-action-label">Share</span>
         </Button>
 
         <Button
           variant="outline"
           size="sm"
           className="flex border-none items-center"
+          title={currentUserName || "Guest"}
         >
-          <span className="text-base">{currentUserName || "Guest"}</span>
+          <span className="vx-editor-topbar__user-name text-base">{currentUserName || "Guest"}</span>
           {/* <ChevronDown className="size-4.5" /> */}
           <MaterialIcon
             name="arrow_back_2"
             fill={1}
             size={20}
-            className="-rotate-90"
+            className="vx-editor-user-chevron -rotate-90"
           />
           <MaterialIcon
             name="account_circle"

@@ -1,6 +1,6 @@
-# VXplore Player V2
+# Viqubed Player V2
 
-Player V2 is a safe parallel implementation path for the next-generation VXplore Player.
+Player V2 is a safe parallel implementation path for the next-generation Viqubed Player.
 
 ## Current milestone
 
@@ -18,8 +18,8 @@ Implemented through Sprint 24:
 - Player V2 has an isolated `usePlayerV2Selection` hook.
 - Selected object information is displayed in a lightweight selection info panel.
 - Selection can be cleared without touching chapter/project state.
-- Legacy Player remains unchanged at `/vxplore/player/:projectId`.
-- Player V2 remains isolated at `/vxplore/player-v2/:projectId`.
+- Legacy Player remains unchanged at `/viqubed/player/:projectId`.
+- Player V2 remains isolated at `/viqubed/player-v2/:projectId`.
 
 ## Not implemented yet
 

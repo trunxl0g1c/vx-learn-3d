@@ -39,15 +39,31 @@ export default function VisualTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    showHeader = true,
+    className = "",
+    contentClassName = "p-4",
+    rendererGlobal = "__EDITOR_RENDERER__",
   } = props;
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
-        Environment Settings
-      </div>
+    <div
+      className={[
+        "flex h-full min-h-0 flex-col overflow-hidden",
+        className,
+      ].join(" ")}
+    >
+      {showHeader && (
+        <div className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-[#14201f] px-4 text-lg font-normal">
+          Environment Settings
+        </div>
+      )}
 
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+      <div
+        className={[
+          "sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
+          contentClassName,
+        ].join(" ")}
+      >
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -100,8 +116,11 @@ export default function VisualTab(props) {
                 exposure: value,
               }));
 
-              if (window.__EDITOR_RENDERER__) {
-                window.__EDITOR_RENDERER__.toneMappingExposure = value;
+              const renderer =
+                typeof window !== "undefined" ? window[rendererGlobal] : null;
+
+              if (renderer) {
+                renderer.toneMappingExposure = value;
               }
             }}
           />

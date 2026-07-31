@@ -1,3 +1,5 @@
+import { cloneElement, isValidElement } from "react";
+
 export function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
@@ -31,22 +33,39 @@ export default function Button({
   variant = "default",
   size = "md",
   children,
-  disabled,
+  disabled = false,
+  asChild = false,
   ...props
 }) {
+  const buttonClassName = cn(
+    "inline-flex cursor-pointer items-center justify-center border font-normal tracking-wide",
+    "select-none outline-none transition-all duration-200",
+    "active:translate-y-px",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "focus-visible:ring-2 focus-visible:ring-cyan-400/50",
+    variants[variant],
+    sizes[size],
+    className,
+  );
+
+  if (asChild && isValidElement(children)) {
+    const childClassName = children.props?.className || "";
+
+    return cloneElement(children, {
+      ...props,
+      className: cn(buttonClassName, childClassName),
+      "aria-disabled": disabled || undefined,
+      tabIndex: disabled ? -1 : children.props?.tabIndex,
+      onClick: disabled
+        ? (event) => event.preventDefault()
+        : props.onClick || children.props?.onClick,
+    });
+  }
+
   return (
     <button
       disabled={disabled}
-      className={cn(
-        "inline-flex cursor-pointer items-center justify-center border font-normal tracking-wide",
-        "select-none outline-none transition-all duration-200",
-        "active:translate-y-px",
-        "disabled:pointer-events-none disabled:opacity-50",
-        "focus-visible:ring-2 focus-visible:ring-cyan-400/50",
-        variants[variant],
-        sizes[size],
-        className,
-      )}
+      className={buttonClassName}
       {...props}
     >
       {children}

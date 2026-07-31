@@ -5,6 +5,7 @@ export default function PlayerV2SelectionInfo({ selection, camera }) {
 
   return (
     <div
+      className="vx-player-v2-selection"
       style={{
         position: "absolute",
         right: 12,

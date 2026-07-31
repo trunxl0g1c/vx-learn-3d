@@ -5,8 +5,8 @@ import MaterialIcon from "../../../components/ui/material-icon";
 const menus = [
   {
     title: "My Catalogue",
-    href: "/vxplore",
-    match: "/vxplore",
+    href: "/viqubed",
+    match: "/viqubed",
     icon: "package_2",
   },
   {
@@ -69,8 +69,8 @@ export default function ProjectHubSidebar() {
   const location = useLocation();
 
   return (
-    <aside className="w-[220px] shrink-0 border-r border-divider-main bg-primary">
-      <nav className="flex flex-col gap-1 p-3">
+    <aside className="w-[56px] shrink-0 overflow-y-auto border-r border-divider-main bg-primary sm:w-[68px] lg:w-[220px]">
+      <nav className="flex flex-col gap-1 p-1.5 sm:p-2 lg:p-3">
         {menus.map((item, index) => {
           if (item.divider) {
             return (
@@ -87,15 +87,21 @@ export default function ProjectHubSidebar() {
               : location.pathname.startsWith(item.match);
 
           return (
-            <Link key={item.href} to={item.href} className="block">
+            <Link
+              key={item.href}
+              to={item.href}
+              className="block"
+              title={item.title}
+            >
               <Button
                 type="button"
                 variant="sidebar"
                 size="sm"
                 className={cn(
-                  "w-full justify-start gap-3 px-3",
-                  isActive ?
-                    "bg-accent-main! text-white hover:bg-accent-main!" : "hover:bg-accent-main/80!",
+                  "w-full justify-center px-2 lg:justify-start lg:gap-3 lg:px-3",
+                  isActive
+                    ? "bg-accent-main! text-white hover:bg-accent-main!"
+                    : "hover:bg-accent-main/80!",
                 )}
               >
                 <MaterialIcon
@@ -108,7 +114,7 @@ export default function ProjectHubSidebar() {
                   )}
                 />
 
-                <span>{item.title}</span>
+                <span className="hidden truncate lg:inline">{item.title}</span>
               </Button>
             </Link>
           );

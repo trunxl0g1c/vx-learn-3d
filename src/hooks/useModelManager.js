@@ -188,6 +188,27 @@ export function useModelManager({
     clearSelectionState()
   }
 
+  const hideSelectedObjects = (selectedObjects = []) => {
+    const targets = Array.from(
+      new Set(
+        (Array.isArray(selectedObjects) ? selectedObjects : [selectedObjects])
+          .filter(Boolean),
+      ),
+    )
+
+    if (targets.length === 0) {
+      alert('Select one or more objects first')
+      return false
+    }
+
+    targets.forEach((targetObject) => {
+      getModelEngine().hideObject(targetObject)
+    })
+
+    clearSelectionState()
+    return true
+  }
+
   const showAllObjects = () => {
     getModelEngine().showAllObjects()
   }
@@ -239,6 +260,7 @@ export function useModelManager({
     toggleCutSection,
     soloSelectedObject,
     hideSelectedObject,
+    hideSelectedObjects,
     showAllObjects,
     hideAllObjects,
     resetAllTransforms,

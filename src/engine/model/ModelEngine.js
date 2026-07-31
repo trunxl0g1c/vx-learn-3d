@@ -78,6 +78,35 @@ export function createModelEngine(options = {}) {
   const getOriginalPositions = () => originalPositions
   const getOriginalGroupPositions = () => originalGroupPositions
 
+  const setOriginalTransforms = ({
+    positions = [],
+    groupPositions = [],
+  } = {}) => {
+    originalPositions = positions.map((item) => ({
+      ...item,
+      position: item?.position?.clone?.() || item?.position,
+    }))
+
+    originalGroupPositions = groupPositions.map((item) => ({
+      ...item,
+      position: item?.position?.clone?.() || item?.position,
+      rotation: item?.rotation?.clone?.() || item?.rotation,
+    }))
+
+    if (lastState) {
+      lastState = {
+        ...lastState,
+        originalPositions,
+        originalGroupPositions,
+      }
+    }
+
+    return {
+      originalPositions,
+      originalGroupPositions,
+    }
+  }
+
   const setScene = (nextScene) => {
     scene = nextScene || null
     return scene
@@ -654,11 +683,52 @@ export function createModelEngine(options = {}) {
     })
   }
 
-  const resetMovedObjects = () => {
+  const resetMovedObjects = ({ animationDuration = 560 } = {}) => {
+    let animatedObjectCount = 0
+
     originalGroupPositions.forEach((item) => {
-      item.object.userData.moveTargetPosition = item.position.clone()
-      item.object.userData.moveTargetRotation = item.rotation.clone()
+      const object = item?.object
+
+      if (!object || !item?.position || !item?.rotation) return
+
+      const targetPosition = item.position.clone()
+      const targetRotation = item.rotation.clone()
+      const targetQuaternion = new THREE.Quaternion().setFromEuler(targetRotation)
+      const positionChanged = object.position.distanceToSquared(targetPosition) > 1e-10
+      const rotationChanged = object.quaternion.angleTo(targetQuaternion) > 1e-5
+
+      delete object.userData.targetPosition
+      delete object.userData.targetPositionAnimation
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (!positionChanged && !rotationChanged) return
+
+      const requestedDuration = Number(animationDuration)
+
+      if (Number.isFinite(requestedDuration) && requestedDuration <= 0) {
+        object.position.copy(targetPosition)
+        object.rotation.copy(targetRotation)
+        object.updateMatrixWorld?.(true)
+        animatedObjectCount += 1
+        return
+      }
+
+      object.userData.moveTargetPosition = targetPosition
+      object.userData.moveTargetRotation = targetRotation
+      object.userData.moveTargetTransformAnimation = {
+        fromPosition: object.position.clone(),
+        fromQuaternion: object.quaternion.clone(),
+        targetQuaternion,
+        startedAt: getNow(),
+        duration: Math.max(requestedDuration || 560, 1),
+      }
+
+      animatedObjectCount += 1
     })
+
+    return animatedObjectCount
   }
 
   const resetRotation = () => {
@@ -758,6 +828,7 @@ export function createModelEngine(options = {}) {
     computeMarkerScale: () => computeMarkerScale(scene),
     getOriginalPositions,
     getOriginalGroupPositions,
+    setOriginalTransforms,
     getState: () => lastState,
     registerIntegrations,
     pullApart,

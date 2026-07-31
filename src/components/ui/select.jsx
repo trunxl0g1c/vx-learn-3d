@@ -23,9 +23,12 @@ export default function SelectField({
           </option>
         )}
 
-        {options.map((option) => (
+        {options.map((option, index) => (
           <option
-            key={option.value ?? option.label}
+            key={
+              option.key ??
+              `${String(option.value ?? option.label ?? "option")}-${index}`
+            }
             value={option.value}
             className="bg-[#1f1d20] text-white"
           >

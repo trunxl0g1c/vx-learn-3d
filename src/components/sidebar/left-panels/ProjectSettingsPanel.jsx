@@ -1,4 +1,4 @@
-import { FileText, ImageIcon, Trash2, Video } from "lucide-react";
+import { Camera, FileText, ImageIcon, Trash2, Video } from "lucide-react";
 import Switch from "../../ui/switch";
 import Slider from "../../ui/slider";
 import {
@@ -9,8 +9,11 @@ import {
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
 import ColorFieldInput from "./attributes/ColorFieldInput";
+import StageBackgroundControls from "./StageBackgroundControls";
 import InlineAlert from "../../ui/inline-alert";
 import { useState } from "react";
+import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
+import { createId } from "../../../utils/createId";
 
 const HDRI_PRESETS = [
   { label: "None", value: "" },
@@ -120,7 +123,12 @@ async function captureViewportThumbnail() {
   await waitForBackgroundTextureReady();
   await waitForNextFrame();
 
-  const dataUrl = canvas.toDataURL("image/png");
+  const captureViewport = window.__EDITOR_CAPTURE_VIEWPORT__;
+  const dataUrl =
+    typeof captureViewport === "function"
+      ? captureViewport()
+      : canvas.toDataURL("image/png");
+
   return resizeImageDataUrl(dataUrl);
 }
 
@@ -129,6 +137,7 @@ export default function ProjectSettingsPanel({
   setMaterial,
   viewerSettings,
   setViewerSettings,
+  saveDefaultPlayerCameraView,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
@@ -237,7 +246,7 @@ export default function ProjectSettingsPanel({
       media: [
         ...(prev.media || []),
         {
-          id: crypto.randomUUID(),
+          id: createId(),
           type,
           title: getMediaTitle(file, type),
           name: file.name || getMediaTitle(file, type),
@@ -259,6 +268,47 @@ export default function ProjectSettingsPanel({
   };
 
   const mediaList = Array.isArray(material.media) ? material.media : [];
+  const playerSettings = normalizePlayerSettings(material.playerSettings);
+
+  const updatePlayerSettings = (patch) => {
+    setMaterial((prev) => {
+      const currentSettings = normalizePlayerSettings(prev.playerSettings);
+
+      return {
+        ...prev,
+        playerSettings: {
+          ...currentSettings,
+          ...patch,
+          menuVisibility: patch.menuVisibility
+            ? {
+                ...currentSettings.menuVisibility,
+                ...patch.menuVisibility,
+              }
+            : currentSettings.menuVisibility,
+        },
+      };
+    });
+  };
+
+  const updatePlayerMenuVisibility = (key, checked) => {
+    updatePlayerSettings({
+      menuVisibility: {
+        [key]: checked,
+      },
+    });
+  };
+
+  const handleSaveDefaultPlayerCameraView = () => {
+    clearPanelError();
+
+    const didSave = saveDefaultPlayerCameraView?.();
+
+    if (!didSave) {
+      showPanelError(
+        "Camera viewport belum siap. Tunggu model tampil lalu coba simpan kembali.",
+      );
+    }
+  };
 
   return (
     <div className="flex h-full flex-col text-white">
@@ -442,10 +492,8 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-            Media
-          </label>
+        <div className="rounded-xl border border-secondary-default bg-primary p-4">
+          <div className="mb-4 text-sm font-normal text-white">Media</div>
 
           <div className="space-y-3">
             {mediaList.length > 0 && (
@@ -453,9 +501,9 @@ export default function ProjectSettingsPanel({
                 {mediaList.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 rounded-lg border border-secondary-default bg-primary p-3"
+                    className="flex items-center gap-3 rounded-lg border border-secondary-default bg-dark-alpha p-3"
                   >
-                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#315b64] bg-dark-alpha">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#315b64] bg-primary">
                       {item.type === "IMAGE" && item.url ? (
                         <img
                           src={item.url}
@@ -501,7 +549,7 @@ export default function ProjectSettingsPanel({
                   key={item.type}
                   title={item.label}
                   aria-label={item.label}
-                  className="grid h-12 cursor-pointer place-items-center rounded-lg border border-secondary-default bg-primary text-white transition hover:border-secondary-default hover:bg-dark-alpha"
+                  className="grid h-12 cursor-pointer place-items-center rounded-lg border border-secondary-default bg-dark-alpha text-white transition hover:bg-dark-alpha/70"
                 >
                   {getMediaIcon(item.type, "size-5 text-secondary-default")}
                   <input
@@ -516,6 +564,93 @@ export default function ProjectSettingsPanel({
                   />
                 </label>
               ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-secondary-default bg-primary p-4">
+          <div className="mb-4 text-sm font-normal text-white">
+            Player Settings
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-normal text-contrast-grayout">
+                Auto Show Materi
+              </span>
+
+              <Switch
+                checked={playerSettings.autoShowMaterial}
+                onCheckedChange={(checked) =>
+                  updatePlayerSettings({ autoShowMaterial: checked })
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
+              <span className="text-sm font-normal text-contrast-grayout">
+                List Materi
+              </span>
+
+              <Switch
+                checked={playerSettings.showMaterialList}
+                onCheckedChange={(checked) =>
+                  updatePlayerSettings({ showMaterialList: checked })
+                }
+              />
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={handleSaveDefaultPlayerCameraView}
+                className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-secondary-default text-sm font-bold text-white transition hover:bg-secondary-default hover:text-primary"
+              >
+                <Camera className="size-4" />
+                {playerSettings.defaultCameraView
+                  ? "Update Default Camera View"
+                  : "Save Default Camera View"}
+              </button>
+
+              <p className="mt-2 text-xs leading-5 text-contrast-grayout">
+                Posisi kamera Editor saat ini akan menjadi tampilan awal serta
+                target Reset View dan Reset All di Player.
+              </p>
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <div className="mb-4 text-xs font-bold uppercase tracking-wide text-contrast-grayout">
+                Player Menu
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  ["environmentSettings", "Environment Settings"],
+                  ["objectList", "Object List"],
+                  ["freePlay", "Free Play"],
+                  ["pullApart", "Pull Apart"],
+                  ["cut", "Cut"],
+                ].map(([key, label], index) => (
+                  <div
+                    key={key}
+                    className={[
+                      "flex items-center justify-between gap-4",
+                      index > 0 ? "border-t border-white/10 pt-4" : "",
+                    ].join(" ")}
+                  >
+                    <span className="text-sm font-normal text-contrast-grayout">
+                      {label}
+                    </span>
+
+                    <Switch
+                      checked={playerSettings.menuVisibility[key]}
+                      onCheckedChange={(checked) =>
+                        updatePlayerMenuVisibility(key, checked)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -657,6 +792,15 @@ export default function ProjectSettingsPanel({
             <Button
               size="sm"
               type="button"
+              variant={background.type === "stage" ? "default" : "outline"}
+              onClick={() => updateBackground({ type: "stage" })}
+            >
+              Stage
+            </Button>
+
+            <Button
+              size="sm"
+              type="button"
               variant={background.type === "image" ? "default" : "outline"}
             >
               <label>
@@ -777,6 +921,13 @@ export default function ProjectSettingsPanel({
                   }
                 />
               </>
+            )}
+
+            {background.type === "stage" && (
+              <StageBackgroundControls
+                background={background}
+                updateBackground={updateBackground}
+              />
             )}
 
             {background.type === "image" && (

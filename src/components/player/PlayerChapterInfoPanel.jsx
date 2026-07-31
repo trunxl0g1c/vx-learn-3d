@@ -1,4 +1,4 @@
-import { Pause, Play, Volume2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, Volume2 } from "lucide-react";
 import Button from "../ui/button";
 
 export default function PlayerChapterInfoPanel({
@@ -7,6 +7,9 @@ export default function PlayerChapterInfoPanel({
   stopSpeaking,
   playChapterAnimations,
   stopChapterAnimations,
+  cameraViews = [],
+  activeCameraViewIndex = 0,
+  onSelectCameraView,
 }) {
   if (!activeChapter) return null;
 
@@ -14,7 +17,7 @@ export default function PlayerChapterInfoPanel({
     <aside
       onClick={(e) => e.stopPropagation()}
       className={[
-        "absolute right-0 top-0 bottom-0 z-[110] flex w-[420px] flex-col overflow-hidden",
+        "vx-player-v2-chapter-panel absolute right-0 top-0 bottom-0 z-[110] flex w-[420px] flex-col overflow-hidden",
         "border border-divider-main text-white",
         "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
       ].join(" ")}
@@ -69,6 +72,52 @@ export default function PlayerChapterInfoPanel({
             {activeChapter.description || "Belum ada deskripsi."}
           </div>
         </div>
+
+        {cameraViews.length > 0 && (
+          <section className="mb-6 border-t border-divider-main pt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-xs font-bold text-contrast-grayout">
+                Camera View
+              </div>
+              <div className="rounded-full border border-secondary-default px-2 py-0.5 text-[10px] text-secondary-default">
+                Camera {activeCameraViewIndex + 1}/{cameraViews.length}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-divider-main bg-primary/80 p-3">
+              <div className="text-sm font-semibold text-white">
+                {cameraViews[activeCameraViewIndex]?.caption ||
+                  `Camera ${activeCameraViewIndex + 1}`}
+              </div>
+              <div className="mt-1 text-xs text-contrast-grayout">
+                {cameraViews[activeCameraViewIndex]?.cameraType ===
+                "orthographic"
+                  ? "Orthographic"
+                  : "Perspective"}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  disabled={activeCameraViewIndex <= 0}
+                  onClick={() => onSelectCameraView?.(activeCameraViewIndex - 1)}
+                  className="gap-2"
+                >
+                  <ChevronLeft className="size-4" />
+                  Back
+                </Button>
+                <Button
+                  disabled={activeCameraViewIndex >= cameraViews.length - 1}
+                  onClick={() => onSelectCameraView?.(activeCameraViewIndex + 1)}
+                  className="gap-2"
+                >
+                  Next
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {activeChapter?.parameters?.length > 0 && (
           <section className="mb-6 border-t border-divider-main pt-4">

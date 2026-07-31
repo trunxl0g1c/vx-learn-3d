@@ -8,17 +8,17 @@ export default function LoadingModel() {
 
   return (
     <Html center>
-      <div className="w-[420px] rounded-[24px] border border-divider-main bg-dark-alpha px-8 py-9 text-center text-white shadow-[0_24px_90px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+      <div className="max-w-[calc(100vw-32px)] w-[420px] rounded-[24px] border border-divider-main bg-dark-alpha px-8 py-9 text-center text-white shadow-[0_24px_90px_rgba(0,0,0,0.7)] backdrop-blur-xl">
         <div className="mx-auto mb-4 grid size-20 place-items-center rounded-full border border-divider-main bg-primary/70">
           <img
             src="/images/logo.svg"
-            alt="VXplore Studio"
+            alt="Viqubed Studio"
             className="size-14 rounded-full"
           />
         </div>
 
         <div className="mb-1 text-xl font-normal text-white">
-          VXplore Studio
+          Viqubed Studio
         </div>
 
         <div className="mb-7 text-sm text-secondary-default">

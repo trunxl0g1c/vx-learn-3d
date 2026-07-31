@@ -12,9 +12,13 @@ export default function ViewerPageLayout({ controller }) {
     setActiveSidebar,
     rightTab,
     setRightTab,
+    selectedObject,
     selectedObjectName,
     authoringObjectName,
     createChapterFromSelectedObject,
+    previewChapterInEditor,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
     saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     saveMaterial,
@@ -29,6 +33,7 @@ export default function ViewerPageLayout({ controller }) {
     setRoughness,
     viewerSettings,
     setViewerSettings,
+    modelScene,
     updateEnvIntensity,
     material,
     activeChapterId,
@@ -49,11 +54,18 @@ export default function ViewerPageLayout({ controller }) {
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     setMarkerMode,
     markerDialogOpen,
     pendingMarkerName,
@@ -64,6 +76,8 @@ export default function ViewerPageLayout({ controller }) {
     cancelAddMarker,
 
     hideSelectedObject,
+    toggleSelectedObjectXray,
+    isSelectedObjectXray,
     deselectObject,
 
     activeMarkers,
@@ -91,6 +105,10 @@ export default function ViewerPageLayout({ controller }) {
         title={material.title}
         saveStatus={saveStatus}
         onPlay={controller.openPlayerPreview}
+        onExport={saveMaterial}
+        isExporting={isSavingPackage}
+        exportProgress={savePackageProgress}
+        exportStatus={savePackageStatus}
       />
 
       <EditorSidebarRail
@@ -110,15 +128,15 @@ export default function ViewerPageLayout({ controller }) {
           clearChapterFeedback={clearChapterFeedback}
           rightTab={rightTab}
           setRightTab={setRightTab}
+          selectedObject={selectedObject}
           selectedObjectName={selectedObjectName}
           authoringObjectName={authoringObjectName}
           createChapterFromSelectedObject={createChapterFromSelectedObject}
+          previewChapterInEditor={previewChapterInEditor}
+          contentAuthoringLocked={contentAuthoringLocked}
+          contentAuthoringLockReason={contentAuthoringLockReason}
           saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
           saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
-          saveMaterial={saveMaterial}
-          isSavingPackage={isSavingPackage}
-          savePackageProgress={savePackageProgress}
-          savePackageStatus={savePackageStatus}
           applyShaderMode={applyShaderMode}
           shaderMode={shaderMode}
           metalness={metalness}
@@ -127,6 +145,7 @@ export default function ViewerPageLayout({ controller }) {
           setRoughness={setRoughness}
           viewerSettings={viewerSettings}
           setViewerSettings={setViewerSettings}
+          modelScene={modelScene}
           updateEnvIntensity={updateEnvIntensity}
           material={material}
           activeChapterId={activeChapterId}
@@ -147,24 +166,33 @@ export default function ViewerPageLayout({ controller }) {
           getChapterAnimationConfig={getChapterAnimationConfig}
           toggleChapterAnimation={toggleChapterAnimation}
           updateChapterAnimationField={updateChapterAnimationField}
+          addChapterAnimation={addChapterAnimation}
+          updateChapterAnimation={updateChapterAnimation}
+          removeChapterAnimation={removeChapterAnimation}
+          addChapterFlow={addChapterFlow}
+          updateChapterFlow={updateChapterFlow}
+          removeChapterFlow={removeChapterFlow}
           playAnimationPreview={playAnimationPreview}
           stopAnimationPreview={stopAnimationPreview}
           addChapterMedia={addChapterMedia}
           deleteChapterMedia={deleteChapterMedia}
           deleteChapterContent={deleteChapterContent}
+          moveChapter={moveChapter}
           setMarkerMode={setMarkerMode}
           requestAddMarker={requestAddMarker}
           markerMode={markerMode}
           cancelAddMarker={cancelAddMarker}
           hideSelectedObject={controller.hideSelectedObject}
           soloSelectedObject={controller.soloSelectedObject}
+          toggleSelectedObjectXray={toggleSelectedObjectXray}
+          isSelectedObjectXray={isSelectedObjectXray}
           resetAllTransforms={controller.resetAllTransforms}
           deselectObject={controller.deselectObject}
           deleteVisualStateFromActiveChapter={
             deleteVisualStateFromActiveChapter
           }
-          saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
           deleteCameraViewFromActiveChapter={deleteCameraViewFromActiveChapter}
+          leftPanelOpen={Boolean(activeSidebar)}
         />
       </Activity>
 

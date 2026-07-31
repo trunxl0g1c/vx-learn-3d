@@ -1,3 +1,5 @@
+import { createId } from "../../utils/createId";
+
 export const ANIMATION_COMMAND_TYPES = {
   PLAY: "play",
   PLAY_CHAPTER: "playChapter",
@@ -173,7 +175,7 @@ export function createSelectedAnimationMap(availableAnimations = [], chapterAnim
 export function createAnimationCommand(type, payload = {}) {
   return {
     type,
-    id: payload.id || crypto.randomUUID(),
+    id: payload.id || createId(),
     ...payload,
   }
 }

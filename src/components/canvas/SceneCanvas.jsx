@@ -6,7 +6,7 @@ import {
   TransformControls,
   Environment,
 } from '@react-three/drei'
-import { Suspense, useEffect, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 import Marker from '../Marker'
@@ -14,9 +14,22 @@ import Model from '../Model'
 import LoadingModel from '../viewer/LoadingModel'
 import CameraAnimator from '../viewer/CameraAnimator'
 import ModelRotator from '../viewer/ModelRotator'
-import { getViewerBackgroundStyle } from '../../utils/viewerBackground'
+import { getViewerBackground, getViewerBackgroundStyle } from '../../utils/viewerBackground'
+import {
+  armExpectedWebGLContextLoss,
+  installExpectedWebGLContextLossGuard,
+  isExpectedWebGLContextLoss,
+} from '../../utils/webglContextLifecycle'
 import CustomHdriEnvironment from './CustomHdriEnvironment'
 import ViewerSceneBackground from './ViewerSceneBackground'
+import ViewerProjectionCameraController from './ViewerProjectionCameraController'
+import ViewerStageFloor from './ViewerStageFloor'
+import StageShadowDirectionalLight from './StageShadowDirectionalLight'
+import FlowRuntimeRenderer from '../flow/FlowRuntimeRenderer'
+import FlowWaypointEditor from '../flow/FlowWaypointEditor'
+import AssemblyGhostTarget from '../procedural/AssemblyGhostTarget'
+import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
+import { getFlowReferenceLengthFromObject } from '../../engine/flow'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 
@@ -34,6 +47,87 @@ function getShaderOutlineConfig(shaderOutlineStyle) {
     visibleEdgeColor: '#172033',
     hiddenEdgeColor: '#172033',
   }
+}
+
+function WebGLRendererLifecycle({ registryKey }) {
+  const { gl, scene, camera, invalidate } = useThree()
+
+  useEffect(() => {
+    const canvas = gl.domElement
+    const removeExpectedLossGuard =
+      installExpectedWebGLContextLossGuard(canvas)
+
+    let mounted = true
+
+    const handleContextLost = (event) => {
+      // Intentional losses are intercepted in the capture phase before this
+      // handler and before Three.js logs them. Anything reaching this point is
+      // an unexpected runtime/GPU context loss and should remain recoverable.
+      if (
+        !mounted ||
+        !canvas.isConnected ||
+        isExpectedWebGLContextLoss(canvas)
+      ) {
+        return
+      }
+
+      event.preventDefault()
+
+      if (typeof window !== 'undefined') {
+        window.__VX_WEBGL_CONTEXT_LOST__ = true
+      }
+    }
+
+    const handleContextRestored = () => {
+      if (!mounted) return
+
+      if (typeof window !== 'undefined') {
+        window.__VX_WEBGL_CONTEXT_LOST__ = false
+      }
+
+      invalidate()
+    }
+
+    canvas.addEventListener('webglcontextlost', handleContextLost, false)
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false)
+
+    if (typeof window !== 'undefined') {
+      window[registryKey] = gl
+
+      if (registryKey === '__EDITOR_RENDERER__') {
+        window.__EDITOR_CAPTURE_VIEWPORT__ = () => {
+          gl.render(scene, camera)
+          return gl.domElement.toDataURL('image/png')
+        }
+      }
+    }
+
+    return () => {
+      mounted = false
+
+      // R3F intentionally calls forceContextLoss while unmounting Canvas.
+      // Arm the capture guard before the renderer disposal happens so that a
+      // normal route/HMR teardown is not reported as an application failure.
+      armExpectedWebGLContextLoss(canvas)
+      removeExpectedLossGuard({ delayed: true })
+
+      canvas.removeEventListener('webglcontextlost', handleContextLost, false)
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored, false)
+
+      if (typeof window !== 'undefined' && window[registryKey] === gl) {
+        window[registryKey] = null
+      }
+
+      if (
+        typeof window !== 'undefined' &&
+        registryKey === '__EDITOR_RENDERER__'
+      ) {
+        window.__EDITOR_CAPTURE_VIEWPORT__ = null
+      }
+    }
+  }, [camera, gl, invalidate, registryKey, scene])
+
+  return null
 }
 
 function RenderSettingsSync({ viewerSettings }) {
@@ -58,6 +152,7 @@ export default function SceneCanvas({
   controlsRef,
   focusTargetRef,
   viewerSettings,
+  cameraProjectionMode = "perspective",
   outlineObjects,
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
@@ -72,6 +167,8 @@ export default function SceneCanvas({
   setAnimations,
   setSelectedAnimations,
   activeMarkers,
+  activeChapter = null,
+  updateMarker,
   modelScene,
   targetRotationY,
   isAutoRotating,
@@ -84,21 +181,57 @@ export default function SceneCanvas({
   setSelectedObject,
   setOutlineObjects,
   setSelectedObjectName,
+  onClearSelection,
+  flowPointMode = false,
+  onAddFlowPoint,
+  onUpdateFlowPoints,
+  selectedFlowPointIds = [],
+  onSelectFlowPoint,
+  authoringFlow = null,
+  flowPreviewPlaying = false,
+  flowPreviewToken = 0,
+  proceduralTransformMode = "translate",
+  proceduralTransformObject = null,
+  proceduralAssemblyTargetTransform = null,
+  proceduralAssemblyShowGhost = false,
 }) {
   const modelRootRef = useRef(null)
+  const [isFlowWaypointTransforming, setIsFlowWaypointTransforming] =
+    useState(false)
   const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle)
   const isSketchMode = shaderOutlineStyle === 'sketch'
+  const background = getViewerBackground(viewerSettings)
+  const stageBackgroundEnabled = background.type === 'stage' && !isSketchMode
   const canvasStyle = isSketchMode
     ? { background: '#ffffff' }
     : getViewerBackgroundStyle(viewerSettings)
+  const transformObject = authoringFlow
+    ? null
+    : proceduralTransformObject || selectedObject
+  const flowSpeedReferenceLength = useMemo(
+    () => getFlowReferenceLengthFromObject(modelScene, 1),
+    [modelScene],
+  )
+  const handleFlowWaypointTransformingChange = useCallback(
+    (transforming) => {
+      setIsFlowWaypointTransforming(transforming)
+      setIsTransforming(transforming)
+      setOrbitEnabled(!transforming)
+    },
+    [setIsTransforming, setOrbitEnabled],
+  )
 
   return (
     <Canvas
+      shadows={stageBackgroundEnabled ? 'soft' : false}
       camera={{ position: [0, 0, 5] }}
+      dpr={[1, 1.5]}
       style={canvasStyle}
       gl={{
         alpha: true,
-        preserveDrawingBuffer: true,
+        antialias: true,
+        powerPreference: 'high-performance',
+        preserveDrawingBuffer: false,
         localClippingEnabled: true,
         toneMapping: THREE.ACESFilmicToneMapping,
       }}
@@ -106,22 +239,36 @@ export default function SceneCanvas({
         cameraRef.current = camera
         gl.setClearColor(0x000000, 0)
         gl.toneMappingExposure = viewerSettings.exposure
-        window.__EDITOR_RENDERER__ = gl
       }}
-      onPointerMissed={() => {
+      onPointerMissed={(event) => {
+        if (event?.button !== undefined && event.button !== 0) return
+        if (Number(event?.delta || 0) > 2) return
+
+        if (onClearSelection) {
+          onClearSelection()
+          return
+        }
+
         setSelectedObject(null)
         setOutlineObjects([])
         setSelectedObjectName('')
         setOrbitEnabled(true)
       }}
     >
+      <WebGLRendererLifecycle registryKey="__EDITOR_RENDERER__" />
+      <ViewerProjectionCameraController
+        mode={cameraProjectionMode}
+        cameraRef={cameraRef}
+        controlsRef={controlsRef}
+        focusTargetRef={focusTargetRef}
+      />
       <RenderSettingsSync viewerSettings={viewerSettings} />
       <ViewerSceneBackground
         viewerSettings={viewerSettings}
         backgroundOverrideColor={isSketchMode ? '#ffffff' : null}
       />
 
-      <EffectComposer autoClear={false}>
+      <EffectComposer autoClear={false} multisampling={0}>
         {shaderOutlineObjects.length > 0 && (
           <Outline
             selection={shaderOutlineObjects}
@@ -160,9 +307,15 @@ export default function SceneCanvas({
         )
       )}
 
-      <directionalLight
-        position={[5, 8, 5]}
+      <StageShadowDirectionalLight
+        enabled={stageBackgroundEnabled}
         intensity={viewerSettings.mainLight}
+        modelRootRef={modelRootRef}
+        modelScene={modelScene}
+        position={[5, 8, 5]}
+        softness={background.stageShadowSoftness}
+        blurRadius={background.stageShadowBlurRadius}
+        spread={background.stageShadowSpread}
       />
 
       <directionalLight
@@ -175,6 +328,14 @@ export default function SceneCanvas({
         groundColor="#aaaaaa"
         intensity={viewerSettings.hemiLight}
       />
+
+      {stageBackgroundEnabled && (
+        <ViewerStageFloor
+          viewerSettings={viewerSettings}
+          modelRootRef={modelRootRef}
+          modelScene={modelScene}
+        />
+      )}
 
       {modelUrl && (
         <Suspense fallback={<LoadingModel />}>
@@ -189,6 +350,8 @@ export default function SceneCanvas({
                   handleModelLoaded(modelRootRef.current)
                 }}
                 markerMode={markerMode}
+                flowPointMode={flowPointMode}
+                onAddFlowPoint={onAddFlowPoint}
                 onSelectObject={selectObjectFromMesh}
                 onDoubleClickObject={focusObjectFromMesh}
                 selectedAnimations={selectedAnimations}
@@ -214,8 +377,43 @@ export default function SceneCanvas({
                 <Marker
                   key={marker.id}
                   marker={marker}
+                  modelScene={modelScene}
+                  chapter={activeChapter}
+                  editable
+                  onUpdateMarker={updateMarker}
+                  onDraggingChange={(dragging) => {
+                    setOrbitEnabled(!dragging);
+
+                    if (controlsRef.current) {
+                      controlsRef.current.enabled = !dragging;
+                    }
+                  }}
                 />
               ))}
+
+              {authoringFlow?.points?.length >= 1 && (
+                <>
+                  <FlowRuntimeRenderer
+                    flow={authoringFlow}
+                    playing={flowPreviewPlaying}
+                    visible={!isFlowWaypointTransforming}
+                    authoring
+                    hideRuntimeWaypoints
+                    speedReferenceLength={flowSpeedReferenceLength}
+                    restartToken={flowPreviewToken}
+                  />
+                  <FlowWaypointEditor
+                    flow={authoringFlow}
+                    selectedPointIds={selectedFlowPointIds}
+                    onSelectPoint={onSelectFlowPoint}
+                    onUpdatePoints={onUpdateFlowPoints}
+                    controlsRef={controlsRef}
+                    onTransformingChange={
+                      handleFlowWaypointTransformingChange
+                    }
+                  />
+                </>
+              )}
             </group>
             </Center>
           </Bounds>
@@ -235,11 +433,17 @@ export default function SceneCanvas({
         onFinish={() => setIsAutoRotating(false)}
       />
 
-      {selectedObject && (
+      <AssemblyGhostTarget
+        object={proceduralTransformObject}
+        targetTransform={proceduralAssemblyTargetTransform}
+        visible={proceduralAssemblyShowGhost}
+      />
+
+      {transformObject && (
         <TransformControls
-          object={selectedObject}
-          mode="translate"
-          space="world"
+          object={transformObject}
+          mode={proceduralTransformMode}
+          space="local"
           onMouseDown={() => {
             setIsTransforming(true)
             setOrbitEnabled(false)
@@ -268,7 +472,7 @@ export default function SceneCanvas({
         enableZoom={orbitEnabled && !isTransforming}
         enablePan={orbitEnabled && !isTransforming}
         zoomToCursor
-        minDistance={0.001}
+        minDistance={DEFAULT_ORBIT_MIN_DISTANCE}
         onStart={() => {
           if (!orbitEnabled || isTransforming) return
 

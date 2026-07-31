@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
+import { createId } from "../utils/createId";
 import useProjectLoader from "../core/project/useProjectLoader";
 import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
 import { getCurrentUserName } from "../utils/authUser";
+import { normalizePlayerSettings } from "../modules/material/playerSettings";
+import { normalizeFlowDefinitions } from "../engine/flow";
+import { normalizeProceduralDefinitions } from "../engine/procedural";
 
 
 const VIEWER_LIGHTING_DEFAULTS = {
@@ -32,6 +36,11 @@ function normalizeLoadedViewerSettings(viewer = {}) {
     normalizedViewer.shaderMode = "original";
   }
 
+  normalizedViewer.cameraProjectionMode =
+    normalizedViewer.cameraProjectionMode === "orthographic"
+      ? "orthographic"
+      : "perspective";
+
   return normalizedViewer;
 }
 
@@ -39,7 +48,7 @@ function createInitialMaterial() {
   const currentUserName = getCurrentUserName();
 
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     title: "Materi 3D Baru",
     description: "",
     version: "1.0.0",
@@ -48,7 +57,10 @@ function createInitialMaterial() {
     availableOnMarketplace: false,
     modelUrl: "",
     chapters: [],
+    flows: [],
+    procedures: [],
     objectNameOverrides: [],
+    playerSettings: normalizePlayerSettings(),
   };
 }
 
@@ -85,7 +97,7 @@ export function useViewerProject({
     async function openProject() {
       try {
         updateLoading({
-          title: "Opening VXplore Project",
+          title: "Opening Viqubed Project",
           text: "Reading project data...",
           progress: null,
         });
@@ -133,6 +145,11 @@ export function useViewerProject({
           return {
             ...prev,
             ...loadedMaterial,
+            playerSettings: normalizePlayerSettings(
+              loadedMaterial.playerSettings || prev.playerSettings,
+            ),
+            flows: normalizeFlowDefinitions(loadedMaterial.flows),
+            procedures: normalizeProceduralDefinitions(loadedMaterial.procedures),
             thumbnail: loadedMaterial.thumbnail || project.thumbnail || "",
             projectId: project.id,
             projectName: project.name,
@@ -201,16 +218,30 @@ export function useViewerProject({
 
     try {
       if (isVXPackFile(file)) {
-        const { manifest } = await importVXPack(file);
+        const {
+          manifest,
+          material: importedMaterial,
+          viewer: importedViewer,
+          modelFile: importedModelFile,
+          scene: importedScene,
+        } = await importVXPack(file);
 
-        setMaterial(manifest);
+        setMaterial({
+          ...importedMaterial,
+          modelUrl: manifest.modelUrl,
+          playerSettings: normalizePlayerSettings(importedMaterial.playerSettings),
+          flows: normalizeFlowDefinitions(importedMaterial.flows),
+          procedures: normalizeProceduralDefinitions(importedMaterial.procedures),
+        });
         setModelUrl(manifest.modelUrl);
-        setMaterialModelUrl(manifest.originalModelUrl || "");
-        setModelFile(null);
-        setMarkers([]);
+        setMaterialModelUrl(
+          importedModelFile?.name || manifest.originalModelUrl || "",
+        );
+        setModelFile(importedModelFile);
+        setMarkers(importedScene?.markers || manifest.scene?.markers || []);
 
-        if (manifest.viewerSettings) {
-          const normalizedViewer = normalizeLoadedViewerSettings(manifest.viewerSettings);
+        if (importedViewer) {
+          const normalizedViewer = normalizeLoadedViewerSettings(importedViewer);
 
           setViewerSettings((prev) => ({
             ...prev,

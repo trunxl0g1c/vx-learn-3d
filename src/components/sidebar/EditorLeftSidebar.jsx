@@ -4,6 +4,7 @@ import ChapterTab from "../panels/right-tabs/ChapterTab";
 import AnimationTab from "../panels/right-tabs/AnimationTab";
 import HierarchyPanel from "./left-panels/HierarchyPanel";
 import ProjectSettingsPanel from "./left-panels/ProjectSettingsPanel";
+import ProToolsPanel from "./left-panels/ProToolsPanel";
 
 export default function EditorLeftSidebar({
   activeSidebar,
@@ -11,6 +12,10 @@ export default function EditorLeftSidebar({
 
   objectList,
   selectedObject,
+  selectedObjects,
+  multipleSelectEnabled,
+  selectObjectFromList,
+  clearSelection,
   setSelectedObject,
   highlightObject,
   makeXrayExcept,
@@ -30,6 +35,7 @@ export default function EditorLeftSidebar({
 
   material,
   setMaterial,
+  saveDefaultPlayerCameraView,
   selectedObjectName,
 
   applyShaderMode,
@@ -46,6 +52,8 @@ export default function EditorLeftSidebar({
   setActiveChapterId,
   previewChapterInEditor,
   createChapterFromSelectedObject,
+  contentAuthoringLocked = false,
+  contentAuthoringLockReason = "",
   saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
   panelSectionStyle,
@@ -65,6 +73,7 @@ export default function EditorLeftSidebar({
   stopAnimationPreview,
   addChapterMedia,
   deleteChapterMedia,
+  moveChapter,
   requestAddMarker,
   cancelAddMarker,
   markerMode,
@@ -72,13 +81,15 @@ export default function EditorLeftSidebar({
   selectedAnimations,
   setSelectedAnimations,
   setAnimationCommand,
+  flow,
+  procedural,
 }) {
   if (!activeSidebar) return null;
 
   return (
     <aside
       className={[
-        "absolute left-15 top-14 bottom-5 z-[110] h-full w-[400px] overflow-hidden",
+        "vx-editor-left-panel absolute left-15 top-14 bottom-5 z-[110] w-[400px] overflow-hidden",
         "border border-divider-main/80 text-white transition-all duration-200",
         "bg-primary/45 backdrop-blur-2xl backdrop-saturate-200",
       ].join(" ")}
@@ -97,6 +108,10 @@ export default function EditorLeftSidebar({
           <HierarchyPanel
             objectList={objectList}
             selectedObject={selectedObject}
+            selectedObjects={selectedObjects}
+            multipleSelectEnabled={multipleSelectEnabled}
+            selectObjectFromList={selectObjectFromList}
+            clearSelection={clearSelection}
             highlightObject={highlightObject}
             makeXrayExcept={makeXrayExcept}
             resetXray={resetXray}
@@ -134,6 +149,7 @@ export default function EditorLeftSidebar({
           <ProjectSettingsPanel
             material={material}
             setMaterial={setMaterial}
+            saveDefaultPlayerCameraView={saveDefaultPlayerCameraView}
             viewerSettings={viewerSettings}
             setViewerSettings={setViewerSettings}
           />
@@ -148,6 +164,8 @@ export default function EditorLeftSidebar({
             setActiveChapterId={setActiveChapterId}
             previewChapterInEditor={previewChapterInEditor}
             createChapterFromSelectedObject={createChapterFromSelectedObject}
+            contentAuthoringLocked={contentAuthoringLocked}
+            contentAuthoringLockReason={contentAuthoringLockReason}
             selectedObjectName={selectedObjectName}
             panelSectionStyle={panelSectionStyle}
             inputStyle={inputStyle}
@@ -168,6 +186,7 @@ export default function EditorLeftSidebar({
             stopAnimationPreview={stopAnimationPreview}
             addChapterMedia={addChapterMedia}
             deleteChapterMedia={deleteChapterMedia}
+            moveChapter={moveChapter}
             requestAddMarker={requestAddMarker}
             cancelAddMarker={cancelAddMarker}
             markerMode={markerMode}
@@ -184,6 +203,15 @@ export default function EditorLeftSidebar({
             selectedAnimations={selectedAnimations}
             setSelectedAnimations={setSelectedAnimations}
             setAnimationCommand={setAnimationCommand}
+          />
+        )}
+
+        {activeSidebar === "pro" && (
+          <ProToolsPanel
+            flow={flow}
+            procedural={procedural}
+            selectedObjectName={selectedObjectName}
+            animations={animations}
           />
         )}
       </div>

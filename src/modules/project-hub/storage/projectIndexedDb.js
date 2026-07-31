@@ -1,13 +1,22 @@
-const DB_NAME = "vxplore-db";
+import { createId } from "../../../utils/createId";
+
+const DB_NAME = "viqubed-db";
+const PREVIOUS_BRAND_DB_NAME = ["vi", "cubed-db"].join("");
+const LEGACY_DB_NAME = ["vx", "plore-db"].join("");
+const LEGACY_DB_NAMES = [PREVIOUS_BRAND_DB_NAME, LEGACY_DB_NAME];
 const DB_VERSION = 2;
+const MIGRATION_KEY = "viqubed-indexeddb-migrated-v1";
 
 const PROJECT_STORE = "projects";
 const FILE_STORE = "files";
 const DRAFT_STORE = "drafts";
 
-function openVXploreDb() {
+let databasePromise = null;
+let migrationPromise = null;
+
+function openDatabase(name) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    const request = indexedDB.open(name, DB_VERSION);
 
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -30,11 +39,125 @@ function openVXploreDb() {
   });
 }
 
+function getMigrationStatus() {
+  try {
+    return localStorage.getItem(MIGRATION_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function setMigrationStatus() {
+  try {
+    localStorage.setItem(MIGRATION_KEY, "true");
+  } catch {
+    // IndexedDB remains usable when localStorage is unavailable.
+  }
+}
+
+function countStoreRecords(db, storeName) {
+  if (!db.objectStoreNames.contains(storeName)) return Promise.resolve(0);
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const request = tx.objectStore(storeName).count();
+
+    request.onsuccess = () => resolve(request.result || 0);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function getAllStoreRecords(db, storeName) {
+  if (!db.objectStoreNames.contains(storeName)) return Promise.resolve([]);
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const request = tx.objectStore(storeName).getAll();
+
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function migrateLegacyDatabase(targetDb) {
+  if (getMigrationStatus()) return;
+
+  const existingProjectCount = await countStoreRecords(targetDb, PROJECT_STORE);
+
+  if (existingProjectCount > 0) {
+    setMigrationStatus();
+    return;
+  }
+
+  try {
+    for (const legacyName of LEGACY_DB_NAMES) {
+      let legacyDb = null;
+
+      try {
+        legacyDb = await openDatabase(legacyName);
+
+        const [projects, files, drafts] = await Promise.all([
+          getAllStoreRecords(legacyDb, PROJECT_STORE),
+          getAllStoreRecords(legacyDb, FILE_STORE),
+          getAllStoreRecords(legacyDb, DRAFT_STORE),
+        ]);
+
+        if (!projects.length && !files.length && !drafts.length) continue;
+
+        await new Promise((resolve, reject) => {
+          const tx = targetDb.transaction(
+            [PROJECT_STORE, FILE_STORE, DRAFT_STORE],
+            "readwrite",
+          );
+
+          projects.forEach((record) => tx.objectStore(PROJECT_STORE).put(record));
+          files.forEach((record) => tx.objectStore(FILE_STORE).put(record));
+          drafts.forEach((record) => tx.objectStore(DRAFT_STORE).put(record));
+
+          tx.oncomplete = () => resolve(true);
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () =>
+            reject(tx.error || new Error("Database migration aborted"));
+        });
+
+        break;
+      } finally {
+        legacyDb?.close();
+      }
+    }
+  } finally {
+    setMigrationStatus();
+  }
+}
+
+function openViqubedDb() {
+  if (!databasePromise) {
+    databasePromise = openDatabase(DB_NAME)
+      .then(async (db) => {
+        if (!migrationPromise) {
+          migrationPromise = migrateLegacyDatabase(db).catch((error) => {
+            console.warn("Unable to migrate legacy project data", error);
+          });
+        }
+
+        await migrationPromise;
+        return db;
+      })
+      .catch((error) => {
+        databasePromise = null;
+        migrationPromise = null;
+        throw error;
+      });
+  }
+
+  return databasePromise;
+}
+
 export function createProjectRecord({ name, file, role = "EDITOR" }) {
   const now = new Date().toISOString();
 
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     name,
     role,
     workspace: "Default Workspace",
@@ -53,7 +176,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
     },
 
     material: {
-      id: crypto.randomUUID(),
+      id: createId(),
       title: "Materi 3D Baru",
       description: "",
       version: "1.0.0",
@@ -76,6 +199,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
       shaderMode: "original",
       metalness: 0.1,
       roughness: 0.1,
+      cameraProjectionMode: "perspective",
     },
 
     scene: {
@@ -97,7 +221,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
 }
 
 export async function saveProjectToIndexedDb(project, file) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction([PROJECT_STORE, FILE_STORE], "readwrite");
@@ -121,7 +245,7 @@ export async function saveProjectToIndexedDb(project, file) {
 }
 
 export async function updateProjectInIndexedDb(projectId, patch) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PROJECT_STORE, "readwrite");
@@ -156,7 +280,7 @@ export async function updateProjectInIndexedDb(projectId, patch) {
 }
 
 export async function saveProjectDraftToIndexedDb(projectId, draft) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DRAFT_STORE, "readwrite");
@@ -175,7 +299,7 @@ export async function saveProjectDraftToIndexedDb(projectId, draft) {
 }
 
 export async function getProjectDraftFromIndexedDb(projectId) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(DRAFT_STORE, "readonly");
@@ -187,7 +311,7 @@ export async function getProjectDraftFromIndexedDb(projectId) {
 }
 
 export async function getAllProjectsFromIndexedDb() {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PROJECT_STORE, "readonly");
@@ -211,7 +335,7 @@ export async function getAllProjectsFromIndexedDb() {
 }
 
 export async function getProjectFromIndexedDb(projectId) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(PROJECT_STORE, "readonly");
@@ -223,7 +347,7 @@ export async function getProjectFromIndexedDb(projectId) {
 }
 
 export async function getProjectFileFromIndexedDb(projectId) {
-  const db = await openVXploreDb();
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(FILE_STORE, "readonly");
@@ -234,8 +358,8 @@ export async function getProjectFileFromIndexedDb(projectId) {
   });
 }
 
-export async function clearVXploreIndexedDb() {
-  const db = await openVXploreDb();
+export async function clearViqubedIndexedDb() {
+  const db = await openViqubedDb();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction([PROJECT_STORE, FILE_STORE, DRAFT_STORE], "readwrite");

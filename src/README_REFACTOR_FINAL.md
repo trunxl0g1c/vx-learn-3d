@@ -1,4 +1,4 @@
-# VXplore Editor Refactor - Stage 17
+# Viqubed Editor Refactor - Stage 17
 
 ## Status
 Stage 17 is a final cleanup and validation pass based on Stage 16.

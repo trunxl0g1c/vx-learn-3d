@@ -25,7 +25,7 @@ export default function EditorPage() {
     return (
       <div style={{ color: "white", padding: 40 }}>
         <h1>Project tidak ditemukan</h1>
-        <p>Kembali ke halaman VXplore lalu pilih project lagi.</p>
+        <p>Kembali ke halaman Viqubed lalu pilih project lagi.</p>
       </div>
     );
   }

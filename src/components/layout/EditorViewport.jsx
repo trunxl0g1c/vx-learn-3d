@@ -3,6 +3,7 @@ import EditorFloatingToolbar from "../toolbar/EditorFloatingToolbar";
 import CutSectionSlider from "../toolbar/CutSectionSlider";
 import EditorLeftSidebar from "../sidebar/EditorLeftSidebar";
 import SelectedObjectBadge from "./SelectedObjectBadge";
+import EditorSceneViewGizmo from "../viewer/EditorSceneViewGizmo";
 import { viewportStyle } from "../../constants/viewerStyles";
 
 export default function EditorViewport({ controller }) {
@@ -16,6 +17,7 @@ export default function EditorViewport({ controller }) {
     cameraRef,
     controlsRef,
     focusTargetRef,
+    setEditorCameraView,
 
     outlineObjects,
     shaderOutlineObjects,
@@ -33,12 +35,20 @@ export default function EditorViewport({ controller }) {
     setAnimationCommand,
 
     activeMarkers,
+    activeChapter,
+    updateMarker,
     modelScene,
     targetRotationY,
     isAutoRotating,
     setIsAutoRotating,
 
     selectedObject,
+    selectedObjects,
+    multipleSelectEnabled,
+    toggleMultipleSelect,
+    clearSelection,
+    clearSelectionFromViewport,
+    selectObjectFromList,
     isTransforming,
     setIsTransforming,
     orbitEnabled,
@@ -52,10 +62,15 @@ export default function EditorViewport({ controller }) {
     cutRanges,
     updateCutValue,
     resetCutValues,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
 
     handleFile,
     toggleCutSection,
     hideSelectedObject,
+    hideMultipleSelectedObjects,
+    makeSelectedObjectsXray,
     resetXray,
     pullApart,
     resetAllTransforms,
@@ -78,6 +93,9 @@ export default function EditorViewport({ controller }) {
 
     material,
     setMaterial,
+    saveDefaultPlayerCameraView,
+    flow,
+    procedural,
 
     applyShaderMode,
     shaderMode,
@@ -94,11 +112,14 @@ export default function EditorViewport({ controller }) {
 
     handleMarkerPointPicked,
     setRightTab,
+    rightTab,
 
     activeChapterId,
     setActiveChapterId,
     previewChapterInEditor,
     createChapterFromSelectedObject,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
     saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     panelSectionStyle,
@@ -117,12 +138,39 @@ export default function EditorViewport({ controller }) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    moveChapter,
     requestAddMarker,
     cancelAddMarker,
   } = controller;
-  
+
+  const rightPanelVisible = Boolean(
+    selectedObjectName || rightTab === "chapter" || activeChapterId,
+  );
+  const cameraProjectionMode =
+    viewerSettings?.cameraProjectionMode === "orthographic"
+      ? "orthographic"
+      : "perspective";
+  const changeCameraProjectionMode = (nextMode) => {
+    const normalizedMode =
+      nextMode === "orthographic" ? "orthographic" : "perspective";
+
+    setViewerSettings?.((previousSettings) => ({
+      ...previousSettings,
+      cameraProjectionMode: normalizedMode,
+    }));
+  };
+
   return (
     <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
+      <EditorSceneViewGizmo
+        cameraRef={cameraRef}
+        controlsRef={controlsRef}
+        onChangeView={setEditorCameraView}
+        projectionMode={cameraProjectionMode}
+        onChangeProjectionMode={changeCameraProjectionMode}
+        rightPanelVisible={rightPanelVisible}
+      />
+
       <SelectedObjectBadge selectedObjectName={selectedObjectName} />
 
       <SceneCanvas
@@ -130,6 +178,7 @@ export default function EditorViewport({ controller }) {
         controlsRef={controlsRef}
         focusTargetRef={focusTargetRef}
         viewerSettings={viewerSettings}
+        cameraProjectionMode={cameraProjectionMode}
         outlineObjects={outlineObjects}
         shaderOutlineObjects={shaderOutlineObjects}
         shaderOutlineStyle={shaderOutlineStyle}
@@ -145,6 +194,8 @@ export default function EditorViewport({ controller }) {
         setAnimations={setAnimations}
         setSelectedAnimations={setSelectedAnimations}
         activeMarkers={activeMarkers}
+        activeChapter={activeChapter}
+        updateMarker={updateMarker}
         modelScene={modelScene}
         targetRotationY={targetRotationY}
         isAutoRotating={isAutoRotating}
@@ -157,6 +208,37 @@ export default function EditorViewport({ controller }) {
         setSelectedObject={setSelectedObject}
         setOutlineObjects={setOutlineObjects}
         setSelectedObjectName={setSelectedObjectName}
+        onClearSelection={clearSelectionFromViewport}
+        flowPointMode={flow?.pointMode}
+        onAddFlowPoint={flow?.addPoint}
+        onUpdateFlowPoints={flow?.updatePoints}
+        selectedFlowPointIds={flow?.selectedPointIds}
+        onSelectFlowPoint={flow?.selectPoint}
+        authoringFlow={flow?.isAuthoringActive ? flow?.activeFlow : null}
+        flowPreviewPlaying={flow?.isPreviewing}
+        flowPreviewToken={flow?.previewToken}
+        proceduralTransformMode={
+          procedural?.isAuthoringActive
+            ? procedural?.transformMode || "translate"
+            : "translate"
+        }
+        proceduralTransformObject={
+          procedural?.isAuthoringActive
+            ? procedural?.activeAnimatedObject || null
+            : null
+        }
+        proceduralAssemblyTargetTransform={
+          procedural?.isAuthoringActive &&
+          procedural?.activeProcedure?.type === "assembly"
+            ? procedural?.activeStep?.endTransform || null
+            : null
+        }
+        proceduralAssemblyShowGhost={
+          procedural?.isAuthoringActive &&
+          procedural?.activeProcedure?.type === "assembly" &&
+          procedural?.activeStep?.interaction?.showGhost !== false &&
+          Boolean(procedural?.activeStep?.endTransform)
+        }
       />
 
       <EditorFloatingToolbar
@@ -165,9 +247,14 @@ export default function EditorViewport({ controller }) {
         markerMode={markerMode}
         setMarkerMode={setMarkerMode}
         cutEnabled={cutEnabled}
+        multipleSelectEnabled={multipleSelectEnabled}
+        toggleMultipleSelect={toggleMultipleSelect}
         handleFile={handleFile}
         toggleCutSection={toggleCutSection}
         hideSelectedObject={hideSelectedObject}
+        hideMultipleSelectedObjects={hideMultipleSelectedObjects}
+        makeSelectedObjectsXray={makeSelectedObjectsXray}
+        selectedObjectCount={selectedObjects.length}
         resetXray={resetXray}
         pullApart={pullApart}
         resetAllTransforms={resetAllTransforms}
@@ -181,6 +268,9 @@ export default function EditorViewport({ controller }) {
           cutRanges={cutRanges}
           updateCutValue={updateCutValue}
           resetCutValues={resetCutValues}
+          cutAllObjects={cutAllObjects}
+          setCutAllObjects={setCutAllObjects}
+          cutTargetAvailable={cutTargetAvailable}
           onClose={toggleCutSection}
         />
       )}
@@ -190,6 +280,10 @@ export default function EditorViewport({ controller }) {
         setActiveSidebar={setActiveSidebar}
         objectList={objectList}
         selectedObject={selectedObject}
+        selectedObjects={selectedObjects}
+        multipleSelectEnabled={multipleSelectEnabled}
+        selectObjectFromList={selectObjectFromList}
+        clearSelection={clearSelection}
         setSelectedObject={setSelectedObject}
         highlightObject={highlightObject}
         makeXrayExcept={makeXrayExcept}
@@ -208,6 +302,7 @@ export default function EditorViewport({ controller }) {
         renameObject={renameObject}
         material={material}
         setMaterial={setMaterial}
+        saveDefaultPlayerCameraView={saveDefaultPlayerCameraView}
         selectedObjectName={selectedObjectName}
         applyShaderMode={applyShaderMode}
         shaderMode={shaderMode}
@@ -222,6 +317,8 @@ export default function EditorViewport({ controller }) {
         setActiveChapterId={setActiveChapterId}
         previewChapterInEditor={previewChapterInEditor}
         createChapterFromSelectedObject={createChapterFromSelectedObject}
+        contentAuthoringLocked={contentAuthoringLocked}
+        contentAuthoringLockReason={contentAuthoringLockReason}
         saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
         panelSectionStyle={panelSectionStyle}
         inputStyle={inputStyle}
@@ -240,12 +337,15 @@ export default function EditorViewport({ controller }) {
         stopAnimationPreview={stopAnimationPreview}
         addChapterMedia={addChapterMedia}
         deleteChapterMedia={deleteChapterMedia}
+        moveChapter={moveChapter}
         requestAddMarker={requestAddMarker}
         cancelAddMarker={cancelAddMarker}
         markerMode={markerMode}
         selectedAnimations={selectedAnimations}
         setSelectedAnimations={setSelectedAnimations}
         setAnimationCommand={setAnimationCommand}
+        flow={flow}
+        procedural={procedural}
       />
     </div>
   );

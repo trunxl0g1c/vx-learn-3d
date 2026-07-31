@@ -1,4 +1,4 @@
-# VXplore Engine Registry
+# Viqubed Engine Registry
 
 `createVXEngine()` adalah entry point untuk membuat satu set engine yang saling terhubung:
 

@@ -6,6 +6,7 @@ import ChapterMarkerSection from "../chapter/ChapterMarkerSection";
 import ChapterCameraSection from "../chapter/ChapterCameraSection";
 import ChapterVisualStateSection from "../chapter/ChapterVisualStateSection";
 import ChapterAnimationSection from "../chapter/ChapterAnimationSection";
+import ChapterFlowSection from "../chapter/ChapterFlowSection";
 import ChapterMediaSection from "../chapter/ChapterMediaSection";
 import ChapterDeselectButton from "../chapter/ChapterDeselectButton";
 import ChapterDeleteButton from "../chapter/ChapterDeleteButton";
@@ -23,6 +24,8 @@ export default function ChapterTab(props) {
     setActiveChapterId,
     previewChapterInEditor,
     createChapterFromSelectedObject,
+    contentAuthoringLocked = false,
+    contentAuthoringLockReason = "",
     selectedObjectName,
     panelSectionStyle,
     inputStyle,
@@ -39,15 +42,23 @@ export default function ChapterTab(props) {
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     requestAddMarker,
     cancelAddMarker,
     markerMode,
     setRightTab,
+    deselectObject,
     deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
   } = props;
@@ -87,7 +98,12 @@ export default function ChapterTab(props) {
                 deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
               />
 
-              <ChapterDeselectButton setActiveChapterId={setActiveChapterId} />
+              <ChapterDeselectButton
+                selectedObjectName={selectedObjectName}
+                setActiveChapterId={setActiveChapterId}
+                setRightTab={setRightTab}
+                deselectObject={deselectObject}
+              />
             </div>
           )}
         </div>
@@ -107,11 +123,18 @@ export default function ChapterTab(props) {
             <Button
               size="sm"
               onClick={createChapterFromSelectedObject}
-              disabled={!selectedObjectName || Boolean(activeChapterId)}
+              disabled={
+                contentAuthoringLocked ||
+                !selectedObjectName ||
+                Boolean(activeChapterId)
+              }
               title={
-                activeChapterId
-                  ? "Deselect the active chapter before creating a new one"
-                  : undefined
+                contentAuthoringLocked
+                  ? contentAuthoringLockReason ||
+                    "Create Content is disabled while a Pro authoring tool is active."
+                  : activeChapterId
+                    ? "Deselect the active chapter before creating a new one"
+                    : undefined
               }
               className="w-full"
             >
@@ -122,36 +145,76 @@ export default function ChapterTab(props) {
           {chapters.length === 0 ? (
             <ChapterEmptyState />
           ) : (
-            chapters.map((chapter) => {
+            chapters.map((chapter, index) => {
               const isActive = activeChapterId === chapter.id;
+              const canMoveUp = index > 0;
+              const canMoveDown = index < chapters.length - 1;
 
               return (
-                <button
+                <div
                   key={chapter.id}
-                  type="button"
-                  onClick={() => openChapterDetail(chapter.id)}
                   className={cn(
-                    "mx-4 mb-3 flex w-[calc(100%-2rem)] cursor-pointer items-center justify-between gap-3 rounded-lg border border-contrast-grayout bg-dark-alpha p-3 text-left transition",
+                    "mx-4 mb-3 flex w-[calc(100%-2rem)] items-stretch overflow-hidden rounded-lg border border-contrast-grayout bg-dark-alpha transition",
                     "hover:border-accent-main hover:bg-primary/50",
                     isActive && "border-accent-main! bg-primary",
                   )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-sm font-normal text-white">
-                      {chapter.title || "Untitled Chapter"}
-                    </h1>
+                  <button
+                    type="button"
+                    onClick={() => openChapterDetail(chapter.id)}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3 p-3 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h1 className="truncate text-sm font-normal text-white">
+                        {chapter.title || "Untitled Chapter"}
+                      </h1>
 
-                    <p className="mt-1 line-clamp-2 text-xs text-grayout-main">
-                      {chapter.description || "No description"}
-                    </p>
+                      <p className="mt-1 line-clamp-2 text-xs text-grayout-main">
+                        {chapter.description || "No description"}
+                      </p>
+                    </div>
+
+                    <MaterialIcon
+                      name="subdirectory_arrow_right"
+                      fill={1}
+                      className="size-6 shrink-0 text-secondary-default"
+                    />
+                  </button>
+
+                  <div className="flex w-10 shrink-0 flex-col border-l border-divider-main">
+                    <button
+                      type="button"
+                      disabled={!canMoveUp}
+                      onClick={() => moveChapter?.(chapter.id, "up")}
+                      title="Move chapter up"
+                      aria-label={`Move ${chapter.title || "chapter"} up`}
+                      className={cn(
+                        "grid flex-1 place-items-center border-b border-divider-main transition",
+                        canMoveUp
+                          ? "cursor-pointer text-secondary-default hover:bg-secondary-default/15"
+                          : "cursor-not-allowed text-grayout-main/25",
+                      )}
+                    >
+                      <MaterialIcon name="keyboard_arrow_up" size={20} />
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!canMoveDown}
+                      onClick={() => moveChapter?.(chapter.id, "down")}
+                      title="Move chapter down"
+                      aria-label={`Move ${chapter.title || "chapter"} down`}
+                      className={cn(
+                        "grid flex-1 place-items-center transition",
+                        canMoveDown
+                          ? "cursor-pointer text-secondary-default hover:bg-secondary-default/15"
+                          : "cursor-not-allowed text-grayout-main/25",
+                      )}
+                    >
+                      <MaterialIcon name="keyboard_arrow_down" size={20} />
+                    </button>
                   </div>
-
-                  <MaterialIcon
-                    name="subdirectory_arrow_right"
-                    fill={1}
-                    className="size-6 shrink-0 text-secondary-default"
-                  />
-                </button>
+                </div>
               );
             })
           )}
@@ -225,19 +288,25 @@ export default function ChapterTab(props) {
               deleteCameraViewFromActiveChapter={
                 deleteCameraViewFromActiveChapter
               }
+              previewChapterInEditor={previewChapterInEditor}
+              updateChapterField={updateChapterField}
             />
 
-            {/* <ChapterAnimationSection
+            <ChapterAnimationSection
               chapter={activeChapter}
-              panelSectionStyle={panelSectionStyle}
               animations={animations}
-              isChapterAnimationSelected={isChapterAnimationSelected}
-              getChapterAnimationConfig={getChapterAnimationConfig}
-              toggleChapterAnimation={toggleChapterAnimation}
-              updateChapterAnimationField={updateChapterAnimationField}
-              playAnimationPreview={playAnimationPreview}
-              stopAnimationPreview={stopAnimationPreview}
-            /> */}
+              addChapterAnimation={addChapterAnimation}
+              updateChapterAnimation={updateChapterAnimation}
+              removeChapterAnimation={removeChapterAnimation}
+            />
+
+            <ChapterFlowSection
+              chapter={activeChapter}
+              flows={material?.flows || []}
+              addChapterFlow={addChapterFlow}
+              updateChapterFlow={updateChapterFlow}
+              removeChapterFlow={removeChapterFlow}
+            />
 
             <ChapterMediaSection
               chapter={activeChapter}
@@ -256,6 +325,7 @@ export default function ChapterTab(props) {
             selectedObjectName={selectedObjectName}
             setActiveChapterId={setActiveChapterId}
             setRightTab={setRightTab}
+            deselectObject={deselectObject}
           />
 
           <ChapterDeleteButton

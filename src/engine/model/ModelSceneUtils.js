@@ -1,4 +1,5 @@
 import * as THREE from "three"
+import { getChapterCameraView } from "../chapter"
 
 const DEFAULT_SHADER_MODE = "original"
 const SUPPORTED_SHADER_MODES = new Set([
@@ -608,31 +609,120 @@ export function applyModelShaderMode(scene, settings = {}) {
   }
 }
 
-export function createChapterFocusTarget(chapter) {
-  if (!chapter?.cameraPosition || !chapter?.cameraTarget) return null
+function createStoredVector3(value) {
+  if (!Array.isArray(value) || value.length < 3) return null
+
+  const vector = new THREE.Vector3().fromArray(value)
+
+  return [vector.x, vector.y, vector.z].every(Number.isFinite)
+    ? vector
+    : null
+}
+
+export function getStoredModelRotation(source) {
+  const candidates = [
+    source?.modelRotation,
+    source?.cameraView?.modelRotation,
+    source?.visualState?.modelRotation,
+  ]
+
+  return (
+    candidates.find(
+      (value) =>
+        Array.isArray(value) &&
+        value.length >= 3 &&
+        value.slice(0, 3).every((item) => Number.isFinite(Number(item))),
+    ) || null
+  )
+}
+
+export function applyStoredModelRotation(scene, source) {
+  if (!scene) return false
+
+  const modelRotation = Array.isArray(source)
+    ? source
+    : getStoredModelRotation(source)
+
+  if (!Array.isArray(modelRotation) || modelRotation.length < 3) return false
+
+  scene.rotation.set(
+    Number(modelRotation[0]),
+    Number(modelRotation[1]),
+    Number(modelRotation[2]),
+  )
+  scene.updateMatrixWorld?.(true)
+  return true
+}
+
+export function createChapterFocusTarget(chapter, cameraViewOverride = null) {
+  const storedCameraView =
+    cameraViewOverride && typeof cameraViewOverride === "object"
+      ? cameraViewOverride
+      : getChapterCameraView(chapter)
+
+  // New chapters carry legacy position fields for authoring convenience, but
+  // cameraViewSaved=false means the author has not committed a Player camera.
+  if (!storedCameraView && chapter?.cameraViewSaved === false) return null
+
+  const cameraSource = storedCameraView || chapter || null
+  const cameraPosition = createStoredVector3(
+    cameraSource?.position ||
+      cameraSource?.cameraPosition ||
+      chapter?.cameraPosition,
+  )
+  const target = createStoredVector3(
+    cameraSource?.target ||
+      cameraSource?.cameraTarget ||
+      chapter?.cameraTarget,
+  )
+
+  if (!cameraPosition || !target) return null
+
+  const cameraUp = createStoredVector3(
+    cameraSource?.up || cameraSource?.cameraUp || chapter?.cameraUp,
+  )
+  const zoom = Number(
+    cameraSource?.zoom ?? cameraSource?.cameraZoom ?? chapter?.cameraZoom,
+  )
+  const fov = Number(cameraSource?.fov ?? cameraSource?.cameraFov)
 
   return {
-    cameraPosition: new THREE.Vector3(
-      chapter.cameraPosition[0],
-      chapter.cameraPosition[1],
-      chapter.cameraPosition[2]
-    ),
-    target: new THREE.Vector3(
-      chapter.cameraTarget[0],
-      chapter.cameraTarget[1],
-      chapter.cameraTarget[2]
-    ),
+    cameraPosition,
+    target,
+    cameraUp,
+    zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : null,
+    fov: Number.isFinite(fov) && fov > 0 ? fov : null,
+    cameraType:
+      (cameraSource?.cameraType ||
+        cameraSource?.projectionMode ||
+        cameraSource?.cameraProjectionMode ||
+        chapter?.cameraType ||
+        chapter?.cameraProjectionMode) === "orthographic"
+        ? "orthographic"
+        : "perspective",
   }
 }
 
-export function applyChapterModelRotation(scene, chapter) {
-  if (!scene || !chapter?.modelRotation) return
+export function applyChapterModelRotation(
+  scene,
+  chapter,
+  cameraViewOverride = null,
+) {
+  if (!scene || !chapter) return false
 
-  scene.rotation.set(
-    chapter.modelRotation[0],
-    chapter.modelRotation[1],
-    chapter.modelRotation[2]
-  )
+  const storedCameraView = cameraViewOverride || getChapterCameraView(chapter)
+
+  if (storedCameraView?.modelRotation) {
+    return applyStoredModelRotation(scene, storedCameraView)
+  }
+
+  // Legacy packages did not always include cameraViewSaved. Preserve those,
+  // while avoiding accidental rotation from a new unsaved Chapter draft.
+  if (chapter.cameraViewSaved !== false && chapter.modelRotation) {
+    return applyStoredModelRotation(scene, chapter.modelRotation)
+  }
+
+  return false
 }
 
 export function initializePlayerModelScene({

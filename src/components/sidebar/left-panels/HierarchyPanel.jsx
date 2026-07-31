@@ -3,6 +3,10 @@ import HierarchyObjectTree from "./HierarchyObjectTree";
 export default function HierarchyPanel({
   objectList,
   selectedObject,
+  selectedObjects,
+  multipleSelectEnabled,
+  selectObjectFromList,
+  clearSelection,
   highlightObject,
   makeXrayExcept,
   resetXray,
@@ -30,6 +34,10 @@ export default function HierarchyPanel({
         <HierarchyObjectTree
           objectList={objectList}
           selectedObject={selectedObject}
+          selectedObjects={selectedObjects}
+          multipleSelectEnabled={multipleSelectEnabled}
+          selectObjectFromList={selectObjectFromList}
+          clearSelection={clearSelection}
           highlightObject={highlightObject}
           makeXrayExcept={makeXrayExcept}
           resetXray={resetXray}

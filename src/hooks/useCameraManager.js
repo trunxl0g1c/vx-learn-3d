@@ -6,6 +6,41 @@ import {
 
 const DEFAULT_EDITOR_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1);
 
+const EDITOR_CAMERA_VIEWS = {
+  perspective: {
+    direction: new THREE.Vector3(0.8, 0.45, 1),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  isometric: {
+    direction: new THREE.Vector3(1, 0.78, 1),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  front: {
+    direction: new THREE.Vector3(0, 0, 1),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  back: {
+    direction: new THREE.Vector3(0, 0, -1),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  right: {
+    direction: new THREE.Vector3(1, 0, 0),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  left: {
+    direction: new THREE.Vector3(-1, 0, 0),
+    up: new THREE.Vector3(0, 1, 0),
+  },
+  top: {
+    direction: new THREE.Vector3(0, 1, 0),
+    up: new THREE.Vector3(0, 0, -1),
+  },
+  bottom: {
+    direction: new THREE.Vector3(0, -1, 0),
+    up: new THREE.Vector3(0, 0, 1),
+  },
+};
+
 function applyFocusTargetToControls(focusTarget, controlsRef) {
   if (!focusTarget || !controlsRef?.current) return;
 
@@ -40,7 +75,6 @@ export function useCameraManager({
         camera: cameraRef?.current,
         controls: controlsRef?.current,
         distanceMultiplier: 1.8,
-        minimumDistance: 0.1,
         direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
         apply: false,
       }) ||
@@ -50,7 +84,6 @@ export function useCameraManager({
         controlsRef?.current,
         {
           distanceMultiplier: 1.8,
-          minimumDistance: 0.1,
           direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
         }
       );
@@ -105,5 +138,48 @@ export function useCameraManager({
     return vxEngine?.camera?.saveHomeView?.();
   };
 
-  return { focusObject, resetCameraToInitialView, saveCurrentViewAsHome };
+  const setEditorCameraView = (viewId) => {
+    const view = EDITOR_CAMERA_VIEWS[viewId];
+    const camera = cameraRef?.current;
+    const controls = controlsRef?.current;
+
+    if (!view || !camera?.position || !controls?.target) return false;
+
+    syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
+
+    const focusTarget = vxEngine?.camera?.setViewDirection?.(view.direction, {
+      camera,
+      controls,
+      up: view.up,
+      minimumDistance: 0.1,
+      apply: false,
+    });
+
+    if (!focusTarget) {
+      const target = controls.target.clone();
+      const distance = Math.max(camera.position.distanceTo(target), 0.1);
+
+      camera.up.copy(view.up);
+      camera.updateProjectionMatrix?.();
+
+      focusTargetRef.current = {
+        cameraPosition: target
+          .clone()
+          .add(view.direction.clone().normalize().multiplyScalar(distance)),
+        target,
+      };
+    } else {
+      focusTargetRef.current = focusTarget;
+    }
+
+    setIsAutoRotating(false);
+    return true;
+  };
+
+  return {
+    focusObject,
+    resetCameraToInitialView,
+    saveCurrentViewAsHome,
+    setEditorCameraView,
+  };
 }

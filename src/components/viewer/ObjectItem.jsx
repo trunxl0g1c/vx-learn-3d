@@ -10,7 +10,6 @@ export default function ObjectItem({
     <div
       onClick={() => {
         highlightObject(item.object)
-        makeXrayExcept(item.object)
         focusObject(item.object)
       }}
       style={{

@@ -1,85 +1,54 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
-
 import {
   applyModelShaderMode,
   applyObjectNameOverrides,
   initializePlayerModelScene,
-  releaseGeneratedModelMaterial,
 } from "../../../engine/model"
 import { createPlayerObjectSelectionPayload } from "../../../engine/selection"
 import { buildObjectTreeList } from "../../../utils/objectTreeUtils"
-import { createFocusTargetFromObject, createFocusTargetFromScene } from "../../../engine/camera"
-
+import { normalizeFlowDefinitions } from "../../../engine/flow"
+import { normalizeChapterFlowAssignments } from "../../../engine/chapter"
+import {
+  createProceduralEngine,
+  normalizeProceduralDefinitions,
+} from "../../../engine/procedural"
 import usePlayerAnimation from "./usePlayerAnimation"
 import usePlayerSpeech from "./usePlayerSpeech"
 import usePlayerProject, { DEFAULT_VIEWER_SETTINGS } from "./usePlayerProject"
 import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
-
-const DEFAULT_PLAYER_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1)
-
-function findObjectByReference(scene, reference) {
-  if (!scene || !reference) return null
-
-  if (Array.isArray(reference.path)) {
-    let current = scene
-    let pathIsValid = true
-
-    reference.path.forEach((index) => {
-      if (!pathIsValid || !current?.children?.[index]) {
-        pathIsValid = false
-        return
-      }
-
-      current = current.children[index]
-    })
-
-    if (pathIsValid && current) return current
-  }
-
-  if (reference.uuid) {
-    const uuidMatch = scene.getObjectByProperty?.("uuid", reference.uuid)
-    if (uuidMatch) return uuidMatch
-  }
-
-  const targetName = String(reference.name || "").trim()
-
-  if (!targetName) return null
-
-  let nameMatch = null
-
-  scene.traverse((object) => {
-    if (nameMatch) return
-
-    if (String(object?.name || "").trim() === targetName) {
-      nameMatch = object
-    }
-  })
-
-  return nameMatch
-}
-
+import { createPlayerCameraActions } from "./createPlayerCameraActions"
+import { createPlayerXrayActions } from "./createPlayerXrayActions"
+import { createPlayerSavedViewActions } from "./createPlayerSavedViewActions"
+import { createPlayerProcedureActions } from "./createPlayerProcedureActions"
+import { createPlayerProcedureStepHighlighter } from "./createPlayerProcedureStepHighlighter"
 export default function usePlayerController() {
   const [material, setMaterial] = useState(null)
   const [activeChapterId, setActiveChapterId] = useState(null)
   const [modelScene, setModelScene] = useState(null)
   const [objectList, setObjectList] = useState([])
-
+  const [activeFlowId, setActiveFlowId] = useState(null)
+  const [flowPlaying, setFlowPlaying] = useState(false)
+  const [flowPlaybackKey, setFlowPlaybackKey] = useState(0)
+  const [activeChapterFlowIds, setActiveChapterFlowIds] = useState([])
+  const [chapterFlowPlaybackKey, setChapterFlowPlaybackKey] = useState(0)
+  const [activeProcedureId, setActiveProcedureId] = useState(null)
+  const [procedureStatus, setProcedureStatus] = useState("idle")
+  const [procedureStepIndex, setProcedureStepIndex] = useState(-1)
+  const [completedProcedureStepIds, setCompletedProcedureStepIds] = useState([])
+  const [procedureFeedback, setProcedureFeedback] = useState("")
   const [freePlay, setFreePlay] = useState(false)
   const [freePlayMenu, setFreePlayMenu] = useState(false)
   const [activeMenu, setActiveMenu] = useState(null)
   const [showInfoPanel, setShowInfoPanel] = useState(false)
-
   const [outlineObjects, setOutlineObjects] = useState([])
   const [shaderOutlineObjects, setShaderOutlineObjects] = useState([])
   const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [selectedObject, setSelectedObject] = useState(null)
   const [originalPositions, setOriginalPositions] = useState([])
   const [originalGroupPositions, setOriginalGroupPositions] = useState([])
-
   const [transformMode, setTransformMode] = useState("translate")
-
   const [cutEnabled, setCutEnabled] = useState(false)
   const [cutAxis, setCutAxis] = useState("x")
   const [cutValue, setCutValue] = useState(0)
@@ -92,19 +61,80 @@ export default function usePlayerController() {
   const [cutMin, setCutMin] = useState(-3)
   const [cutMax, setCutMax] = useState(3)
   const cutBoundsRef = useRef(null)
-
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
   const [showAnnotations, setShowAnnotations] = useState(true)
-
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const focusTargetRef = useRef(null)
   const initialCameraStateRef = useRef(null)
-
+  const xrayTargetRef = useRef(null)
+  const procedureRunTokenRef = useRef(0)
+  const procedureReferenceLengthRef = useRef(1)
+  const proceduralEngine = useMemo(() => createProceduralEngine(), [])
+  const flows = useMemo(
+    () => normalizeFlowDefinitions(material?.flows),
+    [material?.flows],
+  )
+  const activeFlow = useMemo(
+    () => flows.find((flow) => flow.id === activeFlowId) || null,
+    [activeFlowId, flows],
+  )
+  const activeChapterFlows = useMemo(
+    () =>
+      activeChapterFlowIds
+        .map((flowId) => flows.find((flow) => flow.id === flowId))
+        .filter(Boolean),
+    [activeChapterFlowIds, flows],
+  )
+  const procedures = useMemo(
+    () => normalizeProceduralDefinitions(material?.procedures),
+    [material?.procedures],
+  )
+  const activeProcedure = useMemo(
+    () =>
+      procedures.find((procedure) => procedure.id === activeProcedureId) || null,
+    [activeProcedureId, procedures],
+  )
+  const activeProcedureSteps = useMemo(
+    () => (activeProcedure?.steps || []).filter((step) => step.enabled !== false),
+    [activeProcedure],
+  )
+  const activeProcedureStep =
+    activeProcedureSteps[procedureStepIndex] || null
+  const activeProcedureIsAssembly =
+    proceduralEngine.isAssemblyProcedure?.(activeProcedure) === true
+  useEffect(() => {
+    if (activeFlowId && !flows.some((flow) => flow.id === activeFlowId)) {
+      setActiveFlowId(null)
+      setFlowPlaying(false)
+    }
+  }, [activeFlowId, flows])
+  useEffect(() => {
+    setActiveChapterFlowIds((current) =>
+      current.filter((flowId) =>
+        flows.some((flow) => flow.id === flowId && flow.enabled !== false),
+      ),
+    )
+  }, [flows])
+  useEffect(() => {
+    if (
+      activeProcedureId &&
+      !procedures.some((procedure) => procedure.id === activeProcedureId)
+    ) {
+      procedureRunTokenRef.current += 1
+      setActiveProcedureId(null)
+      setProcedureStatus("idle")
+      setProcedureStepIndex(-1)
+      setCompletedProcedureStepIds([])
+      setProcedureFeedback("")
+    }
+  }, [activeProcedureId, procedures])
+  useEffect(() => {
+    return () => proceduralEngine.dispose?.()
+  }, [proceduralEngine])
   const playerAnimation = usePlayerAnimation(
     material?.chapters?.find((chapter) => chapter.id === activeChapterId)
   )
-
   const resetPlayerState = ({
     activeMenu: nextActiveMenu,
     freePlay: nextFreePlay,
@@ -117,8 +147,18 @@ export default function usePlayerController() {
     setShowInfoPanel(nextShowInfoPanel)
     setSelectedObject(null)
     setOutlineObjects([])
+    setActiveFlowId(null)
+    setFlowPlaying(false)
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
+    procedureRunTokenRef.current += 1
+    proceduralEngine.dispose?.()
+    setActiveProcedureId(null)
+    setProcedureStatus("idle")
+    setProcedureStepIndex(-1)
+    setCompletedProcedureStepIds([])
+    setProcedureFeedback("")
   }
-
   const playerProject = usePlayerProject({
     setMaterial,
     setActiveChapterId,
@@ -126,23 +166,24 @@ export default function usePlayerController() {
     resetPlayerState,
     resetAnimationState: playerAnimation.resetAnimationState,
   })
-
   const playerChapter = usePlayerChapter({
     material,
     activeChapterId,
     setActiveChapterId,
     modelScene,
+    cameraRef,
     focusTargetRef,
+    setViewerSettings,
     setSelectedObject,
     setOutlineObjects,
     playerAnimation,
   })
-
   const playerSpeech = usePlayerSpeech(playerChapter.activeChapter)
-
   const clearActiveChapter = () => {
     setActiveChapterId(null)
     focusTargetRef.current = null
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
     playerAnimation.stopChapterAnimations?.()
     playerSpeech.stopSpeaking?.()
   }
@@ -166,7 +207,6 @@ export default function usePlayerController() {
     setSelectedObject,
     setOutlineObjects,
     focusTargetRef,
-    viewerSettings,
   })
 
   useEffect(() => {
@@ -176,105 +216,48 @@ export default function usePlayerController() {
       return
     }
 
-    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
+    const shaderState = applyModelShaderMode(modelScene, {
+      shaderMode: viewerSettings.shaderMode,
+      metalness: viewerSettings.metalness,
+      roughness: viewerSettings.roughness,
+      envIntensity: viewerSettings.envIntensity,
+    })
+
     setShaderOutlineObjects(shaderState.outlineObjects)
     setShaderOutlineStyle(shaderState.outlineStyle || null)
+  }, [
+    modelScene,
+    viewerSettings.shaderMode,
+    viewerSettings.metalness,
+    viewerSettings.roughness,
+    viewerSettings.envIntensity,
+  ])
 
+  useEffect(() => {
     if (window.__PLAYER_RENDERER__) {
       window.__PLAYER_RENDERER__.toneMappingExposure =
         viewerSettings.exposure
     }
-  }, [viewerSettings, modelScene])
+  }, [viewerSettings.exposure])
 
   const createPlayerObjectList = (scene) => {
     return buildObjectTreeList(scene)
   }
 
-  const focusObject = (object) => {
-    if (!object || !focusTargetRef) return
-
-    const focusTarget = createFocusTargetFromObject(
-      object,
-      cameraRef?.current,
-      controlsRef?.current,
-      {
-        distanceMultiplier: 1.8,
-        minimumDistance: 0.1,
-      },
-    )
-
-    if (!focusTarget) return
-
-    focusTargetRef.current = focusTarget
-  }
-
-  const captureInitialCameraState = (cameraState) => {
-    if (!cameraState?.position || !cameraState?.target) return
-
-    initialCameraStateRef.current = {
-      sceneId: cameraState.sceneId || null,
-      position: cameraState.position.clone(),
-      quaternion: cameraState.quaternion?.clone?.() || null,
-      target: cameraState.target.clone(),
-      zoom: Number.isFinite(Number(cameraState.zoom))
-        ? Number(cameraState.zoom)
-        : 1,
-    }
-  }
-
-  const resetCameraToOverview = () => {
-    if (!cameraRef?.current) return
-
-    const initialCameraState = initialCameraStateRef.current
-
-    if (initialCameraState) {
-      cameraRef.current.position.copy(initialCameraState.position)
-
-      if (initialCameraState.quaternion) {
-        cameraRef.current.quaternion.copy(initialCameraState.quaternion)
-      }
-
-      cameraRef.current.zoom = initialCameraState.zoom
-      cameraRef.current.updateProjectionMatrix?.()
-
-      if (controlsRef?.current) {
-        controlsRef.current.target.copy(initialCameraState.target)
-        controlsRef.current.update()
-      }
-
-      focusTargetRef.current = null
-      return
-    }
-
-    if (!modelScene) {
-      cameraRef.current.position.set(0, 0, 5)
-      controlsRef?.current?.target?.set?.(0, 0, 0)
-      controlsRef?.current?.update?.()
-      focusTargetRef.current = null
-      return
-    }
-
-    // Fallback for projects loaded before the initial camera snapshot is ready.
-    const focusTarget = createFocusTargetFromScene(modelScene, {
-      camera: cameraRef.current,
-      distanceMultiplier: 1.7,
-      minimumDistance: 1.1,
-      direction: DEFAULT_PLAYER_CAMERA_DIRECTION,
-    })
-
-    if (!focusTarget) return
-
-    if (focusTarget.cameraPosition) {
-      cameraRef.current.position.copy(focusTarget.cameraPosition)
-    }
-
-    if (controlsRef?.current && focusTarget.target) {
-      controlsRef.current.target.copy(focusTarget.target)
-      controlsRef.current.update()
-    }
-
-    focusTargetRef.current = null
-  }
+  const {
+    focusObject,
+    applyCameraState,
+    captureInitialCameraState,
+    resetCameraToOverview,
+  } = createPlayerCameraActions({
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    initialCameraStateRef,
+    material,
+    modelScene,
+    setViewerSettings,
+  })
 
   const xrayMaterialRef = useRef(
     new THREE.MeshPhysicalMaterial({
@@ -288,83 +271,88 @@ export default function usePlayerController() {
     }),
   )
 
-  const restorePlayerRenderMode = () => {
-    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
-    setShaderOutlineObjects(shaderState.outlineObjects)
+  const {
+    restorePlayerRenderMode,
+    resetPlayerObjectXray,
+    makePlayerTargetsXray,
+    makePlayerOthersXray,
+    makePlayerXrayExcept,
+  } = createPlayerXrayActions({
+    modelScene,
+    viewerSettings,
+    xrayTargetRef,
+    xrayMaterial: xrayMaterialRef.current,
+    setSelectedObject,
+    setOutlineObjects,
+    setShaderOutlineObjects,
+    setShaderOutlineStyle,
+  })
 
-    return shaderState
-  }
+  const {
+    applyVisualState: applySavedVisualState,
+    applyCameraView: applySavedCameraView,
+  } = createPlayerSavedViewActions({
+    modelScene,
+    material,
+    playerFreePlay,
+    makePlayerTargetsXray,
+    makePlayerOthersXray,
+    setSelectedObject,
+    setOutlineObjects,
+    applyCameraState,
+  })
 
-  const isObjectInsideTarget = (object, targetObject) => {
-    let current = object
+  const clearPlayerSelection = () => {
+    if (["waiting", "dragging", "animating"].includes(procedureStatus)) {
+      const currentStep = activeProcedureSteps[procedureStepIndex]
+      const reference =
+        procedureStatus === "animating"
+          ? currentStep?.animatedObject || currentStep?.targetObject
+          : currentStep?.targetObject
+      const displayObject = proceduralEngine.findObject?.(modelScene, reference)
 
-    while (current) {
-      if (current === targetObject) return true
-      current = current.parent
+      if (displayObject) {
+        setSelectedObject(displayObject)
+        setOutlineObjects(proceduralEngine.collectMeshes?.(displayObject) || [])
+        return
+      }
     }
 
-    return false
-  }
-
-  const resetPlayerObjectXray = () => {
-    if (!modelScene) {
-      setSelectedObject(null)
-      setOutlineObjects([])
-      return
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
     }
-
-    // Restore the active project render mode from the immutable GLB material
-    // cache so Toon/Clay/2D remain active after object-list X-Ray is cleared.
-    restorePlayerRenderMode()
 
     setSelectedObject(null)
     setOutlineObjects([])
   }
 
-  const makePlayerXrayExcept = (targetObject) => {
-    if (!modelScene || !targetObject) {
-      resetPlayerObjectXray()
-      return
+  const hideSelectedPlayerObject = () => {
+    if (!selectedObject) return
+
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
     }
 
-    // Always start from the original material cache before applying xray so
-    // repeated Select/Deselect operations cannot leave stale xray materials.
-    restorePlayerRenderMode()
-
-    const outlineMeshes = []
-
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
-
-      if (isObjectInsideTarget(child, targetObject)) {
-        outlineMeshes.push(child)
-        child.renderOrder = 999
-
-        if (child.material) {
-          child.material.needsUpdate = true
-        }
-
-        return
-      }
-
-      releaseGeneratedModelMaterial(child)
-      child.material = xrayMaterialRef.current
-      child.userData.__vxGeneratedShaderMaterial = false
-      child.renderOrder = 0
-      child.material.needsUpdate = true
-    })
-
-    setSelectedObject(targetObject)
-    setOutlineObjects(outlineMeshes)
+    playerFreePlay.hideSelectedObject?.()
   }
 
   const setObjectListSelectedObject = (targetObject) => {
     if (!targetObject) {
-      resetPlayerObjectXray()
+      clearPlayerSelection()
       return
     }
 
-    makePlayerXrayExcept(targetObject)
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
+    }
+
+    const selection = createPlayerObjectSelectionPayload(
+      targetObject,
+      material?.chapters || [],
+    )
+
+    setSelectedObject(selection.selectedObject)
+    setOutlineObjects(selection.outlineObjects)
   }
 
   const hideAllObjects = () => {
@@ -378,6 +366,292 @@ export default function usePlayerController() {
     setOutlineObjects([])
   }
 
+  const getProcedureStepTarget = (step) =>
+    proceduralEngine.findObject?.(modelScene, step?.targetObject) || null
+
+  const getProcedureStepAnimatedEntries = (step) =>
+    proceduralEngine.findAnimatedObjects?.(modelScene, step) || []
+  const getProcedureStepAnimatedObject = (step) =>
+    getProcedureStepAnimatedEntries(step)[0]?.object3D || null
+
+  const highlightProcedureStep = createPlayerProcedureStepHighlighter({
+    getProcedureStepTarget,
+    restorePlayerRenderMode,
+    playerFreePlay,
+    applySavedVisualState,
+    setSelectedObject,
+    setOutlineObjects,
+    proceduralEngine,
+    applySavedCameraView,
+    focusObject,
+  })
+
+  const {
+    activeAssemblyObject,
+    advanceProcedureStep,
+    handleAssemblyDragStart,
+    handleAssemblyDrag,
+    handleAssemblyDragEnd,
+    playProcedureCompletionAnimation,
+  } = createPlayerProcedureActions({
+    proceduralEngine,
+    modelScene,
+    activeProcedure,
+    procedures,
+    activeProcedureIsAssembly,
+    activeProcedureStep,
+    activeProcedureSteps,
+    procedureStepIndex,
+    procedureReferenceLengthRef,
+    setProcedureStatus,
+    setProcedureFeedback,
+    setCompletedProcedureStepIds,
+    setProcedureStepIndex,
+    setSelectedObject,
+    setOutlineObjects,
+    highlightProcedureStep,
+    playAnimationAssignments: playerAnimation.playAnimationAssignments,
+  })
+
+  const stopProcedure = ({ clearSelection = true } = {}) => {
+    procedureRunTokenRef.current += 1
+    proceduralEngine.dispose?.()
+    if (activeProcedureIsAssembly && activeProcedure && modelScene) {
+      proceduralEngine.resetProcedure?.(modelScene, activeProcedure)
+    }
+    setProcedureStatus("idle")
+    setActiveProcedureId(null)
+    setProcedureStepIndex(-1)
+    setCompletedProcedureStepIds([])
+    setProcedureFeedback("")
+
+    if (clearSelection) {
+      setSelectedObject(null)
+      setOutlineObjects([])
+    }
+  }
+
+  const playProcedure = (procedureId) => {
+    const procedure = procedures.find((item) => item.id === procedureId)
+    const steps = (procedure?.steps || []).filter((step) => step.enabled !== false)
+
+    if (!procedure || steps.length === 0 || !modelScene) return false
+
+    procedureRunTokenRef.current += 1
+    proceduralEngine.dispose?.()
+    stopFlow()
+    stopChapterFlows()
+    setActiveChapterId(null)
+    playerAnimation.stopChapterAnimations?.()
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    procedureReferenceLengthRef.current =
+      proceduralEngine.getReferenceLength?.(modelScene, 1) || 1
+    proceduralEngine.resetProcedure?.(modelScene, procedure)
+
+    setActiveProcedureId(procedureId)
+    setProcedureStepIndex(0)
+    setCompletedProcedureStepIds([])
+    setProcedureFeedback(
+      steps[0]?.instruction ||
+        (proceduralEngine.isAssemblyProcedure?.(procedure)
+          ? "Geser komponen ke target yang ditampilkan."
+          : "Klik object yang ditandai."),
+    )
+    setProcedureStatus("waiting")
+    highlightProcedureStep(steps[0])
+    return true
+  }
+
+  const handleProcedureObjectClick = (object) => {
+    if (!activeProcedure || !["waiting", "dragging", "animating"].includes(procedureStatus)) {
+      return null
+    }
+
+    const currentStep = activeProcedureSteps[procedureStepIndex]
+    const targetObject = getProcedureStepTarget(currentStep)
+    const animatedEntries = getProcedureStepAnimatedEntries(currentStep)
+    const animatedObject = animatedEntries[0]?.object3D || null
+    const animatedOutlineObjects = animatedEntries.flatMap((entry) =>
+      proceduralEngine.collectMeshes?.(entry.object3D) || [],
+    )
+
+    if (!currentStep || !targetObject) {
+      setProcedureFeedback("Target object untuk step ini tidak ditemukan.")
+      return null
+    }
+
+    if (!animatedObject) {
+      setProcedureFeedback("Animated object untuk step ini tidak ditemukan.")
+      return null
+    }
+
+    if (activeProcedureIsAssembly) {
+      const matchesAssemblyObject = proceduralEngine.matchesClickTarget?.(
+        object,
+        animatedObject,
+        modelScene,
+      )
+
+      if (!matchesAssemblyObject) {
+        setProcedureFeedback(
+          `Komponen belum tepat. Geser ${currentStep.animatedObject?.name || currentStep.targetObject?.name || currentStep.name}.`,
+        )
+        highlightProcedureStep(currentStep)
+        return {
+          selectedObject: animatedObject,
+          outlineObjects: animatedOutlineObjects,
+        }
+      }
+
+      setSelectedObject(animatedObject)
+      setOutlineObjects(animatedOutlineObjects)
+      setProcedureFeedback("Geser komponen ke ghost target.")
+      return {
+        selectedObject: animatedObject,
+        outlineObjects: animatedOutlineObjects,
+      }
+    }
+
+    if (procedureStatus === "animating") {
+      return {
+        selectedObject: animatedObject,
+        outlineObjects: animatedOutlineObjects,
+      }
+    }
+
+    const matchesClickTarget = proceduralEngine.matchesClickTarget?.(
+      object,
+      targetObject,
+      modelScene,
+    )
+
+    if (!matchesClickTarget) {
+      setProcedureFeedback(
+        `Object belum tepat. Klik ${currentStep.targetObject?.name || currentStep.name}.`,
+      )
+      highlightProcedureStep(currentStep)
+      return {
+        selectedObject: targetObject,
+        outlineObjects: proceduralEngine.collectMeshes?.(targetObject) || [],
+      }
+    }
+
+    const runToken = ++procedureRunTokenRef.current
+    setProcedureStatus("animating")
+    setProcedureFeedback("Menjalankan animasi step...")
+    setSelectedObject(animatedObject)
+    setOutlineObjects(animatedOutlineObjects)
+
+    proceduralEngine
+      .animateStepObjects({ scene: modelScene, step: currentStep })
+      .then((completed) => {
+        if (!completed || procedureRunTokenRef.current !== runToken) return
+
+        advanceProcedureStep(currentStep)
+      })
+
+    return {
+      selectedObject: animatedObject,
+      outlineObjects: animatedOutlineObjects,
+    }
+  }
+
+  const getChapterFlowAssignments = (chapter) =>
+    normalizeChapterFlowAssignments(chapter?.flows).filter(
+      (assignment) => assignment.flowId,
+    )
+
+  const prepareChapterFlows = (chapter) => {
+    const autoPlayFlowIds = getChapterFlowAssignments(chapter)
+      .filter((assignment) => assignment.autoPlay)
+      .map((assignment) => assignment.flowId)
+      .filter((flowId) => {
+        const flow = flows.find((item) => item.id === flowId)
+        return flow?.enabled !== false && (flow?.points?.length || 0) >= 2
+      })
+
+    setActiveChapterFlowIds(Array.from(new Set(autoPlayFlowIds)))
+    setChapterFlowPlaybackKey((key) => key + 1)
+  }
+
+  const playChapterFlow = (flowId) => {
+    const activeChapter = material?.chapters?.find(
+      (chapter) => chapter.id === activeChapterId,
+    )
+    const assigned = getChapterFlowAssignments(activeChapter).some(
+      (assignment) => assignment.flowId === flowId,
+    )
+    const flow = flows.find((item) => item.id === flowId)
+
+    if (
+      !assigned ||
+      !flow ||
+      flow.enabled === false ||
+      (flow.points?.length || 0) < 2
+    ) {
+      return false
+    }
+
+    setActiveFlowId(null)
+    setFlowPlaying(false)
+    setActiveChapterFlowIds((current) =>
+      Array.from(new Set([...current, flowId])),
+    )
+    setChapterFlowPlaybackKey((key) => key + 1)
+    return true
+  }
+
+  const stopChapterFlows = () => {
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
+  }
+
+  const handleChapterFlowComplete = (flowId) => {
+    const flow = flows.find((item) => item.id === flowId)
+    if (flow?.settings?.repeat) return
+
+    setActiveChapterFlowIds((current) =>
+      current.filter((item) => item !== flowId),
+    )
+  }
+
+  const playFlow = (flowId) => {
+    stopProcedure()
+    stopChapterFlows()
+    const flow = flows.find((item) => item.id === flowId)
+
+    if (!flow || (flow.points?.length || 0) < 2) return false
+
+    setActiveChapterId(null)
+    playerAnimation.stopChapterAnimations?.()
+
+    // Always start from a deterministic clean model state. Flow-specific
+    // visual state is applied immediately after the reset.
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+
+    applySavedVisualState(flow.visualState)
+    applySavedCameraView(flow.cameraView)
+
+    setActiveFlowId(flowId)
+    setFlowPlaying(true)
+    setFlowPlaybackKey((key) => key + 1)
+    return true
+  }
+
+  const stopFlow = () => {
+    setFlowPlaying(false)
+    setActiveFlowId(null)
+  }
+
+  const resetPlayerView = () => {
+    playerFreePlay.resetMovedObjects?.({ animationDuration: 560 })
+    resetCameraToOverview()
+  }
+
   const resetAllPlayerView = () => {
     playerFreePlay.resetAllTransforms?.()
     playerFreePlay.resetSection?.()
@@ -385,7 +659,12 @@ export default function usePlayerController() {
     setSelectedObject(null)
     setOutlineObjects([])
     setActiveChapterId(null)
+    setFreePlay(false)
+    setFreePlayMenu(false)
     playerAnimation.stopChapterAnimations?.()
+    stopProcedure()
+    stopFlow()
+    stopChapterFlows()
     resetCameraToOverview()
   }
 
@@ -435,89 +714,44 @@ export default function usePlayerController() {
 
     setActiveMenu(null)
     setShowInfoPanel(false)
-  }
-
-  const applyHiddenVisualObjects = (visualState) => {
-    const hiddenObjects = visualState?.visibility?.hiddenObjects || []
-
-    hiddenObjects.forEach((reference) => {
-      const object = findObjectByReference(modelScene, reference)
-      if (object) object.visible = false
-    })
+    playerProject.notifyModelLoaded?.(scene)
   }
 
   const handleSelectChapter = (chapterId) => {
     const chapter = material?.chapters?.find((item) => item.id === chapterId)
 
-    if (!chapter) return
+    if (!chapter) return false
 
-    playerFreePlay.resetVisualState?.()
+    stopFlow()
+    stopProcedure()
+
+    // Saved state must be applied on a stable baseline. An animated reset can
+    // finish after the restore and silently overwrite Pull Apart/transforms.
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
     restorePlayerRenderMode()
     setSelectedObject(null)
     setOutlineObjects([])
 
-    playerChapter.handleSelectChapter(chapterId)
+    const chapterView = playerChapter.handleSelectChapter(chapterId)
 
-    const visualState = chapter.visualState
+    applySavedVisualState(chapter.visualState, {
+      fallbackObject: chapterView?.selectedObject || null,
+    })
+    prepareChapterFlows(chapter)
 
-    if (!visualState) return
-
-    const pullApartTarget = findObjectByReference(
-      modelScene,
-      visualState.pullApart?.targetObject,
-    )
-    playerFreePlay.applySavedPullApart?.(
-      visualState.pullApart,
-      pullApartTarget,
-    )
-
-    applyHiddenVisualObjects(visualState)
-
-    const xrayTarget = findObjectByReference(
-      modelScene,
-      visualState.xray?.targetObject,
-    )
-
-    if (visualState.xray?.enabled && xrayTarget) {
-      makePlayerXrayExcept(xrayTarget)
-    } else {
-      const savedSelectedObject = findObjectByReference(
-        modelScene,
-        visualState.selectedObject,
-      )
-
-      if (savedSelectedObject) {
-        const selection = createPlayerObjectSelectionPayload(
-          savedSelectedObject,
-          material?.chapters || [],
-        )
-
-        setSelectedObject(selection.selectedObject)
-        setOutlineObjects(selection.outlineObjects)
-      }
-    }
-
-    const savedCuts = Array.isArray(visualState.cuts)
-      ? visualState.cuts
-      : visualState.cut
-        ? [visualState.cut]
-        : []
-
-    const resolvedCuts = savedCuts
-      .map((cutState) => ({
-        cutState,
-        targetObject: findObjectByReference(
-          modelScene,
-          cutState?.targetObject,
-        ),
-      }))
-      .filter((entry) => entry.targetObject)
-
-    playerFreePlay.applySavedCuts?.(resolvedCuts)
+    return true
   }
 
   const handleSelectObjectFromPlayer = (object) => {
     if (!object) return null
+
+    if (["waiting", "dragging", "animating"].includes(procedureStatus)) {
+      return handleProcedureObjectClick(object)
+    }
+
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
+    }
 
     const selection = createPlayerObjectSelectionPayload(
       object,
@@ -540,9 +774,33 @@ export default function usePlayerController() {
     focusObject(selection?.selectedObject || object)
   }
 
+  const updatePlayerViewerSetting = (key, value) => {
+    setViewerSettings((previousSettings) => ({
+      ...previousSettings,
+      [key]: value,
+    }))
+  }
+
+  const applyPlayerShaderMode = (mode) => {
+    updatePlayerViewerSetting("shaderMode", mode)
+  }
+
+  const setPlayerMetalness = (value) => {
+    updatePlayerViewerSetting("metalness", Number(value))
+  }
+
+  const setPlayerRoughness = (value) => {
+    updatePlayerViewerSetting("roughness", Number(value))
+  }
+
+  const updatePlayerEnvIntensity = (value) => {
+    updatePlayerViewerSetting("envIntensity", Number(value))
+  }
+
   return {
     status: {
       isLoadingProject: playerProject.isLoadingProject,
+      isSceneReady: playerProject.isSceneReady,
       loadError: playerProject.loadError,
     },
 
@@ -571,20 +829,84 @@ export default function usePlayerController() {
       animationCommand: playerAnimation.animationCommand,
       handleSelectObjectFromPlayer,
       handleDoubleClickObjectFromPlayer,
+      clearPlayerSelection,
       handleModelLoaded,
       captureInitialCameraState,
+      onSceneReady: playerProject.notifySceneReady,
       setAnimations: playerAnimation.setAnimations,
       showAnnotations,
+      activeFlow,
+      flowPlaying,
+      flowPlaybackKey,
+      activeChapterFlows,
+      chapterFlowPlaybackKey,
+      onChapterFlowComplete: handleChapterFlowComplete,
+      onFlowComplete: () => {
+        if (!activeFlow?.settings?.repeat) {
+          setFlowPlaying(false)
+        }
+      },
+      assemblyDragObject: activeAssemblyObject,
+      assemblyStartTransform: activeProcedureStep?.startTransform || null,
+      assemblyTargetTransform: activeProcedureStep?.endTransform || null,
+      assemblyDragEnabled:
+        activeProcedureIsAssembly &&
+        ["waiting", "dragging"].includes(procedureStatus) &&
+        Boolean(activeAssemblyObject),
+      assemblyCameraLocked: activeProcedureIsAssembly &&
+        ["waiting", "dragging"].includes(procedureStatus) &&
+        Boolean(activeProcedureStep),
+      assemblyShowGhost:
+        activeProcedureStep?.interaction?.showGhost !== false,
+      onAssemblyDragStart: handleAssemblyDragStart,
+      onAssemblyDrag: handleAssemblyDrag,
+      onAssemblyDragEnd: handleAssemblyDragEnd,
     },
-
     chapterPanel: {
       freePlay,
       showInfoPanel,
       activeChapter: playerChapter.activeChapter,
+      cameraViews: playerChapter.cameraViews,
+      activeCameraViewIndex: playerChapter.activeCameraViewIndex,
+      selectCameraView: playerChapter.handleSelectCameraView,
       speakChapterDescription: playerSpeech.speakChapterDescription,
       stopSpeaking: playerSpeech.stopSpeaking,
       playChapterAnimations: playerAnimation.playChapterAnimations,
       stopChapterAnimations: playerAnimation.stopChapterAnimations,
+      chapterFlowAssignments: getChapterFlowAssignments(
+        playerChapter.activeChapter,
+      ),
+      activeChapterFlowIds,
+      playChapterFlow,
+      stopChapterFlows,
+    },
+    animationPanel: {
+      animations: playerAnimation.animations,
+      selectedAnimations: playerAnimation.selectedAnimations,
+      setSelectedAnimations: playerAnimation.setSelectedAnimations,
+      setAnimationCommand: playerAnimation.setAnimationCommand,
+      stopAnimations: playerAnimation.stopCurrentAnimations,
+    },
+    flowPanel: {
+      flows,
+      activeFlow,
+      activeFlowId,
+      isPlaying: flowPlaying,
+      playFlow,
+      stopFlow,
+    },
+
+    procedurePanel: {
+      procedures,
+      activeProcedure,
+      activeProcedureId,
+      activeStepIndex: procedureStepIndex,
+      completedStepIds: completedProcedureStepIds,
+      status: procedureStatus,
+      feedback: procedureFeedback,
+      playProcedure,
+      stopProcedure,
+      playCompletionAnimation: playProcedureCompletionAnimation,
     },
 
     toolsMenu: {
@@ -592,7 +914,7 @@ export default function usePlayerController() {
       freePlayMenu,
       cutEnabled,
       toggleCutSection: playerFreePlay.toggleCutSection,
-      hideSelectedObject: playerFreePlay.hideSelectedObject,
+      hideSelectedObject: hideSelectedPlayerObject,
       pullApart: playerFreePlay.pullApart,
       isPullApartActive: playerFreePlay.isPullApartActive,
       resetAllTransforms: resetAllPlayerView,
@@ -614,6 +936,9 @@ export default function usePlayerController() {
       setCutValue,
       updateCutValue: playerFreePlay.updateCutValue,
       resetCutValues: playerFreePlay.resetSection,
+      cutAllObjects: playerFreePlay.cutAllObjects,
+      setCutAllObjects: playerFreePlay.setCutAllObjects,
+      cutTargetAvailable: playerFreePlay.cutTargetAvailable,
     },
 
     chapterList: {
@@ -625,9 +950,22 @@ export default function usePlayerController() {
       clearActiveChapter,
     },
 
+    environmentPanel: {
+      viewerSettings,
+      setViewerSettings,
+      shaderMode: viewerSettings.shaderMode || "original",
+      applyShaderMode: applyPlayerShaderMode,
+      metalness: viewerSettings.metalness ?? 0.1,
+      setMetalness: setPlayerMetalness,
+      roughness: viewerSettings.roughness ?? 0.1,
+      setRoughness: setPlayerRoughness,
+      updateEnvIntensity: updatePlayerEnvIntensity,
+    },
+
     settingsPanel: {
       showAnnotations,
       setShowAnnotations,
+      resetView: resetPlayerView,
       resetAll: resetAllPlayerView,
     },
 

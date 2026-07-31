@@ -1,5 +1,6 @@
 import { ArrowRight, ChevronLeft, ChevronRight, List, X } from "lucide-react";
 import MaterialIcon from "../ui/material-icon";
+import { getVisibleChapters } from "../../engine/marker";
 
 function getProjectTitle(material) {
   return (
@@ -35,10 +36,11 @@ export default function PlayerChapterListPanel({
   activeChapterId,
   handleSelectChapter,
   onClose,
+  modelScene,
 }) {
   if (!material) return null;
 
-  const chapters = material.chapters || [];
+  const chapters = getVisibleChapters(material.chapters, modelScene);
   const activeChapterIndex = chapters.findIndex(
     (chapter) => chapter.id === activeChapterId,
   );
@@ -60,7 +62,7 @@ export default function PlayerChapterListPanel({
     <aside
       onClick={(event) => event.stopPropagation()}
       className={[
-        "absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
+        "vx-player-panel vx-player-panel--full-mobile absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
         "rounded-2xl border border-white/10 bg-[#182223]/75 p-5 text-white shadow-2xl",
         "backdrop-blur-xl backdrop-saturate-200",
       ].join(" ")}

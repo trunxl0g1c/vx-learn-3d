@@ -6,13 +6,15 @@ import {
   createProjectRecord,
   getAllProjectsFromIndexedDb,
   saveProjectToIndexedDb,
-  clearVXploreIndexedDb,
+  saveProjectDraftToIndexedDb,
+  clearViqubedIndexedDb,
 } from "./storage/projectIndexedDb";
 import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
 import ConfirmationDialog from "../../components/dialog/ConfirmationDialog";
+import { importVXPack, isVXPackFile } from "../../utils/vxpackUtils";
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -47,7 +49,7 @@ export default function ProjectHubPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { showLoading, updateLoading } = useGlobalLoading();
+  const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
 
   const [openCreate, setOpenCreate] = useState(false);
   const [projectName, setProjectName] = useState("");
@@ -68,6 +70,8 @@ export default function ProjectHubPage() {
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearingProjects, setIsClearingProjects] = useState(false);
+  const [isImportingProject, setIsImportingProject] = useState(false);
+  const [importProjectError, setImportProjectError] = useState("");
 
   useEffect(() => {
     getAllProjectsFromIndexedDb().then(setProjects);
@@ -96,7 +100,7 @@ export default function ProjectHubPage() {
 
   function handleOpenProject(project) {
     showLoading({
-      title: "Opening VXplore Project",
+      title: "Opening Viqubed Project",
       text: project.name,
       progress: null,
     });
@@ -107,11 +111,11 @@ export default function ProjectHubPage() {
       });
 
       if (project.role === "EDITOR") {
-        navigate(`/vxplore/editor/${project.id}`);
+        navigate(`/viqubed/editor/${project.id}`);
         return;
       }
 
-      navigate(`/vxplore/player/${project.id}`);
+      navigate(`/viqubed/player/${project.id}`);
     }, 350);
   }
 
@@ -208,13 +212,19 @@ export default function ProjectHubPage() {
 
       setProgress(80);
 
-      const updatedProjects = await getAllProjectsFromIndexedDb();
-
-      setProjects(updatedProjects);
       setProgress(100);
-
       setOpenCreate(false);
       resetCreateProjectForm();
+
+      showLoading({
+        title: "Opening New Project",
+        text: project.name,
+        progress: null,
+      });
+
+      // A newly created project is an authoring workflow. Open the Editor
+      // immediately instead of returning to the catalogue first.
+      navigate(`/viqubed/editor/${project.id}`);
     } catch (error) {
       console.error("Gagal membuat project:", error);
 
@@ -224,6 +234,144 @@ export default function ProjectHubPage() {
     } finally {
       setIsSubmitting(false);
       setProgress(0);
+    }
+  }
+
+
+  async function handleImportProject(packageFile) {
+    if (!packageFile || isImportingProject) return;
+
+    if (!isVXPackFile(packageFile)) {
+      setImportProjectError("Choose a valid .vxpack project package.");
+      return;
+    }
+
+    try {
+      setIsImportingProject(true);
+      setImportProjectError("");
+
+      showLoading({
+        title: "Importing Viqubed Project",
+        text: "Reading package manifest...",
+        progress: 15,
+      });
+
+      const {
+        project: packagedProject,
+        material: packagedMaterial,
+        viewer: packagedViewer,
+        scene: packagedScene,
+        modelFile,
+      } = await importVXPack(packageFile, { createObjectUrl: false });
+
+      if (!modelFile) {
+        throw new Error("GLB model was not found in the package.");
+      }
+
+      updateLoading({
+        text: "Saving project to local database...",
+        progress: 60,
+      });
+
+      const projectName =
+        packagedProject?.name ||
+        packagedMaterial?.projectName ||
+        packagedMaterial?.title ||
+        packageFile.name.replace(/\.vxpack$/i, "") ||
+        "Imported Viqubed Project";
+      const role = packagedProject?.role === "PLAYER" ? "PLAYER" : "EDITOR";
+      const baseProject = createProjectRecord({
+        name: projectName,
+        file: modelFile,
+        role,
+      });
+      const now = new Date().toISOString();
+      const material = {
+        ...baseProject.material,
+        ...(packagedMaterial || {}),
+        projectId: baseProject.id,
+        projectName,
+        modelUrl: modelFile.name,
+        chapters: Array.isArray(packagedMaterial?.chapters)
+          ? packagedMaterial.chapters
+          : [],
+        flows: Array.isArray(packagedMaterial?.flows)
+          ? packagedMaterial.flows
+          : [],
+        procedures: Array.isArray(packagedMaterial?.procedures)
+          ? packagedMaterial.procedures
+          : [],
+      };
+      const viewer = {
+        ...baseProject.viewer,
+        ...(packagedViewer || {}),
+        background: {
+          ...(baseProject.viewer?.background || {}),
+          ...(packagedViewer?.background || {}),
+        },
+      };
+      const scene = {
+        ...baseProject.scene,
+        ...(packagedScene || {}),
+        markers: Array.isArray(packagedScene?.markers)
+          ? packagedScene.markers
+          : [],
+        cut: {
+          ...(baseProject.scene?.cut || {}),
+          ...(packagedScene?.cut || {}),
+        },
+      };
+      const importedProject = {
+        ...baseProject,
+        name: projectName,
+        workspace: packagedProject?.workspace || baseProject.workspace,
+        thumbnail:
+          material.thumbnail || packagedProject?.thumbnail || baseProject.thumbnail,
+        status: packagedProject?.status || "DRAFT",
+        publishVersion: packagedProject?.publishVersion || null,
+        material,
+        viewer,
+        scene,
+        metadata: {
+          ...baseProject.metadata,
+          importedAt: now,
+          sourcePackageName: packageFile.name,
+        },
+      };
+      const draft = {
+        projectId: importedProject.id,
+        material,
+        viewer,
+        scene,
+        updatedAt: now,
+      };
+
+      await saveProjectToIndexedDb(importedProject, modelFile);
+      await saveProjectDraftToIndexedDb(importedProject.id, draft);
+
+      setProjects((current) => [
+        importedProject,
+        ...current.filter((item) => item.id !== importedProject.id),
+      ]);
+
+      updateLoading({
+        text: "Opening imported project...",
+        progress: 100,
+      });
+
+      navigate(
+        role === "PLAYER"
+          ? `/viqubed/player/${importedProject.id}`
+          : `/viqubed/editor/${importedProject.id}`,
+      );
+    } catch (error) {
+      console.error("Failed to import VXPACK project:", error);
+      hideLoading();
+      setImportProjectError(
+        error?.message || "The VXPACK project could not be imported.",
+      );
+    } finally {
+      setIsImportingProject(false);
     }
   }
 
@@ -247,7 +395,7 @@ export default function ProjectHubPage() {
     try {
       setIsClearingProjects(true);
 
-      await clearVXploreIndexedDb();
+      await clearViqubedIndexedDb();
 
       setProjects([]);
       setIsClearConfirmOpen(false);
@@ -276,6 +424,8 @@ export default function ProjectHubPage() {
           setCreateProjectError("");
           setOpenCreate(true);
         }}
+        onImport={handleImportProject}
+        isImporting={isImportingProject}
         onOpenProject={handleOpenProject}
         getAccessLabel={getAccessLabel}
         formatLastOpened={formatLastOpened}
@@ -297,6 +447,19 @@ export default function ProjectHubPage() {
         isSubmitting={isSubmitting}
         error={createProjectError}
         onClearError={clearCreateProjectError}
+      />
+
+
+      <ConfirmationDialog
+        open={Boolean(importProjectError)}
+        title="Import Project Failed"
+        message={importProjectError}
+        description="The package was not added to the local project database."
+        confirmText="Close"
+        cancelText="Dismiss"
+        confirmVariant="outline"
+        onClose={() => setImportProjectError("")}
+        onConfirm={() => setImportProjectError("")}
       />
 
       <ConfirmationDialog

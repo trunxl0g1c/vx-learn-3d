@@ -1,4 +1,4 @@
-# VXplore Animation Engine
+# Viqubed Animation Engine
 
 `AnimationEngine` is the shared animation command layer for Editor, Player, and future VR/AR modes.
 

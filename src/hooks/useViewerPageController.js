@@ -2,12 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useProjectStore } from "../modules/project-store/ProjectStoreContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGlobalLoading } from "../modules/loading/LoadingContext";
-
-import {
-  panelSectionStyle,
-  inputStyle,
-  mediaButtonStyle,
-} from "../constants/viewerStyles";
+import { panelSectionStyle, inputStyle, mediaButtonStyle } from "../constants/viewerStyles";
 import {
   buildObjectTreeList,
   getMaxTreeDepth,
@@ -24,65 +19,38 @@ import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
 import { useVXEngine } from "./useVXEngine";
+import { useFlowManager } from "./useFlowManager";
+import { useProceduralManager } from "./useProceduralManager";
+import { applySavedViewerVisualState } from "./viewer/applySavedViewerVisualState";
+import { useViewerAuthoringState } from "./viewer/useViewerAuthoringState";
 import { DEFAULT_VIEWER_BACKGROUND } from "../utils/viewerBackground";
 import { createChapterHighlightPayload } from "../engine/selection";
+import { getChapterCameraView } from "../engine/chapter";
+import {
+  createStoredCameraView,
+  switchCameraProjectionThen,
+} from "../engine/camera";
+import { normalizePlayerSettings } from "../modules/material/playerSettings";
 import {
   applyChapterModelRotation,
   createChapterFocusTarget,
   applyObjectNameOverrides,
   areObjectPathsEqual,
   createObjectIndexPath,
-  resolveObjectByStoredIndexPath,
   upsertObjectNameOverride,
 } from "../engine/model";
 import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
-
-function findObjectByReference(scene, reference) {
-  if (!scene || !reference) return null;
-
-  if (Array.isArray(reference.path)) {
-    const pathMatch = resolveObjectByStoredIndexPath(
-      scene,
-      reference.path,
-      reference.name,
-    );
-
-    if (pathMatch) return pathMatch;
-  }
-
-  if (reference.uuid) {
-    const uuidMatch = scene.getObjectByProperty?.("uuid", reference.uuid);
-
-    if (uuidMatch) return uuidMatch;
-  }
-
-  const targetName = String(reference.name || "").trim();
-
-  if (!targetName) return null;
-
-  let nameMatch = null;
-
-  scene.traverse((object) => {
-    if (nameMatch) return;
-
-    if (String(object?.name || "").trim() === targetName) {
-      nameMatch = object;
-    }
-  });
-
-  return nameMatch;
-}
-
 export function useViewerPageController() {
   const vxEngine = useVXEngine();
   const navigate = useNavigate();
   const { projectId } = useParams();
   const { updateLoading, hideLoading } = useGlobalLoading();
-
   const {
+    currentProject,
+    projectDraft,
     dirty,
     saveStatus,
     setSaveStatus,
@@ -92,20 +60,16 @@ export function useViewerPageController() {
     setCurrentProject,
     setProjectDraft,
   } = useProjectStore();
-
   const [modelScene, setModelScene] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [objectList, setObjectList] = useState([]);
   const [selectedObject, setSelectedObject] = useState(null);
   const [activeSidebar, setActiveSidebar] = useState("settings");
-
   const [targetRotationY, setTargetRotationY] = useState(0);
   const [isAutoRotating, setIsAutoRotating] = useState(false);
-
   const cameraRef = useRef();
   const controlsRef = useRef();
   const focusTargetRef = useRef(null);
-
   const [cutEnabled, setCutEnabled] = useState(false);
   const [cutAxis, setCutAxis] = useState("x");
   const [cutValue, setCutValue] = useState(0);
@@ -117,7 +81,6 @@ export function useViewerPageController() {
   });
   const [cutMin, setCutMin] = useState(-3);
   const [cutMax, setCutMax] = useState(3);
-
   const [markerMode, setMarkerMode] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
 
@@ -130,7 +93,7 @@ export function useViewerPageController() {
   const [activeChapterId, setActiveChapterId] = useState(null);
   const [rightTab, setRightTab] = useState("material");
 
-  const [treeDepth, setTreeDepth] = useState(2);
+  const [treeDepth, setTreeDepth] = useState(999);
   const [searchObject, setSearchObject] = useState("");
   const [animations, setAnimations] = useState([]);
   const [selectedAnimations, setSelectedAnimations] = useState({});
@@ -150,6 +113,7 @@ export function useViewerPageController() {
     shaderMode: "original",
     metalness: 0.1,
     roughness: 0.1,
+    cameraProjectionMode: "perspective",
     background: DEFAULT_VIEWER_BACKGROUND,
   });
 
@@ -186,6 +150,68 @@ export function useViewerPageController() {
     updateLoading,
     hideLoading,
   });
+
+  const flow = useFlowManager({
+    material,
+    setMaterial: updateMaterialState,
+    modelScene,
+    selectedObject,
+    controlsRef,
+    flowEngine: vxEngine?.flow,
+  });
+
+  const procedural = useProceduralManager({
+    material,
+    setMaterial: updateMaterialState,
+    modelScene,
+    selectedObject,
+    cameraRef,
+    controlsRef,
+    setViewerSettings: updateViewerSettings,
+    proceduralEngine: vxEngine?.procedural,
+    setOutlineObjects,
+  });
+
+  useEffect(() => {
+    if (activeSidebar !== "pro") {
+      flow.stopAuthoring();
+      procedural.stopAuthoring();
+    }
+  }, [activeSidebar, flow.stopAuthoring, procedural.stopAuthoring]);
+
+  const contentAuthoringLocked = Boolean(
+    flow.isAuthoringActive || procedural.isAuthoringActive,
+  );
+  const contentAuthoringLockReason = flow.isAuthoringActive
+    ? "Create Content is disabled while Flow Authoring is active."
+    : procedural.isAuthoringActive
+      ? "Create Content is disabled while Procedural Authoring is active."
+      : "";
+
+  const saveDefaultPlayerCameraView = useCallback(() => {
+    const cameraView = createStoredCameraView(
+      cameraRef.current,
+      controlsRef.current,
+    );
+
+    if (!cameraView) return false;
+
+    updateMaterialState((prev) => ({
+      ...prev,
+      playerSettings: {
+        ...normalizePlayerSettings(prev?.playerSettings),
+        defaultCameraView: {
+          ...cameraView,
+          modelRotation: modelScene
+            ? modelScene.rotation.toArray()
+            : [0, 0, 0],
+          savedAt: new Date().toISOString(),
+        },
+      },
+    }));
+
+    return true;
+  }, [modelScene, updateMaterialState]);
 
   const rebuildObjectList = useCallback(
     (scene = modelScene) => {
@@ -324,7 +350,11 @@ export function useViewerPageController() {
     setViewerSettings: updateViewerSettings,
   });
 
-  const { focusObject, resetCameraToInitialView } = useCameraManager({
+  const {
+    focusObject,
+    resetCameraToInitialView,
+    setEditorCameraView,
+  } = useCameraManager({
     vxEngine,
     modelScene,
     setTargetRotationY,
@@ -335,17 +365,30 @@ export function useViewerPageController() {
   });
 
   const {
+    selectedObjects,
+    selectionVisualMode,
+    multipleSelectEnabled,
+    toggleMultipleSelect,
+    clearSelection,
+    clearSelectionFromViewport,
+    selectObjectFromList,
     highlightObject,
     makeXrayExcept,
+    makeOthersXray,
+    makeSelectedObjectsXray,
+    makeTargetObjectsXray,
+    highlightSelectedObjectsPreservingVisualState,
     resetXray,
     selectObjectFromMesh,
     focusObjectFromMesh,
     selectionEngine,
     xrayTargetObject,
+    xrayTargetObjects,
   } = useViewerSelection({
     vxEngine,
     modelScene,
     objectList,
+    selectedObject,
     setOutlineObjects,
     setSelectedObject,
     setSelectedObjectName,
@@ -363,6 +406,7 @@ export function useViewerPageController() {
     pullApart,
     soloSelectedObject: soloSelectedObjectBase,
     hideSelectedObject: hideSelectedObjectBase,
+    hideSelectedObjects: hideSelectedObjectsBase,
     showAllObjects,
     hideAllObjects,
     resetAllTransforms,
@@ -394,6 +438,9 @@ export function useViewerPageController() {
     updateCutAxis,
     updateCutValue,
     resetCutValues,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
     cutRanges: engineCutRanges,
     toggleCutSection,
     handleModelLoadedWithCutBounds,
@@ -424,19 +471,82 @@ export function useViewerPageController() {
     handleModelLoaded,
   });
 
+  const { flowAuthoring, proceduralAuthoring } = useViewerAuthoringState({
+    flow,
+    procedural,
+    modelScene,
+    selectedObject,
+    selectedObjects,
+    xrayTargetObject,
+    xrayTargetObjects,
+    selectionVisualMode,
+    pullApartState,
+    getCutStates,
+    cutEnabled,
+    cutValues,
+    cutRanges: engineCutRanges || cutRanges,
+    cameraRef,
+    controlsRef,
+    resetXray,
+    showAllObjects,
+    clearCutSession,
+    applySavedPullApart,
+    makeOthersXray,
+    makeTargetObjectsXray,
+    highlightObject,
+    highlightSelectedObjectsPreservingVisualState,
+    setSelectedObjectName,
+    applySavedCuts,
+  });
+
   const pullApartSelectedScope = () => {
     pullApart(selectedObject);
   };
 
   const soloSelectedObject = () => soloSelectedObjectBase(selectedObject);
   const hideSelectedObject = () => hideSelectedObjectBase(selectedObject);
+  const hideMultipleSelectedObjects = () => {
+    const targets = multipleSelectEnabled
+      ? selectedObjects
+      : selectedObject
+        ? [selectedObject]
+        : [];
+
+    const didHide = hideSelectedObjectsBase(targets);
+
+    if (didHide) {
+      clearSelection();
+    }
+  };
+
+  const isSelectedObjectXray = Boolean(
+    selectedObject && xrayTargetObject === selectedObject,
+  );
+
+  const toggleSelectedObjectXray = () => {
+    if (!selectedObject) return;
+
+    const targetObject = selectedObject;
+    const targetName = String(targetObject.name || selectedObjectName || "")
+      .replaceAll("_", " ");
+
+    if (xrayTargetObject === targetObject) {
+      resetXray();
+      highlightObject(targetObject);
+      setSelectedObjectName(targetName);
+      return;
+    }
+
+    makeXrayExcept(targetObject);
+    setSelectedObjectName(targetName);
+  };
 
   const resetAllWithCamera = () => {
     resetAllTransforms();
     resetCameraToInitialView();
   };
 
-  const { addMarker } = useMarkerManager({
+  const { addMarker, updateMarker } = useMarkerManager({
     activeChapterId,
     setMaterial: updateMaterialState,
     markers,
@@ -467,6 +577,12 @@ export function useViewerPageController() {
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterParameter,
@@ -475,11 +591,13 @@ export function useViewerPageController() {
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
   } = useChapterManager({
     selectedObjectName,
     selectedObject,
+    selectedObjects,
     authoringObject,
     cameraRef,
     controlsRef,
@@ -488,6 +606,19 @@ export function useViewerPageController() {
     setMaterial: updateMaterialState,
     materialModelUrl,
     modelFile,
+    packageProject: currentProject,
+    packageScene: {
+      ...(currentProject?.scene || {}),
+      ...(projectDraft?.scene || {}),
+      markers,
+      cut: {
+        enabled: cutEnabled,
+        axis: cutAxis,
+        value: cutValue,
+        values: cutValues,
+        ranges: engineCutRanges || cutRanges,
+      },
+    },
     viewerSettings,
     shaderMode,
     metalness,
@@ -497,6 +628,8 @@ export function useViewerPageController() {
     cutRanges: engineCutRanges || cutRanges,
     getCutStates,
     xrayTargetObject,
+    xrayTargetObjects,
+    selectionVisualMode,
     pullApartState,
     activeChapterId,
     setActiveChapterId,
@@ -505,21 +638,11 @@ export function useViewerPageController() {
     setSelectedAnimations,
     setAnimationCommand,
     vxEngine,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
   });
 
-  const applyHiddenChapterObjects = (visualState) => {
-    const hiddenObjects = visualState?.visibility?.hiddenObjects || [];
-
-    hiddenObjects.forEach((reference) => {
-      const object = findObjectByReference(modelScene, reference);
-
-      if (object) {
-        object.visible = false;
-      }
-    });
-  };
-
-  const previewChapterInEditor = (chapterId) => {
+  const previewChapterInEditor = (chapterId, cameraViewId = null) => {
     const chapter = material?.chapters?.find((item) => item.id === chapterId);
 
     if (!chapter || !modelScene) return;
@@ -537,7 +660,9 @@ export function useViewerPageController() {
     setActiveChapterId(chapterId);
     setRightTab("chapter");
 
-    applyChapterModelRotation(modelScene, chapter);
+    const selectedCameraView = getChapterCameraView(chapter, cameraViewId);
+
+    applyChapterModelRotation(modelScene, chapter, selectedCameraView);
 
     const chapterSelection = createChapterHighlightPayload(chapter, modelScene);
     const chapterObject = chapterSelection.selectedObject;
@@ -555,72 +680,42 @@ export function useViewerPageController() {
       );
     }
 
-    const chapterFocusTarget = createChapterFocusTarget(chapter);
+    const chapterFocusTarget = createChapterFocusTarget(
+      chapter,
+      selectedCameraView,
+    );
 
     if (chapterFocusTarget) {
-      focusTargetRef.current = chapterFocusTarget;
+      const requestedProjectionMode =
+        chapterFocusTarget.cameraType === "orthographic"
+          ? "orthographic"
+          : "perspective";
+
+      // Install the saved projection camera first. Only then expose the focus
+      // target, preventing Orthographic zoom from touching PerspectiveCamera.
+      switchCameraProjectionThen({
+        cameraRef,
+        setViewerSettings,
+        mode: requestedProjectionMode,
+        onReady: () => {
+          focusTargetRef.current = chapterFocusTarget;
+        },
+      });
     }
 
-    const visualState = chapter.visualState;
-
-    if (!visualState) return;
-
-    const pullApartTarget = findObjectByReference(
-      modelScene,
-      visualState.pullApart?.targetObject,
-    );
-
-    applySavedPullApart(visualState.pullApart, pullApartTarget);
-
-    applyHiddenChapterObjects(visualState);
-
-    const xrayTarget = findObjectByReference(
-      modelScene,
-      visualState.xray?.targetObject,
-    );
-    const savedSelectedObject = findObjectByReference(
-      modelScene,
-      visualState.selectedObject,
-    );
-    const preferredSelection =
-      xrayTarget || savedSelectedObject || chapterObject || null;
-
-    if (visualState.xray?.enabled && xrayTarget) {
-      makeXrayExcept(xrayTarget);
-      setSelectedObjectName(
-        (
-          xrayTarget.name ||
-          chapter.objectName ||
-          chapter.title ||
-          ""
-        ).replaceAll("_", " "),
-      );
-    } else if (savedSelectedObject) {
-      highlightObject(savedSelectedObject);
-      setSelectedObjectName(
-        (
-          savedSelectedObject.name ||
-          chapter.objectName ||
-          chapter.title ||
-          ""
-        ).replaceAll("_", " "),
-      );
-    }
-
-    const savedCuts = Array.isArray(visualState.cuts)
-      ? visualState.cuts
-      : visualState.cut
-        ? [visualState.cut]
-        : [];
-
-    const resolvedCuts = savedCuts
-      .map((cutState) => ({
-        cutState,
-        targetObject: findObjectByReference(modelScene, cutState?.targetObject),
-      }))
-      .filter((entry) => entry.targetObject);
-
-    applySavedCuts(resolvedCuts, preferredSelection || modelScene);
+    applySavedViewerVisualState({
+      scene: modelScene,
+      chapter,
+      chapterObject,
+      visualState: chapter.visualState,
+      applySavedPullApart,
+      makeOthersXray,
+      makeTargetObjectsXray,
+      highlightObject,
+      highlightSelectedObjectsPreservingVisualState,
+      setSelectedObjectName,
+      applySavedCuts,
+    });
   };
 
   const savePreviewDraft = async () => {
@@ -673,7 +768,7 @@ export function useViewerPageController() {
         text: "Preparing player preview...",
       });
 
-      navigate(`/vxplore/player/${projectId}?preview=true`, {
+      navigate(`/viqubed/player/${projectId}?preview=true`, {
         state: {
           preview: true,
           fromEditor: true,
@@ -698,9 +793,11 @@ export function useViewerPageController() {
   const maxTreeDepth = getMaxTreeDepth(objectList);
 
   const deselectObject = () => {
-    setSelectedObject(null);
-    setSelectedObjectName("");
-    setOutlineObjects([]);
+    // Deselect must leave both object selection and chapter authoring.
+    // Clearing only activeChapterId previously returned the right panel to
+    // the compact Info view while the object was still selected.
+    clearSelection({ closeInfo: false });
+    setActiveChapterId(null);
     setRightTab(null);
   };
 
@@ -715,6 +812,8 @@ export function useViewerPageController() {
     authoringObject,
     authoringObjectName,
     createChapterFromSelectedObject,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
     previewChapterInEditor,
     saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
@@ -735,6 +834,10 @@ export function useViewerPageController() {
     updateEnvIntensity,
     material,
     setMaterial: updateMaterialState,
+    flow: flowAuthoring,
+    procedural: proceduralAuthoring,
+    saveDefaultPlayerCameraView,
+    activeChapter,
     activeChapterId,
     setActiveChapterId,
     panelSectionStyle,
@@ -751,11 +854,18 @@ export function useViewerPageController() {
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     setActiveMenu,
     activeMenu,
     cameraRef,
@@ -764,6 +874,7 @@ export function useViewerPageController() {
     outlineObjects,
     modelUrl,
     addMarker,
+    updateMarker,
     handleModelLoaded: handleModelLoadedWithCutBounds,
     markerMode,
     setMarkerMode,
@@ -779,6 +890,12 @@ export function useViewerPageController() {
     isAutoRotating,
     setIsAutoRotating,
     selectedObject,
+    selectedObjects,
+    multipleSelectEnabled,
+    toggleMultipleSelect,
+    clearSelection,
+    clearSelectionFromViewport,
+    selectObjectFromList,
     isTransforming,
     setIsTransforming,
     orbitEnabled,
@@ -794,12 +911,19 @@ export function useViewerPageController() {
     cutRanges: engineCutRanges || cutRanges,
     updateCutValue,
     resetCutValues,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
     cutMin,
     cutMax,
     setCutValue,
     handleFile,
     toggleCutSection,
     hideSelectedObject,
+    hideMultipleSelectedObjects,
+    makeSelectedObjectsXray,
+    toggleSelectedObjectXray,
+    isSelectedObjectXray,
     resetXray,
     pullApart: pullApartSelectedScope,
     resetAllTransforms: resetAllWithCamera,
@@ -809,6 +933,7 @@ export function useViewerPageController() {
     highlightObject,
     makeXrayExcept,
     focusObject,
+    setEditorCameraView,
     markers,
     treeDepth,
     setTreeDepth,

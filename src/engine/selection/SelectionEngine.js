@@ -1,6 +1,9 @@
 import {
   applyXrayExcept,
+  applyXrayToNonTargets,
+  applyXrayToTargets,
   createClearSelectionPayload,
+  createMultiSelectionPayload,
   createSelectionFromMeshPayload,
   createSelectionPayload,
   resetSceneMaterialState,
@@ -15,6 +18,7 @@ export function createSelectionEngine(options = {}) {
   let xrayMaterial = options.xrayMaterial || null
   let materialRestorer = options.materialRestorer || null
   let materialOverrideActive = false
+  let materialOverrideMode = "none"
 
   const setSelection = (payload) => {
     selectedObject = payload?.selectedObject || null
@@ -32,6 +36,7 @@ export function createSelectionEngine(options = {}) {
 
     resetSceneMaterialState(targetScene, materialRestorer)
     materialOverrideActive = false
+    materialOverrideMode = "none"
     return true
   }
 
@@ -44,8 +49,16 @@ export function createSelectionEngine(options = {}) {
       return outlineObjects
     },
 
+    getMaterialOverrideMode() {
+      return materialOverrideMode
+    },
+
     clear() {
       restoreMaterialOverrideIfNeeded()
+      return setSelection(createClearSelectionPayload())
+    },
+
+    clearSelectionPreservingMaterials() {
       return setSelection(createClearSelectionPayload())
     },
 
@@ -59,6 +72,7 @@ export function createSelectionEngine(options = {}) {
 
       if (scene !== resolvedScene) {
         materialOverrideActive = false
+        materialOverrideMode = "none"
       }
 
       scene = resolvedScene
@@ -89,6 +103,7 @@ export function createSelectionEngine(options = {}) {
 
       if (scene !== nextScene) {
         materialOverrideActive = false
+        materialOverrideMode = "none"
       }
 
       scene = nextScene
@@ -103,6 +118,74 @@ export function createSelectionEngine(options = {}) {
     highlightObject(targetObject, targetScene = scene) {
       restoreMaterialOverrideIfNeeded(targetScene)
       return setSelection(createSelectionPayload(targetObject))
+    },
+
+    highlightObjects(
+      targetObjects,
+      activeTargetObject = null,
+      targetScene = scene,
+    ) {
+      restoreMaterialOverrideIfNeeded(targetScene)
+      return setSelection(
+        createMultiSelectionPayload(targetObjects, activeTargetObject),
+      )
+    },
+
+    highlightObjectsPreservingMaterials(
+      targetObjects,
+      activeTargetObject = null,
+    ) {
+      return setSelection(
+        createMultiSelectionPayload(targetObjects, activeTargetObject),
+      )
+    },
+
+    makeOthersXray(
+      targetObjects,
+      activeTargetObject = null,
+      targetScene = scene,
+      targetXrayMaterial = xrayMaterial,
+    ) {
+      const payload = applyXrayToNonTargets({
+        targetObjects,
+        activeTargetObject,
+        scene: targetScene,
+        xrayMaterial: targetXrayMaterial,
+        restoreMaterialState: materialRestorer,
+      })
+
+      materialOverrideActive = Boolean(
+        Array.isArray(targetObjects)
+          ? targetObjects.some(Boolean) && targetScene && targetXrayMaterial
+          : targetObjects && targetScene && targetXrayMaterial,
+      )
+      materialOverrideMode = materialOverrideActive ? "non-targets" : "none"
+
+      return setSelection(payload)
+    },
+
+    makeTargetsXray(
+      targetObjects,
+      activeTargetObject = null,
+      targetScene = scene,
+      targetXrayMaterial = xrayMaterial,
+    ) {
+      const payload = applyXrayToTargets({
+        targetObjects,
+        activeTargetObject,
+        scene: targetScene,
+        xrayMaterial: targetXrayMaterial,
+        restoreMaterialState: materialRestorer,
+      })
+
+      materialOverrideActive = Boolean(
+        Array.isArray(targetObjects)
+          ? targetObjects.some(Boolean) && targetScene && targetXrayMaterial
+          : targetObjects && targetScene && targetXrayMaterial,
+      )
+      materialOverrideMode = materialOverrideActive ? "targets" : "none"
+
+      return setSelection(payload)
     },
 
     makeXrayExcept(
@@ -120,6 +203,7 @@ export function createSelectionEngine(options = {}) {
       materialOverrideActive = Boolean(
         targetObject && targetScene && targetXrayMaterial,
       )
+      materialOverrideMode = materialOverrideActive ? "targets" : "none"
 
       return setSelection(payload)
     },
@@ -135,12 +219,19 @@ export function createSelectionEngine(options = {}) {
         materialRestorer,
       )
       materialOverrideActive = false
+      materialOverrideMode = "none"
 
       return setSelection(payload)
     },
 
-    selectFromMesh(mesh, targetObjectTree = objectTree) {
-      restoreMaterialOverrideIfNeeded()
+    selectFromMesh(
+      mesh,
+      targetObjectTree = objectTree,
+      { preserveMaterialOverride = false } = {},
+    ) {
+      if (!preserveMaterialOverride) {
+        restoreMaterialOverrideIfNeeded()
+      }
 
       const payload = createSelectionFromMeshPayload(mesh, targetObjectTree)
 
@@ -161,6 +252,7 @@ export function createSelectionEngine(options = {}) {
       xrayMaterial = null
       materialRestorer = null
       materialOverrideActive = false
+      materialOverrideMode = "none"
 
       return {
         selectedObject,
