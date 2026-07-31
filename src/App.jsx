@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { LoadingProvider } from "./modules/loading/LoadingContext";
 import { ProjectStoreProvider } from "./modules/project-store/ProjectStoreContext";
+import { AuthProvider } from "./modules/auth/AuthContext";
+import ProtectedRoute from "./modules/auth/ProtectedRoute";
+import LoginPage from "./modules/auth/LoginPage";
+import RegisterPage from "./modules/auth/RegisterPage";
 
 import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
 import ViewerPage from "./ViewerPage";
@@ -19,56 +23,63 @@ function LegacyProjectRedirect({ destination }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <LoadingProvider>
-        <ProjectStoreProvider>
-          <Routes>
-            <Route path="/" element={<Navigate to="/viqubed" replace />} />
+      <AuthProvider>
+        <LoadingProvider>
+          <ProjectStoreProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-            <Route path="/viqubed" element={<ProjectHubRoute />} />
-            <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
-            <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
-            <Route path="/viqubed/player-v2/:projectId" element={<PlayerV2Page />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Navigate to="/viqubed" replace />} />
 
-            {LEGACY_BASE_PATHS.map((basePath) => (
-              <Route
-                key={basePath}
-                path={basePath}
-                element={<Navigate to="/viqubed" replace />}
-              />
-            ))}
-            {LEGACY_BASE_PATHS.map((basePath) => (
-              <Route
-                key={`${basePath}-editor`}
-                path={`${basePath}/editor/:projectId`}
-                element={<LegacyProjectRedirect destination="editor" />}
-              />
-            ))}
-            {LEGACY_BASE_PATHS.map((basePath) => (
-              <Route
-                key={`${basePath}-player`}
-                path={`${basePath}/player/:projectId`}
-                element={<LegacyProjectRedirect destination="player" />}
-              />
-            ))}
-            {LEGACY_BASE_PATHS.map((basePath) => (
-              <Route
-                key={`${basePath}-player-v2`}
-                path={`${basePath}/player-v2/:projectId`}
-                element={<LegacyProjectRedirect destination="player-v2" />}
-              />
-            ))}
+                <Route path="/viqubed" element={<ProjectHubRoute />} />
+                <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
+                <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
+                <Route path="/viqubed/player-v2/:projectId" element={<PlayerV2Page />} />
+              </Route>
 
-            <Route
-              path="/editor"
-              element={<Navigate to="/viqubed/editor/demo" replace />}
-            />
-            <Route
-              path="/player"
-              element={<Navigate to="/viqubed/player/demo" replace />}
-            />
-          </Routes>
-        </ProjectStoreProvider>
-      </LoadingProvider>
+              {LEGACY_BASE_PATHS.map((basePath) => (
+                <Route
+                  key={basePath}
+                  path={basePath}
+                  element={<Navigate to="/viqubed" replace />}
+                />
+              ))}
+              {LEGACY_BASE_PATHS.map((basePath) => (
+                <Route
+                  key={`${basePath}-editor`}
+                  path={`${basePath}/editor/:projectId`}
+                  element={<LegacyProjectRedirect destination="editor" />}
+                />
+              ))}
+              {LEGACY_BASE_PATHS.map((basePath) => (
+                <Route
+                  key={`${basePath}-player`}
+                  path={`${basePath}/player/:projectId`}
+                  element={<LegacyProjectRedirect destination="player" />}
+                />
+              ))}
+              {LEGACY_BASE_PATHS.map((basePath) => (
+                <Route
+                  key={`${basePath}-player-v2`}
+                  path={`${basePath}/player-v2/:projectId`}
+                  element={<LegacyProjectRedirect destination="player-v2" />}
+                />
+              ))}
+
+              <Route
+                path="/editor"
+                element={<Navigate to="/viqubed/editor/demo" replace />}
+              />
+              <Route
+                path="/player"
+                element={<Navigate to="/viqubed/player/demo" replace />}
+              />
+            </Routes>
+          </ProjectStoreProvider>
+        </LoadingProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
