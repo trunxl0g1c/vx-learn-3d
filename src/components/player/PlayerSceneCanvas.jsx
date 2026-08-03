@@ -107,6 +107,10 @@ export default function PlayerSceneCanvas({
     () => getFlowReferenceLengthFromObject(modelScene, 1),
     [modelScene],
   );
+  const effectiveProjectionMode =
+    cameraProjectionMode ||
+    viewerSettings?.cameraProjectionMode ||
+    "perspective";
 
   const handleAnnotationHighlight = useCallback((object) => {
     setAnnotationOutlineObjects(object ? collectMeshes(object) : []);
@@ -182,11 +186,7 @@ export default function PlayerSceneCanvas({
     >
       <WebGLRendererLifecycle registryKey="__PLAYER_RENDERER__" />
       <ViewerProjectionCameraController
-        mode={
-          cameraProjectionMode ||
-          viewerSettings?.cameraProjectionMode ||
-          "perspective"
-        }
+        mode={effectiveProjectionMode}
         cameraRef={cameraRef}
         controlsRef={controlsRef}
         focusTargetRef={focusTargetRef}
@@ -399,10 +399,12 @@ export default function PlayerSceneCanvas({
       <OrbitControls
         ref={controlsRef}
         enabled={!assemblyCameraLocked}
-        enableRotate={!assemblyCameraLocked}
+        enableRotate={
+          !assemblyCameraLocked && effectiveProjectionMode !== "orthographic"
+        }
         enableZoom={!assemblyCameraLocked}
         enablePan={!assemblyCameraLocked}
-        zoomToCursor
+        zoomToCursor={effectiveProjectionMode !== "orthographic"}
         minDistance={DEFAULT_ORBIT_MIN_DISTANCE}
         onStart={() => {
           focusTargetRef.current = null;

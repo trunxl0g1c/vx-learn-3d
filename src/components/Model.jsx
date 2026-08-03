@@ -3,14 +3,12 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import {
-  annotateGltfLogicalObjects,
-  resolveLogicalObject,
-} from "../utils/objectTreeUtils";
+import { annotateGltfLogicalObjects } from "../utils/objectTreeUtils";
 import {
   createMarkerAttachment,
   createMarkerConnector,
   DEFAULT_MARKER_LABEL_OFFSET,
+  findVisibleMarkerPlacementHit,
 } from "../engine/marker";
 
 function applyAnimationActionConfig(action, config = {}) {
@@ -478,12 +476,22 @@ function Model({
     }
 
     if (markerMode) {
-      const hit = getVisibleHit(e);
-      const worldPoint = (hit?.point || e.point).clone();
+      const hit = findVisibleMarkerPlacementHit(
+        e?.intersections,
+        scene,
+        e?.ray,
+      );
+
+      // Marker mode only accepts a visible renderable surface. Never fall back
+      // to the root event point because that can belong to an invisible object
+      // in front of the intended inner part.
+      if (!hit?.object || !hit?.point) return;
+
+      const worldPoint = hit.point.clone();
       const localPoint = scene.parent
         ? scene.parent.worldToLocal(worldPoint.clone())
         : worldPoint.clone();
-      const targetObject = resolveLogicalObject(hit?.object) || hit?.object || null;
+      const targetObject = hit.object;
       const labelOffset = [...DEFAULT_MARKER_LABEL_OFFSET];
 
       onAddMarker?.({

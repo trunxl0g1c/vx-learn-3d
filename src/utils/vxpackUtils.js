@@ -1,5 +1,29 @@
-import JSZip from "jszip";
-import { saveAs } from "file-saver";
+let jsZipPromise = null;
+let fileSaverPromise = null;
+
+async function loadJSZip() {
+  if (!jsZipPromise) {
+    jsZipPromise = import("jszip").then((module) => module.default || module);
+  }
+
+  return jsZipPromise;
+}
+
+async function loadSaveAs() {
+  if (!fileSaverPromise) {
+    fileSaverPromise = import("file-saver").then((module) => {
+      const saveAs = module.saveAs || module.default?.saveAs || module.default;
+
+      if (typeof saveAs !== "function") {
+        throw new Error("FileSaver module tidak menyediakan fungsi saveAs");
+      }
+
+      return saveAs;
+    });
+  }
+
+  return fileSaverPromise;
+}
 
 const VXPACK_VERSION = 2;
 
@@ -89,6 +113,7 @@ export const exportVXPack = async ({
 
   onProgress?.(0);
 
+  const [JSZip, saveAs] = await Promise.all([loadJSZip(), loadSaveAs()]);
   const zip = new JSZip();
   const resolvedModelFileName = sanitizeAssetFileName(
     modelFile?.name || modelFileName || material?.modelUrl || "model.glb",
@@ -159,6 +184,7 @@ export const importVXPack = async (file, { createObjectUrl = true } = {}) => {
     throw new Error("File VXPACK tidak ditemukan");
   }
 
+  const JSZip = await loadJSZip();
   const zip = await JSZip.loadAsync(file);
   const manifestFile = zip.file("manifest.json");
 

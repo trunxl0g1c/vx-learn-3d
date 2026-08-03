@@ -468,10 +468,14 @@ export default function SceneCanvas({
       <OrbitControls
         ref={controlsRef}
         enabled={orbitEnabled && !isTransforming}
-        enableRotate={orbitEnabled && !isTransforming}
+        enableRotate={
+          orbitEnabled &&
+          !isTransforming &&
+          cameraProjectionMode !== "orthographic"
+        }
         enableZoom={orbitEnabled && !isTransforming}
         enablePan={orbitEnabled && !isTransforming}
-        zoomToCursor
+        zoomToCursor={cameraProjectionMode !== "orthographic"}
         minDistance={DEFAULT_ORBIT_MIN_DISTANCE}
         onStart={() => {
           if (!orbitEnabled || isTransforming) return

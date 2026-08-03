@@ -18,6 +18,7 @@ export default function EditorViewport({ controller }) {
     controlsRef,
     focusTargetRef,
     setEditorCameraView,
+    setEditorCameraProjectionMode,
 
     outlineObjects,
     shaderOutlineObjects,
@@ -150,15 +151,7 @@ export default function EditorViewport({ controller }) {
     viewerSettings?.cameraProjectionMode === "orthographic"
       ? "orthographic"
       : "perspective";
-  const changeCameraProjectionMode = (nextMode) => {
-    const normalizedMode =
-      nextMode === "orthographic" ? "orthographic" : "perspective";
 
-    setViewerSettings?.((previousSettings) => ({
-      ...previousSettings,
-      cameraProjectionMode: normalizedMode,
-    }));
-  };
 
   return (
     <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
@@ -167,7 +160,7 @@ export default function EditorViewport({ controller }) {
         controlsRef={controlsRef}
         onChangeView={setEditorCameraView}
         projectionMode={cameraProjectionMode}
-        onChangeProjectionMode={changeCameraProjectionMode}
+        onChangeProjectionMode={setEditorCameraProjectionMode}
         rightPanelVisible={rightPanelVisible}
       />
 
