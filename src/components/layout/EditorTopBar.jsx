@@ -4,8 +4,8 @@ import {
   CloudOff,
 } from "lucide-react";
 import Button from "../ui/button";
-import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
+import UserMenu from "../../modules/auth/components/UserMenu";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 
 function SaveStatusBadge({ status }) {
@@ -44,8 +44,6 @@ export default function EditorTopBar({
   exportProgress = 0,
   exportStatus = "",
 }) {
-  const currentUserName = getCurrentUserName();
-
   return (
     <div
       style={{ height: EDITOR_TOP_BAR_HEIGHT }}
@@ -125,28 +123,7 @@ export default function EditorTopBar({
           <span className="vx-editor-action-label">Share</span>
         </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex border-none items-center"
-          title={currentUserName || "Guest"}
-        >
-          <span className="vx-editor-topbar__user-name text-base">{currentUserName || "Guest"}</span>
-          {/* <ChevronDown className="size-4.5" /> */}
-          <MaterialIcon
-            name="arrow_back_2"
-            fill={1}
-            size={20}
-            className="vx-editor-user-chevron -rotate-90"
-          />
-          <MaterialIcon
-            name="account_circle"
-            fill
-            size={30}
-            className="text-accent-main"
-          />
-          {/* <CircleUser className="size-7" color="#03699D" /> */}
-        </Button>
+        <UserMenu />
       </div>
     </div>
   );
