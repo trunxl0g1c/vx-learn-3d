@@ -5,11 +5,10 @@ import * as THREE from "three";
 
 import {
   createMarkerConnector,
-  getMarkerAttachedLocalPosition,
   getMarkerLegacyPosition,
   isObjectEffectivelyVisible,
   normalizeMarkerLabelOffset,
-  resolveMarkerTargetObject,
+  resolveMarkerAttachment,
 } from "../engine/marker";
 
 const MARKER_SIZE = 24;
@@ -35,14 +34,15 @@ function Marker({
     () => new THREE.Vector3(...getMarkerLegacyPosition(marker)),
     [marker?.position],
   );
-  const storedAttachedPosition = useMemo(() => {
-    const value = getMarkerAttachedLocalPosition(marker);
-    return value ? new THREE.Vector3(...value) : null;
-  }, [marker?.attachment?.localPosition]);
-  const targetObject = useMemo(
-    () => resolveMarkerTargetObject(marker, modelScene, chapter),
+  const resolvedAttachment = useMemo(
+    () => resolveMarkerAttachment(marker, modelScene, chapter),
     [chapter, marker, modelScene],
   );
+  const targetObject = resolvedAttachment.object;
+  const storedAttachedPosition = useMemo(() => {
+    const value = resolvedAttachment.localPosition;
+    return value ? new THREE.Vector3(...value) : null;
+  }, [resolvedAttachment]);
 
   useEffect(() => {
     if (dragging) return;

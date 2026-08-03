@@ -98,25 +98,16 @@ export default function ViewerProjectionCameraController({
           : getOrthographicVisibleHeight(currentCamera);
 
         nextCamera.zoom = Math.max(2 / visibleHeight, MIN_CAMERA_DISTANCE);
-      } else {
-        const visibleHeight = currentCamera.isOrthographicCamera
-          ? getOrthographicVisibleHeight(currentCamera)
-          : getPerspectiveVisibleHeight(currentCamera, target);
-        const fov = THREE.MathUtils.degToRad(
-          Number(nextCamera.fov) || DEFAULT_FOV,
-        );
-        const distance = Math.max(
-          visibleHeight / (2 * Math.tan(fov / 2)),
-          MIN_CAMERA_DISTANCE,
-        );
-        const direction = currentCamera.position
-          .clone()
-          .sub(target)
-          .normalize();
-
-        if (direction.lengthSq() === 0) direction.set(0, 0, 1);
-        nextCamera.position.copy(target).addScaledVector(direction, distance);
       }
+
+      // Projection changes must not alter the camera orbit position or pivot.
+      // The previous implementation recalculated Perspective distance from
+      // Orthographic zoom, which caused a visible jump and shifted the orbit
+      // feel after toggling projection. Keep the exact source transform and
+      // controls target; only the projection matrix/framing is changed.
+      nextCamera.position.copy(currentCamera.position);
+      nextCamera.quaternion.copy(currentCamera.quaternion);
+      nextCamera.up.copy(currentCamera.up).normalize();
     }
 
     updatePerspectiveProjection(perspectiveCamera, aspect);
@@ -128,6 +119,7 @@ export default function ViewerProjectionCameraController({
 
     if (controls) {
       controls.object = nextCamera;
+      controls.target.copy(target);
       controls.update();
     }
 

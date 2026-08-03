@@ -354,6 +354,7 @@ export function useViewerPageController() {
     focusObject,
     resetCameraToInitialView,
     setEditorCameraView,
+    setEditorCameraProjectionMode,
   } = useCameraManager({
     vxEngine,
     modelScene,
@@ -362,6 +363,8 @@ export function useViewerPageController() {
     focusTargetRef,
     controlsRef,
     cameraRef,
+    setViewerSettings: updateViewerSettings,
+    projectionResetKey: modelUrl,
   });
 
   const {
@@ -934,6 +937,7 @@ export function useViewerPageController() {
     makeXrayExcept,
     focusObject,
     setEditorCameraView,
+    setEditorCameraProjectionMode,
     markers,
     treeDepth,
     setTreeDepth,

@@ -1,6 +1,12 @@
 import MaterialIcon from "../../../components/ui/material-icon";
 
-export default function ProjectHubCard({ project, onClick, formatLastOpened }) {
+export default function ProjectHubCard({
+  project,
+  onClick,
+  onIntent,
+  priority = false,
+  formatLastOpened,
+}) {
   const thumbnail =
     project.thumbnail ||
     project.metadata?.thumbnail ||
@@ -10,13 +16,18 @@ export default function ProjectHubCard({ project, onClick, formatLastOpened }) {
     <button
       type="button"
       onClick={onClick}
-      className="min-h-[190px] w-full cursor-pointer overflow-hidden rounded-lg border border-secondary-dark bg-dark text-left transition hover:border-accent-main hover:bg-white/5 sm:min-h-[200px] xl:min-h-[210px]"
+      onPointerDown={onIntent}
+      onFocus={onIntent}
+      className="viqubed-project-card min-h-[190px] w-full cursor-pointer overflow-hidden rounded-lg border border-secondary-dark bg-dark text-left transition hover:border-accent-main hover:bg-white/5 sm:min-h-[200px] xl:min-h-[210px]"
     >
       <div className="h-[128px] w-full overflow-hidden bg-secondary-dark sm:h-[132px] xl:h-[140px]">
         {thumbnail ? (
           <img
             src={thumbnail}
             alt={project.name}
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "low"}
+            decoding="async"
             className="h-full w-full object-cover"
           />
         ) : (

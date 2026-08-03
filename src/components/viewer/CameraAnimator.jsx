@@ -22,13 +22,14 @@ export default function CameraAnimator({ cameraRef, controlsRef, focusTargetRef 
     if (!focusTarget) return
 
 
-    const requestedMode =
-      focusTarget.cameraType === "orthographic"
-        ? "orthographic"
-        : "perspective"
     const currentMode = camera.isOrthographicCamera
       ? "orthographic"
       : "perspective"
+    const requestedMode = focusTarget.cameraType
+      ? focusTarget.cameraType === "orthographic"
+        ? "orthographic"
+        : "perspective"
+      : currentMode
 
     // A saved Orthographic view must never be interpolated by the active
     // Perspective camera (or the opposite). Wait until the projection

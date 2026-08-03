@@ -90,8 +90,7 @@ input[type="range"]::-moz-range-thumb {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(10, 12, 16, 0.86);
-  backdrop-filter: blur(10px);
+  background: rgba(10, 12, 16, 0.92);
   display: grid;
   place-items: center;
   color: white;
@@ -149,8 +148,7 @@ input[type="range"]::-moz-range-thumb {
   z-index: 999999;
   background:
     radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 34%),
-    rgba(3, 7, 18, 0.96);
-  backdrop-filter: blur(16px);
+    rgba(3, 7, 18, 0.98);
   display: grid;
   place-items: center;
   color: white;
@@ -621,7 +619,7 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 18px !important;
   }
 
-  .vx-player-v2-chapter-panel {
+  .vx-player-chapter-panel {
     left: 8px !important;
     right: 8px !important;
     top: auto !important;
@@ -631,20 +629,6 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 18px;
   }
 
-  .vx-player-v2-selection {
-    left: 8px !important;
-    right: 8px !important;
-    bottom: 68px !important;
-    width: auto !important;
-  }
-
-  .vx-player-v2-debug {
-    top: 8px !important;
-    left: 8px !important;
-    min-width: 0 !important;
-    max-width: calc(100vw - 16px);
-    font-size: 10px !important;
-  }
 }
 
 .vx-player-annotation-popup {
@@ -709,4 +693,16 @@ canvas {
   .vx-editor-topbar__actions button {
     padding-inline: 10px !important;
   }
+}
+
+
+/* Keep Project Hub text paint independent from optional external web fonts. */
+.viqubed-project-hub {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Skip paint/layout work for catalogue cards outside the viewport. */
+.viqubed-project-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 210px;
 }

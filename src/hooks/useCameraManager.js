@@ -1,7 +1,12 @@
+import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import {
+  applyCameraProjectionSnapshot,
+  createCameraProjectionSnapshot,
   createFocusTargetFromObject,
   createFocusTargetFromScene,
+  getClosestOrthographicView,
+  switchCameraProjectionThen,
 } from "../engine/camera";
 
 const DEFAULT_EDITOR_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1);
@@ -64,7 +69,14 @@ export function useCameraManager({
   focusTargetRef,
   controlsRef,
   cameraRef,
+  setViewerSettings,
+  projectionResetKey = null,
 }) {
+  const perspectiveReturnViewRef = useRef(null);
+
+  useEffect(() => {
+    perspectiveReturnViewRef.current = null;
+  }, [projectionResetKey]);
   const focusObject = (object) => {
     if (!object || !modelScene) return;
 
@@ -167,6 +179,10 @@ export function useCameraManager({
           .clone()
           .add(view.direction.clone().normalize().multiplyScalar(distance)),
         target,
+        cameraType: camera.isOrthographicCamera
+          ? "orthographic"
+          : "perspective",
+        cameraUp: view.up.clone(),
       };
     } else {
       focusTargetRef.current = focusTarget;
@@ -176,10 +192,60 @@ export function useCameraManager({
     return true;
   };
 
+  const setEditorCameraProjectionMode = (nextMode) => {
+    const normalizedMode =
+      nextMode === "orthographic" ? "orthographic" : "perspective";
+    const currentCamera = cameraRef?.current;
+    const currentMode = currentCamera?.isOrthographicCamera
+      ? "orthographic"
+      : "perspective";
+
+    if (normalizedMode === "orthographic" && currentMode === "perspective") {
+      perspectiveReturnViewRef.current = createCameraProjectionSnapshot(
+        currentCamera,
+        controlsRef?.current,
+      );
+    } else if (
+      normalizedMode === "perspective" &&
+      currentMode === "perspective"
+    ) {
+      perspectiveReturnViewRef.current = null;
+    }
+
+    return switchCameraProjectionThen({
+      cameraRef,
+      setViewerSettings,
+      mode: normalizedMode,
+      onReady: (activeCamera) => {
+        const controls = controlsRef?.current;
+        if (!controls) return;
+
+        if (normalizedMode === "orthographic") {
+          const closestView = getClosestOrthographicView(
+            activeCamera,
+            controls,
+            "front",
+          );
+          setEditorCameraView(closestView);
+          return;
+        }
+
+        const returnView = perspectiveReturnViewRef.current;
+        if (!returnView) return;
+
+        focusTargetRef.current = null;
+        applyCameraProjectionSnapshot(returnView, activeCamera, controls);
+        perspectiveReturnViewRef.current = null;
+        setIsAutoRotating(false);
+      },
+    });
+  };
+
   return {
     focusObject,
     resetCameraToInitialView,
     saveCurrentViewAsHome,
     setEditorCameraView,
+    setEditorCameraProjectionMode,
   };
 }

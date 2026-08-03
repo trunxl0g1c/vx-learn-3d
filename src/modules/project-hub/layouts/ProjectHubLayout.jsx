@@ -3,7 +3,7 @@ import ProjectHubSidebar from "./ProjectHubSidebar";
 
 export default function ProjectHubLayout({ children }) {
   return (
-    <div className="flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-primary text-white">
+    <div className="viqubed-project-hub flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-primary text-white">
       <ProjectHubNavbar />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

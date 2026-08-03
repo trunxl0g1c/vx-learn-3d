@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useGlobalLoading } from "../loading/LoadingContext";
 import { useLocation, useNavigate } from "react-router-dom";
-import CreateProjectDialog from "./CreateProjectDialog";
 import {
   createProjectRecord,
-  getAllProjectsFromIndexedDb,
+  getCachedProjectSummaries,
+  getProjectSummariesFromIndexedDb,
   saveProjectToIndexedDb,
   saveProjectDraftToIndexedDb,
   clearViqubedIndexedDb,
@@ -13,8 +13,27 @@ import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
-import ConfirmationDialog from "../../components/dialog/ConfirmationDialog";
-import { importVXPack, isVXPackFile } from "../../utils/vxpackUtils";
+import { preloadProjectRoute } from "../../routeLoaders";
+
+
+const CreateProjectDialog = lazy(() => import("./CreateProjectDialog"));
+const ConfirmationDialog = lazy(
+  () => import("../../components/dialog/ConfirmationDialog"),
+);
+
+function isVXPackFile(file) {
+  return Boolean(file?.name?.toLowerCase().endsWith(".vxpack"));
+}
+
+function DialogLoadingFallback() {
+  return (
+    <div className="fixed inset-0 z-[1090] grid place-items-center bg-black/45 p-4">
+      <div className="rounded-xl border border-divider-main bg-dark px-5 py-4 text-sm text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+        Opening dialog...
+      </div>
+    </div>
+  );
+}
 
 function formatLastOpened(project) {
   const value = project?.metadata?.lastOpenedAt;
@@ -64,7 +83,8 @@ export default function ProjectHubPage() {
 
   const [createProjectError, setCreateProjectError] = useState("");
 
-  const [projects, setProjects] = useState([]);
+  const [projects, setProjects] = useState(getCachedProjectSummaries);
+  const [isProjectCatalogReady, setIsProjectCatalogReady] = useState(false);
   const [search, setSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState("ALL");
 
@@ -74,7 +94,39 @@ export default function ProjectHubPage() {
   const [importProjectError, setImportProjectError] = useState("");
 
   useEffect(() => {
-    getAllProjectsFromIndexedDb().then(setProjects);
+    let active = true;
+    let frameId = null;
+
+    const loadProjectSummaries = async () => {
+      try {
+        const summaries = await getProjectSummariesFromIndexedDb();
+
+        if (active) {
+          setProjects(summaries);
+          setIsProjectCatalogReady(true);
+        }
+      } catch (error) {
+        console.error("Failed to load local project catalogue:", error);
+
+        if (active) {
+          setIsProjectCatalogReady(true);
+        }
+      }
+    };
+
+    if (typeof requestAnimationFrame === "function") {
+      frameId = requestAnimationFrame(loadProjectSummaries);
+    } else {
+      loadProjectSummaries();
+    }
+
+    return () => {
+      active = false;
+
+      if (frameId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(frameId);
+      }
+    };
   }, [location.key]);
 
   const clearCreateProjectError = () => {
@@ -99,6 +151,10 @@ export default function ProjectHubPage() {
   };
 
   function handleOpenProject(project) {
+    preloadProjectRoute(project.role).catch((error) => {
+      console.warn("Unable to preload project route:", error);
+    });
+
     showLoading({
       title: "Opening Viqubed Project",
       text: project.name,
@@ -256,6 +312,7 @@ export default function ProjectHubPage() {
         progress: 15,
       });
 
+      const { importVXPack } = await import("../../utils/vxpackUtils");
       const {
         project: packagedProject,
         material: packagedMaterial,
@@ -280,6 +337,9 @@ export default function ProjectHubPage() {
         packageFile.name.replace(/\.vxpack$/i, "") ||
         "Imported Viqubed Project";
       const role = packagedProject?.role === "PLAYER" ? "PLAYER" : "EDITOR";
+
+      preloadProjectRoute(role).catch(() => {});
+
       const baseProject = createProjectRecord({
         name: projectName,
         file: modelFile,
@@ -420,74 +480,90 @@ export default function ProjectHubPage() {
 
       <ProjectHubGrid
         projects={filteredProjects}
+        isCatalogReady={isProjectCatalogReady}
         onCreate={() => {
+          preloadProjectRoute("EDITOR").catch(() => {});
           setCreateProjectError("");
           setOpenCreate(true);
         }}
         onImport={handleImportProject}
         isImporting={isImportingProject}
         onOpenProject={handleOpenProject}
+        onPreloadProject={(project) => {
+          preloadProjectRoute(project.role).catch(() => {});
+        }}
         getAccessLabel={getAccessLabel}
         formatLastOpened={formatLastOpened}
       />
 
-      <CreateProjectDialog
-        open={openCreate}
-        onClose={handleCloseCreateProject}
-        projectName={projectName}
-        setProjectName={setProjectName}
-        file={file}
-        setFile={handleSelectGlbFile}
-        glbValidation={glbValidation}
-        isValidatingGlb={isValidatingGlb}
-        createRole={createRole}
-        setCreateRole={setCreateRole}
-        onSubmit={handleSubmitCreateProject}
-        progress={progress}
-        isSubmitting={isSubmitting}
-        error={createProjectError}
-        onClearError={clearCreateProjectError}
-      />
+      {openCreate && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <CreateProjectDialog
+            open
+            onClose={handleCloseCreateProject}
+            projectName={projectName}
+            setProjectName={setProjectName}
+            file={file}
+            setFile={handleSelectGlbFile}
+            glbValidation={glbValidation}
+            isValidatingGlb={isValidatingGlb}
+            createRole={createRole}
+            setCreateRole={setCreateRole}
+            onSubmit={handleSubmitCreateProject}
+            progress={progress}
+            isSubmitting={isSubmitting}
+            error={createProjectError}
+            onClearError={clearCreateProjectError}
+          />
+        </Suspense>
+      )}
 
+      {Boolean(importProjectError) && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ConfirmationDialog
+            open
+            title="Import Project Failed"
+            message={importProjectError}
+            description="The package was not added to the local project database."
+            confirmText="Close"
+            cancelText="Dismiss"
+            confirmVariant="outline"
+            onClose={() => setImportProjectError("")}
+            onConfirm={() => setImportProjectError("")}
+          />
+        </Suspense>
+      )}
 
-      <ConfirmationDialog
-        open={Boolean(importProjectError)}
-        title="Import Project Failed"
-        message={importProjectError}
-        description="The package was not added to the local project database."
-        confirmText="Close"
-        cancelText="Dismiss"
-        confirmVariant="outline"
-        onClose={() => setImportProjectError("")}
-        onConfirm={() => setImportProjectError("")}
-      />
-
-      <ConfirmationDialog
-        open={isClearConfirmOpen}
-        title="Clear Local Projects?"
-        message={
-          <>
-            All projects stored locally in this browser will be permanently
-            deleted.
-          </>
-        }
-        description={
-          <>
-            Project files, editor data, thumbnails, chapters, settings, and
-            local drafts will be removed. This action cannot be undone.
-          </>
-        }
-        confirmText="Clear All"
-        cancelText="Cancel"
-        confirmVariant="destructive"
-        isLoading={isClearingProjects}
-        onClose={() => {
-          if (!isClearingProjects) {
-            setIsClearConfirmOpen(false);
-          }
-        }}
-        onConfirm={handleClearLocalProjects}
-      />
+      {isClearConfirmOpen && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ConfirmationDialog
+            open
+            title="Clear Local Projects?"
+            message={
+              <>
+                All projects stored locally in this browser will be permanently
+                deleted.
+              </>
+            }
+            description={
+              <>
+                Project files, editor data, thumbnails, chapters, settings, and
+                local drafts will be removed. This action cannot be undone.
+              </>
+            }
+            confirmText="Clear All"
+            cancelText="Cancel"
+            confirmVariant="destructive"
+            isLoading={isClearingProjects}
+            onClose={() => {
+              if (!isClearingProjects) {
+                setIsClearConfirmOpen(false);
+              }
+            }}
+            onConfirm={handleClearLocalProjects}
+          />
+        </Suspense>
+      )}
     </ProjectHubLayout>
   );
 }

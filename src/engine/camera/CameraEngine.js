@@ -149,6 +149,13 @@ export function createCameraEngine(initialState = {}) {
           .clone()
           .add(nextDirection.normalize().multiplyScalar(distance)),
         target,
+        cameraType: activeCamera.isOrthographicCamera
+          ? "orthographic"
+          : "perspective",
+        cameraUp:
+          options.up?.clone?.() ||
+          activeCamera.up?.clone?.() ||
+          new THREE.Vector3(0, 1, 0),
       }
 
       return setFocusTarget(focusTarget, options)

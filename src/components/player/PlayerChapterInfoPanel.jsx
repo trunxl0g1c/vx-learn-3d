@@ -17,7 +17,7 @@ export default function PlayerChapterInfoPanel({
     <aside
       onClick={(e) => e.stopPropagation()}
       className={[
-        "vx-player-v2-chapter-panel absolute right-0 top-0 bottom-0 z-[110] flex w-[420px] flex-col overflow-hidden",
+        "vx-player-chapter-panel absolute right-0 top-0 bottom-0 z-[110] flex w-[420px] flex-col overflow-hidden",
         "border border-divider-main text-white",
         "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
       ].join(" ")}

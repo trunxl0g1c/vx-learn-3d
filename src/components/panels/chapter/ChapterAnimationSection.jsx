@@ -126,21 +126,40 @@ export default function ChapterAnimationSection({
                     </Button>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-contrast-grayout">
-                      Play automatically when material opens
-                    </span>
-                    <Checkbox
-                      checked={assignment.autoPlay}
-                      disabled={!assignment.name}
-                      onCheckedChange={(autoPlay) =>
-                        updateChapterAnimation?.(
-                          chapter.id,
-                          assignment.assignmentId,
-                          { autoPlay },
-                        )
-                      }
-                    />
+                  <div className="mt-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-contrast-grayout">
+                        Play automatically when material opens
+                      </span>
+                      <Checkbox
+                        checked={assignment.autoPlay}
+                        disabled={!assignment.name}
+                        onCheckedChange={(autoPlay) =>
+                          updateChapterAnimation?.(
+                            chapter.id,
+                            assignment.assignmentId,
+                            { autoPlay: autoPlay === true },
+                          )
+                        }
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-contrast-grayout">
+                        Loop animation
+                      </span>
+                      <Checkbox
+                        checked={assignment.loop}
+                        disabled={!assignment.name}
+                        onCheckedChange={(loop) =>
+                          updateChapterAnimation?.(
+                            chapter.id,
+                            assignment.assignmentId,
+                            { loop: loop === true },
+                          )
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
