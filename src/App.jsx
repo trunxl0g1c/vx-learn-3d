@@ -8,6 +8,8 @@ import LoginPage from "./modules/auth/LoginPage";
 import RegisterPage from "./modules/auth/RegisterPage";
 
 import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
+import WorkspaceRoute from "./modules/workspace/WorkspaceRoute";
+import WorkspaceDetailRoute from "./modules/workspace/WorkspaceDetailRoute";
 import { loadPlayerPage, loadViewerPage } from "./routeLoaders";
 
 const ViewerPage = lazy(loadViewerPage);
@@ -53,9 +55,13 @@ export default function App() {
                 <Route path="/" element={<Navigate to="/viqubed" replace />} />
 
                 <Route path="/viqubed" element={<ProjectHubRoute />} />
+                <Route path="/workspace" element={<WorkspaceRoute />} />
+                <Route
+                  path="/workspace/:workspaceId"
+                  element={<WorkspaceDetailRoute />}
+                />
                 <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
                 <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
-                <Route path="/viqubed/player-v2/:projectId" element={<PlayerV2Page />} />
               </Route>
 
               {LEGACY_BASE_PATHS.map((basePath) => (

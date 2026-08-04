@@ -1,12 +1,20 @@
 import { lazy, Suspense, useEffect, useState } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useGlobalLoading } from "../loading/LoadingContext";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   createProjectRecord,
-  getCachedProjectSummaries,
-  getProjectSummariesFromIndexedDb,
+  // The project catalogue no longer lists projects from IndexedDB — it's
+  // fetched from the backend (GET /contents per workspace) below instead.
+  // Kept imported-but-unused-here would break lint, so these two are
+  // commented out rather than removed in case local-only listing needs to
+  // come back:
+  // getCachedProjectSummaries,
+  // getProjectSummariesFromIndexedDb,
+  getAllProjectsFromIndexedDb,
   saveProjectToIndexedDb,
   saveProjectDraftToIndexedDb,
+  updateProjectInIndexedDb,
   clearViqubedIndexedDb,
 } from "./storage/projectIndexedDb";
 import { validateGlbFile } from "../../utils/glbValidator";
@@ -14,6 +22,16 @@ import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
 import { preloadProjectRoute } from "../../routeLoaders";
+import { useAlert } from "../../components/dialog/AlertContext";
+import {
+  useCreateContent,
+  listContentsRequest,
+  getContentThumbnailUrl,
+} from "./api/contents";
+import { uploadFileInChunks } from "./api/uploads";
+import { syncProjectToBackend } from "./api/projectSync";
+import { hydrateProjectFromBackend } from "./api/projectHydrate";
+import { useWorkspaces } from "../workspace/api/workspaces";
 
 
 const CreateProjectDialog = lazy(() => import("./CreateProjectDialog"));
@@ -69,22 +87,31 @@ export default function ProjectHubPage() {
   const location = useLocation();
 
   const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
+  const { showAlert } = useAlert();
 
   const [openCreate, setOpenCreate] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [file, setFile] = useState(null);
   const [createRole, setCreateRole] = useState("EDITOR");
 
   const [progress, setProgress] = useState(0);
+  const [progressLabel, setProgressLabel] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const createContent = useCreateContent();
 
   const [glbValidation, setGlbValidation] = useState(null);
   const [isValidatingGlb, setIsValidatingGlb] = useState(false);
 
   const [createProjectError, setCreateProjectError] = useState("");
 
-  const [projects, setProjects] = useState(getCachedProjectSummaries);
-  const [isProjectCatalogReady, setIsProjectCatalogReady] = useState(false);
+  // Was `useState(getCachedProjectSummaries)` — the catalogue no longer
+  // lists local IndexedDB projects directly (see the backend query below),
+  // so the value itself is never read anymore. `setProjects` is kept
+  // (only the unused value is dropped from the destructure) because
+  // import/clear below still call it.
+  const [, setProjects] = useState([]);
   const [search, setSearch] = useState("");
   const [accessFilter, setAccessFilter] = useState("ALL");
 
@@ -93,53 +120,154 @@ export default function ProjectHubPage() {
   const [isImportingProject, setIsImportingProject] = useState(false);
   const [importProjectError, setImportProjectError] = useState("");
 
+  // Not the catalogue's data source (that's the backend query below) — this
+  // is only a lookup used to decide, per backend content item, whether this
+  // browser already has the matching local project and can open it directly
+  // vs. showing the "not downloaded here" fallback.
+  const [localProjectsByContentId, setLocalProjectsByContentId] = useState(
+    () => ({}),
+  );
+
   useEffect(() => {
     let active = true;
-    let frameId = null;
 
-    const loadProjectSummaries = async () => {
+    // Catalogue listing previously came from IndexedDB:
+    //
+    // let frameId = null;
+    // const loadProjectSummaries = async () => {
+    //   try {
+    //     const summaries = await getProjectSummariesFromIndexedDb();
+    //     if (active) {
+    //       setProjects(summaries);
+    //       setIsProjectCatalogReady(true);
+    //     }
+    //   } catch (error) {
+    //     console.error("Failed to load local project catalogue:", error);
+    //     if (active) setIsProjectCatalogReady(true);
+    //   }
+    // };
+    // if (typeof requestAnimationFrame === "function") {
+    //   frameId = requestAnimationFrame(loadProjectSummaries);
+    // } else {
+    //   loadProjectSummaries();
+    // }
+    //
+    // It now comes from the backend (GET /contents per workspace, below).
+    // This effect only builds the local contentId -> project lookup used to
+    // decide whether a backend content item can be opened directly.
+
+    const loadLocalProjectsByContentId = async () => {
       try {
-        const summaries = await getProjectSummariesFromIndexedDb();
+        const allProjects = await getAllProjectsFromIndexedDb();
 
-        if (active) {
-          setProjects(summaries);
-          setIsProjectCatalogReady(true);
-        }
+        if (!active) return;
+
+        const map = {};
+
+        allProjects.forEach((project) => {
+          const contentId = project?.remote?.contentId;
+
+          if (contentId) {
+            map[contentId] = {
+              id: project.id,
+              name: project.name,
+              role: project.role,
+              thumbnail: project.thumbnail,
+              status: project.status,
+              fileName: project.fileName,
+              fileSize: project.fileSize,
+              metadata: project.metadata,
+              autosave: project.autosave,
+            };
+          }
+        });
+
+        setLocalProjectsByContentId(map);
       } catch (error) {
-        console.error("Failed to load local project catalogue:", error);
-
-        if (active) {
-          setIsProjectCatalogReady(true);
-        }
+        console.error("Failed to read local content links:", error);
       }
     };
 
-    if (typeof requestAnimationFrame === "function") {
-      frameId = requestAnimationFrame(loadProjectSummaries);
-    } else {
-      loadProjectSummaries();
-    }
+    loadLocalProjectsByContentId();
 
     return () => {
       active = false;
-
-      if (frameId !== null && typeof cancelAnimationFrame === "function") {
-        cancelAnimationFrame(frameId);
-      }
     };
   }, [location.key]);
+
+  const {
+    data: workspaces = [],
+    isLoading: isWorkspacesLoading,
+  } = useWorkspaces();
+
+  const contentQueries = useQueries({
+    queries: workspaces.map((workspace) => ({
+      queryKey: ["contents", { workspaceId: workspace.id }],
+      queryFn: () => listContentsRequest({ workspaceId: workspace.id }),
+      enabled: Boolean(workspace.id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const isProjectCatalogReady =
+    !isWorkspacesLoading && contentQueries.every((query) => !query.isLoading);
+
+  // The catalogue itself: every backend content item across the user's
+  // workspaces, enriched with the matching local project (if this browser
+  // has one) so it can be opened directly instead of falling back to the
+  // "not downloaded here" message.
+  const backendProjects = workspaces.flatMap((workspace, index) => {
+    const contents = contentQueries[index]?.data || [];
+
+    return contents.map((content) => {
+      const localProject = localProjectsByContentId[content.id];
+
+      if (localProject) {
+        return {
+          ...localProject,
+          name: content.title || localProject.name || "Untitled",
+          workspace: workspace.name,
+          isCloudOnly: false,
+          workspaceId: workspace.id,
+          contentId: content.id,
+        };
+      }
+
+      return {
+        id: `cloud-${content.id}`,
+        name: content.title || "Untitled",
+        role: null,
+        workspace: workspace.name,
+        thumbnail: getContentThumbnailUrl(content.id, content.modifiedAt),
+        status: content.status || "DRAFT",
+        fileName: "",
+        fileSize: 0,
+        metadata: {
+          lastOpenedAt: null,
+          updatedAt: content.updatedAt || content.createdAt,
+          createdAt: content.createdAt,
+        },
+        autosave: null,
+        isCloudOnly: true,
+        workspaceId: workspace.id,
+        contentId: content.id,
+      };
+    });
+  });
 
   const clearCreateProjectError = () => {
     setCreateProjectError("");
   };
 
   const resetCreateProjectForm = () => {
+    setWorkspaceId("");
     setProjectName("");
     setFile(null);
     setCreateRole("EDITOR");
     setGlbValidation(null);
     setIsValidatingGlb(false);
     setProgress(0);
+    setProgressLabel("");
     setCreateProjectError("");
   };
 
@@ -150,7 +278,53 @@ export default function ProjectHubPage() {
     resetCreateProjectForm();
   };
 
-  function handleOpenProject(project) {
+  async function handleOpenProject(project) {
+    if (project.isCloudOnly) {
+      // Previously just told the user it couldn't be opened here:
+      //
+      // showAlert({
+      //   title: "Not downloaded to this browser",
+      //   message: `"${project.name}" exists in the "${project.workspace}" workspace but hasn't been opened on this device yet. View it from the workspace's Content tab.`,
+      //   type: "info",
+      // });
+      //
+      // Now it hydrates a local project record from the backend (settings/
+      // chapters/flows/procedures/overrides) and opens straight into the
+      // editor — the GLB itself isn't downloaded here, useProjectLoader
+      // streams (and caches) it on open.
+      preloadProjectRoute("EDITOR").catch(() => {});
+
+      showLoading({
+        title: "Opening Viqubed Project",
+        text: project.name,
+        progress: null,
+      });
+
+      try {
+        const hydrated = await hydrateProjectFromBackend({
+          workspaceId: project.workspaceId,
+          contentId: project.contentId,
+          role: "EDITOR",
+        });
+
+        updateLoading({ text: "Preparing editor..." });
+        navigate(`/viqubed/editor/${hydrated.id}`);
+      } catch (error) {
+        console.error("Failed to hydrate cloud project:", error);
+        hideLoading();
+        showAlert({
+          title: "Failed to open project",
+          message:
+            error?.response?.data?.message ||
+            error?.message ||
+            "Could not load this content from the workspace.",
+          type: "error",
+        });
+      }
+
+      return;
+    }
+
     preloadProjectRoute(project.role).catch((error) => {
       console.warn("Unable to preload project route:", error);
     });
@@ -222,6 +396,11 @@ export default function ProjectHubPage() {
 
     setCreateProjectError("");
 
+    if (!workspaceId) {
+      setCreateProjectError("Select a workspace.");
+      return;
+    }
+
     if (!projectName.trim()) {
       setCreateProjectError("Project name is required.");
       return;
@@ -254,7 +433,8 @@ export default function ProjectHubPage() {
 
     try {
       setIsSubmitting(true);
-      setProgress(10);
+      setProgress(5);
+      setProgressLabel("Preparing project...");
 
       const project = createProjectRecord({
         name: projectName.trim(),
@@ -262,11 +442,65 @@ export default function ProjectHubPage() {
         role: createRole,
       });
 
-      setProgress(40);
+      setProgress(15);
+      setProgressLabel("Saving project locally...");
 
       await saveProjectToIndexedDb(project, file);
 
-      setProgress(80);
+      setProgress(20);
+
+      // The local project is already fully saved and openable at this point.
+      // Syncing it to the backend workspace is best-effort from here on —
+      // a failure here shouldn't block the user from entering the editor.
+      try {
+        setProgressLabel("Creating workspace content...");
+
+        const content = await createContent.mutateAsync({
+          workspaceId,
+          title: project.name,
+        });
+
+        setProgressLabel("Uploading model...");
+
+        const { mediaId } = await uploadFileInChunks({
+          contentId: content.id,
+          file,
+          onProgress: ({ uploadedBytes, totalBytes }) => {
+            const uploadRatio = totalBytes > 0 ? uploadedBytes / totalBytes : 0;
+            setProgress(20 + Math.round(uploadRatio * 65));
+          },
+        });
+
+        setProgress(90);
+        setProgressLabel("Finalizing...");
+
+        await updateProjectInIndexedDb(project.id, {
+          remote: { workspaceId, contentId: content.id, mediaId },
+        });
+
+        // Push the rest of the project's editor data (settings/chapters/
+        // flows/procedures/overrides) too — usually near-empty at creation
+        // time, but this also establishes the local<->remote id maps that
+        // later autosaves (useViewerAutosave) rely on to update instead of
+        // re-creating these rows.
+        setProgressLabel("Syncing project data...");
+
+        await syncProjectToBackend({
+          projectId: project.id,
+          contentId: content.id,
+          material: project.material,
+          viewer: project.viewer,
+          scene: project.scene,
+        });
+      } catch (backendError) {
+        console.error("Failed to sync project to workspace:", backendError);
+
+        showAlert({
+          title: "Project created locally",
+          message: `"${project.name}" was saved and is ready to edit, but syncing it to the workspace failed: ${backendError?.response?.data?.message || backendError?.message || "Unknown error"}. You can retry this later.`,
+          type: "warning",
+        });
+      }
 
       setProgress(100);
       setOpenCreate(false);
@@ -290,6 +524,7 @@ export default function ProjectHubPage() {
     } finally {
       setIsSubmitting(false);
       setProgress(0);
+      setProgressLabel("");
     }
   }
 
@@ -435,7 +670,7 @@ export default function ProjectHubPage() {
     }
   }
 
-  const filteredProjects = projects.filter((project) => {
+  const filteredProjects = backendProjects.filter((project) => {
     const keyword = search.trim().toLowerCase();
 
     const matchSearch =
@@ -501,6 +736,8 @@ export default function ProjectHubPage() {
           <CreateProjectDialog
             open
             onClose={handleCloseCreateProject}
+            workspaceId={workspaceId}
+            setWorkspaceId={setWorkspaceId}
             projectName={projectName}
             setProjectName={setProjectName}
             file={file}
@@ -511,6 +748,7 @@ export default function ProjectHubPage() {
             setCreateRole={setCreateRole}
             onSubmit={handleSubmitCreateProject}
             progress={progress}
+            progressLabel={progressLabel}
             isSubmitting={isSubmitting}
             error={createProjectError}
             onClearError={clearCreateProjectError}

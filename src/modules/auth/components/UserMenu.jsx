@@ -73,7 +73,7 @@ export default function UserMenu({ className = "" }) {
             </p>
             {user?.username && (
               <p className="truncate text-xs text-secondary-default">
-                @{user.username}
+                {user.username}
               </p>
             )}
           </div>

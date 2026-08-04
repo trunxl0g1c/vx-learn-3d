@@ -6,6 +6,10 @@ import {
   updateProjectInIndexedDb,
   saveProjectToIndexedDb,
 } from "../../modules/project-hub/storage/projectIndexedDb";
+import {
+  fetchContentMediaBlob,
+  findContentModelMedia,
+} from "../../modules/project-hub/api/contentMedia";
 
 export default function useProjectLoader() {
   const objectUrlRef = useRef(null);
@@ -30,7 +34,7 @@ export default function useProjectLoader() {
   }, []);
 
   const loadProject = useCallback(
-    async (id) => {
+    async (id, { onDownloadProgress } = {}) => {
       if (!id || id === "demo") {
         setLoadError("Project ID tidak valid.");
         return null;
@@ -55,11 +59,46 @@ export default function useProjectLoader() {
           },
         });
 
-        const fileData = await getProjectFileFromIndexedDb(id);
+        let fileData = await getProjectFileFromIndexedDb(id);
+
+        // The local blob stays the primary source — fast, and works
+        // offline. It's only missing when this project was never fully
+        // downloaded to this browser (e.g. opened via a cloud-only content
+        // link, or hydrated from the backend without its GLB). In that
+        // case: retrieve it once from the backend (server reads it from
+        // R2/local storage and hands back the bytes — see
+        // GET /content-media/stream) and cache it into IndexedDB, so every
+        // open after this one uses the fast local path instead of
+        // re-fetching over the network.
+        if (!fileData?.blob && storedProject.remote?.contentId) {
+          const modelMedia = await findContentModelMedia({
+            contentId: storedProject.remote.contentId,
+          });
+
+          if (modelMedia) {
+            const blob = await fetchContentMediaBlob({
+              id: modelMedia.id,
+              onProgress: onDownloadProgress,
+            });
+            const cachedFileName =
+              modelMedia.filename || storedProject.fileName || "model.glb";
+            const fileForCache = new File([blob], cachedFileName, {
+              type: modelMedia.mimetype || blob.type || "model/gltf-binary",
+            });
+
+            await saveProjectToIndexedDb(storedProject, fileForCache);
+            fileData = { blob: fileForCache, fileName: cachedFileName };
+          }
+        }
 
         if (!fileData?.blob) {
           throw new Error("File GLB project tidak ditemukan.");
         }
+
+        const resolvedGlbUrl = URL.createObjectURL(fileData.blob);
+        objectUrlRef.current = resolvedGlbUrl;
+        const resolvedFileName =
+          fileData.fileName || storedProject.fileName || "model.glb";
 
         const savedDraft = await getProjectDraftFromIndexedDb(id);
 
@@ -71,32 +110,27 @@ export default function useProjectLoader() {
           updatedAt: new Date().toISOString(),
         };
 
-        const objectUrl = URL.createObjectURL(fileData.blob);
-        objectUrlRef.current = objectUrl;
-
         const normalizedProjectId = storedProject.id;
         const normalizedProjectName = storedProject.name || "Untitled Project";
-        const normalizedFileName =
-          fileData.fileName || storedProject.fileName || "model.glb";
 
         setProject(storedProject);
-        setProjectFile(fileData.blob);
+        setProjectFile(fileData?.blob || null);
         setProjectDraft(initialDraft);
 
         setProjectId(normalizedProjectId);
         setProjectName(normalizedProjectName);
-        setGlbUrl(objectUrl);
-        setGlbFileName(normalizedFileName);
+        setGlbUrl(resolvedGlbUrl);
+        setGlbFileName(resolvedFileName);
 
         return {
           project: storedProject,
-          projectFile: fileData.blob,
+          projectFile: fileData?.blob || null,
           projectDraft: initialDraft,
 
           projectId: normalizedProjectId,
           projectName: normalizedProjectName,
-          glbUrl: objectUrl,
-          glbFileName: normalizedFileName,
+          glbUrl: resolvedGlbUrl,
+          glbFileName: resolvedFileName,
 
           material: initialDraft.material || storedProject.material || null,
           viewer: initialDraft.viewer || storedProject.viewer || null,

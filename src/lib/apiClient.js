@@ -2,6 +2,8 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4002";
 
+export const API_BASE_URL = API_URL;
+
 const apiClient = axios.create({
   baseURL: API_URL,
   withCredentials: true,

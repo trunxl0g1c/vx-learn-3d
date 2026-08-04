@@ -90,6 +90,11 @@ function Model({
     modelUrl,
     (loader) => {
       loader.setMeshoptDecoder(MeshoptDecoder);
+      // Needed when modelUrl points at GET /content-media/stream (streamed
+      // from the backend instead of a local blob: URL) — that route is
+      // cookie-authenticated, and fetch()-based loaders don't send
+      // cross-origin cookies unless told to. No effect on blob: URLs.
+      loader.setWithCredentials(true);
     },
   );
 
