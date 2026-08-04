@@ -26,6 +26,7 @@ import AssemblyGhostTarget from "../procedural/AssemblyGhostTarget";
 import { DEFAULT_ORBIT_MIN_DISTANCE } from "../../engine/camera";
 import { getFlowReferenceLengthFromObject } from "../../engine/flow";
 import { collectMeshes } from "../../engine/selection";
+import BlinkSelectionOutline from "../viewer/BlinkSelectionOutline";
 import {
   GENERATED_ANNOTATION_COLOR,
   GeneratedObjectAnnotations,
@@ -58,6 +59,7 @@ export default function PlayerSceneCanvas({
   viewerSettings,
   cameraProjectionMode = null,
   outlineObjects,
+  blinkSelectionEnabled = false,
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
   cameraRef,
@@ -122,14 +124,24 @@ export default function PlayerSceneCanvas({
 
   const handleObjectSelect = (object) => {
     const selection = handleSelectObjectFromPlayer?.(object);
-    onObjectSelectInteraction?.(selection?.selectedObject || object);
+
+    // A disabled Player click must be a true no-op: do not close Chapter UI or
+    // trigger any secondary interaction merely because a mesh was raycast.
+    if (selection) {
+      onObjectSelectInteraction?.(selection.selectedObject || object);
+    }
 
     return selection;
   };
 
   const handleObjectDoubleClick = (object) => {
-    onObjectSelectInteraction?.(object);
-    handleDoubleClickObjectFromPlayer?.(object);
+    const selection = handleDoubleClickObjectFromPlayer?.(object);
+
+    if (selection) {
+      onObjectSelectInteraction?.(selection.selectedObject || object);
+    }
+
+    return selection;
   };
 
   if (!material?.modelUrl) {
@@ -201,6 +213,7 @@ export default function PlayerSceneCanvas({
         {shaderOutlineObjects.length > 0 && (
           <Outline
             selection={shaderOutlineObjects}
+            selectionLayer={8}
             edgeStrength={shaderOutlineConfig.edgeStrength}
             visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
             hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
@@ -211,6 +224,7 @@ export default function PlayerSceneCanvas({
         {annotationOutlineObjects.length > 0 && (
           <Outline
             selection={annotationOutlineObjects}
+            selectionLayer={9}
             edgeStrength={7}
             visibleEdgeColor={GENERATED_ANNOTATION_COLOR}
             hiddenEdgeColor={GENERATED_ANNOTATION_COLOR}
@@ -218,15 +232,23 @@ export default function PlayerSceneCanvas({
           />
         )}
 
-        {outlineObjects.length > 0 && (
-          <Outline
-            selection={outlineObjects}
-            edgeStrength={8}
-            visibleEdgeColor="yellow"
-            hiddenEdgeColor="yellow"
-            blur={false}
-          />
-        )}
+        {outlineObjects.length > 0 &&
+          (blinkSelectionEnabled ? (
+            <BlinkSelectionOutline
+              selection={outlineObjects}
+              settings={viewerSettings?.blinkSettings}
+            />
+          ) : (
+            <Outline
+              selection={outlineObjects}
+              selectionLayer={10}
+              edgeStrength={8}
+              pulseSpeed={0}
+              visibleEdgeColor="yellow"
+              hiddenEdgeColor="yellow"
+              blur={false}
+            />
+          ))}
       </EffectComposer>
 
       <ambientLight intensity={viewerSettings.ambientLight} />

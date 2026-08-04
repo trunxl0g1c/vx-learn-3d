@@ -61,6 +61,15 @@ function hasExplicitHighlightState(visualState) {
   )
 }
 
+function getBlinkReferences(visualState) {
+  const blinkState = visualState?.blink
+
+  if (!blinkState || typeof blinkState !== "object") return []
+  if (blinkState.enabled === false) return []
+
+  return Array.isArray(blinkState.objects) ? blinkState.objects : []
+}
+
 function getDisplayName(object, chapter) {
   return String(
     object?.name || chapter?.objectName || chapter?.title || "",
@@ -78,6 +87,7 @@ export function applySavedViewerVisualState({
   highlightObject,
   highlightSelectedObjectsPreservingVisualState,
   setSelectedObjectName,
+  setBlinkSelectedObjectsEnabled,
   applySavedCuts,
 }) {
   if (!scene || !visualState) return null
@@ -107,9 +117,16 @@ export function applySavedViewerVisualState({
     .filter(Boolean)
   const savedSelectedObject = resolveReference(visualState.selectedObject)
   const explicitHighlightState = hasExplicitHighlightState(visualState)
-  const savedHighlightObjects = getHighlightReferences(visualState)
+  let savedHighlightObjects = getHighlightReferences(visualState)
     .map(resolveReference)
     .filter(Boolean)
+  const savedBlinkObjects = getBlinkReferences(visualState)
+    .map(resolveReference)
+    .filter(Boolean)
+
+  if (savedHighlightObjects.length === 0 && savedBlinkObjects.length > 0) {
+    savedHighlightObjects = savedBlinkObjects
+  }
   const savedHighlightActiveObject = resolveReference(
     getHighlightActiveReference(visualState),
   )
@@ -160,6 +177,10 @@ export function applySavedViewerVisualState({
     setSelectedObjectName("")
   }
 
+  setBlinkSelectedObjectsEnabled?.(
+    Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+  )
+
   const savedCuts = Array.isArray(visualState.cuts)
     ? visualState.cuts
     : visualState.cut
@@ -177,6 +198,9 @@ export function applySavedViewerVisualState({
   return {
     selectedObject: preferredSelection,
     highlightObjects: savedHighlightObjects,
+    blinkObjects: savedBlinkObjects,
+    blinkEnabled:
+      Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
     xrayMode,
     xrayTargets,
     hiddenCount: hiddenReferences.length,

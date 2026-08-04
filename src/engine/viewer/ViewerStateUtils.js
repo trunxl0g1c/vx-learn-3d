@@ -89,6 +89,7 @@ export function createViewerVisualState({
   xrayTargetObject = null,
   xrayTargetObjects = [],
   selectionVisualMode = "none",
+  blinkSelectedObjectsEnabled = false,
   pullApartState = null,
   cutStates = [],
   cutEnabled = false,
@@ -190,11 +191,18 @@ export function createViewerVisualState({
   };
 
   return {
-    version: 5,
+    version: 6,
     selectedObject: selectedReference,
     selectedObjects: selectedReferences,
     highlight: {
       enabled: selectedReferences.length > 0,
+      activeObject: highlightActiveReference,
+      objects: selectedReferences,
+    },
+    blink: {
+      enabled:
+        Boolean(blinkSelectedObjectsEnabled) &&
+        selectedReferences.length > 0,
       activeObject: highlightActiveReference,
       objects: selectedReferences,
     },

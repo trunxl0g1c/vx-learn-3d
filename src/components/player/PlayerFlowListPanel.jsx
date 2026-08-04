@@ -1,5 +1,6 @@
 import { Pause, Play, RotateCcw, X } from "lucide-react";
 import { getFlowEffectLabel } from "../../engine/flow";
+import { isLazyMaterialRecord } from "../../engine/project/LazyMaterialRecords";
 
 export default function PlayerFlowListPanel({
   flows = [],
@@ -36,7 +37,10 @@ export default function PlayerFlowListPanel({
         ) : (
           flows.map((flow, index) => {
             const active = flow.id === activeFlowId;
-            const canPlay = (flow.points?.length || 0) >= 2;
+            const pointCount = isLazyMaterialRecord(flow, "flows")
+              ? Number(flow.pointCount || 0)
+              : flow.points?.length || 0;
+            const canPlay = pointCount >= 2;
 
             return (
               <article
@@ -61,12 +65,12 @@ export default function PlayerFlowListPanel({
                       {flow.description || "No description"}
                     </p>
                     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-contrast-grayout">
-                      <span>{flow.points?.length || 0} points</span>
+                      <span>{pointCount} points</span>
                       <span>{getFlowEffectLabel(flow.settings?.effectType)}</span>
                       <span>{flow.settings?.speed || 1}x speed</span>
                       <span>{flow.settings?.repeat ? "Repeat" : "Once"}</span>
-                      {flow.visualState && <span>Saved State</span>}
-                      {flow.cameraView && <span>Saved Camera</span>}
+                      {(flow.visualState || flow.hasVisualState) && <span>Saved State</span>}
+                      {(flow.cameraView || flow.hasCameraView) && <span>Saved Camera</span>}
                     </div>
                   </div>
                 </div>

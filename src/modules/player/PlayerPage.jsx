@@ -22,7 +22,6 @@ import PlayerCutSlider from "../../components/player/PlayerCutSlider";
 import Button from "../../components/ui/button";
 import MaterialIcon from "../../components/ui/material-icon";
 import { normalizePlayerSettings } from "../material/playerSettings";
-import { getVisibleChapters } from "../../engine/marker";
 import {
   PlayerAnimationFloatingPanel,
   PlayerChapterReaderFloatingPanel,
@@ -41,7 +40,7 @@ export default function PlayerPage() {
   const [activeMedia, setActiveMedia] = useState(null);
   const [playerObjectSearch, setPlayerObjectSearch] = useState("");
   const [playerObjectTreeDepth, setPlayerObjectTreeDepth] = useState(999);
-  const appliedPlayerSettingsMaterialRef = useRef(null);
+  const appliedPlayerSettingsKeyRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams();
@@ -55,18 +54,26 @@ export default function PlayerPage() {
     [player.scene.material?.playerSettings],
   );
   const playerMenuVisibility = playerSettings.menuVisibility;
-  const visibleChapters = getVisibleChapters(
-    player.scene.material?.chapters,
-    player.scene.modelScene,
-  );
+  const visibleChapters = Array.isArray(
+    player.chapterList.visibleChapters,
+  )
+    ? player.chapterList.visibleChapters
+    : [];
 
   useEffect(() => {
     const material = player.scene.material;
     if (!material) return;
 
-    if (appliedPlayerSettingsMaterialRef.current === material) return;
+    const materialSessionKey = [
+      material.projectId || "",
+      material.id || "",
+      material.modelFileName || material.model?.fileName || "",
+      material.modelUrl || material.model?.uri || "",
+    ].join("::");
 
-    appliedPlayerSettingsMaterialRef.current = material;
+    if (appliedPlayerSettingsKeyRef.current === materialSessionKey) return;
+
+    appliedPlayerSettingsKeyRef.current = materialSessionKey;
     setActiveMedia(null);
     setSelectedAnnotation(null);
     setActivePanel(playerSettings.autoShowMaterial ? "project" : null);
@@ -294,9 +301,19 @@ export default function PlayerPage() {
       icon: Move3d,
       active: Boolean(player.toolsMenu.freePlay),
       onClick: () => {
+        const nextFreePlay = !player.toolsMenu.freePlay;
+
         setActiveMedia(null);
         setSelectedAnnotation(null);
-        player.toolbar.setFreePlay?.(!player.toolsMenu.freePlay);
+
+        if (nextFreePlay) {
+          // Free Play is a clean, standalone interaction mode. Close every
+          // material panel and discard the previous Chapter return target.
+          chapterReturnPanelRef.current = null;
+          setActivePanel(null);
+        }
+
+        player.toolbar.setFreePlay?.(nextFreePlay);
       },
     });
   }
@@ -394,7 +411,7 @@ export default function PlayerPage() {
           onSelectChapter={handleSelectChapter}
           onOpenMedia={setActiveMedia}
           showMaterialList={playerSettings.showMaterialList}
-          modelScene={player.scene.modelScene}
+          chapters={visibleChapters}
         />
       )}
 
@@ -428,10 +445,10 @@ export default function PlayerPage() {
       {activePanel === "chapters" && visibleChapters.length > 0 && (
           <PlayerChapterListPanel
             material={player.chapterList.material}
+            chapters={visibleChapters}
             activeChapterId={player.chapterList.activeChapterId}
             handleSelectChapter={handleSelectChapter}
             onClose={() => setActivePanel(null)}
-            modelScene={player.scene.modelScene}
           />
         )}
 
@@ -460,7 +477,7 @@ export default function PlayerPage() {
           onSelectCameraView={player.chapterPanel.selectCameraView}
           onPlayChapterFlow={player.chapterPanel.playChapterFlow}
           onStopChapterFlows={player.chapterPanel.stopChapterFlows}
-          modelScene={player.scene.modelScene}
+          chapters={visibleChapters}
         />
       )}
 

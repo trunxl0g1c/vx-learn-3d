@@ -5,8 +5,27 @@ import { useGlobalLoading } from "../../loading/LoadingContext"
 import { importVXPack, isVXPackFile } from "../../../utils/vxpackUtils"
 import { DEFAULT_VIEWER_BACKGROUND } from "../../../utils/viewerBackground"
 import { normalizePlayerSettings } from "../../material/playerSettings"
-import { normalizeFlowDefinitions } from "../../../engine/flow"
-import { normalizeProceduralDefinitions } from "../../../engine/procedural"
+import {
+  normalizeFlowDefinition,
+  normalizeFlowDefinitions,
+} from "../../../engine/flow"
+import {
+  normalizeProceduralDefinition,
+  normalizeProceduralDefinitions,
+} from "../../../engine/procedural"
+import {
+  getChapterFromIndexedDb,
+  getFlowFromIndexedDb,
+  getProcedureFromIndexedDb,
+} from "../../project-hub/storage/projectIndexedDb"
+import {
+  isLazyMaterialRecord,
+  replaceMaterialRecord,
+} from "../../../engine/project/LazyMaterialRecords"
+import {
+  DEFAULT_BLINK_SELECTION_SETTINGS,
+  normalizeBlinkSelectionSettings,
+} from "../../../engine/selection"
 
 export const DEFAULT_VIEWER_SETTINGS = {
   exposure: 0.75,
@@ -23,6 +42,7 @@ export const DEFAULT_VIEWER_SETTINGS = {
   metalness: 0.1,
   roughness: 0.1,
   cameraProjectionMode: "perspective",
+  blinkSettings: { ...DEFAULT_BLINK_SELECTION_SETTINGS },
   background: DEFAULT_VIEWER_BACKGROUND,
 }
 
@@ -47,6 +67,93 @@ export default function usePlayerProject({
     isLoadingProject,
     loadError,
   } = useProjectLoader()
+
+  const pendingMaterialRecordLoadsRef = useRef(new Map())
+
+  useEffect(() => {
+    pendingMaterialRecordLoadsRef.current.clear()
+  }, [projectId])
+
+  const hydrateMaterialRecord = useCallback(
+    async (field, recordId, getter, normalizeRecord = null) => {
+      if (!projectId || !recordId) return null
+
+      const requestKey = `${projectId}:${field}:${recordId}`
+      const pendingRequest =
+        pendingMaterialRecordLoadsRef.current.get(requestKey)
+
+      if (pendingRequest) return pendingRequest
+
+      const request = getter(projectId, recordId)
+        .then((storedRecord) => {
+          if (!storedRecord) return null
+
+          const hydratedRecord = normalizeRecord
+            ? normalizeRecord(storedRecord)
+            : storedRecord
+
+          setMaterial((currentMaterial) => {
+            if (currentMaterial?.projectId !== projectId) {
+              return currentMaterial
+            }
+
+            const currentRecord = currentMaterial?.[field]?.find(
+              (record) => record?.id === recordId,
+            )
+
+            if (!isLazyMaterialRecord(currentRecord, field)) {
+              return currentMaterial
+            }
+
+            return {
+              ...currentMaterial,
+              [field]: replaceMaterialRecord(
+                currentMaterial?.[field],
+                recordId,
+                hydratedRecord,
+              ),
+            }
+          })
+
+          return hydratedRecord
+        })
+        .finally(() => {
+          pendingMaterialRecordLoadsRef.current.delete(requestKey)
+        })
+
+      pendingMaterialRecordLoadsRef.current.set(requestKey, request)
+      return request
+    },
+    [projectId, setMaterial],
+  )
+
+  const loadChapterRecord = useCallback(
+    (chapterId) =>
+      hydrateMaterialRecord("chapters", chapterId, getChapterFromIndexedDb),
+    [hydrateMaterialRecord],
+  )
+
+  const loadFlowRecord = useCallback(
+    (flowId) =>
+      hydrateMaterialRecord(
+        "flows",
+        flowId,
+        getFlowFromIndexedDb,
+        normalizeFlowDefinition,
+      ),
+    [hydrateMaterialRecord],
+  )
+
+  const loadProcedureRecord = useCallback(
+    (procedureId) =>
+      hydrateMaterialRecord(
+        "procedures",
+        procedureId,
+        getProcedureFromIndexedDb,
+        normalizeProceduralDefinition,
+      ),
+    [hydrateMaterialRecord],
+  )
 
   const clearReadyTimer = useCallback(() => {
     if (readyTimerRef.current !== null) {
@@ -167,6 +274,8 @@ export default function usePlayerProject({
         if (nextMaterial) {
           setMaterial({
             ...nextMaterial,
+            projectId: loaded.projectId || projectId,
+            projectName: loaded.projectName || loaded.project?.name || "",
             playerSettings: normalizePlayerSettings(nextMaterial.playerSettings),
             flows: normalizeFlowDefinitions(nextMaterial.flows),
             procedures: normalizeProceduralDefinitions(nextMaterial.procedures),
@@ -188,6 +297,9 @@ export default function usePlayerProject({
           setViewerSettings((prev) => ({
             ...prev,
             ...nextViewer,
+            blinkSettings: normalizeBlinkSelectionSettings(
+              nextViewer?.blinkSettings || prev?.blinkSettings,
+            ),
             background: {
               ...(prev?.background || {}),
               ...(nextViewer?.background || {}),
@@ -275,6 +387,7 @@ export default function usePlayerProject({
 
       setMaterial({
         ...json,
+        projectId: json.projectId || projectId || null,
         playerSettings: normalizePlayerSettings(json.playerSettings),
         flows: normalizeFlowDefinitions(json.flows),
         procedures: normalizeProceduralDefinitions(json.procedures),
@@ -292,6 +405,9 @@ export default function usePlayerProject({
         setViewerSettings((prev) => ({
           ...prev,
           ...json.viewerSettings,
+          blinkSettings: normalizeBlinkSelectionSettings(
+            json.viewerSettings?.blinkSettings || prev?.blinkSettings,
+          ),
           background: {
             ...(prev?.background || {}),
             ...(json.viewerSettings?.background || {}),
@@ -314,6 +430,9 @@ export default function usePlayerProject({
     isSceneReady,
     loadError,
     loadPlayerFile,
+    loadChapterRecord,
+    loadFlowRecord,
+    loadProcedureRecord,
     notifyModelLoaded,
     notifySceneReady,
   }

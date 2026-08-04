@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFlowManagerAdapter } from "../managers/FlowManager";
+import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
 
 export function useFlowManager({
   material,
@@ -8,6 +9,7 @@ export function useFlowManager({
   selectedObject,
   controlsRef,
   flowEngine = null,
+  hydrateFlowRecord = null,
 }) {
   const manager = useMemo(
     () => createFlowManagerAdapter(flowEngine),
@@ -45,7 +47,22 @@ export function useFlowManager({
     () => flows.find((flow) => flow.id === activeFlowId) || null,
     [activeFlowId, flows],
   );
+  const isLoadingActiveFlow = isLazyMaterialRecord(activeFlow, "flows");
 
+  useEffect(() => {
+    if (
+      !isAuthoringActive ||
+      !activeFlowId ||
+      !hydrateFlowRecord ||
+      !isLazyMaterialRecord(activeFlow, "flows")
+    ) {
+      return;
+    }
+
+    hydrateFlowRecord(activeFlowId).catch((error) => {
+      console.error("Failed to load Flow detail:", error);
+    });
+  }, [activeFlow, activeFlowId, hydrateFlowRecord, isAuthoringActive]);
 
   useEffect(() => {
     const availablePointIds = new Set(
@@ -358,6 +375,7 @@ export function useFlowManager({
     flows,
     activeFlow,
     activeFlowId,
+    isLoadingActiveFlow,
     setActiveFlowId,
     selectFlow,
     pointMode,

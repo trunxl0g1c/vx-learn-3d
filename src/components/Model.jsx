@@ -1,9 +1,10 @@
 import { useFrame, useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { annotateGltfLogicalObjects } from "../utils/objectTreeUtils";
+import { configureViqubedGltfLoader } from "../engine/model/GltfResourceLoader";
+import { sanitizeLoadedModelScene } from "../engine/model/ModelSceneSafety";
 import {
   createMarkerAttachment,
   createMarkerConnector,
@@ -89,7 +90,7 @@ function Model({
     GLTFLoader,
     modelUrl,
     (loader) => {
-      loader.setMeshoptDecoder(MeshoptDecoder);
+      configureViqubedGltfLoader(loader);
     },
   );
 
@@ -97,6 +98,7 @@ function Model({
   const actionsRef = useRef({});
 
   useEffect(() => {
+    sanitizeLoadedModelScene(scene);
     annotateGltfLogicalObjects(scene, parser);
 
     if (!scene.userData.__vxCentered) {

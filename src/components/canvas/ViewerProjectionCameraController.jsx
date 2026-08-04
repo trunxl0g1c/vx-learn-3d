@@ -46,6 +46,46 @@ function getOrthographicVisibleHeight(camera) {
   return Math.max(height / zoom, MIN_VISIBLE_HEIGHT);
 }
 
+function getPerspectiveDistanceForVisibleHeight(camera, visibleHeight) {
+  const fov = THREE.MathUtils.degToRad(Number(camera?.fov) || DEFAULT_FOV);
+  const halfFovTangent = Math.max(Math.tan(fov / 2), MIN_CAMERA_DISTANCE);
+
+  return Math.max(
+    visibleHeight / (2 * halfFovTangent),
+    MIN_CAMERA_DISTANCE,
+  );
+}
+
+function getOrbitDirection(camera, target) {
+  const direction = camera.position.clone().sub(target);
+
+  if (direction.lengthSq() > MIN_CAMERA_DISTANCE * MIN_CAMERA_DISTANCE) {
+    return direction.normalize();
+  }
+
+  camera.getWorldDirection(direction);
+
+  if (direction.lengthSq() <= MIN_CAMERA_DISTANCE * MIN_CAMERA_DISTANCE) {
+    return new THREE.Vector3(0, 0, 1);
+  }
+
+  return direction.normalize().negate();
+}
+
+function clampPerspectiveDistance(distance, controls) {
+  const minDistance = Math.max(
+    Number(controls?.minDistance) || MIN_CAMERA_DISTANCE,
+    MIN_CAMERA_DISTANCE,
+  );
+  const maxDistance = Number(controls?.maxDistance);
+
+  if (Number.isFinite(maxDistance) && maxDistance > minDistance) {
+    return THREE.MathUtils.clamp(distance, minDistance, maxDistance);
+  }
+
+  return Math.max(distance, minDistance);
+}
+
 function copyCommonCameraState(source, target) {
   target.position.copy(source.position);
   target.quaternion.copy(source.quaternion);
@@ -98,14 +138,27 @@ export default function ViewerProjectionCameraController({
           : getOrthographicVisibleHeight(currentCamera);
 
         nextCamera.zoom = Math.max(2 / visibleHeight, MIN_CAMERA_DISTANCE);
+        nextCamera.position.copy(currentCamera.position);
+      } else if (currentCamera.isOrthographicCamera) {
+        // Orthographic apparent size is controlled by zoom, not by the
+        // camera-to-target distance. Reusing its often very large world-space
+        // distance in Perspective makes the model look extremely far away.
+        // Convert the Orthographic visible height to an equivalent Perspective
+        // distance while preserving the exact orbit target and view direction.
+        const visibleHeight = getOrthographicVisibleHeight(currentCamera);
+        const equivalentDistance = clampPerspectiveDistance(
+          getPerspectiveDistanceForVisibleHeight(nextCamera, visibleHeight),
+          controls,
+        );
+        const orbitDirection = getOrbitDirection(currentCamera, target);
+
+        nextCamera.position.copy(
+          target.clone().add(orbitDirection.multiplyScalar(equivalentDistance)),
+        );
+      } else {
+        nextCamera.position.copy(currentCamera.position);
       }
 
-      // Projection changes must not alter the camera orbit position or pivot.
-      // The previous implementation recalculated Perspective distance from
-      // Orthographic zoom, which caused a visible jump and shifted the orbit
-      // feel after toggling projection. Keep the exact source transform and
-      // controls target; only the projection matrix/framing is changed.
-      nextCamera.position.copy(currentCamera.position);
       nextCamera.quaternion.copy(currentCamera.quaternion);
       nextCamera.up.copy(currentCamera.up).normalize();
     }

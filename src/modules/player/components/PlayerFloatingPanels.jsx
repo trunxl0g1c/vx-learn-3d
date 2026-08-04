@@ -25,7 +25,6 @@ import Switch from "../../../components/ui/switch";
 import AnimationTab from "../../../components/panels/right-tabs/AnimationTab";
 import VisualTab from "../../../components/panels/right-tabs/VisualTab";
 import PlayerChapterPlaybackSection from "../../../components/player/PlayerChapterPlaybackSection";
-import { getVisibleChapters } from "../../../engine/marker";
 
 function getProjectInfoTitle(material) {
   return (
@@ -137,30 +136,30 @@ export function PlayerProjectInfoFloatingPanel({
   onSelectChapter,
   onOpenMedia,
   showMaterialList = true,
-  modelScene = null,
+  chapters = [],
 }) {
   const title = getProjectInfoTitle(material);
   const description = getProjectInfoDescription(material);
   const integratedAssets = getIntegratedAssets(material);
-  const chapters = getVisibleChapters(material?.chapters, modelScene);
-  const hasChapters = chapters.length > 0;
-  const activeChapterIndex = chapters.findIndex(
+  const chapterList = Array.isArray(chapters) ? chapters : [];
+  const hasChapters = chapterList.length > 0;
+  const activeChapterIndex = chapterList.findIndex(
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
   const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+    activeChapterIndex >= 0 && activeChapterIndex < chapterList.length - 1;
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
 
-    onSelectChapter?.(chapters[activeChapterIndex - 1].id);
+    onSelectChapter?.(chapterList[activeChapterIndex - 1].id);
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
 
-    onSelectChapter?.(chapters[activeChapterIndex + 1].id);
+    onSelectChapter?.(chapterList[activeChapterIndex + 1].id);
   };
 
   return (
@@ -193,7 +192,7 @@ export function PlayerProjectInfoFloatingPanel({
 
         {!showMaterialList && hasChapters && (
           <InlineMaterialChapterList
-            chapters={chapters}
+            chapters={chapterList}
             activeChapterId={activeChapterId}
             onSelectChapter={onSelectChapter}
           />
@@ -297,20 +296,20 @@ export function PlayerChapterReaderFloatingPanel({
   onSelectCameraView,
   onPlayChapterFlow,
   onStopChapterFlows,
-  modelScene = null,
+  chapters = [],
 }) {
   const title = activeChapter?.title || "Untitled Chapter";
   const description =
     activeChapter?.description || "Belum ada deskripsi chapter.";
   const mediaAssets = getChapterMediaAssets(activeChapter);
-  const chapters = getVisibleChapters(material?.chapters, modelScene);
-  const hasChapters = chapters.length > 0;
-  const activeChapterIndex = chapters.findIndex(
+  const chapterList = Array.isArray(chapters) ? chapters : [];
+  const hasChapters = chapterList.length > 0;
+  const activeChapterIndex = chapterList.findIndex(
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
   const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+    activeChapterIndex >= 0 && activeChapterIndex < chapterList.length - 1;
 
   const cameraViewCount = Array.isArray(cameraViews) ? cameraViews.length : 0;
   const normalizedCameraViewIndex = Math.max(
@@ -325,12 +324,12 @@ export function PlayerChapterReaderFloatingPanel({
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
-    onSelectChapter?.(chapters[activeChapterIndex - 1].id);
+    onSelectChapter?.(chapterList[activeChapterIndex - 1].id);
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
-    onSelectChapter?.(chapters[activeChapterIndex + 1].id);
+    onSelectChapter?.(chapterList[activeChapterIndex + 1].id);
   };
 
   return (

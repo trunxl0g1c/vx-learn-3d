@@ -1,4 +1,5 @@
 import { CheckCircle2, Pause, Play, RotateCcw, X } from "lucide-react";
+import { isLazyMaterialRecord } from "../../engine/project/LazyMaterialRecords";
 
 function getAnimatedEntries(step) {
   if (Array.isArray(step?.animatedObjects) && step.animatedObjects.length > 0) {
@@ -56,23 +57,31 @@ export default function PlayerProceduralListPanel({
         ) : (
           procedures.map((procedure, procedureIndex) => {
             const active = procedure.id === activeProcedureId;
+            const isLazyProcedure = isLazyMaterialRecord(
+              procedure,
+              "procedures",
+            );
             const enabledSteps = (procedure.steps || []).filter(
               (step) => step.enabled !== false,
             );
+            const stepCount = isLazyProcedure
+              ? Number(procedure.stepCount || 0)
+              : enabledSteps.length;
             const isAssembly = procedure.type === "assembly";
-            const canPlay =
-              enabledSteps.length > 0 &&
-              enabledSteps.every((step) => {
-                const animatedEntries = getAnimatedEntries(step);
-                return (
-                  step.targetObject &&
-                  animatedEntries.length > 0 &&
-                  animatedEntries.every(
-                    (entry) => entry.startTransform && entry.endTransform,
-                  ) &&
-                  (!isAssembly || step.cameraView)
-                );
-              });
+            const canPlay = isLazyProcedure
+              ? stepCount > 0
+              : enabledSteps.length > 0 &&
+                enabledSteps.every((step) => {
+                  const animatedEntries = getAnimatedEntries(step);
+                  return (
+                    step.targetObject &&
+                    animatedEntries.length > 0 &&
+                    animatedEntries.every(
+                      (entry) => entry.startTransform && entry.endTransform,
+                    ) &&
+                    (!isAssembly || step.cameraView)
+                  );
+                });
             const isRunning =
               active && ["waiting", "dragging", "animating"].includes(status);
             const completionAnimation = procedure.settings?.completionAnimation;
@@ -101,7 +110,7 @@ export default function PlayerProceduralListPanel({
                       {procedure.description || "No description"}
                     </p>
                     <div className="mt-2 text-[10px] text-contrast-grayout">
-                      {enabledSteps.length} {isAssembly ? "assembly" : "interactive"} steps
+                      {stepCount} {isAssembly ? "assembly" : "interactive"} steps
                     </div>
                   </div>
                 </div>

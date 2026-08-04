@@ -37,8 +37,6 @@ function getFloorMaterialProperties(glossiness) {
   return {
     roughness: THREE.MathUtils.lerp(1, 0.18, safeGlossiness),
     metalness: THREE.MathUtils.lerp(0, 0.06, safeGlossiness),
-    clearcoat: THREE.MathUtils.lerp(0, 0.22, safeGlossiness),
-    clearcoatRoughness: THREE.MathUtils.lerp(1, 0.2, safeGlossiness),
   };
 }
 
@@ -99,12 +97,10 @@ export default function ViewerStageFloor({
         renderOrder={-2}
       >
         <planeGeometry args={[layout.planeSize, layout.planeSize, 1, 1]} />
-        <meshPhysicalMaterial
+        <meshStandardMaterial
           color={background.stageFloorColor}
           roughness={floorMaterial.roughness}
           metalness={floorMaterial.metalness}
-          clearcoat={floorMaterial.clearcoat}
-          clearcoatRoughness={floorMaterial.clearcoatRoughness}
           side={THREE.DoubleSide}
         />
       </mesh>

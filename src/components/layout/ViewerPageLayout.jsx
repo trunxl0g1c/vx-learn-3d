@@ -19,7 +19,6 @@ export default function ViewerPageLayout({ controller }) {
     previewChapterInEditor,
     contentAuthoringLocked,
     contentAuthoringLockReason,
-    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     saveMaterial,
     isSavingPackage,
@@ -82,7 +81,6 @@ export default function ViewerPageLayout({ controller }) {
 
     activeMarkers,
     deleteCameraViewFromActiveChapter,
-    deleteVisualStateFromActiveChapter,
 
     chapterFeedback,
     clearChapterFeedback,
@@ -135,7 +133,6 @@ export default function ViewerPageLayout({ controller }) {
           previewChapterInEditor={previewChapterInEditor}
           contentAuthoringLocked={contentAuthoringLocked}
           contentAuthoringLockReason={contentAuthoringLockReason}
-          saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
           saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
           applyShaderMode={applyShaderMode}
           shaderMode={shaderMode}
@@ -188,9 +185,6 @@ export default function ViewerPageLayout({ controller }) {
           isSelectedObjectXray={isSelectedObjectXray}
           resetAllTransforms={controller.resetAllTransforms}
           deselectObject={controller.deselectObject}
-          deleteVisualStateFromActiveChapter={
-            deleteVisualStateFromActiveChapter
-          }
           deleteCameraViewFromActiveChapter={deleteCameraViewFromActiveChapter}
           leftPanelOpen={Boolean(activeSidebar)}
         />

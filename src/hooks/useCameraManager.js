@@ -69,7 +69,7 @@ export function useCameraManager({
   focusTargetRef,
   controlsRef,
   cameraRef,
-  setViewerSettings,
+  setCameraProjectionMode,
   projectionResetKey = null,
 }) {
   const perspectiveReturnViewRef = useRef(null);
@@ -192,6 +192,49 @@ export function useCameraManager({
     return true;
   };
 
+  const applyStoredCameraFocusTarget = (focusTarget) => {
+    if (!focusTarget?.cameraPosition || !focusTarget?.target) return false;
+
+    const requestedMode =
+      focusTarget.cameraType === "orthographic"
+        ? "orthographic"
+        : "perspective";
+    const currentCamera = cameraRef?.current;
+    const currentMode = currentCamera?.isOrthographicCamera
+      ? "orthographic"
+      : "perspective";
+
+    // A Chapter can switch the projection without going through the View Cube.
+    // Preserve the current Perspective view so the user can return to the
+    // exact position/target that existed before opening an Orthographic view.
+    if (
+      requestedMode === "orthographic" &&
+      currentMode === "perspective" &&
+      currentCamera
+    ) {
+      perspectiveReturnViewRef.current = createCameraProjectionSnapshot(
+        currentCamera,
+        controlsRef?.current,
+      );
+    } else if (requestedMode === "perspective") {
+      // A stored Perspective Chapter is authoritative; an older return view
+      // must not overwrite its saved coordinates after the camera swap.
+      perspectiveReturnViewRef.current = null;
+    }
+
+    focusTargetRef.current = null;
+
+    return switchCameraProjectionThen({
+      cameraRef,
+      setProjectionMode: setCameraProjectionMode,
+      mode: requestedMode,
+      onReady: () => {
+        focusTargetRef.current = focusTarget;
+        setIsAutoRotating(false);
+      },
+    });
+  };
+
   const setEditorCameraProjectionMode = (nextMode) => {
     const normalizedMode =
       nextMode === "orthographic" ? "orthographic" : "perspective";
@@ -214,7 +257,7 @@ export function useCameraManager({
 
     return switchCameraProjectionThen({
       cameraRef,
-      setViewerSettings,
+      setProjectionMode: setCameraProjectionMode,
       mode: normalizedMode,
       onReady: (activeCamera) => {
         const controls = controlsRef?.current;
@@ -247,5 +290,6 @@ export function useCameraManager({
     saveCurrentViewAsHome,
     setEditorCameraView,
     setEditorCameraProjectionMode,
+    applyStoredCameraFocusTarget,
   };
 }

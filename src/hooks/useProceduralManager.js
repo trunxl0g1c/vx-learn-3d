@@ -8,6 +8,7 @@ import {
 } from "../engine/camera";
 import { createViewerCameraView } from "../engine/viewer";
 import { applyStoredModelRotation } from "../engine/model";
+import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
 
 export function useProceduralManager({
   material,
@@ -16,9 +17,10 @@ export function useProceduralManager({
   selectedObject,
   cameraRef = null,
   controlsRef = null,
-  setViewerSettings = null,
+  setCameraProjectionMode = null,
   proceduralEngine = null,
   setOutlineObjects = null,
+  hydrateProcedureRecord = null,
 }) {
   const manager = useMemo(
     () => createProceduralManagerAdapter(proceduralEngine),
@@ -52,6 +54,30 @@ export function useProceduralManager({
     () => procedures.find((item) => item.id === activeProcedureId) || null,
     [activeProcedureId, procedures],
   );
+  const isLoadingActiveProcedure = isLazyMaterialRecord(
+    activeProcedure,
+    "procedures",
+  );
+
+  useEffect(() => {
+    if (
+      !isAuthoringActive ||
+      !activeProcedureId ||
+      !hydrateProcedureRecord ||
+      !isLazyMaterialRecord(activeProcedure, "procedures")
+    ) {
+      return;
+    }
+
+    hydrateProcedureRecord(activeProcedureId).catch((error) => {
+      console.error("Failed to load Procedure detail:", error);
+    });
+  }, [
+    activeProcedure,
+    activeProcedureId,
+    hydrateProcedureRecord,
+    isAuthoringActive,
+  ]);
 
   useEffect(() => {
     const steps = activeProcedure?.steps || [];
@@ -113,7 +139,7 @@ export function useProceduralManager({
 
       return switchCameraProjectionThen({
         cameraRef,
-        setViewerSettings,
+        setProjectionMode: setCameraProjectionMode,
         mode: requestedMode,
         onReady: (camera) => {
           camera.position.copy(cameraState.position);
@@ -142,7 +168,12 @@ export function useProceduralManager({
         },
       });
     },
-    [cameraRef, controlsRef, modelScene, setViewerSettings],
+    [
+      cameraRef,
+      controlsRef,
+      modelScene,
+      setCameraProjectionMode,
+    ],
   );
 
   const commitProcedures = useCallback(
@@ -586,6 +617,7 @@ export function useProceduralManager({
     procedures,
     activeProcedure,
     activeProcedureId,
+    isLoadingActiveProcedure,
     activeStep,
     activeStepId,
     activeAnimatedObject,

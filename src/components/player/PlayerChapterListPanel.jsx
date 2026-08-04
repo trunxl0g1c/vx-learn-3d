@@ -1,6 +1,5 @@
 import { ArrowRight, ChevronLeft, ChevronRight, List, X } from "lucide-react";
 import MaterialIcon from "../ui/material-icon";
-import { getVisibleChapters } from "../../engine/marker";
 
 function getProjectTitle(material) {
   return (
@@ -33,29 +32,29 @@ function FooterButton({ icon: Icon, label, disabled = false, onClick }) {
 
 export default function PlayerChapterListPanel({
   material,
+  chapters = [],
   activeChapterId,
   handleSelectChapter,
   onClose,
-  modelScene,
 }) {
   if (!material) return null;
 
-  const chapters = getVisibleChapters(material.chapters, modelScene);
-  const activeChapterIndex = chapters.findIndex(
+  const chapterList = Array.isArray(chapters) ? chapters : [];
+  const activeChapterIndex = chapterList.findIndex(
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
   const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+    activeChapterIndex >= 0 && activeChapterIndex < chapterList.length - 1;
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
-    handleSelectChapter?.(chapters[activeChapterIndex - 1].id);
+    handleSelectChapter?.(chapterList[activeChapterIndex - 1].id);
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
-    handleSelectChapter?.(chapters[activeChapterIndex + 1].id);
+    handleSelectChapter?.(chapterList[activeChapterIndex + 1].id);
   };
 
   return (
@@ -81,7 +80,7 @@ export default function PlayerChapterListPanel({
       </h3>
 
       <div className="sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-        {chapters.map((chapter, index) => {
+        {chapterList.map((chapter, index) => {
           const active = activeChapterId === chapter.id;
 
           return (

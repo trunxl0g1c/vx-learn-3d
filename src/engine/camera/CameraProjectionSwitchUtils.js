@@ -14,6 +14,7 @@ export function normalizeRequestedCameraProjectionMode(mode) {
  */
 export function switchCameraProjectionThen({
   cameraRef,
+  setProjectionMode,
   setViewerSettings,
   mode,
   onReady,
@@ -47,17 +48,26 @@ export function switchCameraProjectionThen({
     cameraRef?.current &&
     getActiveCameraProjectionMode(cameraRef.current) === requestedMode
   ) {
+    setProjectionMode?.(requestedMode);
     onReady?.(cameraRef.current);
     return true;
   }
 
-  if (typeof setViewerSettings !== "function") return false;
-
-  setViewerSettings((previous = {}) =>
-    previous.cameraProjectionMode === requestedMode
-      ? previous
-      : { ...previous, cameraProjectionMode: requestedMode },
-  );
+  if (typeof setProjectionMode === "function") {
+    setProjectionMode(requestedMode);
+  } else if (typeof setViewerSettings === "function") {
+    // Backward-compatible fallback for Player paths that still keep the active
+    // projection inside their local viewer settings. Editor uses the dedicated
+    // runtime setter so merely viewing another projection never dirties or
+    // persists the project.
+    setViewerSettings((previous = {}) =>
+      previous.cameraProjectionMode === requestedMode
+        ? previous
+        : { ...previous, cameraProjectionMode: requestedMode },
+    );
+  } else {
+    return false;
+  }
   requestAnimationFrame(() => applyWhenReady());
   return true;
 }

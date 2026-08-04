@@ -1,12 +1,27 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createId } from "../utils/createId";
 import useProjectLoader from "../core/project/useProjectLoader";
 import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
 import { getCurrentUserName } from "../utils/authUser";
 import { normalizePlayerSettings } from "../modules/material/playerSettings";
-import { normalizeFlowDefinitions } from "../engine/flow";
-import { normalizeProceduralDefinitions } from "../engine/procedural";
-
+import {
+  normalizeFlowDefinition,
+  normalizeFlowDefinitions,
+} from "../engine/flow";
+import {
+  normalizeProceduralDefinition,
+  normalizeProceduralDefinitions,
+} from "../engine/procedural";
+import {
+  getChapterFromIndexedDb,
+  getFlowFromIndexedDb,
+  getProcedureFromIndexedDb,
+} from "../modules/project-hub/storage/projectIndexedDb";
+import {
+  isLazyMaterialRecord,
+  replaceMaterialRecord,
+} from "../engine/project/LazyMaterialRecords";
+import { normalizeBlinkSelectionSettings } from "../engine/selection";
 
 const VIEWER_LIGHTING_DEFAULTS = {
   exposure: 0.75,
@@ -40,6 +55,9 @@ function normalizeLoadedViewerSettings(viewer = {}) {
     normalizedViewer.cameraProjectionMode === "orthographic"
       ? "orthographic"
       : "perspective";
+  normalizedViewer.blinkSettings = normalizeBlinkSelectionSettings(
+    normalizedViewer.blinkSettings,
+  );
 
   return normalizedViewer;
 }
@@ -70,7 +88,9 @@ export function useViewerProject({
   setCurrentProject,
   setProjectDraft,
   setViewerSettings,
+  setCameraProjectionMode,
   setMarkers,
+  activeChapterId,
   setActiveChapterId,
   setRightTab,
   updateLoading,
@@ -83,11 +103,148 @@ export function useViewerProject({
   const [modelFile, setModelFile] = useState(null);
   const [materialModelUrl, setMaterialModelUrl] = useState("");
   const [availableModels, setAvailableModels] = useState([]);
+  const pendingMaterialRecordLoadsRef = useRef(new Map());
+
+  useEffect(() => {
+    pendingMaterialRecordLoadsRef.current.clear();
+  }, [projectId]);
+
+  const hydrateMaterialRecord = useCallback(
+    async (field, recordId, getter, normalizeRecord = null) => {
+      if (!projectId || !recordId) return null;
+
+      const requestKey = `${projectId}:${field}:${recordId}`;
+      const pendingRequest =
+        pendingMaterialRecordLoadsRef.current.get(requestKey);
+
+      if (pendingRequest) return pendingRequest;
+
+      const request = getter(projectId, recordId)
+        .then((storedRecord) => {
+          if (!storedRecord) return null;
+
+          const hydratedRecord = normalizeRecord
+            ? normalizeRecord(storedRecord)
+            : storedRecord;
+
+          setMaterial((currentMaterial) => {
+            if (currentMaterial?.projectId !== projectId) {
+              return currentMaterial;
+            }
+
+            const currentRecord = currentMaterial?.[field]?.find(
+              (record) => record?.id === recordId,
+            );
+
+            // Do not restore a record deleted during a pending read, and never
+            // overwrite an already-hydrated record that may contain newer edits.
+            if (!isLazyMaterialRecord(currentRecord, field)) {
+              return currentMaterial;
+            }
+
+            return {
+              ...currentMaterial,
+              [field]: replaceMaterialRecord(
+                currentMaterial?.[field],
+                recordId,
+                hydratedRecord,
+              ),
+            };
+          });
+
+          return hydratedRecord;
+        })
+        .finally(() => {
+          pendingMaterialRecordLoadsRef.current.delete(requestKey);
+        });
+
+      pendingMaterialRecordLoadsRef.current.set(requestKey, request);
+      return request;
+    },
+    [projectId],
+  );
+
+  const loadChapterRecord = useCallback(
+    (chapterId) =>
+      hydrateMaterialRecord("chapters", chapterId, getChapterFromIndexedDb),
+    [hydrateMaterialRecord],
+  );
+
+  const loadFlowRecord = useCallback(
+    (flowId) =>
+      hydrateMaterialRecord(
+        "flows",
+        flowId,
+        getFlowFromIndexedDb,
+        normalizeFlowDefinition,
+      ),
+    [hydrateMaterialRecord],
+  );
+
+  const loadProcedureRecord = useCallback(
+    (procedureId) =>
+      hydrateMaterialRecord(
+        "procedures",
+        procedureId,
+        getProcedureFromIndexedDb,
+        normalizeProceduralDefinition,
+      ),
+    [hydrateMaterialRecord],
+  );
 
   const updateMaterialState = (updater) => {
     markDirty();
     setMaterial(updater);
   };
+
+  useEffect(() => {
+    if (!activeChapterId) return;
+
+    const chapters = Array.isArray(material?.chapters)
+      ? material.chapters
+      : [];
+    const chapter = chapters.find((item) => item.id === activeChapterId);
+
+    if (!chapter) return;
+
+    let cancelled = false;
+    const activeChapterRequest = isLazyMaterialRecord(chapter, "chapters")
+      ? loadChapterRecord(activeChapterId)
+      : Promise.resolve(chapter);
+
+    activeChapterRequest
+      .then(() => {
+        if (cancelled) return;
+
+        const activeIndex = chapters.findIndex(
+          (item) => item.id === activeChapterId,
+        );
+        const nextChapter = chapters[activeIndex + 1];
+
+        if (!isLazyMaterialRecord(nextChapter, "chapters")) return;
+
+        const prefetch = () => {
+          if (!cancelled) {
+            loadChapterRecord(nextChapter.id).catch(() => {});
+          }
+        };
+
+        if (typeof window.requestIdleCallback === "function") {
+          window.requestIdleCallback(prefetch, { timeout: 1200 });
+        } else {
+          window.setTimeout(prefetch, 160);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error("Failed to load chapter detail:", error);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChapterId, loadChapterRecord, material?.chapters]);
 
   useEffect(() => {
     if (!projectId || projectId === "demo") return;
@@ -159,6 +316,7 @@ export function useViewerProject({
         if (viewer) {
           const normalizedViewer = normalizeLoadedViewerSettings(viewer);
 
+          setCameraProjectionMode?.(normalizedViewer.cameraProjectionMode);
           setViewerSettings((prev) => ({
             ...prev,
             ...normalizedViewer,
@@ -167,6 +325,8 @@ export function useViewerProject({
               ...(normalizedViewer?.background || {}),
             },
           }));
+        } else {
+          setCameraProjectionMode?.("perspective");
         }
 
         if (scene?.markers) {
@@ -200,6 +360,7 @@ export function useViewerProject({
     setCurrentProject,
     setProjectDraft,
     setViewerSettings,
+    setCameraProjectionMode,
     setMarkers,
   ]);
 
@@ -243,6 +404,7 @@ export function useViewerProject({
         if (importedViewer) {
           const normalizedViewer = normalizeLoadedViewerSettings(importedViewer);
 
+          setCameraProjectionMode?.(normalizedViewer.cameraProjectionMode);
           setViewerSettings((prev) => ({
             ...prev,
             ...normalizedViewer,
@@ -251,6 +413,8 @@ export function useViewerProject({
               ...(normalizedViewer?.background || {}),
             },
           }));
+        } else {
+          setCameraProjectionMode?.("perspective");
         }
 
         setActiveChapterId(manifest.chapters?.[0]?.id || null);
@@ -282,6 +446,9 @@ export function useViewerProject({
     modelFile,
     materialModelUrl,
     availableModels,
+    loadChapterRecord,
+    loadFlowRecord,
+    loadProcedureRecord,
     handleFile,
   };
 }
