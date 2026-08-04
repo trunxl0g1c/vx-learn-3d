@@ -119,7 +119,8 @@ export function useViewerProject({
             updateLoading({
               text:
                 percent != null
-                  ? `Downloading 3D model... ${percent}%`
+                  // ? `Downloading 3D model... ${percent}%`
+                  ? `Downloading 3D model...`
                   : `Downloading 3D model... ${loadedMb} MB`,
               progress: percent,
             });

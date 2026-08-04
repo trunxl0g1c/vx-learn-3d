@@ -1,16 +1,38 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useAlert } from "../../../components/dialog/AlertContext";
 import { useGlobalLoading } from "../../loading/LoadingContext";
-import { useContents } from "../../project-hub/api/contents";
+import {
+  useContents,
+  useDeleteContent,
+  getContentThumbnailUrl,
+} from "../../project-hub/api/contents";
 import { hydrateProjectFromBackend } from "../../project-hub/api/projectHydrate";
-import { getAllProjectsFromIndexedDb } from "../../project-hub/storage/projectIndexedDb";
+import {
+  getAllProjectsFromIndexedDb,
+  deleteProjectFromIndexedDb,
+} from "../../project-hub/storage/projectIndexedDb";
 import { preloadProjectRoute } from "../../../routeLoaders";
+import ContentRowMenu from "./ContentRowMenu";
+
+const ConfirmationDialog = lazy(
+  () => import("../../../components/dialog/ConfirmationDialog"),
+);
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+function DialogLoadingFallback() {
+  return (
+    <div className="fixed inset-0 z-[1090] grid place-items-center bg-black/45 p-4">
+      <div className="rounded-xl border border-divider-main bg-dark px-5 py-4 text-sm text-white shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
+        Opening dialog...
+      </div>
+    </div>
+  );
+}
 
 function formatDate(value) {
   if (!value) return "—";
@@ -33,6 +55,33 @@ function ContentAvatar({ title }) {
     <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-main text-sm font-semibold text-white">
       {initial}
     </div>
+  );
+}
+
+function ContentThumbnail({ content }) {
+  const [failed, setFailed] = useState(false);
+  // Always returns a URL, whether or not the content actually has a
+  // thumbnail uploaded — a content with none 404s, hence the onError
+  // fallback below (same pattern as ProjectHubCard).
+  const thumbnailUrl = getContentThumbnailUrl(
+    content.id,
+    content.modifiedAt || content.updatedAt,
+  );
+  const showThumbnail = Boolean(thumbnailUrl) && !failed;
+
+  if (!showThumbnail) {
+    return <ContentAvatar title={content.title} />;
+  }
+
+  return (
+    <img
+      src={thumbnailUrl}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      className="size-9 shrink-0 rounded-lg bg-secondary-dark object-cover"
+      onError={() => setFailed(true)}
+    />
   );
 }
 
@@ -97,6 +146,9 @@ export default function WorkspaceContentTab({ workspaceId }) {
     isError,
     error,
   } = useContents({ workspaceId, search: debouncedSearch || undefined });
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const deleteContent = useDeleteContent();
 
   async function handleOpenContent(content) {
     const localProject = localProjectByContentId[content.id];
@@ -164,6 +216,38 @@ export default function WorkspaceContentTab({ workspaceId }) {
     }
   }
 
+  async function handleConfirmDelete() {
+    if (!deleteTarget || deleteContent.isPending) return;
+
+    try {
+      await deleteContent.mutateAsync({ id: deleteTarget.id });
+
+      const localProject = localProjectByContentId[deleteTarget.id];
+
+      if (localProject) {
+        await deleteProjectFromIndexedDb(localProject.id);
+
+        setLocalProjectByContentId((current) => {
+          const next = { ...current };
+          delete next[deleteTarget.id];
+          return next;
+        });
+      }
+
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error("Failed to delete content:", error);
+      showAlert({
+        title: "Failed to delete content",
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Could not delete this content and its assets.",
+        type: "error",
+      });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Input
@@ -198,6 +282,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
                 <th className="px-4 py-3 font-normal">Title</th>
                 <th className="px-4 py-3 font-normal">Description</th>
                 <th className="px-4 py-3 font-normal">Created At</th>
+                <th className="px-4 py-3 font-normal" aria-label="Actions" />
               </tr>
             </thead>
 
@@ -210,7 +295,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <ContentAvatar title={content.title} />
+                      <ContentThumbnail content={content} />
                       <span className="truncate font-medium text-accent-contrast">
                         {content.title || "Untitled"}
                       </span>
@@ -224,13 +309,20 @@ export default function WorkspaceContentTab({ workspaceId }) {
                   <td className="px-4 py-3 text-white">
                     {formatDate(content.createdAt)}
                   </td>
+
+                  <td
+                    className="px-4 py-3 text-right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <ContentRowMenu onDelete={() => setDeleteTarget(content)} />
+                  </td>
                 </tr>
               ))}
 
               {!isLoading && !isError && contents.length === 0 && (
                 <tr>
                   <td
-                    colSpan={3}
+                    colSpan={4}
                     className="px-4 py-10 text-center text-contrast-grayout"
                   >
                     No content found
@@ -252,6 +344,38 @@ export default function WorkspaceContentTab({ workspaceId }) {
           </div>
         )}
       </div>
+
+      {deleteTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ConfirmationDialog
+            open
+            title="Delete Content?"
+            message={
+              <>
+                “{deleteTarget.title || "Untitled"}” will be permanently
+                deleted.
+              </>
+            }
+            description={
+              <>
+                Its 3D model, thumbnail, gallery media, chapters, flows, and
+                procedures will also be removed from this workspace. This
+                action cannot be undone.
+              </>
+            }
+            confirmText="Delete"
+            cancelText="Cancel"
+            confirmVariant="destructive"
+            isLoading={deleteContent.isPending}
+            onClose={() => {
+              if (!deleteContent.isPending) {
+                setDeleteTarget(null);
+              }
+            }}
+            onConfirm={handleConfirmDelete}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

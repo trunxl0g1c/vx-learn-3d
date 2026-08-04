@@ -155,6 +155,12 @@ function clearProjectCatalogCache() {
   }
 }
 
+function removeProjectFromCatalogCache(projectId) {
+  writeProjectCatalogCache(
+    getCachedProjectSummaries().filter((item) => item.id !== projectId),
+  );
+}
+
 export function getCachedProjectSummaries() {
   try {
     const value = localStorage.getItem(PROJECT_CATALOG_CACHE_KEY);
@@ -757,7 +763,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
 
     material: {
       id: createId(),
-      title: "Materi 3D Baru",
+      title: name || "Materi 3D Baru",
       description: "",
       version: "1.0.0",
       author: "",
@@ -944,6 +950,46 @@ export async function getProjectFileFromIndexedDb(projectId) {
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
   });
+}
+
+function deleteArrayRowsByProject(transaction, projectId, storeName) {
+  const store = transaction.objectStore(storeName);
+  const index = store.index(PROJECT_ID_INDEX);
+  const cursorRequest = index.openKeyCursor(IDBKeyRange.only(projectId));
+
+  cursorRequest.onsuccess = () => {
+    const cursor = cursorRequest.result;
+
+    if (cursor) {
+      store.delete(cursor.primaryKey);
+      cursor.continue();
+    }
+  };
+}
+
+export async function deleteProjectFromIndexedDb(projectId) {
+  if (!projectId) return;
+
+  const db = await openViqubedDb();
+
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(ALL_STORE_NAMES, "readwrite");
+
+    tx.objectStore(PROJECT_STORE).delete(projectId);
+    tx.objectStore(FILE_STORE).delete(projectId);
+    tx.objectStore(DRAFT_STORE).delete(projectId);
+    tx.objectStore(PLAYER_SETTINGS_STORE).delete(projectId);
+
+    ARRAY_MATERIAL_STORES.forEach(({ storeName }) => {
+      deleteArrayRowsByProject(tx, projectId, storeName);
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("Project delete aborted"));
+  });
+
+  removeProjectFromCatalogCache(projectId);
 }
 
 export async function clearViqubedIndexedDb() {

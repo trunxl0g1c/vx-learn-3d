@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import apiClient, { API_BASE_URL } from "../../../lib/apiClient";
 
 function normalizeContentList(payload) {
@@ -53,6 +53,12 @@ export async function createContentRequest({
     availableOnMarketplace,
     status: status || undefined,
   });
+
+  return response.data?.data;
+}
+
+export async function deleteContentRequest({ id }) {
+  const response = await apiClient.delete("/contents", { data: { id } });
 
   return response.data?.data;
 }
@@ -118,5 +124,27 @@ export function useCreateContent(options = {}) {
   return useMutation({
     mutationFn: createContentRequest,
     ...options,
+  });
+}
+
+// DELETE /contents is a hard delete that already cascades content_setting/
+// content_media/content_obj_desc(+their media)/content_flow/
+// content_procedure/content_object_name_override/export_job DB rows *and*
+// deletes every stored file those rows referenced (model, thumbnail,
+// gallery, nested chapter media) — see content.service.ts on the backend.
+// Deleting those child resources individually from the frontend first is
+// both redundant and actively wrong: content-obj-desc rejects with 400 if
+// it still has children, so deleting a parent chapter ahead of its nested
+// children (unordered, e.g. via Promise.all) breaks the whole operation.
+export function useDeleteContent(options = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: deleteContentRequest,
+    ...options,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["contents"] });
+      options.onSuccess?.(data, variables, context);
+    },
   });
 }
