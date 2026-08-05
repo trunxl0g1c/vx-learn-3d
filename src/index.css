@@ -706,3 +706,26 @@ canvas {
   content-visibility: auto;
   contain-intrinsic-size: auto 210px;
 }
+
+/* Editor Data menu */
+.vx-editor-data-menu__panel {
+  min-width: 192px;
+}
+
+.vx-editor-data-menu__item {
+  min-height: 40px;
+}
+
+@media (max-width: 767px) {
+  .vx-editor-data-menu__panel {
+    right: -42px !important;
+    width: 196px !important;
+  }
+
+  .vx-editor-topbar__actions .vx-editor-data-menu__panel button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    padding: 10px 12px !important;
+  }
+}

@@ -5,6 +5,8 @@ export default function EditorFloatingToolbar({
   setActiveMenu,
   cutEnabled,
   multipleSelectEnabled,
+  blinkSelectedObjectsEnabled,
+  toggleBlinkSelectedObjects,
   toggleMultipleSelect,
   handleFile,
   toggleCutSection,
@@ -94,6 +96,17 @@ export default function EditorFloatingToolbar({
                   onClick={makeSelectedObjectsXray}
                 >
                   X-Ray Selected Objects
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant={blinkSelectedObjectsEnabled ? "default" : "outline"}
+                  disabled={selectedObjectCount === 0}
+                  className="w-full border-contrast-main! text-xs"
+                  onClick={toggleBlinkSelectedObjects}
+                  aria-pressed={blinkSelectedObjectsEnabled}
+                >
+                  Blink Selected Objects
                 </Button>
               </div>
             )}

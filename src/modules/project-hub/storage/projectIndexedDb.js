@@ -1,44 +1,44 @@
 import { createId } from "../../../utils/createId";
 import { normalizePlayerSettings } from "../../material/playerSettings";
-
-const DB_NAME = "viqubed-db";
-const PREVIOUS_BRAND_DB_NAME = ["vi", "cubed-db"].join("");
-const LEGACY_DB_NAME = ["vx", "plore-db"].join("");
-const LEGACY_DB_NAMES = [PREVIOUS_BRAND_DB_NAME, LEGACY_DB_NAME];
-const DB_VERSION = 3;
-const MIGRATION_KEY = "viqubed-indexeddb-migrated-v2";
-const PROJECT_CATALOG_CACHE_KEY = "viqubed-project-catalog-v1";
-
-const PROJECT_STORE = "projects";
-const FILE_STORE = "files";
-const DRAFT_STORE = "drafts";
-const CHAPTER_STORE = "chapters";
-const FLOW_STORE = "flows";
-const OBJECT_NAME_OVERRIDE_STORE = "objectNameOverrides";
-const PLAYER_SETTINGS_STORE = "playerSettings";
-const PROCEDURE_STORE = "procedures";
-const PROJECT_ID_INDEX = "projectId";
-
-const ARRAY_MATERIAL_STORES = [
-  { field: "chapters", storeName: CHAPTER_STORE },
-  { field: "flows", storeName: FLOW_STORE },
-  {
-    field: "objectNameOverrides",
-    storeName: OBJECT_NAME_OVERRIDE_STORE,
-  },
-  { field: "procedures", storeName: PROCEDURE_STORE },
-];
-
-const NORMALIZED_STORE_NAMES = [
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
+import {
+  ALL_STORE_NAMES,
   CHAPTER_STORE,
+  DRAFT_STORE,
+  FILE_STORE,
   FLOW_STORE,
-  OBJECT_NAME_OVERRIDE_STORE,
-  PLAYER_SETTINGS_STORE,
+  NORMALIZED_STORE_NAMES,
   PROCEDURE_STORE,
-];
-
-const ALL_STORE_NAMES = [
   PROJECT_STORE,
+} from "./indexed-db/constants";
+import { isPlainObject } from "./indexed-db/common";
+import {
+  clearProjectCatalogCache,
+  createProjectSummary,
+  getCachedProjectSummaries,
+  sortProjectsByRecent,
+  upsertProjectCatalogCache,
+  writeProjectCatalogCache,
+} from "./indexed-db/catalogCache";
+import {
+  getAllStoreRecords,
+  getStoreRecord,
+  openViqubedDb,
+} from "./indexed-db/database";
+import {
+  getMaterialRecordFromIndexedDb,
+  hydrateMaterial,
+  readNormalizedMaterialMaps,
+  readNormalizedMaterialMapsForProject,
+} from "./indexed-db/materialQueries";
+import {
+  persistNormalizedMaterialFields,
+  splitMaterialForStorage,
+  stripDraftForStorage,
+  stripProjectForStorage,
+} from "./indexed-db/materialSerialization";
+
+export { getCachedProjectSummaries };
   FILE_STORE,
   DRAFT_STORE,
   ...NORMALIZED_STORE_NAMES,
@@ -823,7 +823,8 @@ export async function saveProjectToIndexedDb(project, file) {
 }
 
 export async function updateProjectInIndexedDb(projectId, patch = {}) {
-  const oldProject = await getProjectFromIndexedDb(projectId);
+  const db = await openViqubedDb();
+  const oldProject = await getStoreRecord(db, PROJECT_STORE, projectId);
 
   if (!oldProject) return null;
 
@@ -836,7 +837,6 @@ export async function updateProjectInIndexedDb(projectId, patch = {}) {
       updatedAt: new Date().toISOString(),
     },
   };
-  const db = await openViqubedDb();
 
   await saveProjectRecord(db, updatedProject);
   upsertProjectCatalogCache(updatedProject);
@@ -869,17 +869,14 @@ export async function saveProjectDraftToIndexedDb(projectId, draft) {
   });
 }
 
-export async function getProjectDraftFromIndexedDb(projectId) {
+export async function getProjectDraftFromIndexedDb(
+  projectId,
+  { mode = "full" } = {},
+) {
   const db = await openViqubedDb();
   const [draft, normalizedMaps] = await Promise.all([
-    new Promise((resolve, reject) => {
-      const tx = db.transaction(DRAFT_STORE, "readonly");
-      const request = tx.objectStore(DRAFT_STORE).get(projectId);
-
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    }),
-    readNormalizedMaterialMapsForProject(db, projectId),
+    getStoreRecord(db, DRAFT_STORE, projectId),
+    readNormalizedMaterialMapsForProject(db, projectId, mode),
   ]);
 
   if (!draft) return null;
@@ -905,7 +902,7 @@ export async function getAllProjectsFromIndexedDb() {
   const db = await openViqubedDb();
   const [storedProjects, normalizedMaps] = await Promise.all([
     getAllStoreRecords(db, PROJECT_STORE),
-    readNormalizedMaterialMaps(db),
+    readNormalizedMaterialMaps(db, "full"),
   ]);
   const projects = storedProjects.map((project) => ({
     ...project,
@@ -915,17 +912,14 @@ export async function getAllProjectsFromIndexedDb() {
   return sortProjectsByRecent(projects);
 }
 
-export async function getProjectFromIndexedDb(projectId) {
+export async function getProjectFromIndexedDb(
+  projectId,
+  { mode = "full" } = {},
+) {
   const db = await openViqubedDb();
   const [storedProject, normalizedMaps] = await Promise.all([
-    new Promise((resolve, reject) => {
-      const tx = db.transaction(PROJECT_STORE, "readonly");
-      const request = tx.objectStore(PROJECT_STORE).get(projectId);
-
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(request.error);
-    }),
-    readNormalizedMaterialMapsForProject(db, projectId),
+    getStoreRecord(db, PROJECT_STORE, projectId),
+    readNormalizedMaterialMapsForProject(db, projectId, mode),
   ]);
 
   if (!storedProject) return null;
@@ -940,16 +934,54 @@ export async function getProjectFromIndexedDb(projectId) {
   };
 }
 
+export function getChapterFromIndexedDb(projectId, chapterId) {
+  return getMaterialRecordFromIndexedDb(projectId, CHAPTER_STORE, chapterId);
+}
+
+export function getFlowFromIndexedDb(projectId, flowId) {
+  return getMaterialRecordFromIndexedDb(projectId, FLOW_STORE, flowId);
+}
+
+export function getProcedureFromIndexedDb(projectId, procedureId) {
+  return getMaterialRecordFromIndexedDb(
+    projectId,
+    PROCEDURE_STORE,
+    procedureId,
+  );
+}
+
+export async function hydrateMaterialFromIndexedDb(projectId, material) {
+  if (!projectId || !isPlainObject(material)) return material;
+
+  const hydrateRecords = async (field, getter) => {
+    const records = Array.isArray(material[field]) ? material[field] : [];
+
+    return Promise.all(
+      records.map(async (record) => {
+        if (!isLazyMaterialRecord(record, field)) return record;
+
+        return (await getter(projectId, record.id)) || record;
+      }),
+    );
+  };
+
+  const [chapters, flows, procedures] = await Promise.all([
+    hydrateRecords("chapters", getChapterFromIndexedDb),
+    hydrateRecords("flows", getFlowFromIndexedDb),
+    hydrateRecords("procedures", getProcedureFromIndexedDb),
+  ]);
+
+  return {
+    ...material,
+    chapters,
+    flows,
+    procedures,
+  };
+}
+
 export async function getProjectFileFromIndexedDb(projectId) {
   const db = await openViqubedDb();
-
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(FILE_STORE, "readonly");
-    const request = tx.objectStore(FILE_STORE).get(projectId);
-
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error);
-  });
+  return getStoreRecord(db, FILE_STORE, projectId);
 }
 
 function deleteArrayRowsByProject(transaction, projectId, storeName) {

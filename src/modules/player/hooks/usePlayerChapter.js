@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { getChapterCameraViews } from "../../../engine/chapter"
 import { switchCameraProjectionThen } from "../../../engine/camera"
 import {
@@ -6,6 +6,7 @@ import {
   createChapterFocusTarget,
 } from "../../../engine/model"
 import { createChapterHighlightPayload } from "../../../engine/selection"
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords"
 
 function clampCameraIndex(index, count) {
   if (count <= 0) return 0
@@ -23,8 +24,10 @@ export default function usePlayerChapter({
   setSelectedObject,
   setOutlineObjects,
   playerAnimation,
+  loadChapterRecord = null,
 }) {
   const [activeCameraViewIndex, setActiveCameraViewIndex] = useState(0)
+  const chapterSelectionRequestRef = useRef(0)
 
   const activeChapter = material?.chapters?.find(
     (chapter) => chapter.id === activeChapterId
@@ -84,21 +87,52 @@ export default function usePlayerChapter({
     }
   }
 
-  const handleSelectChapter = (chapterId) => {
-    const chapter = material?.chapters?.find((item) => item.id === chapterId)
+  const handleSelectChapter = async (chapterId) => {
+    let chapter = material?.chapters?.find((item) => item.id === chapterId)
 
-    if (!chapter) return
+    if (!chapter) return null
 
+    const requestId = chapterSelectionRequestRef.current + 1
+    chapterSelectionRequestRef.current = requestId
     setActiveChapterId(chapterId)
+
+    if (
+      loadChapterRecord &&
+      isLazyMaterialRecord(chapter, "chapters")
+    ) {
+      chapter = (await loadChapterRecord(chapterId)) || chapter
+    }
+
+    if (chapterSelectionRequestRef.current !== requestId) return null
+
     playerAnimation.prepareChapterAnimations(chapter)
     const selection = highlightChapterObject(chapter)
     const cameraResult = applyChapterCameraView(chapter, 0)
+
+    const chapters = Array.isArray(material?.chapters) ? material.chapters : []
+    const chapterIndex = chapters.findIndex((item) => item.id === chapterId)
+    const nextChapter = chapters[chapterIndex + 1]
+
+    if (
+      loadChapterRecord &&
+      isLazyMaterialRecord(nextChapter, "chapters")
+    ) {
+      const prefetch = () => loadChapterRecord(nextChapter.id).catch(() => {})
+
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(prefetch, { timeout: 1200 })
+      } else {
+        window.setTimeout(prefetch, 160)
+      }
+    }
 
     return {
       chapter,
       selectedObject: selection?.selectedObject || null,
       outlineObjects: selection?.outlineObjects || [],
       focusTarget: cameraResult?.focusTarget || null,
+      cameraView: cameraResult?.cameraView || null,
+      cameraViewIndex: cameraResult?.index || 0,
     }
   }
 

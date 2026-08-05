@@ -58,6 +58,7 @@ export function createModelEngine(options = {}) {
   let originalPositions = []
   let originalGroupPositions = []
   let lastState = null
+  let pullApartSessionSequence = 0
 
   const getNow = () => {
     if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -615,6 +616,74 @@ export function createModelEngine(options = {}) {
     syncSketchEdgeVisibility(scene)
   }
 
+  const capturePullApartVisibility = () => {
+    const visibility = []
+
+    scene?.traverse?.((object) => {
+      visibility.push({ object, visible: object.visible })
+    })
+
+    return visibility
+  }
+
+  const createPullApartSession = ({ targetObject, meshes }) => ({
+    id: `pull-apart-${pullApartSessionSequence += 1}`,
+    scene,
+    targetObject: targetObject || null,
+    affectedObjects: Array.from(new Set(meshes)).map((object) => ({
+      object,
+      position: object.position.clone(),
+    })),
+    visibility: capturePullApartVisibility(),
+  })
+
+  const restorePullApartVisibility = (session) => {
+    session?.visibility?.forEach(({ object, visible }) => {
+      if (!object) return
+      object.visible = visible
+    })
+
+    syncSketchEdgeVisibility(scene)
+  }
+
+  const resetPullApartSession = (session, options = {}) => {
+    if (!scene || !session || session.scene !== scene) return 0
+
+    const requestedDuration = Number(options.animationDuration)
+    const animationDuration = Number.isFinite(requestedDuration)
+      ? requestedDuration
+      : 450
+    let resetCount = 0
+
+    session.affectedObjects?.forEach(({ object, position }) => {
+      if (!object || !position) return
+
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (animationDuration <= 0) {
+        object.position.copy(position)
+        delete object.userData.targetPosition
+        delete object.userData.targetPositionAnimation
+        object.updateMatrixWorld?.(true)
+      } else {
+        object.userData.targetPosition = position.clone()
+        object.userData.targetPositionAnimation = createTargetAnimation(
+          object,
+          animationDuration,
+        )
+      }
+
+      resetCount += 1
+    })
+
+    restorePullApartVisibility(session)
+    scene.updateMatrixWorld?.(true)
+
+    return resetCount
+  }
+
   const pullApart = (targetObject = null, options = {}) => {
     if (!scene) return false
 
@@ -625,6 +694,8 @@ export function createModelEngine(options = {}) {
       maxDepthMultiplier = 1.8,
       animationDuration = 450,
       hideOutsideSelection = true,
+      returnSession = false,
+      useCurrentPositions = false,
     } = options
 
     const rootObject = resolvePullApartRootObject(targetObject)
@@ -632,9 +703,13 @@ export function createModelEngine(options = {}) {
     scene.updateMatrixWorld(true)
 
     const branches = getDirectPullApartBranches(rootObject)
-    const meshes = branches.flatMap((branch) => branch.meshes)
+    const meshes = Array.from(
+      new Set(branches.flatMap((branch) => branch.meshes)),
+    )
 
     if (meshes.length === 0) return false
+
+    const session = createPullApartSession({ targetObject, meshes })
 
     if (targetObject && hideOutsideSelection) {
       applyVisibilityForPullApartTarget(targetObject)
@@ -659,7 +734,9 @@ export function createModelEngine(options = {}) {
 
       branch.meshes.forEach((mesh) => {
         const original = originalPositions.find((item) => item.object === mesh)
-        const basePosition = original?.position?.clone?.() || mesh.position.clone()
+        const basePosition = useCurrentPositions
+          ? mesh.position.clone()
+          : original?.position?.clone?.() || mesh.position.clone()
 
         mesh.userData.targetPosition = createLocalTargetFromWorldOffset(
           mesh,
@@ -673,7 +750,7 @@ export function createModelEngine(options = {}) {
       })
     })
 
-    return true
+    return returnSession ? session : true
   }
 
   const resetParts = () => {
@@ -832,6 +909,7 @@ export function createModelEngine(options = {}) {
     getState: () => lastState,
     registerIntegrations,
     pullApart,
+    resetPullApartSession,
     resetParts,
     resetMovedObjects,
     resetRotation,

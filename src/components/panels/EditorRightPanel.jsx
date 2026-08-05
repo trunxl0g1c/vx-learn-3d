@@ -23,7 +23,6 @@ export default function EditorRightPanel({
   previewChapterInEditor,
   contentAuthoringLocked = false,
   contentAuthoringLockReason = "",
-  saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
   applyShaderMode,
   shaderMode,
@@ -77,7 +76,6 @@ export default function EditorRightPanel({
   isSelectedObjectXray,
   resetAllTransforms,
   deselectObject,
-  deleteVisualStateFromActiveChapter,
   deleteCameraViewFromActiveChapter,
   leftPanelOpen = false,
 }) {
@@ -97,7 +95,6 @@ export default function EditorRightPanel({
     previewChapterInEditor,
     contentAuthoringLocked,
     contentAuthoringLockReason,
-    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     applyShaderMode,
     shaderMode,
@@ -146,7 +143,6 @@ export default function EditorRightPanel({
     cancelAddMarker,
     setRightTab,
     deselectObject,
-    deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
   };
 

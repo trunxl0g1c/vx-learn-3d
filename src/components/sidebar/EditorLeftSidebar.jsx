@@ -54,7 +54,6 @@ export default function EditorLeftSidebar({
   createChapterFromSelectedObject,
   contentAuthoringLocked = false,
   contentAuthoringLockReason = "",
-  saveVisualStateToActiveChapter,
   saveCameraViewToActiveChapter,
   panelSectionStyle,
   inputStyle,
@@ -175,7 +174,6 @@ export default function EditorLeftSidebar({
             updateChapterParameter={updateChapterParameter}
             deleteChapterParameter={deleteChapterParameter}
             deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
-            saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
             saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
             animations={animations}
             isChapterAnimationSelected={isChapterAnimationSelected}

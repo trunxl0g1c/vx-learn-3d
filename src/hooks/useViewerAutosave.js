@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
@@ -52,6 +52,7 @@ export function useViewerAutosave({
   cutValue,
   cutValues,
   cutRanges,
+  previousScene,
   setSaveStatus,
   markSaved,
   markSaveError,
@@ -62,6 +63,12 @@ export function useViewerAutosave({
   // so it's no longer read here.
   // remoteContentId,
 }) {
+  const previousSceneRef = useRef(previousScene || {});
+
+  useEffect(() => {
+    previousSceneRef.current = previousScene || {};
+  }, [previousScene]);
+
   useEffect(() => {
     if (!projectId || projectId === "demo") return;
     if (!material?.projectId) return;
@@ -81,6 +88,7 @@ export function useViewerAutosave({
           cutValue,
           cutValues,
           cutRanges,
+          previousScene: previousSceneRef.current,
         });
 
         await saveProjectDraftToIndexedDb(projectId, draftToSave);
@@ -89,6 +97,7 @@ export function useViewerAutosave({
           thumbnail: material?.thumbnail || null,
           material,
           viewer: viewerSettings,
+          scene: draftToSave.scene,
         });
 
         setProjectDraft(draftToSave);
@@ -137,7 +146,10 @@ export function useViewerAutosave({
         cutValue,
         cutValues,
         cutRanges,
-        previousScene: prev?.scene,
+        previousScene: {
+          ...previousSceneRef.current,
+          ...(prev?.scene || {}),
+        },
       })
     );
   }, [

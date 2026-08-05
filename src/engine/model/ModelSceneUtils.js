@@ -1,5 +1,6 @@
 import * as THREE from "three"
 import { getChapterCameraView } from "../chapter"
+import { createViqubedXrayMaterial } from "./ModelMaterialFactory"
 
 const DEFAULT_SHADER_MODE = "original"
 const SUPPORTED_SHADER_MODES = new Set([
@@ -173,15 +174,7 @@ function createToonMaterial(source) {
 }
 
 function createXrayMaterial() {
-  return new THREE.MeshPhysicalMaterial({
-    color: "#4fc3f7",
-    transparent: true,
-    opacity: 0.22,
-    roughness: 0.2,
-    metalness: 0,
-    depthWrite: false,
-    depthTest: true,
-  })
+  return createViqubedXrayMaterial()
 }
 
 function createClayMaterial(source) {

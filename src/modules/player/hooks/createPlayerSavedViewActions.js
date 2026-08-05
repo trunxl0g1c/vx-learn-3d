@@ -75,6 +75,15 @@ function getSavedHighlightActiveReference(visualState) {
   return visualState?.selectedObject || null
 }
 
+function getSavedBlinkReferences(visualState) {
+  const blinkState = visualState?.blink
+
+  if (!blinkState || typeof blinkState !== "object") return []
+  if (blinkState.enabled === false) return []
+
+  return Array.isArray(blinkState.objects) ? blinkState.objects : []
+}
+
 export function createPlayerSavedViewActions({
   modelScene,
   material,
@@ -83,6 +92,7 @@ export function createPlayerSavedViewActions({
   makePlayerOthersXray,
   setSelectedObject,
   setOutlineObjects,
+  setBlinkSelectionEnabled,
   applyCameraState,
 }) {
   const resolveReference = (reference) =>
@@ -113,6 +123,7 @@ export function createPlayerSavedViewActions({
     { fallbackObject = null } = {},
   ) => {
     if (!visualState || !modelScene) {
+      setBlinkSelectionEnabled?.(false)
       return {
         applied: false,
         selectedObject: fallbackObject,
@@ -131,9 +142,16 @@ export function createPlayerSavedViewActions({
     const savedSelectedObject =
       resolveReference(visualState.selectedObject) || fallbackObject || null
     const explicitHighlightState = hasExplicitHighlightState(visualState)
-    const savedHighlightObjects = getSavedHighlightReferences(visualState)
+    let savedHighlightObjects = getSavedHighlightReferences(visualState)
       .map(resolveReference)
       .filter(Boolean)
+    const savedBlinkObjects = getSavedBlinkReferences(visualState)
+      .map(resolveReference)
+      .filter(Boolean)
+
+    if (savedHighlightObjects.length === 0 && savedBlinkObjects.length > 0) {
+      savedHighlightObjects = savedBlinkObjects
+    }
 
     if (
       !explicitHighlightState &&
@@ -193,6 +211,10 @@ export function createPlayerSavedViewActions({
       setOutlineObjects([])
     }
 
+    setBlinkSelectionEnabled?.(
+      Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+    )
+
     const resolvedCuts = normalizeSavedCuts(visualState)
       .map((cutState) => ({
         cutState,
@@ -215,6 +237,9 @@ export function createPlayerSavedViewActions({
       applied: true,
       selectedObject: activeSelection,
       highlightObjects: savedHighlightObjects,
+      blinkObjects: savedBlinkObjects,
+      blinkEnabled:
+        Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
       xrayMode,
       xrayTargets,
       hiddenCount,

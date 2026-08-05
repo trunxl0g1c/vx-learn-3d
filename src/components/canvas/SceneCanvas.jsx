@@ -32,6 +32,7 @@ import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
 import { getFlowReferenceLengthFromObject } from '../../engine/flow'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
+import BlinkSelectionOutline from '../viewer/BlinkSelectionOutline'
 
 function getShaderOutlineConfig(shaderOutlineStyle) {
   if (shaderOutlineStyle === 'sketch') {
@@ -154,6 +155,7 @@ export default function SceneCanvas({
   viewerSettings,
   cameraProjectionMode = "perspective",
   outlineObjects,
+  blinkSelectionEnabled = false,
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
   modelUrl,
@@ -272,6 +274,7 @@ export default function SceneCanvas({
         {shaderOutlineObjects.length > 0 && (
           <Outline
             selection={shaderOutlineObjects}
+            selectionLayer={8}
             edgeStrength={shaderOutlineConfig.edgeStrength}
             visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
             hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
@@ -279,15 +282,23 @@ export default function SceneCanvas({
           />
         )}
 
-        {outlineObjects.length > 0 && (
-          <Outline
-            selection={outlineObjects}
-            edgeStrength={8}
-            visibleEdgeColor="yellow"
-            hiddenEdgeColor="yellow"
-            blur={false}
-          />
-        )}
+        {outlineObjects.length > 0 &&
+          (blinkSelectionEnabled ? (
+            <BlinkSelectionOutline
+              selection={outlineObjects}
+              settings={viewerSettings?.blinkSettings}
+            />
+          ) : (
+            <Outline
+              selection={outlineObjects}
+              selectionLayer={10}
+              edgeStrength={8}
+              pulseSpeed={0}
+              visibleEdgeColor="yellow"
+              hiddenEdgeColor="yellow"
+              blur={false}
+            />
+          ))}
       </EffectComposer>
 
       <ambientLight intensity={viewerSettings.ambientLight} />

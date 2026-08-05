@@ -4,7 +4,6 @@ import Slider from "../../ui/slider";
 import {
   getViewerBackground,
   getViewerBackgroundStyle,
-  normalizeViewerHdri,
 } from "../../../utils/viewerBackground";
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
@@ -14,17 +13,7 @@ import InlineAlert from "../../ui/inline-alert";
 import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
 import { createId } from "../../../utils/createId";
-
-const HDRI_PRESETS = [
-  { label: "None", value: "" },
-  { label: "Studio", value: "/hdr/studio.hdr" },
-  { label: "Warehouse", value: "/hdr/warehouse.hdr" },
-  { label: "Sunset", value: "/hdr/sunset.hdr" },
-  { label: "Hangar", value: "/hdr/hangar.hdr" },
-  { label: "Industrial", value: "/hdr/industrial.hdr" },
-  { label: "Empty Hangar", value: "/hdr/emptyhangar.hdr" },
-  { label: "Cape Hill", value: "/hdr/capehill.hdr" },
-];
+import { normalizeBlinkSelectionSettings } from "../../../engine/selection";
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -142,7 +131,9 @@ export default function ProjectSettingsPanel({
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
   const background = getViewerBackground(viewerSettings);
-  const hdri = normalizeViewerHdri(viewerSettings);
+  const blinkSettings = normalizeBlinkSelectionSettings(
+    viewerSettings?.blinkSettings,
+  );
 
   const [panelError, setPanelError] = useState("");
 
@@ -164,37 +155,14 @@ export default function ProjectSettingsPanel({
     }));
   };
 
-  const updateHdri = (patch) => {
+  const updateBlinkSettings = (patch) => {
     setViewerSettings?.((prev) => ({
       ...prev,
-      ...patch,
+      blinkSettings: normalizeBlinkSelectionSettings({
+        ...prev?.blinkSettings,
+        ...patch,
+      }),
     }));
-  };
-
-  const handleImportHdri = async (file) => {
-    if (!file) return;
-
-    const lowerName = file.name.toLowerCase();
-    const isSupported =
-      lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
-
-    if (!isSupported) {
-      return;
-    }
-
-    const dataUrl = await readFileAsDataUrl(file);
-
-    updateHdri({
-      hdriSource: "custom",
-      hdri: dataUrl,
-      customHdri: {
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl,
-        importedAt: new Date().toISOString(),
-      },
-    });
   };
 
   const updateThumbnail = (thumbnail, metadata = {}) => {
@@ -656,95 +624,41 @@ export default function ProjectSettingsPanel({
         </div>
 
         <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-4 text-sm font-normal text-white">Environment</div>
-
-          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-            HDRI Lighting
-          </label>
-
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <Button
-              size="sm"
-              variant={hdri.source === "preset" ? "default" : "outline"}
-              type="button"
-              onClick={() =>
-                updateHdri({
-                  hdriSource: "preset",
-                  hdri: hdri.hdri || "/hdr/studio.hdr",
-                })
-              }
-            >
-              Preset HDRI
-            </Button>
-
-            <Button
-              asChild
-              size="sm"
-              variant={hdri.source === "custom" ? "default" : "outline"}
-            >
-              <label>
-                Import HDRI
-                <input
-                  type="file"
-                  accept=".hdr,.exr"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleImportHdri(file);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </Button>
+          <div className="mb-2 text-sm font-normal text-white">
+            Blink Selected Objects
           </div>
 
-          {hdri.source == "custom" ? (
-            <div className="mb-4 rounded-lg border border-secondary-default bg-primary px-3 py-3">
-              <div className="text-xs font-normal uppercase tracking-wide">
-                Custom HDRI
-              </div>
-              <div className="mt-1 truncate text-sm font-normal text-white">
-                {hdri.customHdri?.name || "No custom HDRI selected"}
-              </div>
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  updateHdri({
-                    hdriSource: "preset",
-                    hdri: "/hdr/studio.hdr",
-                    customHdri: null,
-                  })
-                }
-                className="mt-3 w-full"
-              >
-                Remove Custom HDRI
-              </Button>
-            </div>
-          ) : (
-            <SelectField
-              value={viewerSettings?.hdri || ""}
-              options={HDRI_PRESETS}
+          <p className="mb-4 text-xs leading-5 text-contrast-grayout">
+            Pengaturan ini digunakan oleh tombol Blink Selected Objects pada
+            menu Multiple Select dan ikut disimpan bersama camera view Chapter.
+          </p>
+
+          <div className="space-y-4">
+            <Slider
+              label="Blink Thickness"
+              value={blinkSettings.thickness}
+              min={1}
+              max={20}
+              step={0.5}
               onChange={(value) =>
-                updateHdri({
-                  hdriSource: "preset",
-                  hdri: value,
-                })
+                updateBlinkSettings({ thickness: Number(value) })
               }
             />
-          )}
 
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-sm font-normal text-contrast-grayout">
-              Show HDRI as background
-            </span>
-            <Switch
-              checked={viewerSettings?.showHdriBackground || false}
-              onCheckedChange={(checked) =>
-                updateHdri({ showHdriBackground: checked })
+            <ColorFieldInput
+              label="Blink Color"
+              value={blinkSettings.color}
+              onChange={(value) => updateBlinkSettings({ color: value })}
+            />
+
+            <Slider
+              label="Blink Speed"
+              value={blinkSettings.speed}
+              min={0.1}
+              max={5}
+              step={0.1}
+              onChange={(value) =>
+                updateBlinkSettings({ speed: Number(value) })
               }
             />
           </div>

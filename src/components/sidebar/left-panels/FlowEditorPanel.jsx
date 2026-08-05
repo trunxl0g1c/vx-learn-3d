@@ -113,7 +113,13 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
           )}
         </Section>
 
-        {activeFlow && (
+        {flow?.isLoadingActiveFlow && (
+          <div className="rounded-xl border border-divider-main bg-dark-alpha p-4 text-sm text-contrast-grayout">
+            Loading Flow details...
+          </div>
+        )}
+
+        {activeFlow && !flow?.isLoadingActiveFlow && (
           <>
             <Section title="Flow Information" step="2">
               <div className="space-y-3">

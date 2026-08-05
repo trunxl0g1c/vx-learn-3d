@@ -3,3 +3,4 @@ export * from "./ModelSceneUtils"
 
 export * from "./ModelEngine"
 export * from "./ObjectNameOverrides"
+export * from "./ModelMaterialFactory"

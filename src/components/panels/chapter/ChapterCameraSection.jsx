@@ -50,6 +50,11 @@ export default function ChapterCameraSection({
         </div>
       </div>
 
+      <p className="text-xs leading-5 text-contrast-grayout">
+        Setiap camera view menyimpan camera, highlight, blink, visibility,
+        X-Ray, Pull Apart, dan Cut Off sesuai kondisi viewport saat disimpan.
+      </p>
+
       {cameraViews.length === 0 ? (
         <div className="rounded-lg border border-dashed border-divider-main px-3 py-3 text-sm text-contrast-grayout">
           No camera view has been captured yet
@@ -72,8 +77,13 @@ export default function ChapterCameraSection({
                   <div className="text-xs font-semibold text-white">
                     Camera {index + 1}/{cameraViews.length}
                   </div>
-                  <div className="rounded-full border border-divider-main px-2 py-0.5 text-[10px] text-secondary-default">
-                    {modeLabel}
+                  <div className="flex items-center gap-1.5">
+                    <div className="rounded-full border border-divider-main px-2 py-0.5 text-[10px] text-secondary-default">
+                      {modeLabel}
+                    </div>
+                    <div className="rounded-full border border-divider-main px-2 py-0.5 text-[10px] text-contrast-grayout">
+                      {view.visualState ? "State saved" : "No state"}
+                    </div>
                   </div>
                 </div>
 
@@ -129,7 +139,7 @@ export default function ChapterCameraSection({
                     className="h-9 gap-1 px-2 text-xs"
                   >
                     <MaterialIcon name="update" size={16} />
-                    Update
+                    Update + State
                   </Button>
 
                   <Button
@@ -182,7 +192,7 @@ export default function ChapterCameraSection({
             size={22}
             className="text-secondary-default"
           />
-          Add Current Camera View
+          Add Current Camera + State
         </Button>
       </div>
     </section>

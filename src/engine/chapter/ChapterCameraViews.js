@@ -76,17 +76,41 @@ export function getChapterCameraViews(chapter) {
         .filter(Boolean)
     : [];
 
-  if (explicitViews.length > 0) return explicitViews;
+  let views = explicitViews;
 
-  const storedView = normalizeChapterCameraView(chapter?.cameraView, 0);
-  if (storedView && chapter?.cameraViewSaved !== false) return [storedView];
+  if (views.length === 0) {
+    const storedView = normalizeChapterCameraView(chapter?.cameraView, 0);
 
-  const legacyView = normalizeChapterCameraView(
-    createLegacyCameraView(chapter),
-    0,
-  );
+    if (storedView && chapter?.cameraViewSaved !== false) {
+      views = [storedView];
+    }
+  }
 
-  return legacyView ? [legacyView] : [];
+  if (views.length === 0) {
+    const legacyView = normalizeChapterCameraView(
+      createLegacyCameraView(chapter),
+      0,
+    );
+
+    if (legacyView) views = [legacyView];
+  }
+
+  if (
+    views.length > 0 &&
+    !views[0]?.visualState &&
+    chapter?.visualState &&
+    typeof chapter.visualState === "object"
+  ) {
+    views = [
+      {
+        ...views[0],
+        visualState: chapter.visualState,
+      },
+      ...views.slice(1),
+    ];
+  }
+
+  return views;
 }
 
 export function getChapterCameraView(chapter, cameraViewId = null) {
@@ -95,6 +119,37 @@ export function getChapterCameraView(chapter, cameraViewId = null) {
   if (!cameraViewId) return views[0] || null;
 
   return views.find((view) => view.id === cameraViewId) || views[0] || null;
+}
+
+export function getChapterCameraVisualState(
+  chapter,
+  cameraView = null,
+) {
+  if (cameraView?.visualState && typeof cameraView.visualState === "object") {
+    return cameraView.visualState;
+  }
+
+  const views = getChapterCameraViews(chapter);
+  const selectedView = cameraView
+    ? views.find((view) => view.id === cameraView.id)
+    : views[0];
+
+  if (
+    selectedView?.visualState &&
+    typeof selectedView.visualState === "object"
+  ) {
+    return selectedView.visualState;
+  }
+
+  const primaryView = views[0] || null;
+  const isPrimaryView =
+    !cameraView || (primaryView && primaryView.id === cameraView.id);
+
+  return isPrimaryView &&
+    chapter?.visualState &&
+    typeof chapter.visualState === "object"
+    ? chapter.visualState
+    : null;
 }
 
 export function syncChapterCameraViews(chapter, cameraViews) {
@@ -121,5 +176,6 @@ export function syncChapterCameraViews(chapter, cameraViews) {
     cameraType: primaryView?.cameraType || null,
     cameraFov: primaryView?.fov ?? null,
     modelRotation: primaryView?.modelRotation || null,
+    visualState: primaryView?.visualState || null,
   };
 }

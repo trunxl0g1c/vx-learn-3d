@@ -46,6 +46,8 @@ export default function EditorViewport({ controller }) {
     selectedObject,
     selectedObjects,
     multipleSelectEnabled,
+    blinkSelectedObjectsEnabled,
+    toggleBlinkSelectedObjects,
     toggleMultipleSelect,
     clearSelection,
     clearSelectionFromViewport,
@@ -121,7 +123,6 @@ export default function EditorViewport({ controller }) {
     createChapterFromSelectedObject,
     contentAuthoringLocked,
     contentAuthoringLockReason,
-    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     panelSectionStyle,
     inputStyle,
@@ -147,8 +148,8 @@ export default function EditorViewport({ controller }) {
   const rightPanelVisible = Boolean(
     selectedObjectName || rightTab === "chapter" || activeChapterId,
   );
-  const cameraProjectionMode =
-    viewerSettings?.cameraProjectionMode === "orthographic"
+  const activeCameraProjectionMode =
+    controller.cameraProjectionMode === "orthographic"
       ? "orthographic"
       : "perspective";
 
@@ -159,7 +160,7 @@ export default function EditorViewport({ controller }) {
         cameraRef={cameraRef}
         controlsRef={controlsRef}
         onChangeView={setEditorCameraView}
-        projectionMode={cameraProjectionMode}
+        projectionMode={activeCameraProjectionMode}
         onChangeProjectionMode={setEditorCameraProjectionMode}
         rightPanelVisible={rightPanelVisible}
       />
@@ -171,8 +172,9 @@ export default function EditorViewport({ controller }) {
         controlsRef={controlsRef}
         focusTargetRef={focusTargetRef}
         viewerSettings={viewerSettings}
-        cameraProjectionMode={cameraProjectionMode}
+        cameraProjectionMode={activeCameraProjectionMode}
         outlineObjects={outlineObjects}
+        blinkSelectionEnabled={blinkSelectedObjectsEnabled}
         shaderOutlineObjects={shaderOutlineObjects}
         shaderOutlineStyle={shaderOutlineStyle}
         modelUrl={modelUrl}
@@ -241,6 +243,8 @@ export default function EditorViewport({ controller }) {
         setMarkerMode={setMarkerMode}
         cutEnabled={cutEnabled}
         multipleSelectEnabled={multipleSelectEnabled}
+        blinkSelectedObjectsEnabled={blinkSelectedObjectsEnabled}
+        toggleBlinkSelectedObjects={toggleBlinkSelectedObjects}
         toggleMultipleSelect={toggleMultipleSelect}
         handleFile={handleFile}
         toggleCutSection={toggleCutSection}

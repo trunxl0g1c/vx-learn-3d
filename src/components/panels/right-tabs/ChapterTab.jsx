@@ -4,7 +4,6 @@ import ChapterDescriptionSection from "../chapter/ChapterDescriptionSection";
 import ChapterParameterSection from "../chapter/ChapterParameterSection";
 import ChapterMarkerSection from "../chapter/ChapterMarkerSection";
 import ChapterCameraSection from "../chapter/ChapterCameraSection";
-import ChapterVisualStateSection from "../chapter/ChapterVisualStateSection";
 import ChapterAnimationSection from "../chapter/ChapterAnimationSection";
 import ChapterFlowSection from "../chapter/ChapterFlowSection";
 import ChapterMediaSection from "../chapter/ChapterMediaSection";
@@ -13,6 +12,7 @@ import ChapterDeleteButton from "../chapter/ChapterDeleteButton";
 import Button, { cn } from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
 import InlineAlert from "../../ui/inline-alert";
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
 
 export default function ChapterTab(props) {
   const {
@@ -35,7 +35,6 @@ export default function ChapterTab(props) {
     updateChapterParameter,
     deleteChapterParameter,
     deleteMarkerFromActiveChapter,
-    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     animations,
     isChapterAnimationSelected,
@@ -59,13 +58,16 @@ export default function ChapterTab(props) {
     markerMode,
     setRightTab,
     deselectObject,
-    deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
   } = props;
 
   const chapters = material?.chapters || [];
   const activeChapter = chapters.find(
     (chapter) => chapter.id === activeChapterId,
+  );
+  const isLoadingActiveChapter = isLazyMaterialRecord(
+    activeChapter,
+    "chapters",
   );
 
   const openChapterDetail = (chapterId) => {
@@ -88,6 +90,10 @@ export default function ChapterTab(props) {
         <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-3">
           {!activeChapter ? (
             <ChapterEmptyState />
+          ) : isLoadingActiveChapter ? (
+            <div className="rounded-xl border border-divider-main bg-dark-alpha p-4 text-sm text-grayout-main">
+              Loading chapter content...
+            </div>
           ) : (
             <div className="rounded-2xl">
               <ChapterMarkerSection
@@ -231,6 +237,10 @@ export default function ChapterTab(props) {
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-3">
         {!activeChapter ? (
           <ChapterEmptyState />
+        ) : isLoadingActiveChapter ? (
+          <div className="rounded-xl border border-divider-main bg-dark-alpha p-4 text-sm text-grayout-main">
+            Loading chapter content...
+          </div>
         ) : (
           <>
             <div className="px-4">
@@ -274,14 +284,6 @@ export default function ChapterTab(props) {
               deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
             />
 
-            <ChapterVisualStateSection
-              chapter={activeChapter}
-              saveVisualStateToActiveChapter={saveVisualStateToActiveChapter}
-              deleteVisualStateFromActiveChapter={
-                deleteVisualStateFromActiveChapter
-              }
-            />
-
             <ChapterCameraSection
               chapter={activeChapter}
               saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
@@ -319,7 +321,7 @@ export default function ChapterTab(props) {
         )}
       </div>
 
-      {activeChapter && (
+      {activeChapter && !isLoadingActiveChapter && (
         <div className="shrink-0">
           <ChapterDeselectButton
             selectedObjectName={selectedObjectName}
