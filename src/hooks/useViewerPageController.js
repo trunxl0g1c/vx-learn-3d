@@ -15,6 +15,7 @@ import { useCameraManager } from "./useCameraManager";
 import { useMarkerManager } from "./useMarkerManager";
 import { useViewerProject } from "./useViewerProject";
 import { createViewerDraft, useViewerAutosave } from "./useViewerAutosave";
+import { syncProjectToBackend } from "../modules/project-hub/api/projectSync";
 import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
@@ -59,12 +60,15 @@ export function useViewerPageController() {
     dirty,
     saveStatus,
     setSaveStatus,
+    pendingSync,
     markDirty,
     markSaved,
     markSaveError,
+    markSynced,
     setCurrentProject,
     setProjectDraft,
   } = useProjectStore();
+  const [syncStatus, setSyncStatus] = useState("idle");
   const [modelScene, setModelScene] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [objectList, setObjectList] = useState([]);
@@ -352,7 +356,73 @@ export function useViewerPageController() {
     markSaved,
     markSaveError,
     setProjectDraft,
+    // remoteContentId no longer passed here — autosave is local-only now,
+    // see handleBulkUpdate below for the manual backend push.
   });
+
+  const remoteContentId = currentProject?.remote?.contentId;
+
+  const handleBulkUpdate = useCallback(async () => {
+    if (!remoteContentId || !projectId || projectId === "demo") return;
+
+    setSyncStatus("syncing");
+
+    try {
+      // Flush the very latest edits to IndexedDB first, in case the user
+      // hits "Bulk Update" before the 1.5s autosave debounce has fired —
+      // otherwise the backend could end up syncing stale local data.
+      const draftToSave = createViewerDraft({
+        projectId,
+        material,
+        viewerSettings,
+        markers,
+        cutEnabled,
+        cutAxis,
+        cutValue,
+        cutValues,
+        cutRanges,
+      });
+
+      await saveProjectDraftToIndexedDb(projectId, draftToSave);
+
+      await updateProjectInIndexedDb(projectId, {
+        thumbnail: material?.thumbnail || null,
+        material,
+        viewer: viewerSettings,
+      });
+
+      setProjectDraft(draftToSave);
+      markSaved();
+
+      await syncProjectToBackend({
+        projectId,
+        contentId: remoteContentId,
+        material,
+        viewer: viewerSettings,
+        scene: draftToSave.scene,
+      });
+
+      markSynced();
+      setSyncStatus("synced");
+    } catch (error) {
+      console.error("Bulk update to database failed:", error);
+      setSyncStatus("error");
+    }
+  }, [
+    remoteContentId,
+    projectId,
+    material,
+    viewerSettings,
+    markers,
+    cutEnabled,
+    cutAxis,
+    cutValue,
+    cutValues,
+    cutRanges,
+    setProjectDraft,
+    markSaved,
+    markSynced,
+  ]);
 
   const {
     shaderMode,
@@ -837,6 +907,10 @@ export function useViewerPageController() {
 
   return {
     saveStatus,
+    syncStatus,
+    pendingSync,
+    remoteContentId,
+    handleBulkUpdate,
     openPlayerPreview,
     activeSidebar,
     setActiveSidebar,

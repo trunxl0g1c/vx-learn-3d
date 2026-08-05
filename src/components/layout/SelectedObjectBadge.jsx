@@ -8,18 +8,18 @@ export default function SelectedObjectBadge({ selectedObjectName }) {
 
   return (
     <div
-      className="vx-editor-selected-badge"
+      className={`max-w-sm absolute`}
       style={{
         position: 'absolute',
         top: EDITOR_TOP_BAR_HEIGHT + EDITOR_VIEW_CUBE_GAP,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10,
-        background: 'rgba(17, 24, 39, 0.9)',
+        background: '#4362AD',
         color: 'white',
         padding: '10px 18px',
         borderRadius: 999,
-        fontWeight: 'bold',
+        fontWeight: 'normal',
         fontSize: 14,
       }}
     >

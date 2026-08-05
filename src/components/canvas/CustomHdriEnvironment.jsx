@@ -13,6 +13,7 @@ export default function CustomHdriEnvironment({ viewerSettings }) {
   const customHdri = viewerSettings?.customHdri;
   const dataUrl = customHdri?.dataUrl;
   const fileName = customHdri?.name || "custom.hdr";
+  
   const showBackground = Boolean(viewerSettings?.showHdriBackground);
 
   useEffect(() => {
