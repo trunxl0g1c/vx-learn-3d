@@ -2,7 +2,14 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { LoadingProvider } from "./modules/loading/LoadingContext";
 import { ProjectStoreProvider } from "./modules/project-store/ProjectStoreContext";
+import { AuthProvider } from "./modules/auth/AuthContext";
+import ProtectedRoute from "./modules/auth/ProtectedRoute";
+import LoginPage from "./modules/auth/LoginPage";
+import RegisterPage from "./modules/auth/RegisterPage";
+
 import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
+import WorkspaceRoute from "./modules/workspace/WorkspaceRoute";
+import WorkspaceDetailRoute from "./modules/workspace/WorkspaceDetailRoute";
 import { loadPlayerPage, loadViewerPage } from "./routeLoaders";
 
 const ViewerPage = lazy(loadViewerPage);
@@ -37,19 +44,25 @@ function RouteLoadingFallback() {
 export default function App() {
   return (
     <BrowserRouter>
-      <LoadingProvider>
-        <ProjectStoreProvider>
-          <Suspense fallback={<RouteLoadingFallback />}>
+      <AuthProvider>
+        <LoadingProvider>
+          <ProjectStoreProvider>
             <Routes>
-              <Route path="/" element={<Navigate to="/viqubed" replace />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
 
-              <Route path="/viqubed" element={<ProjectHubRoute />} />
-              <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
-              <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
-              <Route
-                path="/viqubed/player-v2/:projectId"
-                element={<LegacyProjectRedirect destination="player" />}
-              />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Navigate to="/viqubed" replace />} />
+
+                <Route path="/viqubed" element={<ProjectHubRoute />} />
+                <Route path="/workspace" element={<WorkspaceRoute />} />
+                <Route
+                  path="/workspace/:workspaceId"
+                  element={<WorkspaceDetailRoute />}
+                />
+                <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
+                <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
+              </Route>
 
               {LEGACY_BASE_PATHS.map((basePath) => (
                 <Route
@@ -76,7 +89,7 @@ export default function App() {
                 <Route
                   key={`${basePath}-player-v2`}
                   path={`${basePath}/player-v2/:projectId`}
-                  element={<LegacyProjectRedirect destination="player" />}
+                  element={<LegacyProjectRedirect destination="player-v2" />}
                 />
               ))}
 
@@ -89,9 +102,9 @@ export default function App() {
                 element={<Navigate to="/viqubed/player/demo" replace />}
               />
             </Routes>
-          </Suspense>
-        </ProjectStoreProvider>
-      </LoadingProvider>
+          </ProjectStoreProvider>
+        </LoadingProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
