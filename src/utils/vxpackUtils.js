@@ -26,6 +26,7 @@ async function loadSaveAs() {
 }
 
 const VXPACK_VERSION = 2;
+const VIQDATA_VERSION = 1;
 
 const createSafeFileName = (name = "vx-package") => {
   const safeName = String(name || "vx-package")
@@ -73,6 +74,40 @@ const normalizeMaterialForPackage = (material, modelPath) => ({
   objectNameOverrides: Array.isArray(material?.objectNameOverrides)
     ? material.objectNameOverrides
     : [],
+});
+
+const normalizeMaterialForDataPackage = (material) => {
+  const normalizedMaterial = normalizeMaterialForPackage(material, null);
+
+  // Data-only packages deliberately do not keep a runtime/blob model URL.
+  // Object references (UUID/name/path/stable ids) remain inside the content
+  // so they can be remapped when the data is applied to a replacement GLB.
+  delete normalizedMaterial.originalModelUrl;
+  delete normalizedMaterial.modelFile;
+  delete normalizedMaterial.modelBlob;
+
+  return normalizedMaterial;
+};
+
+const createNormalizedViewerSettings = ({
+  viewerSettings,
+  shaderMode,
+  metalness,
+  roughness,
+}) => ({
+  ...(viewerSettings || {}),
+  shaderMode,
+  metalness,
+  roughness,
+});
+
+const createSourceModelMetadata = ({ modelFile, modelFileName, material }) => ({
+  included: false,
+  name: sanitizeAssetFileName(
+    modelFile?.name || modelFileName || material?.modelUrl || "model.glb",
+  ),
+  type: modelFile?.type || "model/gltf-binary",
+  size: Number(modelFile?.size || 0),
 });
 
 const createModelFile = (blob, fileName, mimeType) => {
@@ -124,12 +159,12 @@ export const exportVXPack = async ({
   zip.file(modelPath, modelFile);
   onProgress?.(20);
 
-  const normalizedViewer = {
-    ...(viewerSettings || {}),
+  const normalizedViewer = createNormalizedViewerSettings({
+    viewerSettings,
     shaderMode,
     metalness,
     roughness,
-  };
+  });
   const normalizedMaterial = normalizeMaterialForPackage(material, modelPath);
 
   const manifest = {
@@ -177,6 +212,125 @@ export const exportVXPack = async ({
     blob,
     manifest,
   };
+};
+
+export const exportViqubedDataOnly = async ({
+  project,
+  material,
+  modelFile,
+  modelFileName,
+  viewerSettings,
+  scene,
+  shaderMode,
+  metalness,
+  roughness,
+  onProgress,
+}) => {
+  if (!material) {
+    throw new Error("Material belum tersedia");
+  }
+
+  onProgress?.(0);
+
+  const [JSZip, saveAs] = await Promise.all([loadJSZip(), loadSaveAs()]);
+  const zip = new JSZip();
+
+  onProgress?.(12);
+
+  const normalizedViewer = createNormalizedViewerSettings({
+    viewerSettings,
+    shaderMode,
+    metalness,
+    roughness,
+  });
+  const normalizedMaterial = normalizeMaterialForDataPackage(material);
+  const sourceModel = createSourceModelMetadata({
+    modelFile,
+    modelFileName,
+    material,
+  });
+
+  const manifest = {
+    packageType: "viqubed-data",
+    packageVersion: VIQDATA_VERSION,
+    exportedAt: new Date().toISOString(),
+    containsModel: false,
+    project: createPortableProjectMetadata(project, normalizedMaterial),
+    sourceModel,
+    material: normalizedMaterial,
+    viewer: normalizedViewer,
+    scene: scene || {},
+  };
+
+  zip.file("manifest.json", JSON.stringify(manifest, null, 2));
+  onProgress?.(30);
+
+  const blob = await zip.generateAsync(
+    {
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: {
+        level: 6,
+      },
+    },
+    (metadata) => {
+      const zipPercent = metadata.percent || 0;
+      const totalPercent = 30 + Math.round((zipPercent / 100) * 65);
+
+      onProgress?.(Math.min(totalPercent, 95));
+    },
+  );
+
+  onProgress?.(98);
+
+  const packageFileName = createSafeFileName(
+    project?.name || material?.projectName || material?.title || modelFileName,
+  );
+
+  saveAs(blob, `${packageFileName}_data.viqdata`);
+  onProgress?.(100);
+
+  return {
+    blob,
+    manifest,
+  };
+};
+
+export const importViqubedDataOnly = async (file) => {
+  if (!file) {
+    throw new Error("File data VIQUBED tidak ditemukan");
+  }
+
+  const JSZip = await loadJSZip();
+  const zip = await JSZip.loadAsync(file);
+  const manifestFile = zip.file("manifest.json");
+
+  if (!manifestFile) {
+    throw new Error("manifest.json tidak ditemukan");
+  }
+
+  const manifestText = await manifestFile.async("text");
+  const rawManifest = JSON.parse(manifestText);
+
+  if (
+    rawManifest?.packageType !== "viqubed-data" ||
+    rawManifest?.containsModel !== false
+  ) {
+    throw new Error("File bukan package data VIQUBED yang valid");
+  }
+
+  return {
+    rawManifest,
+    project: rawManifest?.project || {},
+    material: rawManifest?.material || {},
+    viewer: rawManifest?.viewer || {},
+    scene: rawManifest?.scene || {},
+    sourceModel: rawManifest?.sourceModel || null,
+  };
+};
+
+export const isViqubedDataFile = (file) => {
+  return file?.name?.toLowerCase().endsWith(".viqdata");
 };
 
 export const importVXPack = async (file, { createObjectUrl = true } = {}) => {

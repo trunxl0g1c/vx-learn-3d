@@ -23,6 +23,10 @@ import Button from "../../components/ui/button";
 import MaterialIcon from "../../components/ui/material-icon";
 import { normalizePlayerSettings } from "../material/playerSettings";
 import {
+  focusEditorAndClosePlayer,
+  isPlayerOpenedFromEditor,
+} from "../../utils/playerWindowNavigation";
+import {
   PlayerAnimationFloatingPanel,
   PlayerChapterReaderFloatingPanel,
   PlayerEnvironmentSettingsFloatingPanel,
@@ -79,24 +83,21 @@ export default function PlayerPage() {
     setActivePanel(playerSettings.autoShowMaterial ? "project" : null);
   }, [player.scene.material, playerSettings.autoShowMaterial]);
 
-  const showBackToEditor = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-
-    return (
-      params.get("preview") === "true" ||
-      location.state?.preview === true ||
-      location.state?.fromEditor === true
-    );
-  }, [location.search, location.state]);
+  const showBackToEditor = useMemo(
+    () => isPlayerOpenedFromEditor(location.search, location.state),
+    [location.search, location.state],
+  );
 
   const handleBackToEditor = () => {
+    if (focusEditorAndClosePlayer()) return;
+
     if (location.state?.fromEditorPath) {
-      navigate(location.state.fromEditorPath);
+      navigate(location.state.fromEditorPath, { replace: true });
       return;
     }
 
     if (projectId) {
-      navigate(`/viqubed/editor/${projectId}`);
+      navigate(`/viqubed/editor/${projectId}`, { replace: true });
       return;
     }
 

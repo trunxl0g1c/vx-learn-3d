@@ -70,7 +70,7 @@ export default function usePlayerFreePlay({
 }) {
   const modelEngineRef = useRef(null)
   const cutEngineRef = useRef(null)
-  const activePullApartSessionRef = useRef(null)
+  const pullApartSessionRef = useRef(null)
   const [isPullApartActive, setIsPullApartActive] = useState(false)
   const [cutAllObjects, setCutAllObjectsState] = useState(true)
 
@@ -85,7 +85,7 @@ export default function usePlayerFreePlay({
   useEffect(() => {
     const engine = modelEngineRef.current
 
-    activePullApartSessionRef.current = null
+    pullApartSessionRef.current = null
     setIsPullApartActive(false)
 
     if (!modelScene) {
@@ -95,15 +95,6 @@ export default function usePlayerFreePlay({
 
     engine.setScene?.(modelScene)
     engine.setOriginalTransforms?.({
-      positions: originalPositions,
-      groupPositions: originalGroupPositions,
-    })
-  }, [modelScene])
-
-  useEffect(() => {
-    if (!modelScene) return
-
-    modelEngineRef.current.setOriginalTransforms?.({
       positions: originalPositions,
       groupPositions: originalGroupPositions,
     })
@@ -269,59 +260,57 @@ export default function usePlayerFreePlay({
     syncCutState(nextState)
   }
 
-  const restoreActivePullApart = ({ animationDuration = 420 } = {}) => {
-    const session = activePullApartSessionRef.current
+  const resetActivePullApart = ({ animationDuration = 450 } = {}) => {
+    const session = pullApartSessionRef.current
 
     if (!session) {
       setIsPullApartActive(false)
       return 0
     }
 
-    const restoredObjectCount =
-      getModelEngine().restorePullApartState?.(session, {
-        animationDuration,
-        restoreVisibility: true,
-      }) || 0
+    const resetCount = getModelEngine().resetPullApartSession?.(session, {
+      animationDuration,
+    }) || 0
 
-    activePullApartSessionRef.current = null
+    pullApartSessionRef.current = null
     setIsPullApartActive(false)
-    return restoredObjectCount
+
+    return resetCount
   }
 
-  const pullApart = (targetObject = selectedObject) => {
+  const pullApart = ({
+    targetObject = selectedObject || null,
+    allowSceneFallback = true,
+  } = {}) => {
     if (!modelScene) return false
 
-    if (isPullApartActive) {
-      restoreActivePullApart()
+    if (isPullApartActive || pullApartSessionRef.current) {
+      resetActivePullApart()
       return false
     }
 
-    // Manual Player Pull Apart is always scoped. In Chapter mode the
-    // controller supplies the Chapter object; in Free Play it supplies the
-    // object selected by the user. Never explode the whole model by accident.
-    if (!targetObject) return false
+    if (!targetObject && !allowSceneFallback) return false
 
-    const engine = getModelEngine()
-    const session = engine.capturePullApartState?.(targetObject) || null
-    const didPullApart = engine.pullApart(targetObject, {
+    const session = getModelEngine().pullApart(targetObject, {
       mode: "hierarchy",
-      strength: 0.28,
+      strength: targetObject ? 0.28 : 0.18,
       animationDuration: 450,
-      hideOutsideSelection: true,
+      hideOutsideSelection: Boolean(targetObject),
+      returnSession: true,
       useCurrentPositions: true,
     })
 
-    if (didPullApart) {
-      activePullApartSessionRef.current = session
-      setIsPullApartActive(true)
-    }
+    if (!session) return false
 
-    return didPullApart
+    pullApartSessionRef.current = session
+    setIsPullApartActive(true)
+
+    return true
   }
 
   const resetParts = () => {
     getModelEngine().resetParts()
-    activePullApartSessionRef.current = null
+    pullApartSessionRef.current = null
     setIsPullApartActive(false)
   }
 
@@ -337,6 +326,7 @@ export default function usePlayerFreePlay({
       animationDuration,
     }) || 0
 
+    pullApartSessionRef.current = null
     setIsPullApartActive(false)
     modelScene?.updateMatrixWorld?.(true)
 
@@ -433,19 +423,22 @@ export default function usePlayerFreePlay({
   const applySavedPullApart = (pullApartState, targetObject) => {
     if (!pullApartState?.enabled || !modelScene) return false
 
-    const engine = getModelEngine()
-    const session = engine.capturePullApartState?.(targetObject || null) || null
-    const didPullApart = engine.pullApart(targetObject || null, {
+    if (pullApartSessionRef.current) {
+      resetActivePullApart({ animationDuration: 0 })
+    }
+
+    const session = getModelEngine().pullApart(targetObject || null, {
       mode: "hierarchy",
       strength: targetObject ? 0.28 : 0.18,
       animationDuration: 450,
-      hideOutsideSelection: true,
+      hideOutsideSelection: Boolean(targetObject),
+      returnSession: true,
       useCurrentPositions: true,
     })
 
-    activePullApartSessionRef.current = didPullApart ? session : null
-    setIsPullApartActive(Boolean(didPullApart))
-    return didPullApart
+    pullApartSessionRef.current = session || null
+    setIsPullApartActive(Boolean(session))
+    return Boolean(session)
   }
 
   const applySavedCuts = (savedCuts = [], preferredTarget = null) => {
@@ -499,7 +492,7 @@ export default function usePlayerFreePlay({
     setCutAllObjects,
     cutTargetAvailable,
     pullApart,
-    restoreActivePullApart,
+    resetActivePullApart,
     isPullApartActive,
     resetParts,
     resetMovedObjects,

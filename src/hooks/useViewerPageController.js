@@ -26,6 +26,8 @@ import { useViewerAuthoringState } from "./viewer/useViewerAuthoringState";
 import { createChapterPreviewSelectionAdapters } from "./viewer/createChapterPreviewSelectionAdapters";
 import { createDefaultViewerSettings } from "./viewer/createDefaultViewerSettings";
 import { usePersistedViewerSettings } from "./viewer/usePersistedViewerSettings";
+import { launchPlayerPreview } from "./viewer/launchPlayerPreview";
+import { useViewerDataImport } from "./viewer/useViewerDataImport";
 import { createChapterHighlightPayload } from "../engine/selection";
 import {
   getChapterCameraView,
@@ -87,22 +89,17 @@ export function useViewerPageController() {
   const [cutMax, setCutMax] = useState(3);
   const [markerMode, setMarkerMode] = useState(false);
   const [activeMenu, setActiveMenu] = useState(null);
-
   const [outlineObjects, setOutlineObjects] = useState([]);
   const [isTransforming, setIsTransforming] = useState(false);
   const [orbitEnabled, setOrbitEnabled] = useState(true);
-
   const [selectedObjectName, setSelectedObjectName] = useState("");
-
   const [activeChapterId, setActiveChapterId] = useState(null);
   const [rightTab, setRightTab] = useState("material");
-
   const [treeDepth, setTreeDepth] = useState(999);
   const [searchObject, setSearchObject] = useState("");
   const [animations, setAnimations] = useState([]);
   const [selectedAnimations, setSelectedAnimations] = useState({});
   const [animationCommand, setAnimationCommand] = useState(null);
-
   const {
     settings: viewerSettings,
     setSettings: setViewerSettings,
@@ -120,6 +117,7 @@ export function useViewerPageController() {
   const {
     material,
     setMaterial: updateMaterialState,
+    rawSetMaterial,
     loadChapterRecord,
     loadFlowRecord,
     loadProcedureRecord,
@@ -138,6 +136,36 @@ export function useViewerPageController() {
     activeChapterId,
     setActiveChapterId,
     setRightTab,
+    updateLoading,
+    hideLoading,
+  });
+
+  const {
+    importDataFile,
+    isImportingData,
+    importDataStatus,
+  } = useViewerDataImport({
+    projectId,
+    currentProject,
+    projectDraft,
+    material,
+    viewerSettings,
+    rawSetMaterial,
+    setViewerSettings,
+    setCameraProjectionMode,
+    setMarkers,
+    setCutEnabled,
+    setCutAxis,
+    setCutValue,
+    setCutValues,
+    setCutRanges,
+    setActiveChapterId,
+    setRightTab,
+    setCurrentProject,
+    setProjectDraft,
+    setSaveStatus,
+    markSaved,
+    markSaveError,
     updateLoading,
     hideLoading,
   });
@@ -319,6 +347,7 @@ export function useViewerPageController() {
     cutValue,
     cutValues,
     cutRanges,
+    previousScene: projectDraft?.scene || currentProject?.scene,
     setSaveStatus,
     markSaved,
     markSaveError,
@@ -470,7 +499,6 @@ export function useViewerPageController() {
     hideLoading,
     handleModelLoaded,
   });
-
   const { flowAuthoring, proceduralAuthoring } = useViewerAuthoringState({
     flow,
     procedural,
@@ -500,11 +528,9 @@ export function useViewerPageController() {
     setSelectedObjectName,
     applySavedCuts,
   });
-
   const pullApartSelectedScope = () => {
     pullApart(selectedObject);
   };
-
   const soloSelectedObject = () => soloSelectedObjectBase(selectedObject);
   const hideSelectedObject = () => hideSelectedObjectBase(selectedObject);
   const hideMultipleSelectedObjects = () => {
@@ -568,7 +594,9 @@ export function useViewerPageController() {
     clearChapterFeedback,
     createChapterFromSelectedObject,
     saveMaterial,
+    saveDataOnly,
     isSavingPackage,
+    savePackageMode,
     savePackageProgress,
     savePackageStatus,
     updateChapterField,
@@ -782,44 +810,18 @@ export function useViewerPageController() {
     markSaved();
   };
 
-  const openPlayerPreview = async () => {
+  const openPlayerPreview = () => {
     if (!projectId || projectId === "demo") return;
 
-    try {
-      setSaveStatus("saving");
-
-      updateLoading({
-        title: "Opening Player Preview",
-        text: "Saving latest editor draft...",
-        progress: null,
-      });
-
-      await savePreviewDraft();
-
-      updateLoading({
-        text: "Preparing player preview...",
-      });
-
-      navigate(`/viqubed/player/${projectId}?preview=true`, {
-        state: {
-          preview: true,
-          fromEditor: true,
-        },
-      });
-    } catch (error) {
-      console.error("Gagal membuka preview player:", error);
-      markSaveError();
-
-      updateLoading({
-        title: "Failed to Open Preview",
-        text: error?.message || "Unknown error",
-        progress: null,
-      });
-
-      setTimeout(() => {
-        hideLoading();
-      }, 1200);
-    }
+    void launchPlayerPreview({
+      projectId,
+      savePreviewDraft,
+      setSaveStatus,
+      updateLoading,
+      hideLoading,
+      navigate,
+      markSaveError,
+    });
   };
 
   const maxTreeDepth = getMaxTreeDepth(objectList);
@@ -849,7 +851,12 @@ export function useViewerPageController() {
     previewChapterInEditor,
     saveCameraViewToActiveChapter,
     saveMaterial,
+    saveDataOnly,
+    importDataFile,
+    isImportingData,
+    importDataStatus,
     isSavingPackage,
+    savePackageMode,
     savePackageProgress,
     savePackageStatus,
     applyShaderMode,

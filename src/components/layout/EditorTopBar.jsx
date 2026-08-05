@@ -1,12 +1,9 @@
-import {
-  CircleCheckBig,
-  Loader2,
-  CloudOff,
-} from "lucide-react";
+import { CircleCheckBig, Loader2, CloudOff } from "lucide-react";
 import Button from "../ui/button";
 import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
+import EditorDataMenu from "./EditorDataMenu";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -40,7 +37,12 @@ export default function EditorTopBar({
   saveStatus = "saved",
   onPlay,
   onExport,
+  onExportData,
+  onImportData,
+  isImportingData = false,
+  importDataStatus = "",
   isExporting = false,
+  exportMode = null,
   exportProgress = 0,
   exportStatus = "",
 }) {
@@ -99,10 +101,14 @@ export default function EditorTopBar({
           size="sm"
           className="uppercase"
           onClick={onExport}
-          disabled={!onExport || isExporting}
-          title={exportStatus || "Export project package"}
+          disabled={!onExport || isExporting || isImportingData}
+          title={
+            exportMode === "full" && exportStatus
+              ? exportStatus
+              : "Export full project package with GLB"
+          }
         >
-          {isExporting ? (
+          {isExporting && exportMode === "full" ? (
             <Loader2 className="mr-1 size-4.5 animate-spin" />
           ) : (
             <MaterialIcon
@@ -113,11 +119,22 @@ export default function EditorTopBar({
             />
           )}
           <span className="vx-editor-action-label">
-            {isExporting
+            {isExporting && exportMode === "full"
               ? `Export ${Math.max(0, Math.min(100, Math.round(exportProgress)))}%`
               : "Export"}
           </span>
         </Button>
+
+        <EditorDataMenu
+          onExportData={onExportData}
+          onImportData={onImportData}
+          isExporting={isExporting}
+          exportMode={exportMode}
+          exportProgress={exportProgress}
+          exportStatus={exportStatus}
+          isImporting={isImportingData}
+          importStatus={importDataStatus}
+        />
 
         <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
           {/* <Share2 className="size-4.5 mr-1" /> */}

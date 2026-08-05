@@ -181,6 +181,15 @@ export default function usePlayerController() {
     loadChapterRecord: playerProject.loadChapterRecord,
   })
   const playerSpeech = usePlayerSpeech(playerChapter.activeChapter)
+  const chapterPullApartTarget = useMemo(() => {
+    if (!modelScene || !playerChapter.activeChapter) return null
+
+    return createChapterHighlightPayload(
+      playerChapter.activeChapter,
+      modelScene,
+    ).selectedObject || null
+  }, [modelScene, playerChapter.activeChapter])
+
   const clearActiveChapter = () => {
     setActiveChapterId(null)
     setBlinkSelectionEnabled(false)
@@ -211,6 +220,26 @@ export default function usePlayerController() {
     setOutlineObjects,
     focusTargetRef,
   })
+
+  const pullApartPlayerObjects = () => {
+    if (freePlay) {
+      // In Free Play a selected object scopes Pull Apart. With no selection,
+      // the whole model is intentionally used.
+      return playerFreePlay.pullApart({
+        targetObject: selectedObject || null,
+        allowSceneFallback: true,
+      })
+    }
+
+    if (!playerChapter.activeChapter) return false
+
+    // Chapter playback is scoped to the active saved/highlight object. If the
+    // visual state has no active selection, fall back to the Chapter target.
+    return playerFreePlay.pullApart({
+      targetObject: selectedObject || chapterPullApartTarget,
+      allowSceneFallback: false,
+    })
+  }
 
   useEffect(() => {
     if (!modelScene) {
@@ -570,30 +599,6 @@ export default function usePlayerController() {
     setFreePlayMenu(false)
   }
 
-  const resolvePlayerPullApartTarget = () => {
-    if (freePlay) return selectedObject || null
-
-    const activeChapter = playerChapter.activeChapter
-
-    if (!activeChapter || !modelScene) return null
-
-    return (
-      selectedObject ||
-      createChapterHighlightPayload(activeChapter, modelScene)?.selectedObject ||
-      null
-    )
-  }
-
-  const togglePlayerPullApart = () => {
-    // An active Pull Apart always resets the exact scope captured when it
-    // started, even if Chapter/selection state has changed meanwhile.
-    if (playerFreePlay.isPullApartActive) {
-      return playerFreePlay.pullApart(null)
-    }
-
-    return playerFreePlay.pullApart(resolvePlayerPullApartTarget())
-  }
-
   const handleModelLoaded = (scene) => {
     initialCameraStateRef.current = null
     applyObjectNameOverrides(scene, material?.objectNameOverrides)
@@ -830,7 +835,7 @@ export default function usePlayerController() {
     freePlayMenu,
     cutEnabled,
     playerFreePlay,
-    togglePlayerPullApart,
+    pullApartPlayerObjects,
     hideSelectedPlayerObject,
     resetAllPlayerView,
     hideAllObjects,

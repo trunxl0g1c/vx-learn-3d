@@ -2,7 +2,10 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import {
   applyCameraProjectionSnapshot,
+  centerCameraOrbitOnScene,
   createCameraProjectionSnapshot,
+  createSceneProjectionCenterState,
+  resolveSceneProjectionCenter,
   createFocusTargetFromObject,
   createFocusTargetFromScene,
   getClosestOrthographicView,
@@ -73,10 +76,38 @@ export function useCameraManager({
   projectionResetKey = null,
 }) {
   const perspectiveReturnViewRef = useRef(null);
+  const projectionCenterStateRef = useRef(null);
 
   useEffect(() => {
     perspectiveReturnViewRef.current = null;
-  }, [projectionResetKey]);
+    projectionCenterStateRef.current = createSceneProjectionCenterState(
+      modelScene,
+    );
+  }, [modelScene, projectionResetKey]);
+
+  const ensureProjectionCenterState = () => {
+    if (!projectionCenterStateRef.current && modelScene) {
+      projectionCenterStateRef.current = createSceneProjectionCenterState(
+        modelScene,
+      );
+    }
+
+    return projectionCenterStateRef.current;
+  };
+
+  const centerProjectionOrbit = (camera = cameraRef?.current) => {
+    const controls = controlsRef?.current;
+    if (!modelScene || !camera || !controls) return false;
+
+    focusTargetRef.current = null;
+
+    return centerCameraOrbitOnScene({
+      scene: modelScene,
+      centerState: ensureProjectionCenterState(),
+      camera,
+      controls,
+    });
+  };
   const focusObject = (object) => {
     if (!object || !modelScene) return;
 
@@ -159,17 +190,25 @@ export function useCameraManager({
 
     syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
 
+    const centeredTarget = camera.isOrthographicCamera
+      ? resolveSceneProjectionCenter(
+          modelScene,
+          ensureProjectionCenterState(),
+        )
+      : null;
+
     const focusTarget = vxEngine?.camera?.setViewDirection?.(view.direction, {
       camera,
       controls,
+      target: centeredTarget || undefined,
       up: view.up,
       minimumDistance: 0.1,
       apply: false,
     });
 
     if (!focusTarget) {
-      const target = controls.target.clone();
-      const distance = Math.max(camera.position.distanceTo(target), 0.1);
+      const target = centeredTarget || controls.target.clone();
+      const distance = Math.max(camera.position.distanceTo(controls.target), 0.1);
 
       camera.up.copy(view.up);
       camera.updateProjectionMatrix?.();
@@ -212,10 +251,13 @@ export function useCameraManager({
       currentMode === "perspective" &&
       currentCamera
     ) {
-      perspectiveReturnViewRef.current = createCameraProjectionSnapshot(
+      const returnView = createCameraProjectionSnapshot(
         currentCamera,
         controlsRef?.current,
       );
+      perspectiveReturnViewRef.current = returnView
+        ? { ...returnView, source: "stored-camera" }
+        : null;
     } else if (requestedMode === "perspective") {
       // A stored Perspective Chapter is authoritative; an older return view
       // must not overwrite its saved coordinates after the camera swap.
@@ -243,16 +285,22 @@ export function useCameraManager({
       ? "orthographic"
       : "perspective";
 
-    if (normalizedMode === "orthographic" && currentMode === "perspective") {
-      perspectiveReturnViewRef.current = createCameraProjectionSnapshot(
+    if (!currentCamera || normalizedMode === currentMode) return true;
+
+    // Projection changes always use the model's stable original center as the
+    // OrbitControls pivot. Only the camera/target move; model transforms are
+    // never modified. This prevents the model from appearing laterally shifted
+    // after switching between Perspective and Orthographic.
+    centerProjectionOrbit(currentCamera);
+
+    if (normalizedMode === "orthographic") {
+      const returnView = createCameraProjectionSnapshot(
         currentCamera,
         controlsRef?.current,
       );
-    } else if (
-      normalizedMode === "perspective" &&
-      currentMode === "perspective"
-    ) {
-      perspectiveReturnViewRef.current = null;
+      perspectiveReturnViewRef.current = returnView
+        ? { ...returnView, source: "manual" }
+        : null;
     }
 
     return switchCameraProjectionThen({
@@ -264,6 +312,10 @@ export function useCameraManager({
         if (!controls) return;
 
         if (normalizedMode === "orthographic") {
+          // Re-assert the stable center after R3F installs the Orthographic
+          // camera, then rotate only around that center to the nearest fixed
+          // orthographic side.
+          centerProjectionOrbit(activeCamera);
           const closestView = getClosestOrthographicView(
             activeCamera,
             controls,
@@ -274,11 +326,19 @@ export function useCameraManager({
         }
 
         const returnView = perspectiveReturnViewRef.current;
-        if (!returnView) return;
-
+        const canRestoreManualView = returnView?.source === "manual";
         focusTargetRef.current = null;
-        applyCameraProjectionSnapshot(returnView, activeCamera, controls);
+
+        if (canRestoreManualView) {
+          applyCameraProjectionSnapshot(returnView, activeCamera, controls);
+        } else {
+          // Saved Chapter cameras may leave an older Perspective return view.
+          // A manual projection toggle must not restore that off-center pivot.
+          centerProjectionOrbit(activeCamera);
+        }
+
         perspectiveReturnViewRef.current = null;
+
         setIsAutoRotating(false);
       },
     });

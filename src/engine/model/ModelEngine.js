@@ -58,6 +58,7 @@ export function createModelEngine(options = {}) {
   let originalPositions = []
   let originalGroupPositions = []
   let lastState = null
+  let pullApartSessionSequence = 0
 
   const getNow = () => {
     if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -615,6 +616,74 @@ export function createModelEngine(options = {}) {
     syncSketchEdgeVisibility(scene)
   }
 
+  const capturePullApartVisibility = () => {
+    const visibility = []
+
+    scene?.traverse?.((object) => {
+      visibility.push({ object, visible: object.visible })
+    })
+
+    return visibility
+  }
+
+  const createPullApartSession = ({ targetObject, meshes }) => ({
+    id: `pull-apart-${pullApartSessionSequence += 1}`,
+    scene,
+    targetObject: targetObject || null,
+    affectedObjects: Array.from(new Set(meshes)).map((object) => ({
+      object,
+      position: object.position.clone(),
+    })),
+    visibility: capturePullApartVisibility(),
+  })
+
+  const restorePullApartVisibility = (session) => {
+    session?.visibility?.forEach(({ object, visible }) => {
+      if (!object) return
+      object.visible = visible
+    })
+
+    syncSketchEdgeVisibility(scene)
+  }
+
+  const resetPullApartSession = (session, options = {}) => {
+    if (!scene || !session || session.scene !== scene) return 0
+
+    const requestedDuration = Number(options.animationDuration)
+    const animationDuration = Number.isFinite(requestedDuration)
+      ? requestedDuration
+      : 450
+    let resetCount = 0
+
+    session.affectedObjects?.forEach(({ object, position }) => {
+      if (!object || !position) return
+
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (animationDuration <= 0) {
+        object.position.copy(position)
+        delete object.userData.targetPosition
+        delete object.userData.targetPositionAnimation
+        object.updateMatrixWorld?.(true)
+      } else {
+        object.userData.targetPosition = position.clone()
+        object.userData.targetPositionAnimation = createTargetAnimation(
+          object,
+          animationDuration,
+        )
+      }
+
+      resetCount += 1
+    })
+
+    restorePullApartVisibility(session)
+    scene.updateMatrixWorld?.(true)
+
+    return resetCount
+  }
+
   const pullApart = (targetObject = null, options = {}) => {
     if (!scene) return false
 
@@ -625,6 +694,7 @@ export function createModelEngine(options = {}) {
       maxDepthMultiplier = 1.8,
       animationDuration = 450,
       hideOutsideSelection = true,
+      returnSession = false,
       useCurrentPositions = false,
     } = options
 
@@ -633,9 +703,13 @@ export function createModelEngine(options = {}) {
     scene.updateMatrixWorld(true)
 
     const branches = getDirectPullApartBranches(rootObject)
-    const meshes = branches.flatMap((branch) => branch.meshes)
+    const meshes = Array.from(
+      new Set(branches.flatMap((branch) => branch.meshes)),
+    )
 
     if (meshes.length === 0) return false
+
+    const session = createPullApartSession({ targetObject, meshes })
 
     if (targetObject && hideOutsideSelection) {
       applyVisibilityForPullApartTarget(targetObject)
@@ -676,95 +750,13 @@ export function createModelEngine(options = {}) {
       })
     })
 
-    return true
+    return returnSession ? session : true
   }
 
-  const capturePullApartState = (targetObject = null) => {
-    if (!scene) return null
-
-    const rootObject = resolvePullApartRootObject(targetObject)
-    const meshes = getMeshesInSubtree(rootObject)
-    const visibility = []
-
-    scene.traverse((object) => {
-      visibility.push({
-        object,
-        visible: object.visible !== false,
-      })
-    })
-
-    return {
-      targetObject: targetObject || null,
-      rootObject,
-      transforms: meshes.map((object) => ({
-        object,
-        position: object.position.clone(),
-      })),
-      visibility,
-    }
-  }
-
-  const restorePullApartState = (state, options = {}) => {
-    if (!scene || !state) return 0
-
-    const {
-      animationDuration = 420,
-      restoreVisibility = true,
-    } = options
-    let restoredObjectCount = 0
-
-    ;(Array.isArray(state.transforms) ? state.transforms : []).forEach((item) => {
-      const object = item?.object
-      const position = item?.position
-
-      if (!object || !position || !object.userData) return
-
-      delete object.userData.targetPosition
-      delete object.userData.targetPositionAnimation
-
-      if (Number(animationDuration) <= 0) {
-        object.position.copy(position)
-        object.updateMatrixWorld?.(true)
-      } else {
-        object.userData.targetPosition = position.clone()
-        object.userData.targetPositionAnimation = createTargetAnimation(
-          object,
-          Math.max(Number(animationDuration) || 420, 1),
-        )
-      }
-
-      restoredObjectCount += 1
-    })
-
-    if (restoreVisibility) {
-      ;(Array.isArray(state.visibility) ? state.visibility : []).forEach((item) => {
-        if (item?.object) item.object.visible = item.visible !== false
-      })
-
-      syncSketchEdgeVisibility(scene)
-    }
-
-    scene.updateMatrixWorld?.(true)
-    return restoredObjectCount
-  }
-
-  const resetParts = (targetObject = null, options = {}) => {
-    const targetScope = targetObject
-      ? collectObjectSubtree(resolvePullApartRootObject(targetObject))
-      : null
-    const animationDuration = Math.max(
-      Number(options.animationDuration) || 420,
-      1,
-    )
-
+  const resetParts = () => {
     originalPositions.forEach((item) => {
-      if (targetScope && !targetScope.has(item.object)) return
-
       item.object.userData.targetPosition = item.position.clone()
-      item.object.userData.targetPositionAnimation = createTargetAnimation(
-        item.object,
-        animationDuration,
-      )
+      item.object.userData.targetPositionAnimation = createTargetAnimation(item.object, 420)
     })
   }
 
@@ -917,8 +909,7 @@ export function createModelEngine(options = {}) {
     getState: () => lastState,
     registerIntegrations,
     pullApart,
-    capturePullApartState,
-    restorePullApartState,
+    resetPullApartSession,
     resetParts,
     resetMovedObjects,
     resetRotation,

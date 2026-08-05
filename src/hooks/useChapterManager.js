@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createId } from "../utils/createId";
-import { exportVXPack } from "../utils/vxpackUtils";
+import {
+  exportViqubedDataOnly,
+  exportVXPack,
+} from "../utils/vxpackUtils";
 import { hydrateMaterialFromIndexedDb } from "../modules/project-hub/storage/projectIndexedDb";
 import { createAnimationEngine } from "../engine/animation";
 import {
@@ -89,6 +92,7 @@ export function useChapterManager({
   const activeMarkers = activeChapter?.markers || [];
 
   const [isSavingPackage, setIsSavingPackage] = useState(false);
+  const [savePackageMode, setSavePackageMode] = useState(null);
   const [savePackageProgress, setSavePackageProgress] = useState(0);
   const [savePackageTargetProgress, setSavePackageTargetProgress] = useState(0);
   const [savePackageStatus, setSavePackageStatus] = useState("");
@@ -216,23 +220,40 @@ export function useChapterManager({
     return true;
   };
 
-  const saveMaterial = async () => {
+  const resetPackageProgressLater = (delay) => {
+    setTimeout(() => {
+      setIsSavingPackage(false);
+      setSavePackageMode(null);
+      setSavePackageProgress(0);
+      setSavePackageTargetProgress(0);
+      setSavePackageStatus("");
+    }, delay);
+  };
+
+  const runPackageExport = async (mode = "full") => {
     if (isSavingPackage) return;
+
+    const isDataOnly = mode === "data-only";
 
     try {
       setIsSavingPackage(true);
+      setSavePackageMode(mode);
       setSavePackageProgress(0);
       setSavePackageTargetProgress(0);
-      setSavePackageStatus("Preparing package...");
+      setSavePackageStatus(
+        isDataOnly ? "Preparing content data..." : "Preparing package...",
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 80));
 
+      // Chapters, Flow, and Procedure may still be lazy IndexedDB summaries.
+      // Hydrate all records before either export so the package never loses
+      // unopened material content.
       const hydratedMaterial = await hydrateMaterialFromIndexedDb(
         packageProject?.id || material?.projectId,
         material,
       );
-
-      await exportVXPack({
+      const exportPayload = {
         project: packageProject,
         material: {
           ...hydratedMaterial,
@@ -248,6 +269,21 @@ export function useChapterManager({
         onProgress: (percent) => {
           setSavePackageTargetProgress(percent);
 
+          if (isDataOnly) {
+            if (percent < 12) {
+              setSavePackageStatus("Preparing content data...");
+            } else if (percent < 30) {
+              setSavePackageStatus("Collecting project settings...");
+            } else if (percent < 95) {
+              setSavePackageStatus("Building data package...");
+            } else if (percent < 100) {
+              setSavePackageStatus("Finalizing data package...");
+            } else {
+              setSavePackageStatus("Data package saved successfully");
+            }
+            return;
+          }
+
           if (percent < 10) {
             setSavePackageStatus("Preparing package...");
           } else if (percent < 25) {
@@ -260,36 +296,47 @@ export function useChapterManager({
             setSavePackageStatus("Package saved successfully");
           }
         },
-      });
+      };
 
-      setSavePackageStatus("Finalizing package...");
+      if (isDataOnly) {
+        await exportViqubedDataOnly(exportPayload);
+      } else {
+        await exportVXPack(exportPayload);
+      }
+
+      setSavePackageStatus(
+        isDataOnly
+          ? "Finalizing data package..."
+          : "Finalizing package...",
+      );
       setSavePackageTargetProgress(100);
 
       await waitUntilProgress(100);
 
-      setSavePackageStatus("Package saved successfully");
+      setSavePackageStatus(
+        isDataOnly
+          ? "Data package saved successfully"
+          : "Package saved successfully",
+      );
 
-      setTimeout(() => {
-        setIsSavingPackage(false);
-        setSavePackageProgress(0);
-        setSavePackageTargetProgress(0);
-        setSavePackageStatus("");
-      }, 1500);
+      resetPackageProgressLater(1500);
     } catch (error) {
-      console.error("Gagal menyimpan VX Package:", error);
+      console.error(
+        isDataOnly
+          ? "Gagal menyimpan VIQUBED Data:"
+          : "Gagal menyimpan VX Package:",
+        error,
+      );
 
       setSavePackageStatus(error.message || "Failed to save package");
       setSavePackageTargetProgress(100);
       setSavePackageProgress(100);
-
-      setTimeout(() => {
-        setIsSavingPackage(false);
-        setSavePackageProgress(0);
-        setSavePackageTargetProgress(0);
-        setSavePackageStatus("");
-      }, 2500);
+      resetPackageProgressLater(2500);
     }
   };
+
+  const saveMaterial = () => runPackageExport("full");
+  const saveDataOnly = () => runPackageExport("data-only");
 
   const updateChapterField = (chapterId, field, value) => {
     setMaterial((prev) => ({
@@ -719,7 +766,9 @@ export function useChapterManager({
     clearChapterFeedback,
     createChapterFromSelectedObject,
     saveMaterial,
+    saveDataOnly,
     isSavingPackage,
+    savePackageMode,
     savePackageProgress,
     savePackageStatus,
     updateChapterField,

@@ -21,7 +21,12 @@ export default function ViewerPageLayout({ controller }) {
     contentAuthoringLockReason,
     saveCameraViewToActiveChapter,
     saveMaterial,
+    saveDataOnly,
+    importDataFile,
+    isImportingData,
+    importDataStatus,
     isSavingPackage,
+    savePackageMode,
     savePackageProgress,
     savePackageStatus,
     applyShaderMode,
@@ -104,7 +109,12 @@ export default function ViewerPageLayout({ controller }) {
         saveStatus={saveStatus}
         onPlay={controller.openPlayerPreview}
         onExport={saveMaterial}
+        onExportData={saveDataOnly}
+        onImportData={importDataFile}
+        isImportingData={isImportingData}
+        importDataStatus={importDataStatus}
         isExporting={isSavingPackage}
+        exportMode={savePackageMode}
         exportProgress={savePackageProgress}
         exportStatus={savePackageStatus}
       />
