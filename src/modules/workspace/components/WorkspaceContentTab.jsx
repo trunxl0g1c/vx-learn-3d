@@ -1,21 +1,29 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useAlert } from "../../../components/dialog/AlertContext";
 import { useGlobalLoading } from "../../loading/LoadingContext";
+import { useAuth } from "../../auth/AuthContext";
 import {
   useContents,
   useDeleteContent,
   getContentThumbnailUrl,
 } from "../../project-hub/api/contents";
+import {
+  useWorkspaceContentLocks,
+  useRevokeContentLock,
+} from "../../project-hub/api/contentLocks";
 import { hydrateProjectFromBackend } from "../../project-hub/api/projectHydrate";
 import {
   getAllProjectsFromIndexedDb,
   deleteProjectFromIndexedDb,
 } from "../../project-hub/storage/projectIndexedDb";
 import { preloadProjectRoute } from "../../../routeLoaders";
+import { useWorkspaceMembers } from "../api/workspaces";
+import { CONTENT_LOCK_PRESENCE_POLL_INTERVAL_MS } from "../../../constants/contentLock";
+import { hasPermission } from "../../../utils/permissions";
 import ContentRowMenu from "./ContentRowMenu";
 
 const ConfirmationDialog = lazy(
@@ -85,10 +93,25 @@ function ContentThumbnail({ content }) {
   );
 }
 
+function EditingAvatar({ lock }) {
+  const name = lock?.lockedByUser?.name || "Someone";
+  const initial = name.trim().charAt(0).toUpperCase() || "?";
+
+  return (
+    <div
+      className="ml-auto grid size-7 shrink-0 place-items-center rounded-full border-2 border-primary bg-warning-main text-xs font-semibold text-white"
+      title={`${name} is editing`}
+    >
+      {initial}
+    </div>
+  );
+}
+
 export default function WorkspaceContentTab({ workspaceId }) {
   const navigate = useNavigate();
   const { showAlert } = useAlert();
   const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
+  const { user } = useAuth();
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -150,11 +173,50 @@ export default function WorkspaceContentTab({ workspaceId }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const deleteContent = useDeleteContent();
 
+  const { data: contentLocks = [] } = useWorkspaceContentLocks(workspaceId, {
+    refetchInterval: CONTENT_LOCK_PRESENCE_POLL_INTERVAL_MS,
+  });
+
+  const locksByContentId = useMemo(() => {
+    const map = {};
+
+    contentLocks.forEach((lock) => {
+      if (lock?.contentId) map[lock.contentId] = lock;
+    });
+
+    return map;
+  }, [contentLocks]);
+
+  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+
+  const isCurrentUserOwner = useMemo(() => {
+    const membership = members.find((member) => {
+      const memberUserId = member?.userId || member?.user?.id || member?.id;
+      return memberUserId === user?.id;
+    });
+
+    return membership?.roleInWorkspace === "owner";
+  }, [members, user?.id]);
+
+  const canDeleteContent = hasPermission(user, "content", "delete");
+  const canEditContent = hasPermission(user, "content", "update");
+
+  const [revokeTarget, setRevokeTarget] = useState(null);
+  const revokeContentLock = useRevokeContentLock({
+    onSuccess: () => setRevokeTarget(null),
+  });
+
   async function handleOpenContent(content) {
     const localProject = localProjectByContentId[content.id];
+    // A user without content:update can't hold the edit lock (the backend's
+    // POST /content-locks/acquire is gated on that same permission) — open
+    // them straight into the read-only Player instead of letting them click
+    // into the Editor only to bounce off a 403 there.
+    const targetRole = canEditContent ? "EDITOR" : "PLAYER";
 
     if (localProject) {
-      preloadProjectRoute(localProject.role).catch(() => {});
+      const openRole = canEditContent ? localProject.role : "PLAYER";
+      preloadProjectRoute(openRole).catch(() => {});
 
       showLoading({
         title: "Opening Viqubed Project",
@@ -163,10 +225,12 @@ export default function WorkspaceContentTab({ workspaceId }) {
       });
 
       setTimeout(() => {
-        updateLoading({ text: "Preparing editor..." });
+        updateLoading({
+          text: openRole === "PLAYER" ? "Preparing viewer..." : "Preparing editor...",
+        });
 
         navigate(
-          localProject.role === "PLAYER"
+          openRole === "PLAYER"
             ? `/viqubed/player/${localProject.id}`
             : `/viqubed/editor/${localProject.id}`,
         );
@@ -184,8 +248,9 @@ export default function WorkspaceContentTab({ workspaceId }) {
     // });
     //
     // Now it hydrates a local project record from the backend and opens
-    // straight into the editor — the GLB streams (and gets cached) on open.
-    preloadProjectRoute("EDITOR").catch(() => {});
+    // straight into the editor (or player, if the user can't edit) — the
+    // GLB streams (and gets cached) on open.
+    preloadProjectRoute(targetRole).catch(() => {});
 
     showLoading({
       title: "Opening Viqubed Project",
@@ -197,11 +262,17 @@ export default function WorkspaceContentTab({ workspaceId }) {
       const hydrated = await hydrateProjectFromBackend({
         workspaceId,
         contentId: content.id,
-        role: "EDITOR",
+        role: targetRole,
       });
 
-      updateLoading({ text: "Preparing editor..." });
-      navigate(`/viqubed/editor/${hydrated.id}`);
+      updateLoading({
+        text: targetRole === "PLAYER" ? "Preparing viewer..." : "Preparing editor...",
+      });
+      navigate(
+        targetRole === "PLAYER"
+          ? `/viqubed/player/${hydrated.id}`
+          : `/viqubed/editor/${hydrated.id}`,
+      );
     } catch (error) {
       console.error("Failed to hydrate cloud project:", error);
       hideLoading();
@@ -254,12 +325,12 @@ export default function WorkspaceContentTab({ workspaceId }) {
         value={search}
         placeholder="Search content"
         onChange={(event) => setSearch(event.target.value)}
-        className="h-10! w-full! min-w-0 rounded-lg border-accent-main! sm:max-w-[320px]"
+        className="h-9! w-full! min-w-0 rounded-lg sm:max-w-[320px]"
         leftIcon={
           <MaterialIcon
             name="search"
             fill={1}
-            size={22}
+            size={24}
             className="text-secondary-default"
           />
         }
@@ -278,7 +349,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead>
-              <tr className="border-b-2 border-divider-main text-sm tracking-wide text-secondary-default">
+              <tr className="border-b border-divider-main text-sm tracking-wide text-secondary-default">
                 <th className="px-4 py-3 font-normal">Title</th>
                 <th className="px-4 py-3 font-normal">Description</th>
                 <th className="px-4 py-3 font-normal">Created At</th>
@@ -291,7 +362,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
                 <tr
                   key={content.id}
                   onClick={() => handleOpenContent(content)}
-                  className="cursor-pointer border-b-2 border-divider-main last:border-b-0 hover:bg-white/5"
+                  className="cursor-pointer border-b border-divider-main last:border-b-0 hover:bg-white/5"
                 >
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -299,6 +370,9 @@ export default function WorkspaceContentTab({ workspaceId }) {
                       <span className="truncate font-medium text-accent-contrast">
                         {content.title || "Untitled"}
                       </span>
+                      {locksByContentId[content.id] && (
+                        <EditingAvatar lock={locksByContentId[content.id]} />
+                      )}
                     </div>
                   </td>
 
@@ -314,7 +388,20 @@ export default function WorkspaceContentTab({ workspaceId }) {
                     className="px-4 py-3 text-right"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    <ContentRowMenu onDelete={() => setDeleteTarget(content)} />
+                    <ContentRowMenu
+                      onDelete={() => setDeleteTarget(content)}
+                      onRevoke={() =>
+                        setRevokeTarget({
+                          id: content.id,
+                          title: content.title,
+                          lockedByUser: locksByContentId[content.id]
+                            ?.lockedByUser,
+                        })
+                      }
+                      hasActiveLock={Boolean(locksByContentId[content.id])}
+                      isCurrentUserOwner={isCurrentUserOwner}
+                      canDelete={canDeleteContent}
+                    />
                   </td>
                 </tr>
               ))}
@@ -373,6 +460,34 @@ export default function WorkspaceContentTab({ workspaceId }) {
               }
             }}
             onConfirm={handleConfirmDelete}
+          />
+        </Suspense>
+      )}
+
+      {revokeTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ConfirmationDialog
+            open
+            title="Revoke Edit Access?"
+            message={
+              <>
+                {revokeTarget.lockedByUser?.name || "This user"} will be
+                immediately removed from editing “
+                {revokeTarget.title || "Untitled"}”.
+              </>
+            }
+            confirmText="Revoke"
+            cancelText="Cancel"
+            confirmVariant="destructive"
+            isLoading={revokeContentLock.isPending}
+            onClose={() => {
+              if (!revokeContentLock.isPending) {
+                setRevokeTarget(null);
+              }
+            }}
+            onConfirm={() =>
+              revokeContentLock.mutate({ contentId: revokeTarget.id })
+            }
           />
         </Suspense>
       )}

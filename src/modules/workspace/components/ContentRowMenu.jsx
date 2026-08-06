@@ -3,14 +3,24 @@ import { createPortal } from "react-dom";
 import MaterialIcon from "../../../components/ui/material-icon";
 
 const PANEL_WIDTH = 176;
-const PANEL_ESTIMATED_HEIGHT = 56;
+const MENU_ITEM_HEIGHT = 44;
 const GAP = 6;
 
-export default function ContentRowMenu({ onDelete }) {
+export default function ContentRowMenu({
+  onDelete,
+  onRevoke,
+  hasActiveLock = false,
+  isCurrentUserOwner = false,
+  canDelete = true,
+}) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(null);
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
+
+  const showRevoke = hasActiveLock && isCurrentUserOwner;
+  const itemCount = (showRevoke ? 1 : 0) + (canDelete ? 1 : 0);
+  const estimatedHeight = MENU_ITEM_HEIGHT * Math.max(itemCount, 1) + 8;
 
   // The table this menu lives in scrolls both ways (overflow-x-auto) and
   // sits inside an overflow-hidden card — an absolutely-positioned panel
@@ -22,18 +32,16 @@ export default function ContentRowMenu({ onDelete }) {
     if (!rect) return;
 
     const openUpward =
-      rect.bottom + GAP + PANEL_ESTIMATED_HEIGHT > window.innerHeight;
+      rect.bottom + GAP + estimatedHeight > window.innerHeight;
 
     setPosition({
-      top: openUpward
-        ? rect.top - GAP - PANEL_ESTIMATED_HEIGHT
-        : rect.bottom + GAP,
+      top: openUpward ? rect.top - GAP - estimatedHeight : rect.bottom + GAP,
       left: Math.min(
         rect.right - PANEL_WIDTH,
         window.innerWidth - PANEL_WIDTH - GAP,
       ),
     });
-  }, []);
+  }, [estimatedHeight]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -64,6 +72,8 @@ export default function ContentRowMenu({ onDelete }) {
     };
   }, [open]);
 
+  if (itemCount === 0) return null;
+
   return (
     <>
       <button
@@ -90,18 +100,35 @@ export default function ContentRowMenu({ onDelete }) {
             style={{ top: position.top, left: position.left, width: PANEL_WIDTH }}
             className="fixed z-1000 overflow-hidden rounded-lg border border-divider-main bg-primary py-1 shadow-xl"
           >
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                onDelete?.();
-              }}
-              className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-red-300 transition hover:bg-white/5"
-            >
-              <MaterialIcon name="delete" size={18} />
-              Delete
-            </button>
+            {showRevoke && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onRevoke?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-white transition hover:bg-white/5"
+              >
+                <MaterialIcon name="block" size={18} />
+                Revoke edit access
+              </button>
+            )}
+
+            {canDelete && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onDelete?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-red-300 transition hover:bg-white/5"
+              >
+                <MaterialIcon name="delete" size={18} />
+                Delete
+              </button>
+            )}
           </div>,
           document.body,
         )}

@@ -6,6 +6,8 @@ import Input from "../../components/ui/input";
 import InlineAlert from "../../components/ui/inline-alert";
 import MaterialIcon from "../../components/ui/material-icon";
 import { getWorkspaceThumbnailUrl, useWorkspaces } from "./api/workspaces";
+import { useAuth } from "../auth/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 
 const CreateWorkspaceDialog = lazy(() => import("./CreateWorkspaceDialog"));
 
@@ -66,6 +68,8 @@ function WorkspaceAvatar({ id, name, thumbnail, modifiedAt }) {
 
 export default function WorkspacePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canCreateWorkspace = hasPermission(user, "workspace", "create");
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -79,6 +83,9 @@ export default function WorkspacePage() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  // GET /workspaces is already scoped server-side to workspaces the caller
+  // is a member of (workspace.service.ts's getAll()), same as content — no
+  // client-side filtering needed here.
   const {
     data: workspaces = [],
     isLoading,
@@ -95,27 +102,29 @@ export default function WorkspacePage() {
             value={search}
             placeholder="Search workspace"
             onChange={(event) => setSearch(event.target.value)}
-            className="h-10! w-full! min-w-0 rounded-lg border-accent-main! sm:max-w-[320px]"
+            className="h-9! w-full! min-w-0 rounded-lg sm:max-w-[320px]"
             leftIcon={
               <MaterialIcon
                 name="search"
                 fill={1}
-                size={22}
+                size={24}
                 className="text-secondary-default"
               />
             }
             inputClassName="min-w-0 text-sm italic"
           />
 
-          <Button
-            variant="gold"
-            size="sm"
-            onClick={() => setOpenCreate(true)}
-            className="rounded-lg"
-          >
-            <MaterialIcon name="add" size={18} />
-            Create New Workspace
-          </Button>
+          {canCreateWorkspace && (
+            <Button
+              variant="gold"
+              size="sm"
+              onClick={() => setOpenCreate(true)}
+              className="rounded-lg"
+            >
+              <MaterialIcon name="add" size={18} />
+              Create New Workspace
+            </Button>
+          )}
         </div>
 
         {isError && (
@@ -132,7 +141,7 @@ export default function WorkspacePage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead>
-                <tr className="border-b-2 border-divider-main text-sm tracking-wide text-contrast-grayout">
+                <tr className="border-b border-divider-main text-sm tracking-wide text-contrast-grayout">
                   <th className="px-4 py-3 font-normal text-secondary-default">
                     Name
                   </th>
@@ -156,7 +165,7 @@ export default function WorkspacePage() {
                   <tr
                     key={workspace.id}
                     onClick={() => navigate(`/workspace/${workspace.id}`)}
-                    className="cursor-pointer border-b-2 border-divider-main last:border-b-0 hover:bg-white/5"
+                    className="cursor-pointer border-b border-divider-main last:border-b-0 hover:bg-white/5"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">

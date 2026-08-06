@@ -49,6 +49,7 @@ import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
+import { useContentEditLock } from "./useContentEditLock";
 export function useViewerPageController() {
   const vxEngine = useVXEngine();
   const navigate = useNavigate();
@@ -361,6 +362,12 @@ export function useViewerPageController() {
   });
 
   const remoteContentId = currentProject?.remote?.contentId;
+
+  const {
+    lockConflict,
+    kicked: contentLockKicked,
+    dismissKicked: dismissContentLockKicked,
+  } = useContentEditLock({ remoteContentId, projectId });
 
   const handleBulkUpdate = useCallback(async () => {
     if (!remoteContentId || !projectId || projectId === "demo") return;
@@ -910,6 +917,9 @@ export function useViewerPageController() {
     syncStatus,
     pendingSync,
     remoteContentId,
+    lockConflict,
+    kicked: contentLockKicked,
+    dismissKicked: dismissContentLockKicked,
     handleBulkUpdate,
     openPlayerPreview,
     activeSidebar,

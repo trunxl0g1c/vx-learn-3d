@@ -5,6 +5,8 @@ import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useRemoveWorkspaceMember, useWorkspaceMembers } from "../api/workspaces";
+import { useAuth } from "../../auth/AuthContext";
+import { hasPermission } from "../../../utils/permissions";
 
 const AddMemberDialog = lazy(() => import("../AddMemberDialog"));
 const ConfirmationDialog = lazy(
@@ -23,12 +25,12 @@ function getMemberUserId(member) {
 
 function getMemberName(member) {
   const user = getMemberUser(member);
-  return user?.name || user?.username || "Unnamed User";
+  return user?.name || user?.email || "Unnamed User";
 }
 
 function getMemberEmail(member) {
   const user = getMemberUser(member);
-  return user?.email || user?.username || "—";
+  return user?.email || "—";
 }
 
 function getMemberRole(member) {
@@ -60,6 +62,9 @@ function MemberAvatar({ name }) {
 }
 
 export default function WorkspaceMemberTab({ workspaceId }) {
+  const { user } = useAuth();
+  const canManageMembers = hasPermission(user, "workspace", "manage");
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [openAddMember, setOpenAddMember] = useState(false);
@@ -105,27 +110,29 @@ export default function WorkspaceMemberTab({ workspaceId }) {
           value={search}
           placeholder="Search member name"
           onChange={(event) => setSearch(event.target.value)}
-          className="h-10! w-full! min-w-0 rounded-lg border-accent-main! sm:max-w-[320px]"
+          className="h-9! w-full! min-w-0 rounded-lg sm:max-w-[320px]"
           leftIcon={
             <MaterialIcon
               name="search"
               fill={1}
-              size={22}
+              size={24}
               className="text-secondary-default"
             />
           }
           inputClassName="min-w-0 text-sm italic"
         />
 
-        <Button
-          variant="gold"
-          size="sm"
-          onClick={() => setOpenAddMember(true)}
-          className="rounded-lg"
-        >
-          <MaterialIcon name="add" size={18} />
-          Add new Member
-        </Button>
+        {canManageMembers && (
+          <Button
+            variant="gold"
+            size="sm"
+            onClick={() => setOpenAddMember(true)}
+            className="rounded-lg"
+          >
+            <MaterialIcon name="add" size={18} />
+            Add new Member
+          </Button>
+        )}
       </div>
 
       {isError && (
@@ -153,7 +160,7 @@ export default function WorkspaceMemberTab({ workspaceId }) {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
-              <tr className="border-b-2 border-divider-main text-sm tracking-wide text-secondary-default">
+              <tr className="border-b border-divider-main text-sm tracking-wide text-secondary-default">
                 <th className="px-4 py-3 font-normal">Name</th>
                 <th className="px-4 py-3 font-normal">Email</th>
                 <th className="px-4 py-3 font-normal">Role in Workspace</th>
@@ -170,7 +177,7 @@ export default function WorkspaceMemberTab({ workspaceId }) {
                 return (
                   <tr
                     key={userId}
-                    className="border-b-2 border-divider-main last:border-b-0 hover:bg-white/5"
+                    className="border-b border-divider-main last:border-b-0 hover:bg-white/5"
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -194,16 +201,18 @@ export default function WorkspaceMemberTab({ workspaceId }) {
                     </td>
 
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMemberPendingRemoval({ userId, name })
-                        }
-                        className="grid size-8 cursor-pointer place-items-center rounded-lg text-contrast-grayout transition hover:bg-warning-main/10 hover:text-warning-main"
-                        aria-label={`Remove ${name}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      {canManageMembers && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMemberPendingRemoval({ userId, name })
+                          }
+                          className="grid size-8 cursor-pointer place-items-center rounded-lg text-contrast-grayout transition hover:bg-warning-main/10 hover:text-warning-main"
+                          aria-label={`Remove ${name}`}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

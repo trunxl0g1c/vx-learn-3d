@@ -28,7 +28,7 @@ function getValueFromPercent(percent, range) {
   return max - ((max - min) * clampedPercent) / 100;
 }
 
-function AxisCutSlider({ axis, value, range, onChange, disabled = false }) {
+export function AxisCutSlider({ axis, value, range, onChange, disabled = false }) {
   const percent = getAxisPercent(axis, value, range);
 
   return (

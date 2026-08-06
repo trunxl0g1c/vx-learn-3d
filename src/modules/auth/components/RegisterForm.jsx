@@ -13,7 +13,7 @@ export default function RegisterForm() {
   const { setSession } = useAuth();
 
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -33,7 +33,7 @@ export default function RegisterForm() {
 
     setFormError("");
 
-    if (!name.trim() || !username.trim() || !password) {
+    if (!name.trim() || !email.trim() || !password) {
       setFormError("All fields are required.");
       return;
     }
@@ -55,7 +55,7 @@ export default function RegisterForm() {
 
     registerMutation.mutate({
       name: name.trim(),
-      username: username.trim(),
+      email: email.trim(),
       password,
     });
   }
@@ -89,19 +89,20 @@ export default function RegisterForm() {
 
         <div className="flex flex-col gap-3">
           <label
-            htmlFor="register-username"
+            htmlFor="register-email"
             className="text-sm text-contrast-grayout"
           >
             Email
           </label>
           <Input
-            id="register-username"
-            name="username"
+            id="register-email"
+            name="email"
+            type="email"
             placeholder="Type here..."
-            autoComplete="username"
+            autoComplete="email"
             disabled={registerMutation.isPending}
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
             className="rounded-[16px]! bg-transparent! py-6!"
             inputClassName="py-6!"
           />

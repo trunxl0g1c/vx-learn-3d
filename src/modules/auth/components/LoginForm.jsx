@@ -52,7 +52,7 @@ export default function LoginForm() {
   const { setSession } = useAuth();
   const { showAlert } = useAlert();
 
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -68,22 +68,22 @@ export default function LoginForm() {
   function handleSubmit(event) {
     event.preventDefault();
 
-    if (!username.trim() || !password || loginMutation.isPending) return;
+    if (!email.trim() || !password || loginMutation.isPending) return;
 
-    loginMutation.mutate({ username: username.trim(), password });
+    loginMutation.mutate({ email: email.trim(), password });
   }
 
   function notifyUnavailable(feature) {
     showAlert({
       title: "Not available yet",
-      message: `${feature} isn't set up yet — use your username and password for now.`,
+      message: `${feature} isn't set up yet — use your email and password for now.`,
       type: "info",
     });
   }
 
   const errorMessage =
     loginMutation.error?.response?.data?.message ||
-    (loginMutation.isError ? "Invalid username or password" : "");
+    (loginMutation.isError ? "Invalid email or password" : "");
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
@@ -92,14 +92,14 @@ export default function LoginForm() {
       )}
 
       <Input
-        type="text"
-        name="username"
-        autoComplete="username"
-        placeholder="Username"
-        aria-label="Username"
+        type="email"
+        name="email"
+        autoComplete="email"
+        placeholder="Email"
+        aria-label="Email"
         disabled={loginMutation.isPending}
-        value={username}
-        onChange={(event) => setUsername(event.target.value)}
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
         // leftIcon={<User className="text-contrast-main" size={18} />}
         leftIcon={
           <MaterialIcon

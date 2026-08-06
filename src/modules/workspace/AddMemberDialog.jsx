@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import Button from "../../components/ui/button";
 import Input from "../../components/ui/input";
 import InlineAlert from "../../components/ui/inline-alert";
-import MaterialIcon from "../../components/ui/material-icon";
+import SelectField from "../../components/ui/select";
 import { useAddWorkspaceMember } from "./api/workspaces";
 import { useSearchUsers } from "./api/users";
 
@@ -13,6 +13,15 @@ const ROLE_OPTIONS = [
   { value: "editor", label: "Editor" },
   { value: "viewer", label: "Viewer" },
 ];
+
+function getInitials(name) {
+  const parts = (name || "?").trim().split(/\s+/).filter(Boolean);
+
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export default function AddMemberDialog({
   open,
@@ -42,7 +51,7 @@ export default function AddMemberDialog({
     error: searchError,
   } = useSearchUsers(
     { search: debouncedSearch },
-    { enabled: debouncedSearch.length > 0 },
+    { enabled: debouncedSearch.length > 0 && !selectedUser },
   );
 
   const addMember = useAddWorkspaceMember({
@@ -89,7 +98,7 @@ export default function AddMemberDialog({
     <div className="fixed inset-0 z-999 grid place-items-center bg-black/45 backdrop-blur-sm">
       <div className="w-125 overflow-hidden rounded-[20px] bg-dark-alpha text-white shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
         <div className="flex h-18 items-center justify-between bg-dark-alpha px-5">
-          <h2 className="text-base font-normal">Add new Member</h2>
+          <h2 className="text-base font-normal">Add Member</h2>
 
           {!isSubmitting && (
             <button
@@ -107,29 +116,92 @@ export default function AddMemberDialog({
 
           <div className="space-y-2">
             <label className="block text-sm font-normal text-contrast-grayout">
-              Find User
+              Name
             </label>
 
-            <Input
-              value={search}
-              placeholder="Search by name or username"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setSelectedUser(null);
-                setError("");
-              }}
-              disabled={isSubmitting}
-              className="h-[44px] rounded-lg bg-dark-alpha!"
-              inputClassName="text-sm italic"
-              leftIcon={
-                <MaterialIcon
-                  name="search"
-                  fill={1}
-                  size={20}
-                  className="text-secondary-default"
-                />
-              }
-            />
+            <div className="flex flex-col">
+              <Input
+                value={search}
+                placeholder="Search by name"
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSelectedUser(null);
+                  setError("");
+                }}
+                disabled={isSubmitting}
+                className="h-[44px] rounded-lg bg-dark-alpha!"
+                inputClassName="text-sm"
+                rightIcon={
+                  selectedUser ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(null);
+                        setSearch("");
+                        setError("");
+                      }}
+                      disabled={isSubmitting}
+                      className="grid cursor-pointer place-items-center rounded-full p-1 text-secondary-default hover:bg-white/10 disabled:pointer-events-none disabled:opacity-50"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  ) : null
+                }
+              />
+
+              {debouncedSearch && !selectedUser && (
+                <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg bg-primary p-2">
+                  {isSearching && (
+                    <p className="px-2 py-2 text-xs text-contrast-grayout">
+                      Searching…
+                    </p>
+                  )}
+
+                  {!isSearching && availableUsers.length === 0 && (
+                    <p className="px-2 py-2 text-xs text-contrast-grayout">
+                      No matching users.
+                    </p>
+                  )}
+
+                  {availableUsers.map((user) => {
+                    const name = user.name || user.email;
+                    const isSelected = selectedUser?.id === user.id;
+
+                    return (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setSearch(name);
+                          setError("");
+                        }}
+                        disabled={isSubmitting}
+                        className={[
+                          "flex w-full items-center gap-3 rounded-lg border px-3 py-2 text-left transition disabled:pointer-events-none disabled:opacity-50",
+                          isSelected
+                            ? "border-accent-main bg-white/5"
+                            : "border-transparent hover:bg-white/5",
+                        ].join(" ")}
+                      >
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-semibold text-white">
+                          {getInitials(name)}
+                        </span>
+
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-white">
+                            {name}
+                          </span>
+                          <span className="block truncate text-xs text-contrast-grayout">
+                            {user.email}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {isSearchError && (
@@ -143,63 +215,18 @@ export default function AddMemberDialog({
             />
           )}
 
-          {debouncedSearch && (
-            <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-grayout-dark bg-dark-alpha p-2">
-              {isSearching && (
-                <p className="px-2 py-2 text-xs text-contrast-grayout">
-                  Searching…
-                </p>
-              )}
-
-              {!isSearching && availableUsers.length === 0 && (
-                <p className="px-2 py-2 text-xs text-contrast-grayout">
-                  No matching users.
-                </p>
-              )}
-
-              {availableUsers.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => setSelectedUser(user)}
-                  disabled={isSubmitting}
-                  className={[
-                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition disabled:pointer-events-none disabled:opacity-50",
-                    selectedUser?.id === user.id
-                      ? "bg-accent-main text-white"
-                      : "text-white hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  <span className="truncate">
-                    {user.name || user.username}
-                  </span>
-                  <span className="ml-2 shrink-0 truncate text-xs opacity-70">
-                    {user.email || user.username}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
           <div className="space-y-2">
             <label className="block text-sm font-normal text-contrast-grayout">
-              Role in Workspace
+              Role
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
-              {ROLE_OPTIONS.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  size="sm"
-                  variant={role === option.value ? "cyanSolid" : "cyanOutline"}
-                  onClick={() => setRole(option.value)}
-                  disabled={isSubmitting}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
+            <SelectField
+              value={role}
+              onChange={setRole}
+              options={ROLE_OPTIONS}
+              disabled={isSubmitting}
+              className="h-11! rounded-lg border-secondary-default!"
+            />
           </div>
         </div>
 

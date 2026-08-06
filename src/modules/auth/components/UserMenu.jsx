@@ -37,7 +37,7 @@ export default function UserMenu({ className = "" }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const displayName = user?.name || user?.username || "Guest";
+  const displayName = user?.name || user?.email || "Guest";
 
   return (
     <div className={`relative ${className}`} ref={menuRef}>
@@ -71,9 +71,9 @@ export default function UserMenu({ className = "" }) {
             <p className="truncate text-sm font-medium text-white">
               {displayName}
             </p>
-            {user?.username && (
+            {user?.email && (
               <p className="truncate text-xs text-secondary-default">
-                {user.username}
+                {user.email}
               </p>
             )}
           </div>

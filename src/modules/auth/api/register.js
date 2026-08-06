@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import apiClient from "../../../lib/apiClient";
 
-export async function registerRequest({ name, username, password }) {
+export async function registerRequest({ name, email, password }) {
   const response = await apiClient.post("/auth/register", {
     name,
-    username,
+    email,
     password,
   });
 

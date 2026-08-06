@@ -271,6 +271,11 @@ function mapContentSettingToViewerAndScene(setting) {
  * Idempotent: if this content was already hydrated here, the existing local
  * row is reused as-is rather than overwritten, so it never clobbers edits
  * made since the last hydration.
+ *
+ * workspaceId is optional — callers that already know it (Workspace/Hub
+ * listings) pass it straight through, but an entry point that only has a
+ * contentId (e.g. a direct Player link) can omit it and it's read off the
+ * fetched content below instead.
  */
 export async function hydrateProjectFromBackend({
   workspaceId,
@@ -340,6 +345,7 @@ export async function hydrateProjectFromBackend({
   const { viewer, scene, playerSettings } =
     mapContentSettingToViewerAndScene(setting);
 
+  const resolvedWorkspaceId = workspaceId || content?.workspaceId || null;
   const now = new Date().toISOString();
 
   const project = {
@@ -362,7 +368,7 @@ export async function hydrateProjectFromBackend({
     },
 
     remote: {
-      workspaceId,
+      workspaceId: resolvedWorkspaceId,
       contentId,
       mediaId: null,
       chapterIds,

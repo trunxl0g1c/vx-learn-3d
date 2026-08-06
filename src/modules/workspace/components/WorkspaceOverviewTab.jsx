@@ -219,7 +219,7 @@ export default function WorkspaceOverviewTab({
         variant="gold"
         onClick={handleSubmit}
         disabled={isLoading || isSaving}
-        className="rounded-xl text-sm font-normal w-44"
+        className="rounded-xl text-sm font-normal w-44 tracking-widest"
       >
         {isSaving ? "SAVING..." : "EDIT"}
       </Button>

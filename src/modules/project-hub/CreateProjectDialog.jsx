@@ -140,7 +140,7 @@ export default function CreateProjectDialog({
                 <div className="relative">
                   <Input
                     value={projectName}
-                    maxLength={16}
+                    maxLength={64}
                     placeholder="Type project name here"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -158,7 +158,7 @@ export default function CreateProjectDialog({
                   />
 
                   <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
-                    {projectName.length}/16
+                    {projectName.length}/64
                   </span>
                 </div>
               </div>

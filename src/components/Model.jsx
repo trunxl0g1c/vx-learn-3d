@@ -90,7 +90,7 @@ function Model({
     GLTFLoader,
     modelUrl,
     (loader) => {
-      loader.setMeshoptDecoder(MeshoptDecoder);
+      configureViqubedGltfLoader(loader);
       // Needed when modelUrl points at GET /content-media/stream (streamed
       // from the backend instead of a local blob: URL) — that route is
       // cookie-authenticated, and fetch()-based loaders don't send

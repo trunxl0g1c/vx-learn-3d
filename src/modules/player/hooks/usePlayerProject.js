@@ -18,6 +18,7 @@ import {
   getFlowFromIndexedDb,
   getProcedureFromIndexedDb,
 } from "../../project-hub/storage/projectIndexedDb"
+import { hydrateProjectFromBackend } from "../../project-hub/api/projectHydrate"
 import {
   isLazyMaterialRecord,
   replaceMaterialRecord,
@@ -233,7 +234,59 @@ export default function usePlayerProject({
 
     async function openProjectForPlayer() {
       try {
-        const loaded = await loadProject(projectId)
+        const handleDownloadProgress = (loadedBytes, totalBytes) => {
+          if (cancelled || loadingSessionRef.current !== sessionId) return
+
+          const percent = totalBytes
+            ? Math.round((loadedBytes / totalBytes) * 100)
+            : null
+          const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1)
+
+          updateLoading({
+            text:
+              percent != null
+                ? `Downloading 3D model...`
+                : `Downloading 3D model... ${loadedMb} MB`,
+            progress: percent,
+          })
+        }
+
+        let loaded = await loadProject(projectId, {
+          onDownloadProgress: handleDownloadProgress,
+        })
+
+        if (cancelled || loadingSessionRef.current !== sessionId) return
+
+        // Not in this browser's IndexedDB yet — happens when a Player link
+        // is opened before the project was ever hydrated locally (a shared
+        // preview URL, a fresh browser/profile, IndexedDB cleared, etc).
+        // Pull its editor data down from the backend the same way the
+        // Workspace/Hub do for cloud-only content, then retry; the GLB
+        // itself streams (and gets cached) inside loadProject above.
+        if (!loaded) {
+          updateLoading({
+            text: "Fetching project from server...",
+            progress: null,
+          })
+
+          try {
+            await hydrateProjectFromBackend({
+              contentId: projectId,
+              role: "PLAYER",
+            })
+
+            if (cancelled || loadingSessionRef.current !== sessionId) return
+
+            loaded = await loadProject(projectId, {
+              onDownloadProgress: handleDownloadProgress,
+            })
+          } catch (hydrateError) {
+            console.error(
+              "Gagal mengambil project dari server:",
+              hydrateError,
+            )
+          }
+        }
 
         if (cancelled || loadingSessionRef.current !== sessionId) return
 

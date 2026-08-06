@@ -10,10 +10,14 @@ export default function ProjectHubNavbar() {
           className="h-8 w-8 shrink-0"
         />
         <img
-          src="/images/logo-label.svg"
+          src="/images/label-logo-fill.svg"
           alt="Viqubed Studio"
           className="hidden h-5.5 w-auto max-w-[170px] sm:block"
         />
+        <span className="flex flex-col text-contrast-grayout">
+          <p className="text-xs font-bold uppercase tracking-widest">Studio</p>
+          <p className="text-xs font-normal">V1.0</p>
+        </span>
       </div>
 
       <div className="flex min-w-0 items-center gap-2 sm:gap-5">

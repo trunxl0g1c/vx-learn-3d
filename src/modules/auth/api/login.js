@@ -1,9 +1,9 @@
 import { useMutation } from "@tanstack/react-query";
 import apiClient from "../../../lib/apiClient";
 
-export async function loginRequest({ username, password }) {
+export async function loginRequest({ email, password }) {
   const response = await apiClient.post("/auth/login", {
-    username,
+    email,
     password,
   });
 
