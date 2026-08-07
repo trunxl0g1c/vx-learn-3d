@@ -25,18 +25,28 @@ import { preloadProjectRoute } from "../../routeLoaders";
 import { useAlert } from "../../components/dialog/AlertContext";
 import {
   useCreateContent,
+  useDeleteContent,
   listContentsRequest,
   getContentThumbnailUrl,
 } from "./api/contents";
 import { uploadFileInChunks } from "./api/uploads";
 import { syncProjectToBackend } from "./api/projectSync";
 import { hydrateProjectFromBackend } from "./api/projectHydrate";
-import { useWorkspaces } from "../workspace/api/workspaces";
+import {
+  useWorkspaces,
+  listWorkspaceMembersRequest,
+} from "../workspace/api/workspaces";
+import { isEncryptedPackageFile } from "../../utils/cryptoUtils";
+import { useAuth } from "../auth/AuthContext";
+import { hasPermission } from "../../utils/permissions";
 
 
 const CreateProjectDialog = lazy(() => import("./CreateProjectDialog"));
 const ConfirmationDialog = lazy(
   () => import("../../components/dialog/ConfirmationDialog"),
+);
+const ImportProjectDialog = lazy(
+  () => import("./components/ImportProjectDialog"),
 );
 
 function isVXPackFile(file) {
@@ -88,6 +98,7 @@ export default function ProjectHubPage() {
 
   const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
   const { showAlert } = useAlert();
+  const { user } = useAuth();
 
   const [openCreate, setOpenCreate] = useState(false);
   const [workspaceId, setWorkspaceId] = useState("");
@@ -100,6 +111,7 @@ export default function ProjectHubPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createContent = useCreateContent();
+  const deleteContent = useDeleteContent();
 
   const [glbValidation, setGlbValidation] = useState(null);
   const [isValidatingGlb, setIsValidatingGlb] = useState(false);
@@ -119,6 +131,15 @@ export default function ProjectHubPage() {
   const [isClearingProjects, setIsClearingProjects] = useState(false);
   const [isImportingProject, setIsImportingProject] = useState(false);
   const [importProjectError, setImportProjectError] = useState("");
+
+  // A picked package doesn't import right away — it's held here while
+  // ImportProjectDialog asks which workspace to upload it to (and, for a
+  // .vxenc pick, the password that decrypts it).
+  const [pendingImportFile, setPendingImportFile] = useState(null);
+  const [importWorkspaceId, setImportWorkspaceId] = useState("");
+  const [importPasswordValue, setImportPasswordValue] = useState("");
+  const [importPasswordError, setImportPasswordError] = useState("");
+  const [isPreparingImport, setIsPreparingImport] = useState(false);
 
   // Not the catalogue's data source (that's the backend query below) — this
   // is only a lookup used to decide, per backend content item, whether this
@@ -209,6 +230,48 @@ export default function ProjectHubPage() {
     })),
   });
 
+  // Per-workspace membership, fetched the same way as the per-workspace
+  // content above — needed because roleInWorkspace ("owner"/"editor"/
+  // "viewer", what AddMemberDialog actually assigns) can grant edit rights
+  // in one workspace independently of the user's global content:update
+  // permission. Unlike WorkspaceContentTab.jsx (scoped to a single
+  // workspace), this page's catalogue spans every workspace the user
+  // belongs to, so the lookup has to be keyed by workspaceId.
+  const memberQueries = useQueries({
+    queries: workspaces.map((workspace) => ({
+      queryKey: ["workspaces", "members", workspace.id],
+      queryFn: () => listWorkspaceMembersRequest(workspace.id),
+      enabled: Boolean(workspace.id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const roleInWorkspaceById = {};
+  workspaces.forEach((workspace, index) => {
+    const members = memberQueries[index]?.data || [];
+    const membership = members.find((member) => {
+      const memberUserId = member?.userId || member?.user?.id || member?.id;
+      return memberUserId === user?.id;
+    });
+
+    roleInWorkspaceById[workspace.id] =
+      membership?.roleInWorkspace || membership?.role || null;
+  });
+
+  // Same OR-with-global-permission gate WorkspaceContentTab.jsx uses: a
+  // user without content:update can't hold the edit lock (the backend's
+  // POST /content-locks/acquire is gated on that same permission) unless
+  // their roleInWorkspace in THIS content's workspace is "editor"/"owner".
+  // handleOpenProject below must never hand out "EDITOR" without this
+  // check, regardless of what role got cached locally on a previous visit.
+  function canEditContentInWorkspace(targetWorkspaceId) {
+    const roleInWorkspace = roleInWorkspaceById[targetWorkspaceId];
+    const canEditViaWorkspaceRole =
+      roleInWorkspace === "owner" || roleInWorkspace === "editor";
+
+    return canEditViaWorkspaceRole || hasPermission(user, "content", "update");
+  }
+
   const isProjectCatalogReady =
     !isWorkspacesLoading && contentQueries.every((query) => !query.isLoading);
 
@@ -290,9 +353,13 @@ export default function ProjectHubPage() {
       //
       // Now it hydrates a local project record from the backend (settings/
       // chapters/flows/procedures/overrides) and opens straight into the
-      // editor — the GLB itself isn't downloaded here, useProjectLoader
-      // streams (and caches) it on open.
-      preloadProjectRoute("EDITOR").catch(() => {});
+      // editor (or player, if this user can't edit) — the GLB itself isn't
+      // downloaded here, useProjectLoader streams (and caches) it on open.
+      const targetRole = canEditContentInWorkspace(project.workspaceId)
+        ? "EDITOR"
+        : "PLAYER";
+
+      preloadProjectRoute(targetRole).catch(() => {});
 
       showLoading({
         title: "Opening Viqubed Project",
@@ -304,11 +371,17 @@ export default function ProjectHubPage() {
         const hydrated = await hydrateProjectFromBackend({
           workspaceId: project.workspaceId,
           contentId: project.contentId,
-          role: "EDITOR",
+          role: targetRole,
         });
 
-        updateLoading({ text: "Preparing editor..." });
-        navigate(`/viqubed/editor/${hydrated.id}`);
+        updateLoading({
+          text: targetRole === "PLAYER" ? "Preparing viewer..." : "Preparing editor...",
+        });
+        navigate(
+          targetRole === "PLAYER"
+            ? `/viqubed/player/${hydrated.id}`
+            : `/viqubed/editor/${hydrated.id}`,
+        );
       } catch (error) {
         console.error("Failed to hydrate cloud project:", error);
         hideLoading();
@@ -325,7 +398,15 @@ export default function ProjectHubPage() {
       return;
     }
 
-    preloadProjectRoute(project.role).catch((error) => {
+    // project.role reflects whatever this project was cached as, which can
+    // predate a since-revoked permission (or predate a workspace role grant)
+    // — re-check live instead of trusting it, same as the cloud-only branch
+    // above.
+    const openRole = canEditContentInWorkspace(project.workspaceId)
+      ? project.role
+      : "PLAYER";
+
+    preloadProjectRoute(openRole).catch((error) => {
       console.warn("Unable to preload project route:", error);
     });
 
@@ -337,10 +418,10 @@ export default function ProjectHubPage() {
 
     setTimeout(() => {
       updateLoading({
-        text: "Preparing editor...",
+        text: openRole === "PLAYER" ? "Preparing viewer..." : "Preparing editor...",
       });
 
-      if (project.role === "EDITOR") {
+      if (openRole === "EDITOR") {
         navigate(`/viqubed/editor/${project.id}`);
         return;
       }
@@ -452,6 +533,9 @@ export default function ProjectHubPage() {
       // The local project is already fully saved and openable at this point.
       // Syncing it to the backend workspace is best-effort from here on —
       // a failure here shouldn't block the user from entering the editor.
+      let uploadedContentId = null;
+      let modelUploaded = false;
+
       try {
         setProgressLabel("Creating workspace content...");
 
@@ -459,6 +543,8 @@ export default function ProjectHubPage() {
           workspaceId,
           title: project.name,
         });
+
+        uploadedContentId = content.id;
 
         setProgressLabel("Uploading model...");
 
@@ -470,6 +556,7 @@ export default function ProjectHubPage() {
             setProgress(20 + Math.round(uploadRatio * 65));
           },
         });
+        modelUploaded = true;
 
         setProgress(90);
         setProgressLabel("Finalizing...");
@@ -495,9 +582,33 @@ export default function ProjectHubPage() {
       } catch (backendError) {
         console.error("Failed to sync project to workspace:", backendError);
 
+        // The GLB never made it to storage (a real failure mode — network
+        // hiccups against R2's presigned-PUT step, a bad ETag, etc.) — the
+        // content row just created has no usable model and would otherwise
+        // sit in the workspace's Content list permanently broken. Clean it
+        // up. Not done when the model uploaded fine but the lower-stakes
+        // materi sync afterward failed, since the content is still usable
+        // then.
+        const modelUploadFailed = uploadedContentId && !modelUploaded;
+
+        if (modelUploadFailed) {
+          try {
+            await deleteContent.mutateAsync({ id: uploadedContentId });
+          } catch (cleanupError) {
+            console.error(
+              "Failed to clean up content after a failed model upload:",
+              cleanupError,
+            );
+          }
+        }
+
         showAlert({
-          title: "Project created locally",
-          message: `"${project.name}" was saved and is ready to edit, but syncing it to the workspace failed: ${backendError?.response?.data?.message || backendError?.message || "Unknown error"}. You can retry this later.`,
+          title: modelUploadFailed
+            ? "Project saved locally only"
+            : "Project created locally",
+          message: modelUploadFailed
+            ? `"${project.name}" is saved locally and ready to edit, but uploading its model to the workspace failed, so the incomplete workspace copy was removed: ${backendError?.response?.data?.message || backendError?.message || "Unknown error"}. You can retry syncing it from the editor later.`
+            : `"${project.name}" was saved and is ready to edit, but syncing it to the workspace failed: ${backendError?.response?.data?.message || backendError?.message || "Unknown error"}. You can retry this later.`,
           type: "warning",
         });
       }
@@ -507,7 +618,7 @@ export default function ProjectHubPage() {
       resetCreateProjectForm();
 
       showLoading({
-        title: "Opening New Project",
+        title: "Opening Viqubed Project",
         text: project.name,
         progress: null,
       });
@@ -529,14 +640,92 @@ export default function ProjectHubPage() {
   }
 
 
-  async function handleImportProject(packageFile) {
+  function handleImportProject(packageFile) {
     if (!packageFile || isImportingProject) return;
 
-    if (!isVXPackFile(packageFile)) {
-      setImportProjectError("Choose a valid .vxpack project package.");
+    const encrypted = isEncryptedPackageFile(packageFile);
+    const plain = isVXPackFile(packageFile);
+
+    if (!encrypted && !plain) {
+      setImportProjectError("Choose a valid .vxpack or .vxenc project package.");
       return;
     }
 
+    // Every import (encrypted or not) now needs a target workspace before
+    // it can proceed, so both go through the same dialog — it just skips
+    // the password field when the pick isn't encrypted.
+    setPendingImportFile(packageFile);
+    setImportWorkspaceId("");
+    setImportPasswordValue("");
+    setImportPasswordError("");
+  }
+
+  function handleCancelImportDialog() {
+    if (isPreparingImport) return;
+
+    setPendingImportFile(null);
+    setImportWorkspaceId("");
+    setImportPasswordValue("");
+    setImportPasswordError("");
+  }
+
+  async function handleSubmitImportDialog() {
+    if (!pendingImportFile || isPreparingImport) return;
+
+    if (!importWorkspaceId) {
+      setImportPasswordError("Choose a workspace to import into.");
+      return;
+    }
+
+    const encrypted = isEncryptedPackageFile(pendingImportFile);
+
+    if (encrypted && !importPasswordValue) {
+      setImportPasswordError("Enter the package password.");
+      return;
+    }
+
+    setIsPreparingImport(true);
+    setImportPasswordError("");
+
+    try {
+      let packageSource = pendingImportFile;
+
+      if (encrypted) {
+        const { decryptBlobWithPassword } = await import(
+          "../../utils/cryptoUtils"
+        );
+        packageSource = await decryptBlobWithPassword(
+          pendingImportFile,
+          importPasswordValue,
+        );
+      }
+
+      const sourceFileName = pendingImportFile.name;
+      const targetWorkspaceId = importWorkspaceId;
+
+      setPendingImportFile(null);
+      setImportWorkspaceId("");
+      setImportPasswordValue("");
+
+      await runImportProject(packageSource, {
+        sourceFileName,
+        workspaceId: targetWorkspaceId,
+      });
+    } catch (error) {
+      console.error("Failed to prepare package for import:", error);
+      setImportPasswordError(
+        error?.message || "Incorrect password or corrupted file.",
+      );
+    } finally {
+      setIsPreparingImport(false);
+    }
+  }
+
+  // Shared by both a plain .vxpack pick and a .vxenc pick that's already
+  // been decrypted — packageSource is a File in the first case and a plain
+  // Blob (decrypted bytes, no .name) in the second, hence sourceFileName
+  // being passed in separately rather than read off packageSource itself.
+  async function runImportProject(packageSource, { sourceFileName, workspaceId }) {
     try {
       setIsImportingProject(true);
       setImportProjectError("");
@@ -554,7 +743,7 @@ export default function ProjectHubPage() {
         viewer: packagedViewer,
         scene: packagedScene,
         modelFile,
-      } = await importVXPack(packageFile, { createObjectUrl: false });
+      } = await importVXPack(packageSource, { createObjectUrl: false });
 
       if (!modelFile) {
         throw new Error("GLB model was not found in the package.");
@@ -569,7 +758,7 @@ export default function ProjectHubPage() {
         packagedProject?.name ||
         packagedMaterial?.projectName ||
         packagedMaterial?.title ||
-        packageFile.name.replace(/\.vxpack$/i, "") ||
+        sourceFileName.replace(/\.(vxpack|vxenc)$/i, "") ||
         "Imported Viqubed Project";
       const role = packagedProject?.role === "PLAYER" ? "PLAYER" : "EDITOR";
 
@@ -630,7 +819,7 @@ export default function ProjectHubPage() {
         metadata: {
           ...baseProject.metadata,
           importedAt: now,
-          sourcePackageName: packageFile.name,
+          sourcePackageName: sourceFileName,
         },
       };
       const draft = {
@@ -648,6 +837,91 @@ export default function ProjectHubPage() {
         importedProject,
         ...current.filter((item) => item.id !== importedProject.id),
       ]);
+
+      // Local save above is already enough for the project to be fully
+      // usable, so this backend phase (create content, upload the model,
+      // sync chapters/flows/procedures/media/settings) is best-effort —
+      // same tolerance as ProjectHubPage's create-project flow and
+      // projectDuplicate.js's duplicateContentAsNewProject: a failure here
+      // is reported via backendSyncError instead of blocking the import.
+      let content = null;
+      let modelUploaded = false;
+      let backendSyncError = null;
+
+      try {
+        updateLoading({
+          text: "Creating workspace content...",
+          progress: 65,
+        });
+
+        content = await createContent.mutateAsync({
+          workspaceId,
+          title: projectName,
+        });
+
+        updateLoading({ text: "Uploading model...", progress: 70 });
+
+        const { mediaId } = await uploadFileInChunks({
+          contentId: content.id,
+          file: modelFile,
+          onProgress: ({ uploadedBytes, totalBytes }) => {
+            const uploadRatio =
+              totalBytes > 0 ? uploadedBytes / totalBytes : 0;
+            updateLoading({
+              text: "Uploading model...",
+              progress: 70 + Math.round(uploadRatio * 20),
+            });
+          },
+        });
+        modelUploaded = true;
+
+        await updateProjectInIndexedDb(importedProject.id, {
+          remote: { workspaceId, contentId: content.id, mediaId },
+        });
+
+        updateLoading({ text: "Syncing project data...", progress: 92 });
+
+        await syncProjectToBackend({
+          projectId: importedProject.id,
+          contentId: content.id,
+          material,
+          viewer,
+          scene,
+        });
+      } catch (error) {
+        backendSyncError = error;
+
+        // Same special case duplicateContentAsNewProject handles: if the
+        // model itself never made it to storage, the content row just
+        // created has no usable model — clean it up instead of leaving a
+        // permanently-broken row in the workspace's Content list. A failure
+        // AFTER the model uploaded (e.g. the materi sync) is lower-stakes
+        // and left in place, since the content is still usable then.
+        if (content && !modelUploaded) {
+          try {
+            await deleteContent.mutateAsync({ id: content.id });
+          } catch (cleanupError) {
+            console.error(
+              "Failed to clean up content after a failed model upload:",
+              cleanupError,
+            );
+          }
+        }
+      }
+
+      const modelUploadFailed = Boolean(content) && !modelUploaded;
+
+      if (backendSyncError) {
+        showAlert({
+          title: modelUploadFailed
+            ? "Imported locally only"
+            : "Imported, but not fully synced",
+          message: modelUploadFailed
+            ? `"${importedProject.name}" is saved locally and ready to use, but uploading its model to the workspace failed, so the incomplete workspace copy was removed: ${backendSyncError?.response?.data?.message || backendSyncError?.message || "Unknown error"}. You can retry syncing it from the editor later.`
+            : `"${importedProject.name}" was imported and is ready to use, but syncing it to the workspace failed: ${backendSyncError?.response?.data?.message || backendSyncError?.message || "Unknown error"}. You can retry this later.`,
+          type: "warning",
+        });
+      }
 
       updateLoading({
         text: "Opening imported project...",
@@ -768,6 +1042,25 @@ export default function ProjectHubPage() {
             confirmVariant="outline"
             onClose={() => setImportProjectError("")}
             onConfirm={() => setImportProjectError("")}
+          />
+        </Suspense>
+      )}
+
+      {pendingImportFile && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ImportProjectDialog
+            open
+            fileName={pendingImportFile.name}
+            isEncrypted={isEncryptedPackageFile(pendingImportFile)}
+            workspaceId={importWorkspaceId}
+            setWorkspaceId={setImportWorkspaceId}
+            password={importPasswordValue}
+            setPassword={setImportPasswordValue}
+            isSubmitting={isPreparingImport}
+            error={importPasswordError}
+            onClearError={() => setImportPasswordError("")}
+            onCancel={handleCancelImportDialog}
+            onSubmit={handleSubmitImportDialog}
           />
         </Suspense>
       )}

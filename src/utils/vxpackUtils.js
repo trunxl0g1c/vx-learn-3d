@@ -126,7 +126,10 @@ const createModelFile = (blob, fileName, mimeType) => {
   return blob;
 };
 
-export const exportVXPack = async ({
+// Shared by exportVXPack (plain) and exportEncryptedVXPack (AES-GCM wrapped)
+// — builds the exact same zip either way; encryption is a wrapper applied to
+// this function's output, not a separate package format.
+async function buildVXPackZipBlob({
   project,
   material,
   modelFile,
@@ -137,7 +140,7 @@ export const exportVXPack = async ({
   metalness,
   roughness,
   onProgress,
-}) => {
+}) {
   if (!material) {
     throw new Error("Material belum tersedia");
   }
@@ -148,7 +151,7 @@ export const exportVXPack = async ({
 
   onProgress?.(0);
 
-  const [JSZip, saveAs] = await Promise.all([loadJSZip(), loadSaveAs()]);
+  const JSZip = await loadJSZip();
   const zip = new JSZip();
   const resolvedModelFileName = sanitizeAssetFileName(
     modelFile?.name || modelFileName || material?.modelUrl || "model.glb",
@@ -205,11 +208,98 @@ export const exportVXPack = async ({
     project?.name || material?.projectName || material?.title || modelFileName,
   );
 
+  return { blob, manifest, packageFileName };
+}
+
+export const exportVXPack = async ({
+  project,
+  material,
+  modelFile,
+  modelFileName,
+  viewerSettings,
+  scene,
+  shaderMode,
+  metalness,
+  roughness,
+  onProgress,
+}) => {
+  const [saveAs, { blob, manifest, packageFileName }] = await Promise.all([
+    loadSaveAs(),
+    buildVXPackZipBlob({
+      project,
+      material,
+      modelFile,
+      modelFileName,
+      viewerSettings,
+      scene,
+      shaderMode,
+      metalness,
+      roughness,
+      onProgress,
+    }),
+  ]);
+
   saveAs(blob, `${packageFileName}.vxpack`);
   onProgress?.(100);
 
   return {
     blob,
+    manifest,
+  };
+};
+
+// AES-256-GCM encrypted variant of exportVXPack: builds the identical zip,
+// then wraps it via cryptoUtils before saving as .vxenc instead of .vxpack.
+// importEncryptedVXPack below decrypts back to that same zip and hands it to
+// the regular importVXPack parser unchanged.
+export const exportEncryptedVXPack = async ({
+  project,
+  material,
+  modelFile,
+  modelFileName,
+  viewerSettings,
+  scene,
+  shaderMode,
+  metalness,
+  roughness,
+  password,
+  onProgress,
+}) => {
+  if (!password) {
+    throw new Error("A password is required to encrypt this package.");
+  }
+
+  const [saveAs, { encryptBlobWithPassword }, { blob, manifest, packageFileName }] =
+    await Promise.all([
+      loadSaveAs(),
+      import("./cryptoUtils"),
+      buildVXPackZipBlob({
+        project,
+        material,
+        modelFile,
+        modelFileName,
+        viewerSettings,
+        scene,
+        shaderMode,
+        metalness,
+        roughness,
+        onProgress: (percent) => {
+          onProgress?.(Math.min(Math.round((percent / 100) * 90), 90));
+        },
+      }),
+    ]);
+
+  onProgress?.(92);
+
+  const encryptedBlob = await encryptBlobWithPassword(blob, password);
+
+  onProgress?.(98);
+
+  saveAs(encryptedBlob, `${packageFileName}.vxenc`);
+  onProgress?.(100);
+
+  return {
+    blob: encryptedBlob,
     manifest,
   };
 };
@@ -427,4 +517,26 @@ export const importVXPack = async (file, { createObjectUrl = true } = {}) => {
 
 export const isVXPackFile = (file) => {
   return file?.name?.toLowerCase().endsWith(".vxpack");
+};
+
+// Decrypts a .vxenc file back into the plain .vxpack zip bytes it was built
+// from, then reuses importVXPack unchanged — JSZip.loadAsync and everything
+// downstream of it only need a Blob/File, never the original filename.
+export const importEncryptedVXPack = async (
+  file,
+  password,
+  { createObjectUrl = true } = {},
+) => {
+  if (!file) {
+    throw new Error("File paket terenkripsi tidak ditemukan");
+  }
+
+  if (!password) {
+    throw new Error("A password is required to open this package.");
+  }
+
+  const { decryptBlobWithPassword } = await import("./cryptoUtils");
+  const decryptedBlob = await decryptBlobWithPassword(file, password);
+
+  return importVXPack(decryptedBlob, { createObjectUrl });
 };

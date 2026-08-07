@@ -138,9 +138,15 @@ export function useContents(params = {}, options = {}) {
 }
 
 export function useCreateContent(options = {}) {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: createContentRequest,
     ...options,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["contents"] });
+      options.onSuccess?.(data, variables, context);
+    },
   });
 }
 

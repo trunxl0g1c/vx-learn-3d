@@ -9,9 +9,13 @@ const GAP = 6;
 export default function ContentRowMenu({
   onDelete,
   onRevoke,
+  onDuplicate,
+  onExport,
   hasActiveLock = false,
   isCurrentUserOwner = false,
   canDelete = true,
+  canDuplicate = true,
+  canExport = true,
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(null);
@@ -19,7 +23,11 @@ export default function ContentRowMenu({
   const panelRef = useRef(null);
 
   const showRevoke = hasActiveLock && isCurrentUserOwner;
-  const itemCount = (showRevoke ? 1 : 0) + (canDelete ? 1 : 0);
+  const itemCount =
+    (showRevoke ? 1 : 0) +
+    (canExport ? 1 : 0) +
+    (canDuplicate ? 1 : 0) +
+    (canDelete ? 1 : 0);
   const estimatedHeight = MENU_ITEM_HEIGHT * Math.max(itemCount, 1) + 8;
 
   // The table this menu lives in scrolls both ways (overflow-x-auto) and
@@ -112,6 +120,36 @@ export default function ContentRowMenu({
               >
                 <MaterialIcon name="block" size={18} />
                 Revoke edit access
+              </button>
+            )}
+
+            {canExport && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onExport?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-white transition hover:bg-white/5"
+              >
+                <MaterialIcon name="download_2" size={18} />
+                Export
+              </button>
+            )}
+
+            {canDuplicate && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onDuplicate?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-white transition hover:bg-white/5"
+              >
+                <MaterialIcon name="content_copy" size={18} />
+                Duplicate
               </button>
             )}
 

@@ -369,6 +369,19 @@ export function useViewerPageController() {
     dismissKicked: dismissContentLockKicked,
   } = useContentEditLock({ remoteContentId, projectId });
 
+  // ViewerPage renders ContentLockedScreen/ForcedActionDialog instead of
+  // ViewerPageLayout whenever either of these is set, which means the 3D
+  // canvas never mounts — and hideLoading() is otherwise only ever called
+  // from inside that canvas's "model loaded" callback (useViewerCut.js).
+  // Without this, the loading overlay opened by whatever navigated here
+  // (WorkspaceContentTab/ProjectHubPage) stays stuck on screen forever,
+  // fully covering the conflict/kicked screen underneath it.
+  useEffect(() => {
+    if (lockConflict || contentLockKicked) {
+      hideLoading();
+    }
+  }, [lockConflict, contentLockKicked, hideLoading]);
+
   const handleBulkUpdate = useCallback(async () => {
     if (!remoteContentId || !projectId || projectId === "demo") return;
 

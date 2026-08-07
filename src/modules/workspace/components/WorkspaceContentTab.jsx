@@ -1,4 +1,13 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
@@ -8,6 +17,7 @@ import { useGlobalLoading } from "../../loading/LoadingContext";
 import { useAuth } from "../../auth/AuthContext";
 import {
   useContents,
+  useCreateContent,
   useDeleteContent,
   getContentThumbnailUrl,
 } from "../../project-hub/api/contents";
@@ -16,6 +26,8 @@ import {
   useRevokeContentLock,
 } from "../../project-hub/api/contentLocks";
 import { hydrateProjectFromBackend } from "../../project-hub/api/projectHydrate";
+import { duplicateContentAsNewProject } from "../../project-hub/api/projectDuplicate";
+import { exportContentAsEncryptedPackage } from "../../project-hub/api/projectExport";
 import {
   getAllProjectsFromIndexedDb,
   deleteProjectFromIndexedDb,
@@ -24,11 +36,16 @@ import { preloadProjectRoute } from "../../../routeLoaders";
 import { useWorkspaceMembers } from "../api/workspaces";
 import { CONTENT_LOCK_PRESENCE_POLL_INTERVAL_MS } from "../../../constants/contentLock";
 import { hasPermission } from "../../../utils/permissions";
+import { validateGlbFile } from "../../../utils/glbValidator";
 import ContentRowMenu from "./ContentRowMenu";
 
 const ConfirmationDialog = lazy(
   () => import("../../../components/dialog/ConfirmationDialog"),
 );
+const DuplicateContentDialog = lazy(
+  () => import("./DuplicateContentDialog"),
+);
+const ExportContentDialog = lazy(() => import("./ExportContentDialog"));
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -40,6 +57,18 @@ function DialogLoadingFallback() {
       </div>
     </div>
   );
+}
+
+function getGlbValidationError(validation) {
+  const errors = Array.isArray(validation?.errors)
+    ? validation.errors.filter(Boolean)
+    : [];
+
+  if (errors.length > 0) {
+    return errors;
+  }
+
+  return "GLB file is not valid.";
 }
 
 function formatDate(value) {
@@ -93,17 +122,142 @@ function ContentThumbnail({ content }) {
   );
 }
 
+function formatLockedSince(value) {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return null;
+
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+const EDITING_POPOVER_WIDTH = 220;
+
 function EditingAvatar({ lock }) {
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState(null);
+  const triggerRef = useRef(null);
+  const closeTimerRef = useRef(null);
+
   const name = lock?.lockedByUser?.name || "Someone";
   const initial = name.trim().charAt(0).toUpperCase() || "?";
+  const since = formatLockedSince(lock?.lockedAt);
+
+  // Table this lives in scrolls both ways and sits inside overflow-hidden
+  // ancestors — same clipping problem ContentRowMenu solves, same fix:
+  // portal to <body>, position computed from the trigger's own rect.
+  const updatePosition = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    setPosition({
+      top: rect.bottom + 6,
+      left: Math.min(
+        rect.right - EDITING_POPOVER_WIDTH,
+        window.innerWidth - EDITING_POPOVER_WIDTH - 6,
+      ),
+    });
+  }, []);
+
+  const openPopover = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    updatePosition();
+    setOpen(true);
+  }, [updatePosition]);
+
+  // A short delay instead of closing immediately on mouseleave lets the
+  // pointer travel from the trigger into the popover itself — otherwise
+  // hovering into the popover to read a long name never works.
+  const scheduleClose = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => setOpen(false), 120);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handleDismiss() {
+      setOpen(false);
+    }
+
+    window.addEventListener("scroll", handleDismiss, true);
+    window.addEventListener("resize", handleDismiss);
+
+    return () => {
+      window.removeEventListener("scroll", handleDismiss, true);
+      window.removeEventListener("resize", handleDismiss);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   return (
-    <div
-      className="ml-auto grid size-7 shrink-0 place-items-center rounded-full border-2 border-primary bg-warning-main text-xs font-semibold text-white"
-      title={`${name} is editing`}
-    >
-      {initial}
-    </div>
+    <>
+      <button
+        type="button"
+        ref={triggerRef}
+        onMouseEnter={openPopover}
+        onMouseLeave={scheduleClose}
+        onFocus={openPopover}
+        onBlur={scheduleClose}
+        onClick={(event) => {
+          event.stopPropagation();
+
+          if (open) {
+            setOpen(false);
+          } else {
+            openPopover();
+          }
+        }}
+        aria-label={`${name} is editing`}
+        className="ml-auto grid size-7 shrink-0 cursor-pointer place-items-center rounded-full border-2 border-primary bg-accent-main text-xs font-semibold text-white"
+      >
+        {initial}
+      </button>
+
+      {open &&
+        position &&
+        createPortal(
+          <div
+            role="tooltip"
+            onMouseEnter={openPopover}
+            onMouseLeave={scheduleClose}
+            style={{
+              top: position.top,
+              left: position.left,
+              width: EDITING_POPOVER_WIDTH,
+            }}
+            className="fixed z-1000 rounded-lg border border-divider-main bg-primary px-3 py-2.5 shadow-xl"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-semibold text-white">
+                {initial}
+              </div>
+
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-white">
+                  {name}
+                </p>
+                <p className="text-xs text-contrast-grayout">
+                  {since ? `Editing since ${since}` : "Currently editing"}
+                </p>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -189,22 +343,56 @@ export default function WorkspaceContentTab({ workspaceId }) {
 
   const { data: members = [] } = useWorkspaceMembers(workspaceId);
 
-  const isCurrentUserOwner = useMemo(() => {
+  // roleInWorkspace is what AddMemberDialog actually assigns ("owner" /
+  // "editor" / "viewer") — it's specific to this workspace and can grant
+  // edit rights independently of the user's global content:update
+  // permission (e.g. a global "viewer" account assigned "editor" in one
+  // workspace should be able to edit there). hasPermission stays in the mix
+  // as an OR so a global editor doesn't lose access in a workspace they
+  // simply haven't been explicitly assigned a role in yet.
+  const currentUserRoleInWorkspace = useMemo(() => {
     const membership = members.find((member) => {
       const memberUserId = member?.userId || member?.user?.id || member?.id;
       return memberUserId === user?.id;
     });
 
-    return membership?.roleInWorkspace === "owner";
+    return membership?.roleInWorkspace || membership?.role || null;
   }, [members, user?.id]);
 
+  const isCurrentUserOwner = currentUserRoleInWorkspace === "owner";
+  const canEditInWorkspace =
+    currentUserRoleInWorkspace === "owner" ||
+    currentUserRoleInWorkspace === "editor";
+
   const canDeleteContent = hasPermission(user, "content", "delete");
-  const canEditContent = hasPermission(user, "content", "update");
+  const canEditContent =
+    canEditInWorkspace || hasPermission(user, "content", "update");
+  const canDuplicateContent = hasPermission(user, "content", "create");
 
   const [revokeTarget, setRevokeTarget] = useState(null);
   const revokeContentLock = useRevokeContentLock({
     onSuccess: () => setRevokeTarget(null),
   });
+
+  const [duplicateTarget, setDuplicateTarget] = useState(null);
+  const [duplicateName, setDuplicateName] = useState("");
+  const [duplicateFile, setDuplicateFile] = useState(null);
+  const [duplicateGlbValidation, setDuplicateGlbValidation] = useState(null);
+  const [isValidatingDuplicateGlb, setIsValidatingDuplicateGlb] =
+    useState(false);
+  const [duplicateProgress, setDuplicateProgress] = useState(0);
+  const [duplicateProgressLabel, setDuplicateProgressLabel] = useState("");
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [duplicateError, setDuplicateError] = useState("");
+  const createContent = useCreateContent();
+
+  const [exportTarget, setExportTarget] = useState(null);
+  const [exportPassword, setExportPassword] = useState("");
+  const [exportConfirmPassword, setExportConfirmPassword] = useState("");
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportProgressLabel, setExportProgressLabel] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   async function handleOpenContent(content) {
     const localProject = localProjectByContentId[content.id];
@@ -319,6 +507,208 @@ export default function WorkspaceContentTab({ workspaceId }) {
     }
   }
 
+  function handleOpenDuplicate(content) {
+    setDuplicateTarget(content);
+    setDuplicateName(`${content.title || "Untitled"} Copy`.slice(0, 64));
+    setDuplicateFile(null);
+    setDuplicateGlbValidation(null);
+    setIsValidatingDuplicateGlb(false);
+    setDuplicateProgress(0);
+    setDuplicateProgressLabel("");
+    setDuplicateError("");
+  }
+
+  function handleCloseDuplicate() {
+    if (isDuplicating) return;
+
+    setDuplicateTarget(null);
+  }
+
+  async function handleSelectDuplicateGlbFile(selectedFile) {
+    setDuplicateFile(selectedFile);
+    setDuplicateGlbValidation(null);
+    setDuplicateError("");
+
+    if (!selectedFile) {
+      setIsValidatingDuplicateGlb(false);
+      return;
+    }
+
+    const isGlbFile = selectedFile.name.toLowerCase().endsWith(".glb");
+
+    if (!isGlbFile) {
+      setDuplicateError("Model file must be in .glb format.");
+      setDuplicateFile(null);
+      return;
+    }
+
+    try {
+      setIsValidatingDuplicateGlb(true);
+
+      const result = await validateGlbFile(selectedFile);
+
+      setDuplicateGlbValidation(result);
+
+      if (!result?.valid) {
+        setDuplicateError(getGlbValidationError(result));
+      }
+    } catch (error) {
+      console.error("Error validating GLB:", error);
+
+      setDuplicateGlbValidation(null);
+
+      setDuplicateError(
+        error?.message || "Error encountered while validating GLB.",
+      );
+    } finally {
+      setIsValidatingDuplicateGlb(false);
+    }
+  }
+
+  async function handleSubmitDuplicate() {
+    if (isDuplicating || !duplicateTarget) return;
+
+    setDuplicateError("");
+
+    if (!duplicateName.trim()) {
+      setDuplicateError("Project name is required.");
+      return;
+    }
+
+    if (!duplicateFile) {
+      setDuplicateError("Choose a model file.");
+      return;
+    }
+
+    if (!duplicateFile.name.toLowerCase().endsWith(".glb")) {
+      setDuplicateError("Model file must be in .glb format.");
+      return;
+    }
+
+    if (isValidatingDuplicateGlb) {
+      setDuplicateError("Validating GLB file. Wait for a moment.");
+      return;
+    }
+
+    if (!duplicateGlbValidation) {
+      setDuplicateError("GLB file is not valid.");
+      return;
+    }
+
+    if (!duplicateGlbValidation.valid) {
+      setDuplicateError(getGlbValidationError(duplicateGlbValidation));
+      return;
+    }
+
+    try {
+      setIsDuplicating(true);
+
+      const { project, backendSyncError, modelUploadFailed } =
+        await duplicateContentAsNewProject({
+          sourceContentId: duplicateTarget.id,
+          workspaceId,
+          name: duplicateName.trim(),
+          file: duplicateFile,
+          role: "EDITOR",
+          createContentFn: createContent.mutateAsync,
+          deleteContentFn: deleteContent.mutateAsync,
+          onProgress: ({ percent, label }) => {
+            setDuplicateProgress(percent);
+            setDuplicateProgressLabel(label);
+          },
+        });
+
+      if (backendSyncError) {
+        showAlert({
+          title: modelUploadFailed
+            ? "Duplicate saved locally only"
+            : "Duplicate created locally",
+          message: modelUploadFailed
+            ? `"${project.name}" is saved locally and ready to edit, but uploading its model to the workspace failed, so the incomplete workspace copy was removed: ${backendSyncError?.response?.data?.message || backendSyncError?.message || "Unknown error"}. You can retry syncing it from the editor later.`
+            : `"${project.name}" was saved and is ready to edit, but syncing it to the workspace failed: ${backendSyncError?.response?.data?.message || backendSyncError?.message || "Unknown error"}. You can retry this later.`,
+          type: "warning",
+        });
+      }
+
+      setDuplicateTarget(null);
+
+      showLoading({
+        title: "Opening Viqubed Project",
+        text: project.name,
+        progress: null,
+      });
+
+      navigate(`/viqubed/editor/${project.id}`);
+    } catch (error) {
+      console.error("Failed to duplicate content:", error);
+
+      setDuplicateError(
+        error?.message || "Error encountered while duplicating this content.",
+      );
+    } finally {
+      setIsDuplicating(false);
+      setDuplicateProgress(0);
+      setDuplicateProgressLabel("");
+    }
+  }
+
+  function handleOpenExport(content) {
+    setExportTarget(content);
+    setExportPassword("");
+    setExportConfirmPassword("");
+    setExportProgress(0);
+    setExportProgressLabel("");
+    setExportError("");
+  }
+
+  function handleCloseExport() {
+    if (isExporting) return;
+
+    setExportTarget(null);
+  }
+
+  async function handleSubmitExport() {
+    if (isExporting || !exportTarget) return;
+
+    setExportError("");
+
+    if (!exportPassword || exportPassword.length < 8) {
+      setExportError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (exportPassword !== exportConfirmPassword) {
+      setExportError("Passwords do not match.");
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+
+      await exportContentAsEncryptedPackage({
+        content: exportTarget,
+        localProject: localProjectByContentId[exportTarget.id] || null,
+        password: exportPassword,
+        onProgress: ({ percent, label }) => {
+          setExportProgress(percent);
+          setExportProgressLabel(label);
+        },
+      });
+
+      setExportTarget(null);
+    } catch (error) {
+      console.error("Failed to export content:", error);
+
+      setExportError(
+        error?.message || "Error encountered while exporting this content.",
+      );
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+      setExportProgressLabel("");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <Input
@@ -398,9 +788,13 @@ export default function WorkspaceContentTab({ workspaceId }) {
                             ?.lockedByUser,
                         })
                       }
+                      onDuplicate={() => handleOpenDuplicate(content)}
+                      onExport={() => handleOpenExport(content)}
                       hasActiveLock={Boolean(locksByContentId[content.id])}
                       isCurrentUserOwner={isCurrentUserOwner}
                       canDelete={canDeleteContent}
+                      canDuplicate={canDuplicateContent}
+                      canExport
                     />
                   </td>
                 </tr>
@@ -488,6 +882,48 @@ export default function WorkspaceContentTab({ workspaceId }) {
             onConfirm={() =>
               revokeContentLock.mutate({ contentId: revokeTarget.id })
             }
+          />
+        </Suspense>
+      )}
+
+      {duplicateTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <DuplicateContentDialog
+            open
+            sourceTitle={duplicateTarget.title}
+            name={duplicateName}
+            setName={setDuplicateName}
+            file={duplicateFile}
+            setFile={handleSelectDuplicateGlbFile}
+            glbValidation={duplicateGlbValidation}
+            isValidatingGlb={isValidatingDuplicateGlb}
+            isSubmitting={isDuplicating}
+            progress={duplicateProgress}
+            progressLabel={duplicateProgressLabel}
+            error={duplicateError}
+            onClearError={() => setDuplicateError("")}
+            onClose={handleCloseDuplicate}
+            onSubmit={handleSubmitDuplicate}
+          />
+        </Suspense>
+      )}
+
+      {exportTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ExportContentDialog
+            open
+            sourceTitle={exportTarget.title}
+            password={exportPassword}
+            setPassword={setExportPassword}
+            confirmPassword={exportConfirmPassword}
+            setConfirmPassword={setExportConfirmPassword}
+            isSubmitting={isExporting}
+            progress={exportProgress}
+            progressLabel={exportProgressLabel}
+            error={exportError}
+            onClearError={() => setExportError("")}
+            onClose={handleCloseExport}
+            onSubmit={handleSubmitExport}
           />
         </Suspense>
       )}

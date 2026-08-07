@@ -10,6 +10,7 @@ import RegisterPage from "./modules/auth/RegisterPage";
 import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
 import WorkspaceRoute from "./modules/workspace/WorkspaceRoute";
 import WorkspaceDetailRoute from "./modules/workspace/WorkspaceDetailRoute";
+import ProfileRoute from "./modules/profile/ProfileRoute";
 import { loadPlayerPage, loadViewerPage } from "./routeLoaders";
 
 const ViewerPage = lazy(loadViewerPage);
@@ -60,6 +61,7 @@ export default function App() {
                   path="/workspace/:workspaceId"
                   element={<WorkspaceDetailRoute />}
                 />
+                <Route path="/profile" element={<ProfileRoute />} />
                 <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
                 <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
               </Route>

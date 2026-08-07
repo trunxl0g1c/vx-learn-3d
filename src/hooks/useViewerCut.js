@@ -5,6 +5,13 @@ import {
   getCutAxisState,
 } from "../engine/cut"
 
+// Bounds (SceneCanvas.jsx's <Bounds fit clip margin={1.2}>, maxDuration
+// defaults to 1000ms) animates the camera into its framed position once
+// this model mounts. Hiding the loading overlay immediately would expose
+// that camera swoop mid-flight — this delay lets it visually settle first
+// (its damped-exponential ease is ~97.5% complete by 700ms of a 1000ms max).
+const CAMERA_FIT_SETTLE_DELAY_MS = 700
+
 function createDefaultCutRanges() {
   return {
     x: { min: -3, max: 3 },
@@ -320,7 +327,7 @@ export function useViewerCut({
 
       setTimeout(() => {
         hideLoading?.()
-      }, 700)
+      }, CAMERA_FIT_SETTLE_DELAY_MS)
     },
     [handleModelLoaded, hideLoading, syncStateToReact, updateLoading],
   )

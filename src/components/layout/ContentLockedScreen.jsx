@@ -13,12 +13,15 @@ export default function ContentLockedScreen({ lockedByUser }) {
   return (
     <div
       style={{
-        width: "100vw",
-        height: "100vh",
         background: "#0b1220",
         color: "white",
       }}
-      className="grid place-items-center p-4"
+      // fixed + the app's modal z-index convention (same as
+      // ForcedActionDialog/ConfirmationDialog) so this can never end up
+      // covered by the global loading overlay (z-999) even if something
+      // regresses the hideLoading() timing that's supposed to clear it —
+      // see the effect in useViewerPageController.js.
+      className="fixed inset-0 z-[1100] grid place-items-center p-4"
     >
       <div className="w-[min(440px,100%)] rounded-2xl border border-divider-main bg-dark px-7 py-8 text-center shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
         <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-accent-main/15 text-accent-main">

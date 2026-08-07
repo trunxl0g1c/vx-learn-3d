@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import ProjectHubLayout from "../project-hub/layouts/ProjectHubLayout";
 import InlineAlert from "../../components/ui/inline-alert";
@@ -18,12 +18,38 @@ const BASE_TABS = [
   { id: "billing", label: "Billing" },
 ];
 
+const TAB_IDS = BASE_TABS.map((tab) => tab.id);
+const DEFAULT_TAB_ID = "overview";
+
 export default function WorkspaceDetailPage() {
   const { user } = useAuth();
   const { workspaceId } = useParams();
 
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const requestedTab = searchParams.get("tab");
+  const activeTab = TAB_IDS.includes(requestedTab)
+    ? requestedTab
+    : DEFAULT_TAB_ID;
+
+  // Keeps the URL as the source of truth for which tab is open (so it's
+  // shareable/bookmarkable, e.g. .../workspace/:id?tab=content) — this
+  // normalizes a missing or invalid ?tab= value to the default without
+  // adding an extra back-button stop.
+  useEffect(() => {
+    if (requestedTab === activeTab) return;
+
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", activeTab);
+    setSearchParams(next, { replace: true });
+  }, [requestedTab, activeTab, searchParams, setSearchParams]);
+
+  function setActiveTab(tabId) {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tabId);
+    setSearchParams(next, { replace: true });
+  }
 
   const {
     data: workspace,

@@ -265,14 +265,6 @@ export function useViewerProject({
         setProjectDraft(projectDraft);
 
         updateLoading({
-          text: `Opening ${project.name}...`,
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        if (cancelled) return;
-
-        updateLoading({
           text: "Loading 3D model...",
         });
 

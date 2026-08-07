@@ -1,23 +1,17 @@
-import { ImageIcon, Play, SquarePen, X } from "lucide-react";
-import Button from "../../components/ui/button";
-import Input from "../../components/ui/input";
-import InlineAlert from "../../components/ui/inline-alert";
-import SelectField from "../../components/ui/select";
-import UploadProgressRing from "../../components/ui/upload-progress-ring";
-import { useWorkspaces } from "../workspace/api/workspaces";
+import { ImageIcon, X } from "lucide-react";
+import Button from "../../../components/ui/button";
+import Input from "../../../components/ui/input";
+import InlineAlert from "../../../components/ui/inline-alert";
+import UploadProgressRing from "../../../components/ui/upload-progress-ring";
 
-export default function CreateProjectDialog({
+export default function DuplicateContentDialog({
   open,
   onClose,
-  workspaceId,
-  setWorkspaceId,
-  projectName,
-  setProjectName,
+  sourceTitle,
+  name,
+  setName,
   file,
   setFile,
-  createRole,
-  setCreateRole,
-  onSubmit,
   progress,
   progressLabel,
   isSubmitting,
@@ -25,29 +19,17 @@ export default function CreateProjectDialog({
   isValidatingGlb,
   error,
   onClearError,
+  onSubmit,
 }) {
-  const {
-    data: workspaces = [],
-    isLoading: isLoadingWorkspaces,
-    isError: isWorkspacesError,
-  } = useWorkspaces(undefined, { enabled: open });
-
   if (!open) return null;
-
-  const workspaceOptions = workspaces.map((workspace) => ({
-    label: workspace.name,
-    value: workspace.id,
-  }));
-
-  let workspacePlaceholder = "Select a workspace";
-  if (isWorkspacesError) workspacePlaceholder = "Failed to load workspaces";
-  else if (isLoadingWorkspaces) workspacePlaceholder = "Loading workspaces...";
 
   return (
     <div className="fixed inset-0 z-999 grid place-items-center bg-black/45 backdrop-blur-sm">
       <div className="w-125 overflow-hidden rounded-[20px] bg-dark-alpha text-white shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
         <div className="flex h-18 items-center justify-between bg-dark-alpha px-5">
-          <h2 className="text-base font-normal">Create Project</h2>
+          <h2 className="text-base font-normal">
+            Duplicate &ldquo;{sourceTitle || "Untitled"}&rdquo;
+          </h2>
 
           {!isSubmitting && (
             <button
@@ -70,39 +52,19 @@ export default function CreateProjectDialog({
 
               <div className="space-y-2">
                 <label className="block text-sm font-normal text-contrast-grayout">
-                  Workspace
-                </label>
-
-                <SelectField
-                  value={workspaceId || ""}
-                  onChange={(value) => {
-                    setWorkspaceId(value);
-                    onClearError?.();
-                  }}
-                  options={workspaceOptions}
-                  placeholder={workspacePlaceholder}
-                  disabled={
-                    isSubmitting || isLoadingWorkspaces || isWorkspacesError
-                  }
-                  className="h-11! rounded-lg border-accent-main!"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-normal text-contrast-grayout">
-                  Project Name
+                  New Project Name
                 </label>
 
                 <div className="relative">
                   <Input
-                    value={projectName}
+                    value={name}
                     maxLength={64}
                     placeholder="Type project name here"
                     onClick={(event) => {
                       event.stopPropagation();
                     }}
                     onChange={(event) => {
-                      setProjectName(event.target.value);
+                      setName(event.target.value);
                       onClearError?.();
                     }}
                     disabled={isSubmitting}
@@ -114,7 +76,7 @@ export default function CreateProjectDialog({
                   />
 
                   <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
-                    {projectName.length}/64
+                    {name.length}/64
                   </span>
                 </div>
               </div>
@@ -136,7 +98,7 @@ export default function CreateProjectDialog({
                     </>
                   ) : (
                     <strong className="text-sm font-normal text-white">
-                      Add your 3D files with glb format
+                      Add the new 3D file in glb format
                     </strong>
                   )}
                 </div>
@@ -186,65 +148,19 @@ export default function CreateProjectDialog({
                     </p>
                   ))}
 
-                  {glbValidation.errors?.map((error, index) => (
+                  {glbValidation.errors?.map((glbError, index) => (
                     <p key={`error-${index}`} className="mt-1">
-                      ✕ {error}
+                      ✕ {glbError}
                     </p>
                   ))}
                 </div>
               )}
 
-              <div className="mb-4">
-                <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-                  Access Mode
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* <button
-                type="button"
-                onClick={() => setCreateRole("EDITOR")}
-                disabled={isSubmitting}
-                className={[
-                  "cursor-pointer h-10 rounded-lg border text-sm transition disabled:pointer-events-none disabled:opacity-50",
-                  createRole === "EDITOR"
-                    ? "border-[#63c7e5] bg-[#63c7e5]/15 text-white"
-                    : "border-[#315263] bg-transparent text-secondary-default hover:bg-white/5",
-                ].join(" ")}
-              >
-                <SquarePen className="size-6" /> Editor
-              </button> */}
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "EDITOR" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("EDITOR");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <SquarePen className="size-4" />
-                    Editor
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "PLAYER" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("PLAYER");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <Play className="size-4" />
-                    Player
-                  </Button>
-                </div>
-              </div>
+              <InlineAlert
+                type="info"
+                autoHide={false}
+                message="Chapters and markers reference parts of the original 3D model. Since this copy uses a new model file, those links won't carry over automatically — you can re-link them afterward in the editor."
+              />
             </div>
 
             <div className="flex gap-4 border-t border-[#315263] px-6 py-6">

@@ -261,34 +261,17 @@ function mapContentSettingToViewerAndScene(setting) {
 }
 
 /**
- * Pulls a content's editor data down from the backend and writes it into
- * IndexedDB as a normal local project — everything except the GLB itself,
- * which useProjectLoader fetches (and caches) on first open instead. This
- * is what makes a cloud-only project (never opened on this browser before)
- * openable at all: without a local project row, loadProject() has nothing
- * to start from.
- *
- * Idempotent: if this content was already hydrated here, the existing local
- * row is reused as-is rather than overwritten, so it never clobbers edits
- * made since the last hydration.
- *
- * workspaceId is optional — callers that already know it (Workspace/Hub
- * listings) pass it straight through, but an entry point that only has a
- * contentId (e.g. a direct Player link) can omit it and it's read off the
- * fetched content below instead.
+ * Fetches everything a content's editor data is made of — content fields,
+ * settings (viewer/scene/playerSettings), chapters (+ their media), flows,
+ * procedures, object name overrides, project gallery media, and the
+ * thumbnail — and maps it all into the shapes the local project record
+ * (project.material/viewer/scene) expects. Read-only: never touches
+ * IndexedDB. Shared by hydrateProjectFromBackend (below, which persists the
+ * result under the source content's own id) and duplicateContentAsNewProject
+ * (projectDuplicate.js, which persists it under a brand-new project/content
+ * id instead).
  */
-export async function hydrateProjectFromBackend({
-  workspaceId,
-  contentId,
-  role = "EDITOR",
-}) {
-  if (!contentId) {
-    throw new Error("contentId is required to hydrate a project.");
-  }
-
-  const existing = await getProjectFromIndexedDb(contentId);
-  if (existing) return existing;
-
+export async function fetchContentEditorSnapshot(contentId) {
   // Kicked off alongside the Promise.all below (not inside it) — both
   // already swallow their own "nothing there" case internally, so neither
   // should be able to fail the rest of the hydrate.
@@ -345,6 +328,76 @@ export async function hydrateProjectFromBackend({
   const { viewer, scene, playerSettings } =
     mapContentSettingToViewerAndScene(setting);
 
+  return {
+    content,
+    chapters,
+    chapterIds,
+    chapterMediaIds,
+    flows: mappedFlows,
+    flowIds,
+    procedures: mappedProcedures,
+    procedureIds,
+    overrides: (overrides || []).map(mapContentOverride),
+    viewer,
+    scene,
+    playerSettings,
+    projectMedia,
+    mediaIds,
+    thumbnailDataUrl,
+    thumbnailMediaId,
+    thumbnailHash,
+  };
+}
+
+/**
+ * Pulls a content's editor data down from the backend and writes it into
+ * IndexedDB as a normal local project — everything except the GLB itself,
+ * which useProjectLoader fetches (and caches) on first open instead. This
+ * is what makes a cloud-only project (never opened on this browser before)
+ * openable at all: without a local project row, loadProject() has nothing
+ * to start from.
+ *
+ * Idempotent: if this content was already hydrated here, the existing local
+ * row is reused as-is rather than overwritten, so it never clobbers edits
+ * made since the last hydration.
+ *
+ * workspaceId is optional — callers that already know it (Workspace/Hub
+ * listings) pass it straight through, but an entry point that only has a
+ * contentId (e.g. a direct Player link) can omit it and it's read off the
+ * fetched content below instead.
+ */
+export async function hydrateProjectFromBackend({
+  workspaceId,
+  contentId,
+  role = "EDITOR",
+}) {
+  if (!contentId) {
+    throw new Error("contentId is required to hydrate a project.");
+  }
+
+  const existing = await getProjectFromIndexedDb(contentId);
+  if (existing) return existing;
+
+  const {
+    content,
+    chapters,
+    chapterIds,
+    chapterMediaIds,
+    flows: mappedFlows,
+    flowIds,
+    procedures: mappedProcedures,
+    procedureIds,
+    overrides,
+    viewer,
+    scene,
+    playerSettings,
+    projectMedia,
+    mediaIds,
+    thumbnailDataUrl,
+    thumbnailMediaId,
+    thumbnailHash,
+  } = await fetchContentEditorSnapshot(contentId);
+
   const resolvedWorkspaceId = workspaceId || content?.workspaceId || null;
   const now = new Date().toISOString();
 
@@ -393,7 +446,7 @@ export async function hydrateProjectFromBackend({
       media: projectMedia,
       chapters,
       flows: mappedFlows,
-      objectNameOverrides: (overrides || []).map(mapContentOverride),
+      objectNameOverrides: overrides,
       playerSettings: normalizePlayerSettings(playerSettings),
       procedures: mappedProcedures,
     },
