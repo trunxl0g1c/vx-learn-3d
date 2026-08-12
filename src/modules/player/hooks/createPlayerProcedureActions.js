@@ -16,6 +16,7 @@ export function createPlayerProcedureActions({
   setOutlineObjects,
   highlightProcedureStep,
   playAnimationAssignments,
+  refreshAssemblyGhost,
 }) {
   const activeAssemblyObject =
     activeProcedureIsAssembly && modelScene && activeProcedureStep
@@ -26,7 +27,10 @@ export function createPlayerProcedureActions({
       : null;
 
   const playProcedureCompletionAnimation = (procedureId = activeProcedure?.id) => {
-    const procedure = (procedures || []).find((item) => item.id === procedureId);
+    const procedure =
+      activeProcedure?.id === procedureId
+        ? activeProcedure
+        : (procedures || []).find((item) => item.id === procedureId);
     const animation = procedure?.settings?.completionAnimation;
 
     if (!animation?.name) return false;
@@ -65,7 +69,13 @@ export function createPlayerProcedureActions({
           ? "Geser komponen berikutnya ke target."
           : "Klik object berikutnya."),
     );
-    highlightProcedureStep(nextStep);
+
+    // Starting a new step must immediately restore every animated object to
+    // the authored Start transform. The highlighter applies saved visual state
+    // first, then reapplies Start so Pull Apart or prior-step transforms cannot
+    // override the authored starting pose.
+    highlightProcedureStep(nextStep, { applyStepStart: true });
+    refreshAssemblyGhost?.();
   };
 
   const handleAssemblyDragStart = ({ object } = {}) => {
@@ -122,6 +132,11 @@ export function createPlayerProcedureActions({
       `Belum tepat. Jarak ${distanceText}, batas snap ${thresholdText}.`,
     );
     highlightProcedureStep(activeProcedureStep);
+
+    // Visual-state restoration can rebuild materials and visibility after a
+    // failed drop. Recreate the target helper after that work so the learner
+    // always sees the same transparent snap target for the next attempt.
+    refreshAssemblyGhost?.();
   };
 
   return {

@@ -1,4 +1,5 @@
 import { normalizePlayerSettings } from "./playerSettings";
+import { normalizeProToolsSettings } from "../../engine/project/ProToolsSettings";
 import { createId } from "../../utils/createId";
 
 export const createDefaultMaterial = () => ({
@@ -8,6 +9,9 @@ export const createDefaultMaterial = () => ({
   chapters: [],
   flows: [],
   procedures: [],
+  quizzes: [],
+  slides: [],
   objectNameOverrides: [],
   playerSettings: normalizePlayerSettings(),
+  proToolsSettings: normalizeProToolsSettings(),
 });

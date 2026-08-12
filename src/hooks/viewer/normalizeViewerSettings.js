@@ -1,4 +1,6 @@
 import { normalizeBlinkSelectionSettings } from "../../engine/selection";
+import { normalizeViewerGrid } from "../../engine/viewer";
+import { normalizeXRSettings } from "../../engine/xr";
 
 const VIEWER_LIGHTING_DEFAULTS = Object.freeze({
   exposure: 0.75,
@@ -35,6 +37,8 @@ export function normalizeLoadedViewerSettings(viewer = {}) {
   normalizedViewer.blinkSettings = normalizeBlinkSelectionSettings(
     normalizedViewer.blinkSettings,
   );
+  normalizedViewer.grid = normalizeViewerGrid(normalizedViewer.grid);
+  normalizedViewer.xr = normalizeXRSettings(normalizedViewer.xr);
 
   return normalizedViewer;
 }

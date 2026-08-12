@@ -4,35 +4,68 @@ import Button from "../../ui/button";
 import Checkbox from "../../ui/checkbox";
 import SelectField from "../../ui/select";
 
-function getAvailableAnimationOptions(animations, assignments, currentName) {
-  const selectedNames = new Set(
-    assignments
-      .map((assignment) => assignment.name)
-      .filter((name) => name && name !== currentName),
-  );
+function getAssignmentValue(assignment) {
+  if (assignment?.source === "authored") {
+    return assignment.animationId
+      ? `authored::${assignment.animationId}`
+      : `authored-name::${assignment.name || ""}`;
+  }
 
-  const uniqueAnimationsByName = new Map();
+  return assignment?.name ? `embedded::${assignment.name}` : "";
+}
 
-  (animations || []).forEach((animation, index) => {
-    const name = animation?.name || `Unnamed Animation ${index + 1}`;
+function createAnimationOptions(embeddedAnimations, authoredAnimations) {
+  const options = [];
+  const embeddedNames = new Set();
 
-    if (!uniqueAnimationsByName.has(name)) {
-      uniqueAnimationsByName.set(name, animation);
-    }
+  (embeddedAnimations || []).forEach((animation, index) => {
+    const name = String(
+      animation?.name || `Unnamed Animation ${index + 1}`,
+    ).trim();
+    if (!name || embeddedNames.has(name)) return;
+    embeddedNames.add(name);
+    options.push({
+      key: `embedded-${name}`,
+      label: `GLB · ${name}`,
+      value: `embedded::${name}`,
+      source: "embedded",
+      name,
+      animationId: "",
+    });
   });
 
-  const options = Array.from(uniqueAnimationsByName.keys())
-    .map((name) => ({
-      key: `chapter-animation-option-${name}`,
-      label: name,
-      value: name,
-    }))
-    .filter((option) => !selectedNames.has(option.value));
+  (authoredAnimations || []).forEach((animation, index) => {
+    const id = String(animation?.id || "").trim();
+    const name = String(animation?.name || `Animation ${index + 1}`).trim();
+    if (!id || !name) return;
+    options.push({
+      key: `authored-${id}`,
+      label: `Authored · ${name}`,
+      value: `authored::${id}`,
+      source: "authored",
+      name,
+      animationId: id,
+    });
+  });
 
-  if (currentName && !options.some((option) => option.value === currentName)) {
+  return options;
+}
+
+function getAvailableAnimationOptions(allOptions, assignments, currentValue) {
+  const selectedValues = new Set(
+    assignments
+      .map(getAssignmentValue)
+      .filter((value) => value && value !== currentValue),
+  );
+  const options = allOptions.filter(
+    (option) => !selectedValues.has(option.value),
+  );
+
+  if (currentValue && !options.some((option) => option.value === currentValue)) {
     options.unshift({
-      label: `${currentName} (Unavailable)`,
-      value: currentName,
+      key: `unavailable-${currentValue}`,
+      label: `${currentValue.split("::").pop()} (Unavailable)`,
+      value: currentValue,
     });
   }
 
@@ -42,127 +75,139 @@ function getAvailableAnimationOptions(animations, assignments, currentName) {
 export default function ChapterAnimationSection({
   chapter,
   animations = [],
+  authoredAnimations = [],
   addChapterAnimation,
   updateChapterAnimation,
   removeChapterAnimation,
 }) {
-  const assignments = normalizeChapterAnimationAssignments(
-    chapter?.animations,
-  );
-  const assignedNames = new Set(
-    assignments.map((assignment) => assignment.name).filter(Boolean),
-  );
+  const assignments = normalizeChapterAnimationAssignments(chapter?.animations);
+  const allOptions = createAnimationOptions(animations, authoredAnimations);
+  const assignedValues = new Set(assignments.map(getAssignmentValue).filter(Boolean));
   const hasEmptyAssignment = assignments.some(
-    (assignment) => !assignment.name,
+    (assignment) => !getAssignmentValue(assignment),
   );
   const canAdd =
     !hasEmptyAssignment &&
-    animations.some((animation, index) => {
-      const name = animation?.name || `Unnamed Animation ${index + 1}`;
-      return !assignedNames.has(name);
-    });
+    allOptions.some((option) => !assignedValues.has(option.value));
 
   return (
     <section className="space-y-3 border-t border-divider-main p-4">
       <div>
-        <div className="text-sm font-normal text-contrast-grayout">
-          Animation
-        </div>
+        <div className="text-sm font-normal text-contrast-grayout">Animation</div>
         <p className="mt-1 text-xs leading-5 text-contrast-grayout">
-          Pilih animasi GLB yang disertakan pada materi ini.
+          Assign embedded GLB clips or animations authored in Pro → Animation Creation.
         </p>
       </div>
 
-      {animations.length === 0 ? (
+      {allOptions.length === 0 ? (
         <div className="rounded-lg border border-dashed border-divider-main px-3 py-3 text-sm leading-5 text-contrast-grayout">
-          Tidak ada animasi yang terdeteksi pada file GLB ini.
+          No embedded or authored animations are available.
         </div>
       ) : (
         <>
           {assignments.length === 0 ? (
             <div className="rounded-lg border border-dashed border-divider-main px-3 py-3 text-sm leading-5 text-contrast-grayout">
-              Belum ada animasi yang disertakan.
+              No animation has been assigned to this chapter.
             </div>
           ) : (
             <div className="space-y-3">
-              {assignments.map((assignment) => (
-                <div
-                  key={assignment.assignmentId}
-                  className="rounded-lg border border-divider-main bg-primary/60 p-3"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <div className="flex items-start gap-2">
-                    <SelectField
-                      value={assignment.name}
-                      placeholder="Select animation"
-                      options={getAvailableAnimationOptions(
-                        animations,
-                        assignments,
-                        assignment.name,
-                      )}
-                      onChange={(name) =>
-                        updateChapterAnimation?.(
-                          chapter.id,
-                          assignment.assignmentId,
-                          { name },
-                        )
-                      }
-                    />
+              {assignments.map((assignment) => {
+                const currentValue = getAssignmentValue(assignment);
+                const options = getAvailableAnimationOptions(
+                  allOptions,
+                  assignments,
+                  currentValue,
+                );
 
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      title="Remove animation"
-                      className="h-[46px] w-[46px] shrink-0 p-0"
-                      onClick={() =>
-                        removeChapterAnimation?.(
-                          chapter.id,
-                          assignment.assignmentId,
-                        )
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
+                return (
+                  <div
+                    key={assignment.assignmentId}
+                    className="rounded-lg border border-divider-main bg-primary/60 p-3"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="flex items-start gap-2">
+                      <SelectField
+                        value={currentValue}
+                        placeholder="Select animation"
+                        options={options}
+                        onChange={(value) => {
+                          const option = allOptions.find(
+                            (item) => item.value === value,
+                          );
 
-                  <div className="mt-3 space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-contrast-grayout">
-                        Play automatically when material opens
-                      </span>
-                      <Checkbox
-                        checked={assignment.autoPlay}
-                        disabled={!assignment.name}
-                        onCheckedChange={(autoPlay) =>
                           updateChapterAnimation?.(
                             chapter.id,
                             assignment.assignmentId,
-                            { autoPlay: autoPlay === true },
-                          )
-                        }
+                            option
+                              ? {
+                                  source: option.source,
+                                  name: option.name,
+                                  animationId: option.animationId,
+                                }
+                              : {
+                                  source: "embedded",
+                                  name: "",
+                                  animationId: "",
+                                },
+                          );
+                        }}
                       />
-                    </div>
 
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs text-contrast-grayout">
-                        Loop animation
-                      </span>
-                      <Checkbox
-                        checked={assignment.loop}
-                        disabled={!assignment.name}
-                        onCheckedChange={(loop) =>
-                          updateChapterAnimation?.(
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        type="button"
+                        title="Remove animation"
+                        className="h-[46px] w-[46px] shrink-0 p-0"
+                        onClick={() =>
+                          removeChapterAnimation?.(
                             chapter.id,
                             assignment.assignmentId,
-                            { loop: loop === true },
                           )
                         }
-                      />
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
+
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-contrast-grayout">
+                          Play automatically when chapter opens
+                        </span>
+                        <Checkbox
+                          checked={assignment.autoPlay}
+                          disabled={!currentValue}
+                          onCheckedChange={(autoPlay) =>
+                            updateChapterAnimation?.(
+                              chapter.id,
+                              assignment.assignmentId,
+                              { autoPlay: autoPlay === true },
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-contrast-grayout">
+                          Loop animation
+                        </span>
+                        <Checkbox
+                          checked={assignment.loop}
+                          disabled={!currentValue}
+                          onCheckedChange={(loop) =>
+                            updateChapterAnimation?.(
+                              chapter.id,
+                              assignment.assignmentId,
+                              { loop: loop === true },
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

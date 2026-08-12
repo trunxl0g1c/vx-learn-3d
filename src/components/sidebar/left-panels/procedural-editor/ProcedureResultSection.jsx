@@ -21,12 +21,19 @@ export default function ProcedureResultSection({
           <>
             <p>Steps run sequentially in Player.</p>
             <p>
-              The current click target is highlighted and only that object is
-              accepted.
+              Every click target assigned to the active step is highlighted.
+              Clicking any one of them satisfies the step condition.
             </p>
-            <p>The configured animated object then moves, rotates, and scales.</p>
             <p>
-              After the animation finishes, the next click target becomes active.
+              Animated objects follow the Together or Sequential playback mode
+              saved on each step.
+            </p>
+            <p>
+              Objects with Hide after animation enabled disappear after their
+              own movement finishes.
+            </p>
+            <p>
+              After the animation finishes, the next step&apos;s click targets become active.
             </p>
           </>
         )}

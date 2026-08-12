@@ -432,9 +432,62 @@ export function createCutEngine(initialState = {}) {
     return getState()
   }
 
+  const restoreState = (snapshot = {}, modelScene = null) => {
+    enabled = Boolean(snapshot.enabled)
+    axis = normalizeCutAxis(snapshot.axis)
+    targetStates.clear()
+
+    const savedTargetStates = Array.isArray(snapshot.targetStates)
+      ? snapshot.targetStates
+      : []
+
+    savedTargetStates.forEach((savedState) => {
+      const savedTarget = savedState?.target
+      if (!savedTarget) return
+
+      const nextBounds = cloneBounds(savedState.bounds) || createCutBoundsFromScene(savedTarget)
+      const nextState = {
+        key: getTargetKey(savedTarget),
+        target: savedTarget,
+        bounds: nextBounds,
+        values: normalizeCutValues(savedState.values, nextBounds),
+        enabled: Boolean(savedState.enabled),
+      }
+
+      nextState.enabled =
+        nextState.enabled && hasActiveCutValues(nextState.values, nextState.bounds)
+
+      targetStates.set(nextState.key, nextState)
+    })
+
+    target = snapshot.target || null
+
+    if (target) {
+      const activeKey = getTargetKey(target)
+      const activeState =
+        targetStates.get(activeKey) || ensureTargetState(target, snapshot.bounds)
+      syncActiveState(activeState)
+    } else {
+      bounds = cloneBounds(snapshot.bounds)
+      values = normalizeCutValues(snapshot.values, bounds)
+      value = values[axis] ?? 0
+    }
+
+    if (modelScene) {
+      applyPersistentCutStates(
+        modelScene,
+        enabled,
+        Array.from(targetStates.values()),
+      )
+    }
+
+    return getState()
+  }
+
   return {
     getState,
     getTargetStates,
+    restoreState,
 
     enable() {
       enabled = true

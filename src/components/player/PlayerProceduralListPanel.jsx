@@ -1,5 +1,8 @@
 import { CheckCircle2, Pause, Play, RotateCcw, X } from "lucide-react";
-import { isLazyMaterialRecord } from "../../engine/project/LazyMaterialRecords";
+import {
+  getLazyAwareMaterialRecordCount,
+  isLazyMaterialRecord,
+} from "../../engine/project/LazyMaterialRecords";
 
 function getAnimatedEntries(step) {
   if (Array.isArray(step?.animatedObjects) && step.animatedObjects.length > 0) {
@@ -7,23 +10,34 @@ function getAnimatedEntries(step) {
   }
 
   return step?.animatedObject
-    ? [{
-        object: step.animatedObject,
-        startTransform: step.startTransform,
-        endTransform: step.endTransform,
-      }]
+    ? [
+        {
+          object: step.animatedObject,
+          startTransform: step.startTransform,
+          endTransform: step.endTransform,
+        },
+      ]
     : [];
 }
 
+function getClickTargets(step) {
+  if (Array.isArray(step?.clickTargets) && step.clickTargets.length > 0) {
+    return step.clickTargets;
+  }
+
+  return step?.targetObject ? [step.targetObject] : [];
+}
 
 export default function PlayerProceduralListPanel({
   procedures = [],
   activeProcedureId = null,
+  activeSteps = [],
   status = "idle",
   activeStepIndex = -1,
   completedStepIds = [],
   feedback = "",
   onPlay,
+  onReplay,
   onStop,
   onPlayCompletionAnimation,
   onClose,
@@ -64,17 +78,25 @@ export default function PlayerProceduralListPanel({
             const enabledSteps = (procedure.steps || []).filter(
               (step) => step.enabled !== false,
             );
-            const stepCount = isLazyProcedure
-              ? Number(procedure.stepCount || 0)
-              : enabledSteps.length;
+            const playbackSteps =
+              active && Array.isArray(activeSteps) && activeSteps.length > 0
+                ? activeSteps
+                : enabledSteps;
+            const stepCount = getLazyAwareMaterialRecordCount(procedure, {
+              arrayField: "steps",
+              countField: "stepCount",
+              expectedType: "procedures",
+            });
             const isAssembly = procedure.type === "assembly";
             const canPlay = isLazyProcedure
-              ? stepCount > 0
+              ? true
               : enabledSteps.length > 0 &&
                 enabledSteps.every((step) => {
+                  const clickTargets = getClickTargets(step);
                   const animatedEntries = getAnimatedEntries(step);
+
                   return (
-                    step.targetObject &&
+                    clickTargets.length > 0 &&
                     animatedEntries.length > 0 &&
                     animatedEntries.every(
                       (entry) => entry.startTransform && entry.endTransform,
@@ -82,11 +104,14 @@ export default function PlayerProceduralListPanel({
                     (!isAssembly || step.cameraView)
                   );
                 });
+            const isPreparing = active && status === "resetting";
             const isRunning =
               active && ["waiting", "dragging", "animating"].includes(status);
+            const isCompleted = active && status === "completed";
             const completionAnimation = procedure.settings?.completionAnimation;
             const hasCompletionAnimation = Boolean(completionAnimation?.name);
-            const currentStep = active ? enabledSteps[activeStepIndex] : null;
+            const currentStep = active ? playbackSteps[activeStepIndex] : null;
+            const currentClickTargets = getClickTargets(currentStep);
 
             return (
               <article
@@ -109,8 +134,14 @@ export default function PlayerProceduralListPanel({
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-contrast-grayout">
                       {procedure.description || "No description"}
                     </p>
-                    <div className="mt-2 text-[10px] text-contrast-grayout">
-                      {stepCount} {isAssembly ? "assembly" : "interactive"} steps
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-contrast-grayout">
+                      <span>
+                        {isLazyProcedure && stepCount === 0
+                          ? "Steps load on play"
+                          : `${stepCount} ${
+                              isAssembly ? "assembly" : "interactive"
+                            } steps`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -120,12 +151,21 @@ export default function PlayerProceduralListPanel({
                     {status === "completed" ? (
                       <div>
                         <div className="flex items-center gap-2 text-sm text-green-200">
-                          <CheckCircle2 className="size-5" /> {isAssembly ? "Assembly completed" : "Procedure completed"}
+                          <CheckCircle2 className="size-5" />
+                          {isAssembly
+                            ? "Assembly completed"
+                            : "Procedure completed"}
                         </div>
+                        <p className="mt-2 text-xs leading-5 text-contrast-grayout">
+                          Semua object dapat dikembalikan ke posisi awal dan
+                          procedure dapat dijalankan kembali.
+                        </p>
                         {hasCompletionAnimation && (
                           <button
                             type="button"
-                            onClick={() => onPlayCompletionAnimation?.(procedure.id)}
+                            onClick={() =>
+                              onPlayCompletionAnimation?.(procedure.id)
+                            }
                             className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-default/60 bg-primary text-xs font-semibold text-secondary-default transition hover:bg-white/10"
                           >
                             <Play className="size-4" />
@@ -133,11 +173,16 @@ export default function PlayerProceduralListPanel({
                           </button>
                         )}
                       </div>
+                    ) : isPreparing ? (
+                      <div className="flex items-center gap-3 text-sm text-secondary-default">
+                        <span className="size-4 animate-spin rounded-full border-2 border-secondary-default/30 border-t-secondary-default" />
+                        Preparing procedure replay...
+                      </div>
                     ) : currentStep ? (
                       <>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-xs font-semibold text-white">
-                            Step {activeStepIndex + 1} of {enabledSteps.length}
+                            Step {activeStepIndex + 1} of {playbackSteps.length}
                           </p>
                           <span className="text-[10px] uppercase tracking-wide text-secondary-default">
                             {status === "animating"
@@ -146,7 +191,7 @@ export default function PlayerProceduralListPanel({
                                 ? "Dragging component"
                                 : isAssembly
                                   ? "Drag to target"
-                                  : "Waiting for click"}
+                                  : "Waiting for any target click"}
                           </span>
                         </div>
                         <p className="mt-2 text-sm font-semibold text-white">
@@ -159,15 +204,25 @@ export default function PlayerProceduralListPanel({
                           {isAssembly ? (
                             <>
                               <p>
-                                Component: {currentStep.animatedObject?.name || currentStep.targetObject?.name || "Unknown"}
+                                Component:{" "}
+                                {currentStep.animatedObject?.name ||
+                                  currentStep.targetObject?.name ||
+                                  "Unknown"}
                               </p>
                               <p>Camera: saved POV locked</p>
                             </>
                           ) : (
                             <>
-                              <p>Click: {currentStep.targetObject?.name || "Unknown"}</p>
                               <p>
-                                Animate: {getAnimatedEntries(currentStep)
+                                Click any:{" "}
+                                {currentClickTargets
+                                  .map((entry) => entry?.name)
+                                  .filter(Boolean)
+                                  .join(", ") || "Unknown"}
+                              </p>
+                              <p>
+                                Animate:{" "}
+                                {getAnimatedEntries(currentStep)
                                   .map((entry) => entry.object?.name)
                                   .filter(Boolean)
                                   .join(", ") || "Unknown"}
@@ -185,7 +240,7 @@ export default function PlayerProceduralListPanel({
                     )}
 
                     <div className="mt-3 flex gap-1.5">
-                      {enabledSteps.map((step, index) => (
+                      {playbackSteps.map((step, index) => (
                         <span
                           key={step.id}
                           title={step.name}
@@ -205,22 +260,42 @@ export default function PlayerProceduralListPanel({
 
                 <button
                   type="button"
-                  disabled={!canPlay}
+                  disabled={!canPlay || isPreparing}
                   onClick={() => {
-                    if (isRunning) onStop?.();
-                    else onPlay?.(procedure.id);
+                    if (isRunning) {
+                      onStop?.();
+                      return;
+                    }
+
+                    if (isCompleted) {
+                      onReplay?.(procedure.id);
+                      return;
+                    }
+
+                    onPlay?.(procedure.id);
                   }}
                   className={[
                     "mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
                     isRunning
                       ? "border-red-400/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                       : "border-secondary-default/60 bg-primary text-secondary-default hover:bg-white/10",
-                    !canPlay ? "cursor-not-allowed opacity-40" : "",
+                    !canPlay || isPreparing
+                      ? "cursor-not-allowed opacity-40"
+                      : "",
                   ].join(" ")}
                 >
-                  {isRunning ? (
+                  {isPreparing ? (
+                    <>
+                      <span className="size-4 animate-spin rounded-full border-2 border-current/30 border-t-current" />
+                      Preparing
+                    </>
+                  ) : isRunning ? (
                     <>
                       <Pause className="size-4" /> Stop
+                    </>
+                  ) : isCompleted ? (
+                    <>
+                      <RotateCcw className="size-4" /> Replay
                     </>
                   ) : active ? (
                     <>

@@ -13,6 +13,7 @@ export default function PlayerLayout({
   onAnnotationOpenDetail,
   onAnnotationHierarchyBack,
   onObjectSelectInteraction,
+  turntablePresentationActive = true,
 }) {
   const backgroundStyle = getViewerBackgroundStyle(
     player?.scene?.viewerSettings,
@@ -42,9 +43,12 @@ export default function PlayerLayout({
           {...player.scene}
           preserveSelectionOnPointerMiss={
             Boolean(player.scene.activeChapter) ||
+            Boolean(player.scene.activeSlide) ||
             Boolean(player.scene.activeFlow) ||
             (player.scene.activeChapterFlows?.length || 0) > 0 ||
-            Boolean(player.procedurePanel.activeProcedureId)
+            (player.scene.activeSlideFlows?.length || 0) > 0 ||
+            Boolean(player.procedurePanel.activeProcedureId) ||
+            Boolean(player.quizPanel?.isAssessmentActive)
           }
           selectedAnnotationId={selectedAnnotationId}
           onAnnotationClick={onAnnotationClick}
@@ -52,6 +56,7 @@ export default function PlayerLayout({
           onAnnotationOpenDetail={onAnnotationOpenDetail}
           onAnnotationHierarchyBack={onAnnotationHierarchyBack}
           onObjectSelectInteraction={onObjectSelectInteraction}
+          turntablePresentationActive={turntablePresentationActive}
         />
 
         {showSidebar && <PlayerSidebar items={sidebarItems} />}

@@ -89,6 +89,11 @@ export default function ViewerPageLayout({ controller }) {
 
     chapterFeedback,
     clearChapterFeedback,
+    animationAuthoring,
+    quizAuthoring,
+    xrAuthoring,
+    slideAuthoring,
+    requestAddSlideMarker,
   } = controller;
 
   return (
@@ -126,7 +131,12 @@ export default function ViewerPageLayout({ controller }) {
 
       <Activity
         mode={
-          selectedObjectName || rightTab === "chapter" || activeChapterId
+          !animationAuthoring?.isAuthoringActive &&
+          !quizAuthoring?.isAuthoringActive &&
+          !xrAuthoring?.isAuthoringActive &&
+          (slideAuthoring?.isAuthoringActive
+            ? rightTab === "slide" || Boolean(slideAuthoring?.activeSlideId)
+            : selectedObjectName || rightTab === "chapter" || activeChapterId)
             ? "visible"
             : "hidden"
         }
@@ -196,7 +206,12 @@ export default function ViewerPageLayout({ controller }) {
           resetAllTransforms={controller.resetAllTransforms}
           deselectObject={controller.deselectObject}
           deleteCameraViewFromActiveChapter={deleteCameraViewFromActiveChapter}
-          leftPanelOpen={Boolean(activeSidebar)}
+          slideAuthoring={slideAuthoring}
+          requestAddSlideMarker={requestAddSlideMarker}
+          leftPanelOpen={Boolean(
+            activeSidebar &&
+              !(activeSidebar === "pro" && (animationAuthoring?.isAuthoringActive || quizAuthoring?.isAuthoringActive || xrAuthoring?.isAuthoringActive)),
+          )}
         />
       </Activity>
 

@@ -1,7 +1,7 @@
 import { Section } from "./PanelPrimitives";
 import ProcedureStepObjectSection from "./ProcedureStepObjectSection";
 import ProcedureStepTransformSection from "./ProcedureStepTransformSection";
-import ProcedureStepCameraSection from "./ProcedureStepCameraSection";
+import ProcedureStepViewStateSection from "./ProcedureStepViewStateSection";
 import ProcedureStepInteractionSettings from "./ProcedureStepInteractionSettings";
 import ProcedureStepActions from "./ProcedureStepActions";
 
@@ -55,7 +55,7 @@ export default function ProcedureStepEditorSection({
           step={step}
           isAssembly={isAssembly}
         />
-        <ProcedureStepCameraSection
+        <ProcedureStepViewStateSection
           procedural={procedural}
           step={step}
           isAssembly={isAssembly}

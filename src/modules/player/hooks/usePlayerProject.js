@@ -4,6 +4,8 @@ import useProjectLoader from "../../../engine/project/useProjectLoader"
 import { useGlobalLoading } from "../../loading/LoadingContext"
 import { importVXPack, isVXPackFile } from "../../../utils/vxpackUtils"
 import { DEFAULT_VIEWER_BACKGROUND } from "../../../utils/viewerBackground"
+import { DEFAULT_VIEWER_GRID } from "../../../engine/viewer"
+import { DEFAULT_XR_SETTINGS, normalizeXRSettings } from "../../../engine/xr"
 import { normalizePlayerSettings } from "../../material/playerSettings"
 import {
   normalizeFlowDefinition,
@@ -14,9 +16,21 @@ import {
   normalizeProceduralDefinitions,
 } from "../../../engine/procedural"
 import {
+  normalizeAuthoredAnimationDefinition,
+  normalizeAuthoredAnimationDefinitions,
+} from "../../../engine/animation"
+import {
+  normalizeQuizDefinition,
+  normalizeQuizDefinitions,
+} from "../../../engine/quiz"
+import { normalizeSlideDefinition, normalizeSlideDefinitions } from "../../../engine/slide"
+import {
   getChapterFromIndexedDb,
   getFlowFromIndexedDb,
+  getAuthoredAnimationFromIndexedDb,
   getProcedureFromIndexedDb,
+  getQuizFromIndexedDb,
+  getSlideFromIndexedDb,
 } from "../../project-hub/storage/projectIndexedDb"
 import {
   isLazyMaterialRecord,
@@ -44,6 +58,11 @@ export const DEFAULT_VIEWER_SETTINGS = {
   cameraProjectionMode: "perspective",
   blinkSettings: { ...DEFAULT_BLINK_SELECTION_SETTINGS },
   background: DEFAULT_VIEWER_BACKGROUND,
+  grid: { ...DEFAULT_VIEWER_GRID },
+  xr: {
+    vr: { ...DEFAULT_XR_SETTINGS.vr },
+    ar: { ...DEFAULT_XR_SETTINGS.ar },
+  },
 }
 
 export default function usePlayerProject({
@@ -144,6 +163,17 @@ export default function usePlayerProject({
     [hydrateMaterialRecord],
   )
 
+  const loadAnimationRecord = useCallback(
+    (animationId) =>
+      hydrateMaterialRecord(
+        "authoredAnimations",
+        animationId,
+        getAuthoredAnimationFromIndexedDb,
+        normalizeAuthoredAnimationDefinition,
+      ),
+    [hydrateMaterialRecord],
+  )
+
   const loadProcedureRecord = useCallback(
     (procedureId) =>
       hydrateMaterialRecord(
@@ -151,6 +181,28 @@ export default function usePlayerProject({
         procedureId,
         getProcedureFromIndexedDb,
         normalizeProceduralDefinition,
+      ),
+    [hydrateMaterialRecord],
+  )
+
+  const loadQuizRecord = useCallback(
+    (quizId) =>
+      hydrateMaterialRecord(
+        "quizzes",
+        quizId,
+        getQuizFromIndexedDb,
+        normalizeQuizDefinition,
+      ),
+    [hydrateMaterialRecord],
+  )
+
+  const loadSlideRecord = useCallback(
+    (slideId) =>
+      hydrateMaterialRecord(
+        "slides",
+        slideId,
+        getSlideFromIndexedDb,
+        normalizeSlideDefinition,
       ),
     [hydrateMaterialRecord],
   )
@@ -278,7 +330,10 @@ export default function usePlayerProject({
             projectName: loaded.projectName || loaded.project?.name || "",
             playerSettings: normalizePlayerSettings(nextMaterial.playerSettings),
             flows: normalizeFlowDefinitions(nextMaterial.flows),
+            authoredAnimations: normalizeAuthoredAnimationDefinitions(nextMaterial.authoredAnimations),
             procedures: normalizeProceduralDefinitions(nextMaterial.procedures),
+            quizzes: normalizeQuizDefinitions(nextMaterial.quizzes),
+            slides: normalizeSlideDefinitions(nextMaterial.slides),
 
             modelUrl: loaded.glbUrl,
             modelFileName: loaded.glbFileName || "model.glb",
@@ -390,7 +445,10 @@ export default function usePlayerProject({
         projectId: json.projectId || projectId || null,
         playerSettings: normalizePlayerSettings(json.playerSettings),
         flows: normalizeFlowDefinitions(json.flows),
+        authoredAnimations: normalizeAuthoredAnimationDefinitions(json.authoredAnimations),
         procedures: normalizeProceduralDefinitions(json.procedures),
+        quizzes: normalizeQuizDefinitions(json.quizzes),
+        slides: normalizeSlideDefinitions(json.slides),
       })
       setActiveChapterId(null)
       resetPlayerState?.({
@@ -412,6 +470,7 @@ export default function usePlayerProject({
             ...(prev?.background || {}),
             ...(json.viewerSettings?.background || {}),
           },
+          xr: normalizeXRSettings(json.viewerSettings?.xr || prev?.xr),
         }))
       }
 
@@ -432,7 +491,10 @@ export default function usePlayerProject({
     loadPlayerFile,
     loadChapterRecord,
     loadFlowRecord,
+    loadAnimationRecord,
     loadProcedureRecord,
+    loadQuizRecord,
+    loadSlideRecord,
     notifyModelLoaded,
     notifySceneReady,
   }

@@ -1,7 +1,10 @@
 import usePlayerController from "./hooks/usePlayerController";
-import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel";
 import PlayerFlowListPanel from "../../components/player/PlayerFlowListPanel";
 import PlayerProceduralListPanel from "../../components/player/PlayerProceduralListPanel";
+import PlayerQuizPanel from "../../components/player/PlayerQuizPanel";
+import PlayerMaterialObjectListPanel from "../../components/player/PlayerMaterialObjectListPanel";
+import PlayerXRControls from "../../components/player/PlayerXRControls";
+import { buildPlayerMaterialObjectTree } from "../../engine/chapter";
 import {
   Box,
   Clipboard,
@@ -14,6 +17,7 @@ import {
   Sun,
   Move3d,
   GitBranch,
+  GraduationCap,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -31,7 +35,6 @@ import {
   PlayerChapterReaderFloatingPanel,
   PlayerEnvironmentSettingsFloatingPanel,
   PlayerMediaViewer,
-  PlayerObjectListFloatingPanel,
   PlayerProjectInfoFloatingPanel,
   PlayerViewSettingsFloatingPanel,
 } from "./components/PlayerFloatingPanels";
@@ -43,7 +46,7 @@ export default function PlayerPage() {
   const [activePanel, setActivePanel] = useState(null);
   const [activeMedia, setActiveMedia] = useState(null);
   const [playerObjectSearch, setPlayerObjectSearch] = useState("");
-  const [playerObjectTreeDepth, setPlayerObjectTreeDepth] = useState(999);
+  const [playerObjectListMode, setPlayerObjectListMode] = useState("info");
   const appliedPlayerSettingsKeyRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,6 +66,15 @@ export default function PlayerPage() {
   )
     ? player.chapterList.visibleChapters
     : [];
+  const materialObjectList = useMemo(
+    () =>
+      buildPlayerMaterialObjectTree(
+        player.scene.objectList || [],
+        visibleChapters,
+        player.scene.modelScene || null,
+      ),
+    [player.scene.modelScene, player.scene.objectList, visibleChapters],
+  );
 
   useEffect(() => {
     const material = player.scene.material;
@@ -112,16 +124,10 @@ export default function PlayerPage() {
     if (activePanel !== "chapter") return;
 
     const previousPanel = chapterReturnPanelRef.current;
-    const hasChapters = visibleChapters.length > 0;
-
-    const nextPanel =
-      previousPanel === "chapters" && !hasChapters
-        ? "project"
-        : previousPanel;
 
     player.chapterList.clearActiveChapter?.();
     setActiveMedia(null);
-    setActivePanel(nextPanel || null);
+    setActivePanel(previousPanel || null);
   };
 
   const handleAnnotationClick = (annotation) => {
@@ -131,16 +137,6 @@ export default function PlayerPage() {
 
   const handleObjectInteraction = () => {
     restorePanelBeforeChapterDetail();
-  };
-
-  const handleSetObjectListSelectedObject = (targetObject) => {
-    restorePanelBeforeChapterDetail();
-
-    if (!targetObject) {
-      setSelectedAnnotation(null);
-    }
-
-    player.scene.setObjectListSelectedObject?.(targetObject);
   };
 
   const handleOpenProjectPanel = () => {
@@ -162,32 +158,44 @@ export default function PlayerPage() {
   };
 
   const handleOpenObjectPanel = () => {
+    if ((player.scene.objectList || []).length === 0) return;
+
     setActiveMedia(null);
+    setSelectedAnnotation(null);
     togglePanel("object");
   };
 
-  const handleOpenChapterList = () => {
-    if (visibleChapters.length === 0) return;
+  const handleSelectObjectFromList = (object, { shouldFocus = false } = {}) => {
+    const selection = player.scene.setObjectListSelectedObject?.(object);
+    if (!selection) return null;
 
-    setActiveMedia(null);
-
-    if (!playerSettings.showMaterialList) {
-      player.chapterList.clearActiveChapter?.();
-      setActivePanel("project");
-      return;
+    if (shouldFocus) {
+      player.scene.focusObject?.(selection.selectedObject || object);
     }
 
-    setActivePanel("chapters");
+    return selection;
   };
 
-  const handleSelectChapter = (chapterId) => {
+  const handleSelectChapter = async (chapterId) => {
     if (activePanel !== "chapter") {
       chapterReturnPanelRef.current = activePanel;
     }
 
-    player.chapterList.handleSelectChapter?.(chapterId);
+    const opened = await player.chapterList.handleSelectChapter?.(chapterId);
+    if (!opened) return false;
+
     setActiveMedia(null);
+    setSelectedAnnotation(null);
     setActivePanel("chapter");
+    return true;
+  };
+
+  const handleSelectSlide = async (slideId) => {
+    const opened = await player.slidePanel?.selectSlide?.(slideId);
+    if (!opened) return;
+    setActiveMedia(null);
+    setSelectedAnnotation(null);
+    setActivePanel("slide");
   };
 
   const handleOpenAnnotationDetail = (chapterId) => {
@@ -223,8 +231,7 @@ export default function PlayerPage() {
       icon: Clipboard,
       active:
         activePanel === "project" ||
-        activePanel === "chapters" ||
-        activePanel === "chapter",
+        (activePanel === "chapter" && chapterReturnPanelRef.current !== "object"),
       onClick: handleOpenProjectPanel,
     },
   ];
@@ -242,12 +249,17 @@ export default function PlayerPage() {
     });
   }
 
-  if (playerMenuVisibility.objectList) {
+  if (
+    playerMenuVisibility.objectList &&
+    (player.scene.objectList || []).length > 0
+  ) {
     sidebarItems.push({
       key: "object",
-      label: "Object",
+      label: "Object List",
       icon: Box,
-      active: activePanel === "object",
+      active:
+        activePanel === "object" ||
+        (activePanel === "chapter" && chapterReturnPanelRef.current === "object"),
       onClick: handleOpenObjectPanel,
     });
   }
@@ -276,6 +288,20 @@ export default function PlayerPage() {
     });
   }
 
+  if ((player.quizPanel?.quizzes || []).length > 0) {
+    sidebarItems.push({
+      key: "quiz",
+      label: "Quiz & Assessment",
+      icon: GraduationCap,
+      active:
+        activePanel === "quiz" || Boolean(player.quizPanel?.isAssessmentActive),
+      onClick: () => {
+        setActiveMedia(null);
+        togglePanel("quiz");
+      },
+    });
+  }
+
   if ((player.procedurePanel.procedures || []).length > 0) {
     sidebarItems.push({
       key: "procedural",
@@ -283,7 +309,7 @@ export default function PlayerPage() {
       icon: ListChecks,
       active:
         activePanel === "procedural" ||
-        ["waiting", "animating", "completed"].includes(
+        ["resetting", "waiting", "dragging", "animating", "completed"].includes(
           player.procedurePanel.status,
         ),
       onClick: () => {
@@ -363,6 +389,10 @@ export default function PlayerPage() {
     },
   );
 
+  const visibleSidebarItems = player.quizPanel?.isAssessmentActive
+    ? sidebarItems.filter((item) => item?.key === "quiz")
+    : sidebarItems;
+
   if (isLoadingProject) {
     return <div style={{ padding: 24 }}>Loading project...</div>;
   }
@@ -374,17 +404,21 @@ export default function PlayerPage() {
   return (
     <PlayerLayout
       player={player}
-      sidebarItems={sidebarItems}
-      showSidebar={isSceneReady}
+      sidebarItems={visibleSidebarItems}
+      showSidebar={isSceneReady && !player.xrPanel?.activeMode}
       selectedAnnotationId={selectedAnnotation?.id || null}
       onAnnotationClick={handleAnnotationClick}
       onAnnotationClose={() => setSelectedAnnotation(null)}
       onAnnotationOpenDetail={handleOpenAnnotationDetail}
       onAnnotationHierarchyBack={handleAnnotationHierarchyBack}
       onObjectSelectInteraction={handleObjectInteraction}
+      turntablePresentationActive={
+        activePanel === null || activePanel === "project"
+      }
     >
       {isSceneReady && (
         <>
+      <PlayerXRControls xr={player.xrPanel} />
       {showBackToEditor && (
         <Button
           size="sm"
@@ -406,13 +440,11 @@ export default function PlayerPage() {
       {activePanel === "project" && (
         <PlayerProjectInfoFloatingPanel
           material={player.scene.material}
-          activeChapterId={player.chapterList.activeChapterId}
+          activeSlideId={player.slidePanel?.activeSlideId}
           onClose={() => setActivePanel(null)}
-          onOpenList={handleOpenChapterList}
-          onSelectChapter={handleSelectChapter}
+          onSelectSlide={handleSelectSlide}
           onOpenMedia={setActiveMedia}
-          showMaterialList={playerSettings.showMaterialList}
-          chapters={visibleChapters}
+          slides={player.slidePanel?.slides || []}
         />
       )}
 
@@ -424,32 +456,26 @@ export default function PlayerPage() {
         />
       )}
 
-      {activePanel === "object" && playerMenuVisibility.objectList && (
-        <PlayerObjectListFloatingPanel
-          objectList={player.scene.objectList || []}
-          selectedObject={player.scene.selectedObject}
-          setSelectedObject={handleSetObjectListSelectedObject}
-          onClose={() => setActivePanel(null)}
-          searchObject={playerObjectSearch}
-          setSearchObject={setPlayerObjectSearch}
-          treeDepth={playerObjectTreeDepth}
-          setTreeDepth={setPlayerObjectTreeDepth}
-          highlightObject={player.scene.handleSelectObjectFromPlayer}
-          makeXrayExcept={player.scene.makeXrayExcept}
-          resetXray={player.scene.resetXray}
-          focusObject={player.scene.focusObject}
-          showAllObjects={player.toolsMenu.showAllObjects}
-          hideAllObjects={player.toolsMenu.hideAllObjects}
-        />
-      )}
-
-      {activePanel === "chapters" && visibleChapters.length > 0 && (
-          <PlayerChapterListPanel
-            material={player.chapterList.material}
-            chapters={visibleChapters}
+      {activePanel === "object" &&
+        playerMenuVisibility.objectList &&
+        (player.scene.objectList || []).length > 0 && (
+          <PlayerMaterialObjectListPanel
+            objectList={materialObjectList}
+            fullObjectList={player.scene.objectList || []}
+            mode={playerObjectListMode}
+            onModeChange={setPlayerObjectListMode}
             activeChapterId={player.chapterList.activeChapterId}
-            handleSelectChapter={handleSelectChapter}
+            onSelectChapter={handleSelectChapter}
             onClose={() => setActivePanel(null)}
+            searchObject={playerObjectSearch}
+            setSearchObject={setPlayerObjectSearch}
+            selectedObject={player.scene.selectedObject}
+            onSelectObject={handleSelectObjectFromList}
+            onClearSelection={player.scene.clearPlayerSelection}
+            onFocusObject={player.scene.focusObject}
+            onResetXray={player.scene.resetXray}
+            onShowAllObjects={player.toolsMenu.showAllObjects}
+            onHideAllObjects={player.toolsMenu.hideAllObjects}
           />
         )}
 
@@ -462,7 +488,7 @@ export default function PlayerPage() {
             setActivePanel(null);
             setActiveMedia(null);
           }}
-          onOpenList={handleOpenChapterList}
+          onOpenList={handleOpenObjectPanel}
           onSelectChapter={handleSelectChapter}
           onOpenMedia={setActiveMedia}
           onPlayVoice={player.chapterPanel.speakChapterDescription}
@@ -479,6 +505,33 @@ export default function PlayerPage() {
           onPlayChapterFlow={player.chapterPanel.playChapterFlow}
           onStopChapterFlows={player.chapterPanel.stopChapterFlows}
           chapters={visibleChapters}
+        />
+      )}
+
+      {activePanel === "slide" && player.slidePanel?.activeSlide && (
+        <PlayerChapterReaderFloatingPanel
+          material={player.scene.material}
+          activeChapter={player.slidePanel.activeSlide}
+          activeChapterId={player.slidePanel.activeSlideId}
+          onClose={() => {
+            setActivePanel(null);
+            setActiveMedia(null);
+          }}
+          onOpenList={() => setActivePanel("project")}
+          onSelectChapter={handleSelectSlide}
+          onOpenMedia={setActiveMedia}
+          onPlayVoice={player.slidePanel.speakDescription}
+          onStopVoice={player.slidePanel.stopSpeaking}
+          onPlayAnimations={player.slidePanel.playAnimations}
+          onStopAnimations={player.slidePanel.stopAnimations}
+          chapterFlowAssignments={player.slidePanel.flowAssignments}
+          activeChapterFlowIds={player.slidePanel.activeFlowIds}
+          cameraViews={player.slidePanel.cameraViews}
+          activeCameraViewIndex={player.slidePanel.activeCameraViewIndex}
+          onSelectCameraView={player.slidePanel.selectCameraView}
+          onPlayChapterFlow={player.slidePanel.playFlow}
+          onStopChapterFlows={player.slidePanel.stopFlows}
+          chapters={player.slidePanel.slides}
         />
       )}
 
@@ -506,15 +559,24 @@ export default function PlayerPage() {
         <PlayerProceduralListPanel
           procedures={player.procedurePanel.procedures}
           activeProcedureId={player.procedurePanel.activeProcedureId}
+          activeSteps={player.procedurePanel.activeSteps}
           status={player.procedurePanel.status}
           activeStepIndex={player.procedurePanel.activeStepIndex}
           completedStepIds={player.procedurePanel.completedStepIds}
           feedback={player.procedurePanel.feedback}
           onPlay={player.procedurePanel.playProcedure}
+          onReplay={player.procedurePanel.replayProcedure}
           onStop={player.procedurePanel.stopProcedure}
           onPlayCompletionAnimation={
             player.procedurePanel.playCompletionAnimation
           }
+          onClose={() => setActivePanel(null)}
+        />
+      )}
+
+      {activePanel === "quiz" && (
+        <PlayerQuizPanel
+          quiz={player.quizPanel}
           onClose={() => setActivePanel(null)}
         />
       )}

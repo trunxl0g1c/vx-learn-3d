@@ -11,18 +11,37 @@ export default function ProceduralEditorPanel({
   procedural,
   selectedObjectName,
   animations = [],
+  authoredAnimations = [],
   onBack,
 }) {
   const [newProcedureType, setNewProcedureType] = useState("assembly");
   const procedure = procedural?.activeProcedure;
   const step = procedural?.activeStep;
-  const animationOptions = useMemo(
-    () => getUniqueAnimationOptions(animations),
-    [animations],
-  );
+  const animationOptions = useMemo(() => {
+    const embedded = getUniqueAnimationOptions(animations).map((animation) => ({
+      ...animation,
+      source: "embedded",
+      animationId: "",
+      value: `embedded::${animation.name}`,
+      label: `GLB · ${animation.name}`,
+    }));
+    const authored = (authoredAnimations || [])
+      .filter((animation) => animation?.id && animation?.name)
+      .map((animation) => ({
+        name: animation.name,
+        duration: Number(animation.duration) || 0,
+        source: "authored",
+        animationId: animation.id,
+        value: `authored::${animation.id}`,
+        label: `Authored · ${animation.name}`,
+      }));
+
+    return [...embedded, ...authored];
+  }, [animations, authoredAnimations]);
   const isAssembly = procedure?.type === "assembly";
   const stepIndex =
     procedure?.steps?.findIndex((item) => item.id === step?.id) ?? -1;
+  const clickTargets = procedural?.activeClickTargets || [];
   const animatedEntries = procedural?.activeAnimatedEntries || [];
   const animatedEntriesReady =
     animatedEntries.length > 0 &&
@@ -30,7 +49,7 @@ export default function ProceduralEditorPanel({
       (entry) => entry.startTransform && entry.endTransform,
     );
   const stepReady = Boolean(
-    step?.targetObject &&
+    clickTargets.length > 0 &&
       animatedEntriesReady &&
       (!isAssembly || step?.cameraView),
   );

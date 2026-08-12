@@ -2,6 +2,9 @@ import SceneCanvas from "../canvas/SceneCanvas";
 import EditorFloatingToolbar from "../toolbar/EditorFloatingToolbar";
 import CutSectionSlider from "../toolbar/CutSectionSlider";
 import EditorLeftSidebar from "../sidebar/EditorLeftSidebar";
+import AnimationWorkspaceDock from "../animation/AnimationWorkspaceDock";
+import QuizWorkspaceDock from "../quiz/QuizWorkspaceDock";
+import XRWorkspaceDock from "../xr/XRWorkspaceDock";
 import SelectedObjectBadge from "./SelectedObjectBadge";
 import EditorSceneViewGizmo from "../viewer/EditorSceneViewGizmo";
 import { viewportStyle } from "../../constants/viewerStyles";
@@ -59,6 +62,8 @@ export default function EditorViewport({ controller }) {
     setSelectedObject,
     setOutlineObjects,
     setSelectedObjectName,
+    beginObjectTransformHistory,
+    commitObjectTransformHistory,
 
     cutEnabled,
     cutValues,
@@ -99,6 +104,10 @@ export default function EditorViewport({ controller }) {
     saveDefaultPlayerCameraView,
     flow,
     procedural,
+    animationAuthoring,
+    quizAuthoring,
+    xrAuthoring,
+    slideAuthoring,
 
     applyShaderMode,
     shaderMode,
@@ -145,9 +154,18 @@ export default function EditorViewport({ controller }) {
     cancelAddMarker,
   } = controller;
 
-  const rightPanelVisible = Boolean(
-    selectedObjectName || rightTab === "chapter" || activeChapterId,
+  const workspaceAuthoringActive = Boolean(
+    animationAuthoring?.isAuthoringActive ||
+      quizAuthoring?.isAuthoringActive ||
+      xrAuthoring?.isAuthoringActive,
   );
+  const rightPanelVisible =
+    !workspaceAuthoringActive &&
+    Boolean(
+      slideAuthoring?.isAuthoringActive
+        ? rightTab === "slide" || slideAuthoring?.activeSlideId
+        : selectedObjectName || rightTab === "chapter" || activeChapterId,
+    );
   const activeCameraProjectionMode =
     controller.cameraProjectionMode === "orthographic"
       ? "orthographic"
@@ -167,7 +185,18 @@ export default function EditorViewport({ controller }) {
 
       <SelectedObjectBadge selectedObjectName={selectedObjectName} />
 
-      <SceneCanvas
+      <div
+        className={
+          animationAuthoring?.isAuthoringActive
+            ? "absolute inset-x-0 top-0 bottom-[360px]"
+            : quizAuthoring?.isAuthoringActive
+              ? "absolute inset-x-0 top-0 bottom-[420px]"
+              : xrAuthoring?.isAuthoringActive
+                ? "absolute inset-x-0 top-0 bottom-[360px]"
+                : "absolute inset-0"
+        }
+      >
+        <SceneCanvas
         cameraRef={cameraRef}
         controlsRef={controlsRef}
         focusTargetRef={focusTargetRef}
@@ -189,7 +218,7 @@ export default function EditorViewport({ controller }) {
         setAnimations={setAnimations}
         setSelectedAnimations={setSelectedAnimations}
         activeMarkers={activeMarkers}
-        activeChapter={activeChapter}
+        activeChapter={slideAuthoring?.activeSlide || activeChapter}
         updateMarker={updateMarker}
         modelScene={modelScene}
         targetRotationY={targetRotationY}
@@ -203,6 +232,8 @@ export default function EditorViewport({ controller }) {
         setSelectedObject={setSelectedObject}
         setOutlineObjects={setOutlineObjects}
         setSelectedObjectName={setSelectedObjectName}
+        onTransformStart={beginObjectTransformHistory}
+        onTransformEnd={commitObjectTransformHistory}
         onClearSelection={clearSelectionFromViewport}
         flowPointMode={flow?.pointMode}
         onAddFlowPoint={flow?.addPoint}
@@ -234,9 +265,48 @@ export default function EditorViewport({ controller }) {
           procedural?.activeStep?.interaction?.showGhost !== false &&
           Boolean(procedural?.activeStep?.endTransform)
         }
-      />
+        animationTransformMode={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.transformMode || "translate"
+            : "translate"
+        }
+        animationTransformObject={
+          animationAuthoring?.isAuthoringActive &&
+          animationAuthoring?.activeTrack?.rig?.type !== "hydraulic"
+            ? animationAuthoring?.activeTrackObject || null
+            : null
+        }
+        animationTransformRig={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.activeTrack?.rig || null
+            : null
+        }
+        animationPivotEditEnabled={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.isPivotEditing === true
+            : false
+        }
+        onAnimationTransformChange={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.previewActiveTrackTransform
+            : null
+        }
+        onAnimationPivotChange={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.setActiveTrackRigPivot
+            : null
+        }
+        onAnimationPivotPick={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.snapActiveTrackRigPivotFromHit
+            : null
+        }
+        />
 
-      <EditorFloatingToolbar
+      </div>
+
+      {!workspaceAuthoringActive && (
+        <EditorFloatingToolbar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
         markerMode={markerMode}
@@ -257,9 +327,10 @@ export default function EditorViewport({ controller }) {
         resetAllTransforms={resetAllTransforms}
         soloSelectedObject={soloSelectedObject}
         showAllObjects={showAllObjects}
-      />
+        />
+      )}
 
-      {cutEnabled && (
+      {cutEnabled && !workspaceAuthoringActive && (
         <CutSectionSlider
           cutValues={cutValues}
           cutRanges={cutRanges}
@@ -271,6 +342,21 @@ export default function EditorViewport({ controller }) {
           onClose={toggleCutSection}
         />
       )}
+
+      <AnimationWorkspaceDock
+        animationAuthoring={animationAuthoring}
+        selectedObjectName={selectedObjectName}
+      />
+      <QuizWorkspaceDock
+        quizAuthoring={quizAuthoring}
+        selectedObjectName={selectedObjectName}
+        procedures={material?.procedures || []}
+        authoredAnimations={material?.authoredAnimations || []}
+      />
+      <XRWorkspaceDock
+        xrAuthoring={xrAuthoring}
+        onOpenPlayerPreview={controller.openPlayerPreview}
+      />
 
       <EditorLeftSidebar
         activeSidebar={activeSidebar}
@@ -343,6 +429,10 @@ export default function EditorViewport({ controller }) {
         setAnimationCommand={setAnimationCommand}
         flow={flow}
         procedural={procedural}
+        animationAuthoring={animationAuthoring}
+        quizAuthoring={quizAuthoring}
+        xrAuthoring={xrAuthoring}
+        slideAuthoring={slideAuthoring}
       />
     </div>
   );

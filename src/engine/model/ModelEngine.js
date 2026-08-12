@@ -92,6 +92,7 @@ export function createModelEngine(options = {}) {
       ...item,
       position: item?.position?.clone?.() || item?.position,
       rotation: item?.rotation?.clone?.() || item?.rotation,
+      scale: item?.scale?.clone?.() || item?.scale,
     }))
 
     if (lastState) {
@@ -169,6 +170,7 @@ export function createModelEngine(options = {}) {
         object: child,
         position: child.position.clone(),
         rotation: child.rotation.clone(),
+        scale: child.scale.clone(),
       })
 
       if (!child.isMesh) return
@@ -753,11 +755,39 @@ export function createModelEngine(options = {}) {
     return returnSession ? session : true
   }
 
-  const resetParts = () => {
+  const resetParts = (options = {}) => {
+    const requestedDuration = Number(options.animationDuration)
+    const animationDuration = Number.isFinite(requestedDuration)
+      ? requestedDuration
+      : 420
+
     originalPositions.forEach((item) => {
-      item.object.userData.targetPosition = item.position.clone()
-      item.object.userData.targetPositionAnimation = createTargetAnimation(item.object, 420)
+      const object = item?.object
+      const position = item?.position
+
+      if (!object || !position) return
+
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (animationDuration <= 0) {
+        object.position.copy(position)
+        delete object.userData.targetPosition
+        delete object.userData.targetPositionAnimation
+        object.updateMatrix?.()
+        object.updateMatrixWorld?.(true)
+        return
+      }
+
+      object.userData.targetPosition = position.clone()
+      object.userData.targetPositionAnimation = createTargetAnimation(
+        object,
+        animationDuration,
+      )
     })
+
+    scene?.updateMatrixWorld?.(true)
   }
 
   const resetMovedObjects = ({ animationDuration = 560 } = {}) => {

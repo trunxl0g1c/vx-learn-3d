@@ -297,6 +297,7 @@ export default function ChapterTab(props) {
             <ChapterAnimationSection
               chapter={activeChapter}
               animations={animations}
+              authoredAnimations={material?.authoredAnimations || []}
               addChapterAnimation={addChapterAnimation}
               updateChapterAnimation={updateChapterAnimation}
               removeChapterAnimation={removeChapterAnimation}

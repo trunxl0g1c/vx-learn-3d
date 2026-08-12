@@ -17,15 +17,35 @@ function normalizeMarkerPosition(position) {
   ];
 }
 
+function updateContentMarkers(material, field, contentId, updater) {
+  if (!contentId || typeof updater !== "function") return material;
+
+  return {
+    ...material,
+    [field]: (material?.[field] || []).map((content) =>
+      content.id === contentId
+        ? {
+            ...content,
+            markers: updater(content.markers || []),
+          }
+        : content,
+    ),
+  };
+}
+
 export function useMarkerManager({
   activeChapterId,
+  activeSlideId,
   setMaterial,
   markers,
   setMarkers,
 }) {
+  const activeField = activeSlideId ? "slides" : "chapters";
+  const activeContentId = activeSlideId || activeChapterId;
+
   const addMarker = (marker) => {
-    if (!activeChapterId) {
-      alert("Create or select a chapter first to add markers.");
+    if (!activeContentId) {
+      alert("Create or select a chapter/slide first to add markers.");
       return;
     }
 
@@ -40,55 +60,34 @@ export function useMarkerManager({
       connector: marker?.connector || createMarkerConnector(labelOffset),
     };
 
-    setMaterial((prev) => ({
-      ...prev,
-      chapters: prev.chapters.map((chapter) =>
-        chapter.id === activeChapterId
-          ? {
-              ...chapter,
-              markers: [...(chapter.markers || []), fixedMarker],
-            }
-          : chapter,
-      ),
-    }));
+    setMaterial((prev) =>
+      updateContentMarkers(prev, activeField, activeContentId, (items) => [
+        ...items,
+        fixedMarker,
+      ]),
+    );
   };
 
   const updateMarker = (markerId, patch) => {
-    if (!activeChapterId || !markerId) return false;
+    if (!activeContentId || !markerId) return false;
 
     let changed = false;
-
-    setMaterial((prev) => ({
-      ...prev,
-      chapters: prev.chapters.map((chapter) => {
-        if (chapter.id !== activeChapterId) return chapter;
-
-        const nextMarkers = (chapter.markers || []).map((marker) => {
+    setMaterial((prev) =>
+      updateContentMarkers(prev, activeField, activeContentId, (items) =>
+        items.map((marker) => {
           if (marker.id !== markerId) return marker;
 
           changed = true;
-          const nextMarker = {
-            ...marker,
-            ...patch,
-          };
+          const nextMarker = { ...marker, ...patch };
           const labelOffset = normalizeMarkerLabelOffset(nextMarker);
-
           return {
             ...nextMarker,
             labelOffset,
-            connector:
-              patch?.connector || createMarkerConnector(labelOffset),
+            connector: patch?.connector || createMarkerConnector(labelOffset),
           };
-        });
-
-        return changed
-          ? {
-              ...chapter,
-              markers: nextMarkers,
-            }
-          : chapter;
-      }),
-    }));
+        }),
+      ),
+    );
 
     return changed;
   };
@@ -98,19 +97,14 @@ export function useMarkerManager({
     if (!file) return;
 
     const reader = new FileReader();
-
     reader.onload = (event) => {
       const json = JSON.parse(event.target.result);
-      const fixedMarkers = processLoadedMarkers(json);
-      setMarkers(fixedMarkers);
+      setMarkers(processLoadedMarkers(json));
     };
-
     reader.readAsText(file);
   };
 
-  const saveMarkers = () => {
-    saveMarkersToFile(markers);
-  };
+  const saveMarkers = () => saveMarkersToFile(markers);
 
   return { addMarker, updateMarker, loadMarkers, saveMarkers };
 }

@@ -1,5 +1,9 @@
 import { createId } from "../../utils/createId";
 import * as THREE from "three";
+import {
+  getLazyMaterialRecordMeta,
+  markLazyMaterialRecord,
+} from "../project/LazyMaterialRecords";
 
 export const DEFAULT_FLOW_COLOR = "#22d3ee";
 export const DEFAULT_FLOW_SPEED = 1;
@@ -238,8 +242,9 @@ export function normalizeFlowDefinition(flow, index = 0) {
   const fallback = createFlowDefinition(index + 1);
   const settings = flow?.settings || {};
   const effectType = normalizeFlowEffectType(settings.effectType);
+  const lazyMetadata = getLazyMaterialRecordMeta(flow);
 
-  return {
+  const normalized = {
     ...fallback,
     ...flow,
     id: flow?.id || fallback.id,
@@ -296,6 +301,10 @@ export function normalizeFlowDefinition(flow, index = 0) {
     createdAt: flow?.createdAt || fallback.createdAt,
     updatedAt: flow?.updatedAt || fallback.updatedAt,
   };
+
+  return lazyMetadata
+    ? markLazyMaterialRecord(normalized, lazyMetadata)
+    : normalized;
 }
 
 export function normalizeFlowDefinitions(flows) {

@@ -22,12 +22,14 @@ import {
 } from '../../utils/webglContextLifecycle'
 import CustomHdriEnvironment from './CustomHdriEnvironment'
 import ViewerSceneBackground from './ViewerSceneBackground'
+import ViewerSceneGrid from './ViewerSceneGrid'
 import ViewerProjectionCameraController from './ViewerProjectionCameraController'
 import ViewerStageFloor from './ViewerStageFloor'
 import StageShadowDirectionalLight from './StageShadowDirectionalLight'
 import FlowRuntimeRenderer from '../flow/FlowRuntimeRenderer'
 import FlowWaypointEditor from '../flow/FlowWaypointEditor'
 import AssemblyGhostTarget from '../procedural/AssemblyGhostTarget'
+import AnimationPivotEditor from '../animation/AnimationPivotEditor'
 import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
 import { getFlowReferenceLengthFromObject } from '../../engine/flow'
 
@@ -183,6 +185,8 @@ export default function SceneCanvas({
   setSelectedObject,
   setOutlineObjects,
   setSelectedObjectName,
+  onTransformStart = null,
+  onTransformEnd = null,
   onClearSelection,
   flowPointMode = false,
   onAddFlowPoint,
@@ -196,6 +200,13 @@ export default function SceneCanvas({
   proceduralTransformObject = null,
   proceduralAssemblyTargetTransform = null,
   proceduralAssemblyShowGhost = false,
+  animationTransformMode = "translate",
+  animationTransformObject = null,
+  animationTransformRig = null,
+  animationPivotEditEnabled = false,
+  onAnimationTransformChange = null,
+  onAnimationPivotChange = null,
+  onAnimationPivotPick = null,
 }) {
   const modelRootRef = useRef(null)
   const [isFlowWaypointTransforming, setIsFlowWaypointTransforming] =
@@ -209,7 +220,20 @@ export default function SceneCanvas({
     : getViewerBackgroundStyle(viewerSettings)
   const transformObject = authoringFlow
     ? null
-    : proceduralTransformObject || selectedObject
+    : proceduralTransformObject || (animationPivotEditEnabled ? null : (animationTransformObject || selectedObject))
+  const activeTransformMode = proceduralTransformObject
+    ? proceduralTransformMode
+    : animationTransformObject
+      ? animationTransformMode
+      : proceduralTransformMode
+  const animationRigAxis = animationTransformRig?.axis || null
+  const animationRigLocksAxis =
+    animationTransformObject &&
+    ["revolute", "linear"].includes(animationTransformRig?.type)
+  const transformShowX = !animationRigLocksAxis || animationRigAxis === "x"
+  const transformShowY = !animationRigLocksAxis || animationRigAxis === "y"
+  const transformShowZ = !animationRigLocksAxis || animationRigAxis === "z"
+
   const flowSpeedReferenceLength = useMemo(
     () => getFlowReferenceLengthFromObject(modelScene, 1),
     [modelScene],
@@ -221,6 +245,23 @@ export default function SceneCanvas({
       setOrbitEnabled(!transforming)
     },
     [setIsTransforming, setOrbitEnabled],
+  )
+
+  const handleViewportTransformingChange = useCallback(
+    (transforming) => {
+      setIsTransforming(transforming)
+      setOrbitEnabled(!transforming)
+
+      if (transforming) {
+        setIsAutoRotating(false)
+        focusTargetRef.current = null
+      }
+
+      if (controlsRef.current) {
+        controlsRef.current.enabled = !transforming
+      }
+    },
+    [controlsRef, focusTargetRef, setIsAutoRotating, setIsTransforming, setOrbitEnabled],
   )
 
   return (
@@ -243,6 +284,7 @@ export default function SceneCanvas({
         gl.toneMappingExposure = viewerSettings.exposure
       }}
       onPointerMissed={(event) => {
+        if (isTransforming) return
         if (event?.button !== undefined && event.button !== 0) return
         if (Number(event?.delta || 0) > 2) return
 
@@ -268,6 +310,11 @@ export default function SceneCanvas({
       <ViewerSceneBackground
         viewerSettings={viewerSettings}
         backgroundOverrideColor={isSketchMode ? '#ffffff' : null}
+      />
+      <ViewerSceneGrid
+        viewerSettings={viewerSettings}
+        modelRootRef={modelRootRef}
+        modelScene={modelScene}
       />
 
       <EffectComposer autoClear={false} multisampling={0}>
@@ -363,6 +410,8 @@ export default function SceneCanvas({
                 markerMode={markerMode}
                 flowPointMode={flowPointMode}
                 onAddFlowPoint={onAddFlowPoint}
+                animationPivotPickMode={Boolean(animationPivotEditEnabled && animationTransformRig?.type === "revolute")}
+                onAnimationPivotPick={onAnimationPivotPick}
                 onSelectObject={selectObjectFromMesh}
                 onDoubleClickObject={focusObjectFromMesh}
                 selectedAnimations={selectedAnimations}
@@ -450,34 +499,42 @@ export default function SceneCanvas({
         visible={proceduralAssemblyShowGhost}
       />
 
+      <AnimationPivotEditor
+        object={animationTransformObject}
+        pivot={animationTransformRig?.pivot || [0, 0, 0]}
+        enabled={Boolean(animationPivotEditEnabled && animationTransformObject && animationTransformRig?.type === "revolute")}
+        controlsRef={controlsRef}
+        onTransformingChange={handleViewportTransformingChange}
+        onPivotChange={onAnimationPivotChange}
+      />
+
       {transformObject && (
         <TransformControls
           object={transformObject}
-          mode={proceduralTransformMode}
+          mode={activeTransformMode}
           space="local"
-          onMouseDown={() => {
-            setIsTransforming(true)
-            setOrbitEnabled(false)
-            setIsAutoRotating(false)
-            focusTargetRef.current = null
-
-            if (controlsRef.current) {
-              controlsRef.current.enabled = false
+          showX={transformShowX}
+          showY={transformShowY}
+          showZ={transformShowZ}
+          onObjectChange={() => {
+            if (animationTransformObject) {
+              onAnimationTransformChange?.()
             }
           }}
+          onMouseDown={() => {
+            onTransformStart?.(transformObject)
+            handleViewportTransformingChange(true)
+          }}
           onMouseUp={() => {
-            setIsTransforming(false)
-            setOrbitEnabled(true)
-
-            if (controlsRef.current) {
-              controlsRef.current.enabled = true
-            }
+            onTransformEnd?.(transformObject)
+            handleViewportTransformingChange(false)
           }}
         />
       )}
 
       <OrbitControls
         ref={controlsRef}
+        makeDefault
         enabled={orbitEnabled && !isTransforming}
         enableRotate={
           orbitEnabled &&

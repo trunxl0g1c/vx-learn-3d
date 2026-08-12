@@ -17,14 +17,13 @@ import {
   X,
 } from "lucide-react";
 
-import HierarchyObjectTree from "../../../components/sidebar/left-panels/HierarchyObjectTree";
-import { getMaxTreeDepth } from "../../../utils/objectTreeUtils";
 import Button from "../../../components/ui/button";
 import MaterialIcon from "../../../components/ui/material-icon";
 import Switch from "../../../components/ui/switch";
 import AnimationTab from "../../../components/panels/right-tabs/AnimationTab";
 import VisualTab from "../../../components/panels/right-tabs/VisualTab";
 import PlayerChapterPlaybackSection from "../../../components/player/PlayerChapterPlaybackSection";
+import PlayerProjectSlideList from "../../../components/player/PlayerProjectSlideList";
 
 function getProjectInfoTitle(material) {
   return (
@@ -130,44 +129,23 @@ function getAssetLabel(asset, index) {
 
 export function PlayerProjectInfoFloatingPanel({
   material,
-  activeChapterId,
+  activeSlideId,
   onClose,
-  onOpenList,
-  onSelectChapter,
+  onSelectSlide,
   onOpenMedia,
-  showMaterialList = true,
-  chapters = [],
+  slides = [],
 }) {
   const title = getProjectInfoTitle(material);
   const description = getProjectInfoDescription(material);
   const integratedAssets = getIntegratedAssets(material);
-  const chapterList = Array.isArray(chapters) ? chapters : [];
-  const hasChapters = chapterList.length > 0;
-  const activeChapterIndex = chapterList.findIndex(
-    (chapter) => chapter.id === activeChapterId,
-  );
-  const canGoPrevious = activeChapterIndex > 0;
-  const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapterList.length - 1;
-
-  const handlePrevious = () => {
-    if (!canGoPrevious) return;
-
-    onSelectChapter?.(chapterList[activeChapterIndex - 1].id);
-  };
-
-  const handleNext = () => {
-    if (!canGoNext) return;
-
-    onSelectChapter?.(chapterList[activeChapterIndex + 1].id);
-  };
+  const slideList = Array.isArray(slides) ? slides : [];
 
   return (
     <PlayerFloatingPanel onClose={onClose}>
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <h3 className="mb-3 pr-8 text-base font-bold">{title}</h3>
 
-        <p className="text-xs leading-relaxed text-white/80 whitespace-pre-line">
+        <p className="whitespace-pre-line text-xs leading-relaxed text-white/80">
           {description}
         </p>
 
@@ -190,90 +168,13 @@ export function PlayerProjectInfoFloatingPanel({
           </section>
         )}
 
-        {!showMaterialList && hasChapters && (
-          <InlineMaterialChapterList
-            chapters={chapterList}
-            activeChapterId={activeChapterId}
-            onSelectChapter={onSelectChapter}
-          />
-        )}
-      </div>
-
-      <div className="mt-5 flex justify-between items-center border-t border-white/10 pt-4">
-        {showMaterialList ? (
-          <PanelFooterButton
-            onClick={onOpenList}
-            icon={List}
-            disabled={!hasChapters}
-          />
-        ) : (
-          <span />
-        )}
-        <div className="flex gap-2">
-          <PanelFooterButton
-            onClick={handlePrevious}
-            icon={ChevronLeft}
-            // label="Prev"
-            disabled={!canGoPrevious}
-          />
-          <PanelFooterButton
-            onClick={handleNext}
-            icon={ChevronRight}
-            // label="Next"
-            disabled={!canGoNext}
-          />
-        </div>
+        <PlayerProjectSlideList
+          slides={slideList}
+          activeSlideId={activeSlideId}
+          onSelectSlide={onSelectSlide}
+        />
       </div>
     </PlayerFloatingPanel>
-  );
-}
-
-function InlineMaterialChapterList({
-  chapters,
-  activeChapterId,
-  onSelectChapter,
-}) {
-  return (
-    <section className="mt-5 border-t border-white/10 pt-4">
-      <div className="mb-3 text-xs font-bold text-white/60">
-        List Materi ({chapters.length})
-      </div>
-
-      <div className="space-y-3">
-        {chapters.map((chapter, index) => {
-          const active = activeChapterId === chapter.id;
-
-          return (
-            <button
-              key={chapter.id || `${chapter.title}-${index}`}
-              type="button"
-              onClick={() => onSelectChapter?.(chapter.id)}
-              className={[
-                "grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all",
-                active
-                  ? "border-secondary-default/70 bg-white/[0.08] text-white"
-                  : "border-white/10 bg-white/[0.03] text-white/75 hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white",
-              ].join(" ")}
-            >
-              <span className="text-xs tabular-nums text-white/55">
-                {index + 1}.
-              </span>
-
-              <span className="min-w-0 truncate text-sm font-normal">
-                {chapter.title || `Chapter ${index + 1}`}
-              </span>
-
-              <MaterialIcon
-                name="arrow_right_alt"
-                fill
-                size={20}
-                className="text-secondary-default"
-              />
-            </button>
-          );
-        })}
-      </div>
-    </section>
   );
 }
 
@@ -511,65 +412,6 @@ export function PlayerChapterReaderFloatingPanel({
         </div>
       </div>
     </PlayerFloatingPanel>
-  );
-}
-
-export function PlayerObjectListFloatingPanel({
-  objectList,
-  selectedObject,
-  setSelectedObject,
-  onClose,
-  searchObject,
-  setSearchObject,
-  treeDepth,
-  setTreeDepth,
-  highlightObject,
-  makeXrayExcept,
-  resetXray,
-  focusObject,
-  showAllObjects,
-  hideAllObjects,
-}) {
-  const maxTreeDepth = Math.max(getMaxTreeDepth(objectList || []), 1);
-
-  return (
-    <aside className="vx-player-panel vx-player-panel--full-mobile absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#182223]/75 text-white shadow-2xl backdrop-blur-xl">
-      <div className="flex h-14 shrink-0 items-center gap-3 px-6 pt-1">
-        <h3 className="min-w-0 flex-1 text-base font-bold text-white">
-          Object List
-        </h3>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white transition hover:bg-white/10"
-          title="Close object list"
-        >
-          <X className="size-5" />
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-hidden px-6 pb-5">
-        <HierarchyObjectTree
-          objectList={objectList || []}
-          selectedObject={selectedObject}
-          setSelectedObject={setSelectedObject}
-          highlightObject={highlightObject || (() => {})}
-          makeXrayExcept={makeXrayExcept || (() => {})}
-          resetXray={resetXray}
-          focusObject={focusObject || (() => {})}
-          setSelectedObjectName={() => {}}
-          treeDepth={treeDepth}
-          setTreeDepth={setTreeDepth}
-          maxTreeDepth={maxTreeDepth}
-          searchObject={searchObject}
-          setSearchObject={setSearchObject}
-          showAllObjects={showAllObjects}
-          hideAllObjects={hideAllObjects}
-          setRightTab={() => {}}
-        />
-      </div>
-    </aside>
   );
 }
 

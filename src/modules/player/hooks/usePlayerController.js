@@ -11,6 +11,7 @@ import {
 } from "../../../engine/selection"
 import { buildObjectTreeList } from "../../../utils/objectTreeUtils"
 import { normalizeFlowDefinitions } from "../../../engine/flow"
+import { normalizePlayerSettings } from "../../material/playerSettings"
 import {
   getChapterCameraVisualState,
   normalizeChapterFlowAssignments,
@@ -18,7 +19,10 @@ import {
 import usePlayerProcedurePlayback from "./usePlayerProcedurePlayback"
 import { createPlayerControllerApi } from "./createPlayerControllerApi"
 import usePlayerAnimation from "./usePlayerAnimation"
+import usePlayerQuiz from "./usePlayerQuiz"
+import usePlayerSlide from "./usePlayerSlide"
 import usePlayerSpeech from "./usePlayerSpeech"
+import usePlayerXR from "./usePlayerXR"
 import usePlayerProject, { DEFAULT_VIEWER_SETTINGS } from "./usePlayerProject"
 import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
@@ -83,6 +87,7 @@ export default function usePlayerController() {
   const xrayTargetRef = useRef(null)
   const xrayMaterialDisposeVersionRef = useRef(0)
   const procedureResetRef = useRef(() => {})
+  const slideOpenRequestRef = useRef(0)
   const flows = useMemo(
     () => normalizeFlowDefinitions(material?.flows),
     [material?.flows],
@@ -98,6 +103,11 @@ export default function usePlayerController() {
         .filter(Boolean),
     [activeChapterFlowIds, flows],
   )
+  const normalizedPlayerSettings = useMemo(
+    () => normalizePlayerSettings(material?.playerSettings),
+    [material?.playerSettings],
+  )
+  const playerXR = usePlayerXR(viewerSettings)
   const visibleChapters = useMemo(() => {
     const chapters = Array.isArray(material?.chapters) ? material.chapters : []
 
@@ -139,7 +149,9 @@ export default function usePlayerController() {
     )
   }, [flows])
   const playerAnimation = usePlayerAnimation(
-    material?.chapters?.find((chapter) => chapter.id === activeChapterId)
+    material?.chapters?.find((chapter) => chapter.id === activeChapterId),
+    material,
+    modelScene,
   )
   const resetPlayerState = ({
     activeMenu: nextActiveMenu,
@@ -364,8 +376,45 @@ export default function usePlayerController() {
     setOutlineObjects,
     stopFlow,
     stopChapterFlows,
+    initialSceneStateRef,
   })
   procedureResetRef.current = playerProcedure.resetControllerState
+
+  const playerQuiz = usePlayerQuiz({
+    material,
+    modelScene,
+    playerProject,
+    playerAnimation,
+    playerProcedure,
+    applySavedVisualState,
+    applySavedCameraView,
+    setActiveChapterId,
+    setSelectedObject,
+    setOutlineObjects,
+    stopFlow,
+    stopChapterFlows,
+    resetAssessmentPresentation: () => {
+      playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+      restorePlayerRenderMode()
+      restorePlayerInitialSceneState(modelScene, initialSceneStateRef.current)
+      resetCameraToOverview()
+      setBlinkSelectionEnabled(false)
+    },
+    setAssessmentFreePlay: setFreePlay,
+    stopSpeech: playerSpeech.stopSpeaking,
+  })
+
+  const playerSlide = usePlayerSlide({
+    material,
+    playerProject,
+    playerAnimation,
+    flows,
+    modelScene,
+    cameraRef,
+    focusTargetRef,
+    setViewerSettings,
+    applySavedVisualState,
+  })
 
   const clearPlayerSelection = () => {
     const protectedSelection = playerProcedure.getProtectedSelection()
@@ -515,6 +564,7 @@ export default function usePlayerController() {
   }
 
   const playFlow = async (flowId) => {
+    playerSlide.clearSlide?.()
     playerProcedure.stopProcedure()
     stopChapterFlows()
     let flow = flows.find((item) => item.id === flowId)
@@ -556,6 +606,8 @@ export default function usePlayerController() {
   }
 
   const restoreInitialPlayerPresentation = () => {
+    playerQuiz.stopQuiz?.()
+    playerSlide.clearSlide?.()
     playerProcedure.stopProcedure()
     stopFlow()
     stopChapterFlows()
@@ -670,6 +722,10 @@ export default function usePlayerController() {
   const handleSelectChapter = async (chapterId) => {
     if (!material?.chapters?.some((item) => item.id === chapterId)) return false
 
+    // A Chapter click supersedes any Slide that may still be hydrating.
+    slideOpenRequestRef.current += 1
+
+    playerSlide.clearSlide?.()
     stopFlow()
     playerProcedure.stopProcedure()
 
@@ -720,8 +776,48 @@ export default function usePlayerController() {
     return cameraResult
   }
 
+  const handleSelectSlide = async (slideId) => {
+    if (!material?.slides?.some((item) => item.id === slideId)) return false
+
+    // Hydrate first so a lazy IndexedDB read never leaves the Player sitting
+    // on an intermediate reset frame between two slides.
+    const requestId = slideOpenRequestRef.current + 1
+    slideOpenRequestRef.current = requestId
+    const preparedSlide = await playerSlide.prepareSlide?.(slideId)
+    if (!preparedSlide) return false
+    if (slideOpenRequestRef.current !== requestId) return false
+
+    stopFlow()
+    stopChapterFlows()
+    playerProcedure.stopProcedure()
+    playerQuiz.stopQuiz?.()
+    clearActiveChapter()
+    playerSlide.stopFlows?.()
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+
+    return Boolean(await playerSlide.selectSlide?.(slideId, preparedSlide))
+  }
+
+  const handleSelectSlideCameraView = (cameraIndex) => {
+    if (!playerSlide.activeSlide) return null
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+    return playerSlide.selectCameraView?.(cameraIndex) || null
+  }
+
   const handleSelectObjectFromPlayer = (object) => {
     if (!object) return null
+
+    if (playerQuiz.acceptsObjectSelection) {
+      return playerQuiz.handleObjectClick(object)
+    }
 
     // Procedure target clicks remain active; normal selection needs Free Play.
     if (["waiting", "dragging", "animating"].includes(playerProcedure.status)) {
@@ -820,9 +916,15 @@ export default function usePlayerController() {
     setFlowPlaying,
     flowPlaybackKey,
     activeChapterFlows,
+    turntableAnimation: normalizedPlayerSettings.turntableAnimation,
     chapterFlowPlaybackKey,
     handleChapterFlowComplete,
     playerProcedure,
+    playerQuiz,
+    playerSlide,
+    playerXR,
+    handleSelectSlide,
+    handleSelectSlideCameraView,
     playerSpeech,
     getChapterFlowAssignments,
     activeChapterFlowIds,

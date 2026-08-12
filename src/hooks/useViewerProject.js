@@ -13,15 +13,39 @@ import {
   normalizeProceduralDefinitions,
 } from "../engine/procedural";
 import {
+  normalizeAuthoredAnimationDefinition,
+  normalizeAuthoredAnimationDefinitions,
+} from "../engine/animation";
+import {
+  normalizeQuizDefinition,
+  normalizeQuizDefinitions,
+} from "../engine/quiz";
+import { normalizeSlideDefinition, normalizeSlideDefinitions } from "../engine/slide";
+import {
   getChapterFromIndexedDb,
   getFlowFromIndexedDb,
+  getAuthoredAnimationFromIndexedDb,
   getProcedureFromIndexedDb,
+  getQuizFromIndexedDb,
+  getSlideFromIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
 import {
   isLazyMaterialRecord,
   replaceMaterialRecord,
 } from "../engine/project/LazyMaterialRecords";
 import { normalizeLoadedViewerSettings } from "./viewer/normalizeViewerSettings";
+import { cloneHistoryValue } from "../engine/history";
+
+function getChangedTopLevelKeys(previousValue = {}, nextValue = {}) {
+  return Array.from(
+    new Set([
+      ...Object.keys(previousValue || {}),
+      ...Object.keys(nextValue || {}),
+    ]),
+  )
+    .filter((key) => !Object.is(previousValue?.[key], nextValue?.[key]))
+    .sort();
+}
 
 function createInitialMaterial() {
   const currentUserName = getCurrentUserName();
@@ -37,7 +61,10 @@ function createInitialMaterial() {
     modelUrl: "",
     chapters: [],
     flows: [],
+    authoredAnimations: [],
     procedures: [],
+    quizzes: [],
+    slides: [],
     objectNameOverrides: [],
     playerSettings: normalizePlayerSettings(),
   };
@@ -56,10 +83,16 @@ export function useViewerProject({
   setRightTab,
   updateLoading,
   hideLoading,
+  historyEngine,
 }) {
   const { loadProject } = useProjectLoader();
 
-  const [material, setMaterial] = useState(() => createInitialMaterial());
+  const materialRef = useRef(null);
+  const [material, setMaterialState] = useState(() => {
+    const initialMaterial = createInitialMaterial();
+    materialRef.current = initialMaterial;
+    return initialMaterial;
+  });
   const [modelUrl, setModelUrl] = useState(null);
   const [modelFile, setModelFile] = useState(null);
   const [materialModelUrl, setMaterialModelUrl] = useState("");
@@ -69,6 +102,29 @@ export function useViewerProject({
   useEffect(() => {
     pendingMaterialRecordLoadsRef.current.clear();
   }, [projectId]);
+
+  const rawSetMaterial = useCallback((updater) => {
+    const previousMaterial = materialRef.current;
+    const nextMaterial =
+      typeof updater === "function" ? updater(previousMaterial) : updater;
+
+    if (Object.is(previousMaterial, nextMaterial)) return previousMaterial;
+
+    materialRef.current = nextMaterial;
+    setMaterialState(nextMaterial);
+    return nextMaterial;
+  }, []);
+
+  const applyMaterialHistorySnapshot = useCallback(
+    (snapshot) => {
+      const nextMaterial = cloneHistoryValue(snapshot);
+      materialRef.current = nextMaterial;
+      setMaterialState(nextMaterial);
+      markDirty();
+    },
+    [markDirty],
+  );
+
 
   const hydrateMaterialRecord = useCallback(
     async (field, recordId, getter, normalizeRecord = null) => {
@@ -88,7 +144,7 @@ export function useViewerProject({
             ? normalizeRecord(storedRecord)
             : storedRecord;
 
-          setMaterial((currentMaterial) => {
+          rawSetMaterial((currentMaterial) => {
             if (currentMaterial?.projectId !== projectId) {
               return currentMaterial;
             }
@@ -122,7 +178,7 @@ export function useViewerProject({
       pendingMaterialRecordLoadsRef.current.set(requestKey, request);
       return request;
     },
-    [projectId],
+    [projectId, rawSetMaterial],
   );
 
   const loadChapterRecord = useCallback(
@@ -142,6 +198,17 @@ export function useViewerProject({
     [hydrateMaterialRecord],
   );
 
+  const loadAnimationRecord = useCallback(
+    (animationId) =>
+      hydrateMaterialRecord(
+        "authoredAnimations",
+        animationId,
+        getAuthoredAnimationFromIndexedDb,
+        normalizeAuthoredAnimationDefinition,
+      ),
+    [hydrateMaterialRecord],
+  );
+
   const loadProcedureRecord = useCallback(
     (procedureId) =>
       hydrateMaterialRecord(
@@ -153,10 +220,56 @@ export function useViewerProject({
     [hydrateMaterialRecord],
   );
 
-  const updateMaterialState = (updater) => {
-    markDirty();
-    setMaterial(updater);
-  };
+  const loadQuizRecord = useCallback(
+    (quizId) =>
+      hydrateMaterialRecord(
+        "quizzes",
+        quizId,
+        getQuizFromIndexedDb,
+        normalizeQuizDefinition,
+      ),
+    [hydrateMaterialRecord],
+  );
+
+  const loadSlideRecord = useCallback(
+    (slideId) =>
+      hydrateMaterialRecord(
+        "slides",
+        slideId,
+        getSlideFromIndexedDb,
+        normalizeSlideDefinition,
+      ),
+    [hydrateMaterialRecord],
+  );
+
+  const updateMaterialState = useCallback(
+    (updater) => {
+      const previousMaterial = materialRef.current;
+      const nextMaterial =
+        typeof updater === "function" ? updater(previousMaterial) : updater;
+
+      if (Object.is(previousMaterial, nextMaterial)) return previousMaterial;
+
+      const changedKeys = getChangedTopLevelKeys(previousMaterial, nextMaterial);
+
+      historyEngine?.recordSnapshot?.({
+        label: "Edit project content",
+        before: cloneHistoryValue(previousMaterial),
+        after: cloneHistoryValue(nextMaterial),
+        apply: applyMaterialHistorySnapshot,
+        mergeKey: changedKeys.length > 0
+          ? `project-material:${changedKeys.join(",")}`
+          : null,
+        mergeWindowMs: 500,
+      });
+
+      materialRef.current = nextMaterial;
+      setMaterialState(nextMaterial);
+      markDirty();
+      return nextMaterial;
+    },
+    [applyMaterialHistorySnapshot, historyEngine, markDirty],
+  );
 
   useEffect(() => {
     if (!activeChapterId) return;
@@ -257,7 +370,7 @@ export function useViewerProject({
         setModelFile(projectFile);
         setMaterialModelUrl(glbFileName || project.fileName || "");
 
-        setMaterial((prev) => {
+        rawSetMaterial((prev) => {
           const loadedMaterial = material || {};
 
           return {
@@ -267,7 +380,10 @@ export function useViewerProject({
               loadedMaterial.playerSettings || prev.playerSettings,
             ),
             flows: normalizeFlowDefinitions(loadedMaterial.flows),
+            authoredAnimations: normalizeAuthoredAnimationDefinitions(loadedMaterial.authoredAnimations),
             procedures: normalizeProceduralDefinitions(loadedMaterial.procedures),
+            quizzes: normalizeQuizDefinitions(loadedMaterial.quizzes),
+            slides: normalizeSlideDefinitions(loadedMaterial.slides),
             thumbnail: loadedMaterial.thumbnail || project.thumbnail || "",
             projectId: project.id,
             projectName: project.name,
@@ -323,6 +439,7 @@ export function useViewerProject({
     setViewerSettings,
     setCameraProjectionMode,
     setMarkers,
+    rawSetMaterial,
   ]);
 
   useEffect(() => {
@@ -348,12 +465,15 @@ export function useViewerProject({
           scene: importedScene,
         } = await importVXPack(file);
 
-        setMaterial({
+        rawSetMaterial({
           ...importedMaterial,
           modelUrl: manifest.modelUrl,
           playerSettings: normalizePlayerSettings(importedMaterial.playerSettings),
           flows: normalizeFlowDefinitions(importedMaterial.flows),
+          authoredAnimations: normalizeAuthoredAnimationDefinitions(importedMaterial.authoredAnimations),
           procedures: normalizeProceduralDefinitions(importedMaterial.procedures),
+          quizzes: normalizeQuizDefinitions(importedMaterial.quizzes),
+          slides: normalizeSlideDefinitions(importedMaterial.slides),
         });
         setModelUrl(manifest.modelUrl);
         setMaterialModelUrl(
@@ -402,14 +522,17 @@ export function useViewerProject({
   return {
     material,
     setMaterial: updateMaterialState,
-    rawSetMaterial: setMaterial,
+    rawSetMaterial,
     modelUrl,
     modelFile,
     materialModelUrl,
     availableModels,
     loadChapterRecord,
     loadFlowRecord,
+    loadAnimationRecord,
     loadProcedureRecord,
+    loadQuizRecord,
+    loadSlideRecord,
     handleFile,
   };
 }

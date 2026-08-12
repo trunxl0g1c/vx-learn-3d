@@ -6,8 +6,12 @@ import {
   syncChapterCameraViews,
 } from "../chapter";
 import { normalizeFlowDefinitions } from "../flow";
+import { normalizeAuthoredAnimationDefinitions } from "../animation";
 import { normalizeProceduralDefinitions } from "../procedural";
+import { normalizeQuizDefinitions } from "../quiz";
+import { normalizeSlideDefinitions } from "../slide";
 import { normalizePlayerSettings } from "../../modules/material/playerSettings";
+import { normalizeProToolsSettings } from "./ProToolsSettings";
 
 const MODEL_BOUND_MATERIAL_FIELDS = Object.freeze([
   "id",
@@ -84,6 +88,13 @@ export function createImportedMaterialForCurrentProject({
   const flows = normalizeFlowDefinitions(
     normalizeImportedRecords(imported.flows, resolvedProjectId, "flow"),
   );
+  const authoredAnimations = normalizeAuthoredAnimationDefinitions(
+    normalizeImportedRecords(
+      imported.authoredAnimations,
+      resolvedProjectId,
+      "authored-animation",
+    ),
+  );
   const procedures = normalizeProceduralDefinitions(
     normalizeImportedRecords(
       imported.procedures,
@@ -91,6 +102,17 @@ export function createImportedMaterialForCurrentProject({
       "procedure",
     ),
   );
+  const quizzes = normalizeQuizDefinitions(
+    normalizeImportedRecords(
+      imported.quizzes,
+      resolvedProjectId,
+      "quiz",
+    ),
+  );
+  const slides = normalizeSlideDefinitions(
+    normalizeImportedRecords(imported.slides, resolvedProjectId, "slide"),
+  );
+
 
   const nextMaterial = preserveCurrentModelFields(current, {
     ...current,
@@ -99,11 +121,17 @@ export function createImportedMaterialForCurrentProject({
     projectName: current.projectName || projectName || imported.projectName || "",
     chapters,
     flows,
+    authoredAnimations,
     procedures,
+    quizzes,
+    slides,
     objectNameOverrides: Array.isArray(imported.objectNameOverrides)
       ? imported.objectNameOverrides
       : [],
     playerSettings: normalizePlayerSettings(imported.playerSettings),
+    proToolsSettings: normalizeProToolsSettings(
+      imported.proToolsSettings ?? current.proToolsSettings,
+    ),
   });
 
   // A data-only package must never replace the GLB currently attached to the
@@ -177,6 +205,9 @@ export function createViqubedDataImportSummary({ material, sourceModel }) {
   return [
     `${material?.chapters?.length || 0} chapter`,
     `${material?.flows?.length || 0} flow`,
+    `${material?.authoredAnimations?.length || 0} animation`,
     `${material?.procedures?.length || 0} procedure`,
+    `${material?.quizzes?.length || 0} quiz`,
+    `${material?.slides?.length || 0} slide`,
   ].join(", ") + ` imported. The current GLB was kept.${sourceLabel}`;
 }

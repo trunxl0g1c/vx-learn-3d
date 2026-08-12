@@ -3,6 +3,7 @@ import MaterialTab from "./right-tabs/MaterialTab";
 import VisualTab from "./right-tabs/VisualTab";
 import AnimationTab from "./right-tabs/AnimationTab";
 import ChapterTab from "./right-tabs/ChapterTab";
+import SlideTab from "./slide/SlideTab";
 import Button from "../ui/button";
 import InfoTab from "./right-tabs/InfoTab";
 import MaterialIcon from "../ui/material-icon";
@@ -77,12 +78,15 @@ export default function EditorRightPanel({
   resetAllTransforms,
   deselectObject,
   deleteCameraViewFromActiveChapter,
+  slideAuthoring,
+  requestAddSlideMarker,
   leftPanelOpen = false,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
   const isInfoTab = rightTab === "info";
   const isPackageTab = rightTab === "material";
+  const isSlideTab = rightTab === "slide";
   const isFitHeight = isInfoTab || isPackageTab || markerMode;
   const shouldHideObjectContentPanel = contentAuthoringLocked && isInfoTab;
 
@@ -168,9 +172,11 @@ export default function EditorRightPanel({
     >
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl">
         <span className="truncate text-base font-normal">
-          {activeChapterId
-            ? authoringObjectName || "Active Chapter Object"
-            : selectedObjectName || "Object Settings"}
+          {isSlideTab
+            ? slideAuthoring?.activeSlide?.title || "Slide"
+            : activeChapterId
+              ? authoringObjectName || "Active Chapter Object"
+              : selectedObjectName || "Object Settings"}
         </span>
 
         <div className="flex">
@@ -188,79 +194,65 @@ export default function EditorRightPanel({
             )}
           </Button> */}
 
-          <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={soloSelectedObject}
-            className="border-none"
-          >
-            {rightTab === "chapter" ? (
-              <MaterialIcon
-                name="my_location"
-                fill={1}
-                size={25}
-                className="text-secondary-default"
-              />
-            ) : (
-              <MaterialIcon
-                name="my_location"
-                fill={1}
-                size={25}
-                className="text-secondary-default"
-              />
-            )}
-          </Button>
+          {!isSlideTab && (
+            <>
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={soloSelectedObject}
+                className="border-none"
+              >
+                <MaterialIcon
+                  name="my_location"
+                  fill={1}
+                  size={25}
+                  className="text-secondary-default"
+                />
+              </Button>
 
-          {/* <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={() => setRightTab("info")}
-            className="border-none"
-          >
-            <Eye className="size-6 text-secondary-default" />
-          </Button> */}
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={toggleSelectedObjectXray}
+                className={[
+                  "border-none",
+                  isSelectedObjectXray ? "bg-accent-main/25" : "",
+                ].join(" ")}
+                title={
+                  isSelectedObjectXray ? "Reset X-Ray" : "X-Ray Selected"
+                }
+                aria-pressed={isSelectedObjectXray}
+              >
+                <MaterialIcon
+                  name="blur_on"
+                  fill={isSelectedObjectXray ? 1 : 0}
+                  size={25}
+                  className={
+                    isSelectedObjectXray
+                      ? "text-accent-contrast"
+                      : "text-secondary-default"
+                  }
+                />
+              </Button>
 
-          <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={toggleSelectedObjectXray}
-            className={[
-              "border-none",
-              isSelectedObjectXray ? "bg-accent-main/25" : "",
-            ].join(" ")}
-            title={isSelectedObjectXray ? "Reset X-Ray" : "X-Ray Selected"}
-            aria-pressed={isSelectedObjectXray}
-          >
-            <MaterialIcon
-              name="blur_on"
-              fill={isSelectedObjectXray ? 1 : 0}
-              size={25}
-              className={
-                isSelectedObjectXray
-                  ? "text-accent-contrast"
-                  : "text-secondary-default"
-              }
-            />
-          </Button>
-
-          <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={hideSelectedObject}
-            className="border-none"
-          >
-            <MaterialIcon
-              name="visibility"
-              fill={1}
-              size={25}
-              className="text-secondary-default"
-            />
-            {/* <Eye className="size-6 text-secondary-default" /> */}
-          </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={hideSelectedObject}
+                className="border-none"
+              >
+                <MaterialIcon
+                  name="visibility"
+                  fill={1}
+                  size={25}
+                  className="text-secondary-default"
+                />
+              </Button>
+            </>
+          )}
 
           <Button
             size="xs"
@@ -322,6 +314,16 @@ export default function EditorRightPanel({
           {rightTab === "animation" && <AnimationTab {...tabProps} />}
           {rightTab === "chapter" && (
             <ChapterTab {...tabProps} variant="detail" />
+          )}
+          {rightTab === "slide" && (
+            <SlideTab
+              slideAuthoring={slideAuthoring}
+              material={material}
+              animations={animations}
+              markerMode={markerMode}
+              requestAddSlideMarker={requestAddSlideMarker}
+              cancelAddMarker={cancelAddMarker}
+            />
           )}
           {rightTab === "info" && <InfoTab {...tabProps} />}
         </div>

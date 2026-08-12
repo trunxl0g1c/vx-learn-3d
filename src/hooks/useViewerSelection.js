@@ -23,6 +23,7 @@ export function useViewerSelection({
   setIsAutoRotating,
   setRightTab,
   activeChapterId,
+  suppressInfoPanel = false,
   restoreShaderMode,
 }) {
   const [xrayTargetObject, setXrayTargetObject] = useState(null);
@@ -156,7 +157,7 @@ export function useViewerSelection({
       activeObject ? getObjectDisplayName(activeObject, fallbackName) : "",
     );
 
-    if (openInfo && activeObject && !activeChapterId) {
+    if (openInfo && activeObject && !activeChapterId && !suppressInfoPanel) {
       setRightTab?.("info");
     }
 
@@ -173,7 +174,7 @@ export function useViewerSelection({
     setOrbitEnabled(true);
     focusTargetRef.current = null;
 
-    if (closeInfo && !activeChapterId) {
+    if (closeInfo && !activeChapterId && !suppressInfoPanel) {
       setRightTab?.(null);
     }
   };
@@ -190,7 +191,7 @@ export function useViewerSelection({
     setOrbitEnabled(true);
     focusTargetRef.current = null;
 
-    if (closeInfo && !activeChapterId) {
+    if (closeInfo && !activeChapterId && !suppressInfoPanel) {
       setRightTab?.(null);
     }
   };
@@ -462,7 +463,7 @@ export function useViewerSelection({
     setIsAutoRotating(resolvedPayload.isAutoRotating);
     focusTargetRef.current = resolvedPayload.focusTarget || null;
 
-    if (!activeChapterId) {
+    if (!activeChapterId && !suppressInfoPanel) {
       setRightTab?.("info");
     }
 

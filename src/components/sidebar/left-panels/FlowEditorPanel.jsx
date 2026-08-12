@@ -602,37 +602,31 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 before flow playback starts.
               </p>
 
-              <div className="mb-3 grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activeFlow.visualState ? "default" : "cyanOutline"}
-                  onClick={flow.saveCurrentState}
-                  title="Save visibility, X-Ray, Pull Apart, Cut, and selection"
-                >
-                  <MaterialIcon name="layers" className="size-5" />
-                  {activeFlow.visualState ? "Update State" : "Save State"}
-                </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="mb-3 w-full"
+                variant={
+                  activeFlow.visualState && activeFlow.cameraView
+                    ? "default"
+                    : "cyanOutline"
+                }
+                onClick={flow.saveViewState}
+                title="Save the current camera together with visibility, X-Ray, Pull Apart, Cut, and selection"
+              >
+                <MaterialIcon name="save" className="size-5" />
+                {activeFlow.visualState && activeFlow.cameraView
+                  ? "Update Camera + State"
+                  : "Save Camera + State"}
+              </Button>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={activeFlow.cameraView ? "default" : "cyanOutline"}
-                  onClick={flow.saveCamera}
-                  title="Save the current camera position and target"
-                >
-                  <MaterialIcon name="photo_camera" className="size-5" />
-                  {activeFlow.cameraView ? "Update Camera" : "Save Camera"}
-                </Button>
-              </div>
-
-              <div className="mb-3 grid grid-cols-2 gap-2 text-[10px] text-contrast-grayout">
-                <div className="rounded-lg border border-secondary-default/30 bg-primary/50 px-3 py-2">
-                  Visual State: {activeFlow.visualState ? "Saved" : "Not saved"}
-                </div>
-                <div className="rounded-lg border border-secondary-default/30 bg-primary/50 px-3 py-2">
-                  Camera: {activeFlow.cameraView ? "Saved" : "Not saved"}
-                </div>
+              <div className="mb-3 rounded-lg border border-secondary-default/30 bg-primary/50 px-3 py-2 text-[10px] text-contrast-grayout">
+                Camera + State:{" "}
+                {activeFlow.visualState && activeFlow.cameraView
+                  ? "Saved"
+                  : activeFlow.visualState || activeFlow.cameraView
+                    ? "Partially saved — save again to synchronize"
+                    : "Not saved"}
               </div>
 
               <Button

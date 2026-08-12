@@ -70,7 +70,12 @@ const normalizeMaterialForPackage = (material, modelPath) => ({
   modelUrl: modelPath,
   chapters: Array.isArray(material?.chapters) ? material.chapters : [],
   flows: Array.isArray(material?.flows) ? material.flows : [],
+  authoredAnimations: Array.isArray(material?.authoredAnimations)
+    ? material.authoredAnimations
+    : [],
   procedures: Array.isArray(material?.procedures) ? material.procedures : [],
+  quizzes: Array.isArray(material?.quizzes) ? material.quizzes : [],
+  slides: Array.isArray(material?.slides) ? material.slides : [],
   objectNameOverrides: Array.isArray(material?.objectNameOverrides)
     ? material.objectNameOverrides
     : [],

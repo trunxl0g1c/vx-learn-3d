@@ -308,8 +308,8 @@ export default function usePlayerFreePlay({
     return true
   }
 
-  const resetParts = () => {
-    getModelEngine().resetParts()
+  const resetParts = ({ animationDuration = 420 } = {}) => {
+    getModelEngine().resetParts({ animationDuration })
     pullApartSessionRef.current = null
     setIsPullApartActive(false)
   }
@@ -400,9 +400,20 @@ export default function usePlayerFreePlay({
     showAllObjectsInScene(modelScene)
   }
 
-  const resetSavedPresentationState = () => {
-    resetParts()
-    showAllObjects()
+  const resetSavedPresentationState = ({
+    preserveTransforms = false,
+    preserveVisibility = false,
+    animationDuration = 420,
+  } = {}) => {
+    if (preserveTransforms) {
+      resetActivePullApart({ animationDuration: 0 })
+    } else {
+      resetParts({ animationDuration })
+    }
+
+    if (!preserveVisibility) {
+      showAllObjects()
+    }
 
     const cutEngine = cutEngineRef.current
     cutEngine.clear(modelScene)
@@ -413,7 +424,10 @@ export default function usePlayerFreePlay({
   const resetVisualState = ({ animationDuration = 560 } = {}) => {
     resetMovedObjects({ animationDuration })
     resetModelRotationForCut()
-    resetSavedPresentationState()
+    // Keep mesh-level pull-apart resets on the same timing as group resets.
+    // Procedure playback passes 0 here so no stale targetPosition animation can
+    // continue after the authored Start transform has been applied.
+    resetSavedPresentationState({ animationDuration })
   }
 
   const resetAllTransforms = () => {

@@ -5,6 +5,29 @@ import {
   getCutAxisState,
 } from "../engine/cut"
 
+function createComparableCutHistorySnapshot(snapshot) {
+  const engineState = snapshot?.engineState || {};
+
+  return {
+    cutAllObjects: Boolean(snapshot?.cutAllObjects),
+    enabled: Boolean(engineState.enabled),
+    axis: engineState.axis || "x",
+    targetObjectUuid: engineState.targetObjectUuid || null,
+    targetStates: (engineState.targetStates || []).map((state) => ({
+      targetObjectUuid: state?.targetObjectUuid || null,
+      enabled: Boolean(state?.enabled),
+      values: state?.values || {},
+    })),
+  };
+}
+
+function areCutHistorySnapshotsEqual(a, b) {
+  return (
+    JSON.stringify(createComparableCutHistorySnapshot(a)) ===
+    JSON.stringify(createComparableCutHistorySnapshot(b))
+  );
+}
+
 function createDefaultCutRanges() {
   return {
     x: { min: -3, max: 3 },
@@ -87,6 +110,7 @@ export function useViewerCut({
   updateLoading,
   hideLoading,
   handleModelLoaded,
+  historyEngine,
 }) {
   const cutEngineRef = useRef(null)
 
@@ -139,6 +163,40 @@ export function useViewerCut({
     }
   }, [modelScene, setTargetRotationY, setIsAutoRotating, focusTargetRef])
 
+  const captureCutHistorySnapshot = useCallback(() => ({
+    engineState: cutEngineRef.current.getState(),
+    cutAllObjects: Boolean(cutEngineRef.current.__vxCutAllObjects),
+  }), [])
+
+  const applyCutHistorySnapshot = useCallback(
+    (snapshot) => {
+      if (!snapshot?.engineState) return
+
+      const cutEngine = cutEngineRef.current
+      cutEngine.__vxCutAllObjects = Boolean(snapshot.cutAllObjects)
+      const state = cutEngine.restoreState(snapshot.engineState, modelScene)
+
+      setCutEnabled(Boolean(state.enabled))
+      syncStateToReact(state)
+    },
+    [modelScene, setCutEnabled, syncStateToReact],
+  )
+
+  const recordCutHistory = useCallback(
+    (label, before, mergeKey = null, mergeWindowMs = 0) => {
+      historyEngine?.recordSnapshot?.({
+        label,
+        before,
+        after: captureCutHistorySnapshot(),
+        apply: applyCutHistorySnapshot,
+        equals: areCutHistorySnapshotsEqual,
+        mergeKey,
+        mergeWindowMs,
+      })
+    },
+    [applyCutHistorySnapshot, captureCutHistorySnapshot, historyEngine],
+  )
+
   // Each target owns an independent Cut state. Switching selection only
   // changes the state shown by the panel; it never copies or deletes the
   // values stored by another object or by the whole-scene target.
@@ -177,6 +235,7 @@ export function useViewerCut({
 
   const updateCutAxis = useCallback(
     (axis) => {
+      const before = captureCutHistorySnapshot()
       const cutEngine = cutEngineRef.current
       const state = cutEngine.setAxis(axis)
 
@@ -187,14 +246,23 @@ export function useViewerCut({
         setCutMax,
         setCutValue,
       })
+      recordCutHistory("Change cut axis", before)
     },
-    [setCutAxis, setCutMin, setCutMax, setCutValue],
+    [
+      captureCutHistorySnapshot,
+      recordCutHistory,
+      setCutAxis,
+      setCutMin,
+      setCutMax,
+      setCutValue,
+    ],
   )
 
   const updateCutValue = useCallback(
     (axis, nextValue) => {
       if (!cutTarget) return
 
+      const before = captureCutHistorySnapshot()
       const cutEngine = cutEngineRef.current
       const previousState = cutEngine.setTarget(cutTarget)
       const nextValues = {
@@ -215,12 +283,27 @@ export function useViewerCut({
       cutEngine.apply(modelScene)
       state = cutEngine.getState()
       syncStateToReact(state)
+      recordCutHistory(
+        "Adjust cut",
+        before,
+        `cut-values:${cutTarget.uuid || cutTarget.name || "target"}`,
+        450,
+      )
     },
-    [cutEnabled, cutTarget, modelScene, setCutEnabled, syncStateToReact],
+    [
+      captureCutHistorySnapshot,
+      cutEnabled,
+      cutTarget,
+      modelScene,
+      recordCutHistory,
+      setCutEnabled,
+      syncStateToReact,
+    ],
   )
 
   const setCutAllObjects = useCallback(
     (nextValue) => {
+      const before = captureCutHistorySnapshot()
       const nextAllObjects = Boolean(nextValue)
       const cutEngine = cutEngineRef.current
       const nextTarget = nextAllObjects ? modelScene : selectedObject
@@ -244,6 +327,7 @@ export function useViewerCut({
         // Trigger a render so the toggle and target availability update even
         // when there is no selected object in object-only mode.
         setCutValues?.((previous) => ({ ...(previous || {}) }))
+        recordCutHistory("Change cut scope", before)
         return
       }
 
@@ -255,21 +339,40 @@ export function useViewerCut({
 
       cutEngine.apply(modelScene)
       syncStateToReact(nextState)
+      recordCutHistory("Change cut scope", before)
     },
-    [cutEnabled, modelScene, selectedObject, setCutValues, syncStateToReact],
+    [
+      captureCutHistorySnapshot,
+      cutEnabled,
+      modelScene,
+      recordCutHistory,
+      selectedObject,
+      setCutValues,
+      syncStateToReact,
+    ],
   )
 
   // Reset only the object currently being edited. Other object cuts remain.
   const resetCutValues = useCallback(() => {
+    const before = captureCutHistorySnapshot()
     const cutEngine = cutEngineRef.current
     const state = cutEngine.reset(cutTarget)
 
     syncStateToReact(state)
     cutEngine.apply(modelScene)
     resetModelRotationForCut()
-  }, [cutTarget, modelScene, resetModelRotationForCut, syncStateToReact])
+    recordCutHistory("Reset cut", before)
+  }, [
+    captureCutHistorySnapshot,
+    cutTarget,
+    modelScene,
+    recordCutHistory,
+    resetModelRotationForCut,
+    syncStateToReact,
+  ])
 
   const toggleCutSection = useCallback(() => {
+    const before = captureCutHistorySnapshot()
     const cutEngine = cutEngineRef.current
 
     if (cutEnabled) {
@@ -280,6 +383,7 @@ export function useViewerCut({
       syncStateToReact(state)
       setCutEnabled(false)
       resetModelRotationForCut()
+      recordCutHistory("Toggle cut", before)
       return
     }
 
@@ -295,10 +399,13 @@ export function useViewerCut({
     cutEngine.apply(modelScene)
     syncStateToReact(state)
     setCutEnabled(true)
+    recordCutHistory("Toggle cut", before)
   }, [
+    captureCutHistorySnapshot,
     cutEnabled,
     cutTarget,
     modelScene,
+    recordCutHistory,
     resetModelRotationForCut,
     setCutEnabled,
     syncStateToReact,

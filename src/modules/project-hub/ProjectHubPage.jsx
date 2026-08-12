@@ -358,8 +358,14 @@ export default function ProjectHubPage() {
         flows: Array.isArray(packagedMaterial?.flows)
           ? packagedMaterial.flows
           : [],
+        authoredAnimations: Array.isArray(packagedMaterial?.authoredAnimations)
+          ? packagedMaterial.authoredAnimations
+          : [],
         procedures: Array.isArray(packagedMaterial?.procedures)
           ? packagedMaterial.procedures
+          : [],
+        quizzes: Array.isArray(packagedMaterial?.quizzes)
+          ? packagedMaterial.quizzes
           : [],
       };
       const viewer = {

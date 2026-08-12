@@ -8,7 +8,7 @@ import {
   isExpectedWebGLContextLoss,
 } from "../../utils/webglContextLifecycle";
 
-export function WebGLRendererLifecycle({ registryKey }) {
+export function WebGLRendererLifecycle({ registryKey, onRendererReady }) {
   const { gl, scene, camera, invalidate } = useThree();
 
   useEffect(() => {
@@ -50,6 +50,7 @@ export function WebGLRendererLifecycle({ registryKey }) {
     if (typeof window !== "undefined") {
       window[registryKey] = gl;
     }
+    onRendererReady?.(gl);
 
     return () => {
       mounted = false;
@@ -63,8 +64,9 @@ export function WebGLRendererLifecycle({ registryKey }) {
       if (typeof window !== "undefined" && window[registryKey] === gl) {
         window[registryKey] = null;
       }
+      onRendererReady?.(null);
     };
-  }, [camera, gl, invalidate, registryKey, scene]);
+  }, [camera, gl, invalidate, onRendererReady, registryKey, scene]);
 
   return null;
 }
