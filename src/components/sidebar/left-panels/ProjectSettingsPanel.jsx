@@ -580,16 +580,16 @@ export default function ProjectSettingsPanel({
 
 
             <div className="border-t border-white/10 pt-4">
-              <button
+              <Button
                 type="button"
                 onClick={handleSaveDefaultPlayerCameraView}
-                className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-secondary-default text-sm font-bold text-white transition hover:bg-secondary-default hover:text-primary"
+                className="w-full my-3"
               >
                 <Camera className="size-4" />
                 {playerSettings.defaultCameraView
                   ? "Update Default Camera View"
                   : "Save Default Camera View"}
-              </button>
+              </Button>
 
               <p className="mt-2 text-xs leading-5 text-contrast-grayout">
                 Posisi kamera Editor saat ini akan menjadi tampilan awal serta

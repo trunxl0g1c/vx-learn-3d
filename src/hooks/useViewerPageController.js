@@ -11,6 +11,7 @@ import { useCameraManager } from "./useCameraManager";
 import { useMarkerManager } from "./useMarkerManager";
 import { useViewerProject } from "./useViewerProject";
 import { createViewerDraft, useViewerAutosave } from "./useViewerAutosave";
+import { syncProjectToBackend } from "../modules/project-hub/api/projectSync";
 import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
@@ -49,6 +50,7 @@ import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
+import { useContentEditLock } from "./useContentEditLock";
 export function useViewerPageController() {
   const vxEngine = useVXEngine();
   const navigate = useNavigate();
@@ -64,12 +66,15 @@ export function useViewerPageController() {
     dirty,
     saveStatus,
     setSaveStatus,
+    pendingSync,
     markDirty,
     markSaved,
     markSaveError,
+    markSynced,
     setCurrentProject,
     setProjectDraft,
   } = useProjectStore();
+  const [syncStatus, setSyncStatus] = useState("idle");
   const [modelScene, setModelScene] = useState(null);
   const [markers, setMarkers] = useState([]);
   const [objectList, setObjectList] = useState([]);
@@ -315,7 +320,92 @@ export function useViewerPageController() {
     markSaved,
     markSaveError,
     setProjectDraft,
+    // remoteContentId no longer passed here — autosave is local-only now,
+    // see handleBulkUpdate below for the manual backend push.
   });
+
+  const remoteContentId = currentProject?.remote?.contentId;
+
+  const {
+    lockConflict,
+    kicked: contentLockKicked,
+    dismissKicked: dismissContentLockKicked,
+  } = useContentEditLock({ remoteContentId, projectId });
+
+  // ViewerPage renders ContentLockedScreen/ForcedActionDialog instead of
+  // ViewerPageLayout whenever either of these is set, which means the 3D
+  // canvas never mounts — and hideLoading() is otherwise only ever called
+  // from inside that canvas's "model loaded" callback (useViewerCut.js).
+  // Without this, the loading overlay opened by whatever navigated here
+  // (WorkspaceContentTab/ProjectHubPage) stays stuck on screen forever,
+  // fully covering the conflict/kicked screen underneath it.
+  useEffect(() => {
+    if (lockConflict || contentLockKicked) {
+      hideLoading();
+    }
+  }, [lockConflict, contentLockKicked, hideLoading]);
+
+  const handleBulkUpdate = useCallback(async () => {
+    if (!remoteContentId || !projectId || projectId === "demo") return;
+
+    setSyncStatus("syncing");
+
+    try {
+      // Flush the very latest edits to IndexedDB first, in case the user
+      // hits "Bulk Update" before the 1.5s autosave debounce has fired —
+      // otherwise the backend could end up syncing stale local data.
+      const draftToSave = createViewerDraft({
+        projectId,
+        material,
+        viewerSettings,
+        markers,
+        cutEnabled,
+        cutAxis,
+        cutValue,
+        cutValues,
+        cutRanges,
+      });
+
+      await saveProjectDraftToIndexedDb(projectId, draftToSave);
+
+      await updateProjectInIndexedDb(projectId, {
+        thumbnail: material?.thumbnail || null,
+        material,
+        viewer: viewerSettings,
+      });
+
+      setProjectDraft(draftToSave);
+      markSaved();
+
+      await syncProjectToBackend({
+        projectId,
+        contentId: remoteContentId,
+        material,
+        viewer: viewerSettings,
+        scene: draftToSave.scene,
+      });
+
+      markSynced();
+      setSyncStatus("synced");
+    } catch (error) {
+      console.error("Bulk update to database failed:", error);
+      setSyncStatus("error");
+    }
+  }, [
+    remoteContentId,
+    projectId,
+    material,
+    viewerSettings,
+    markers,
+    cutEnabled,
+    cutAxis,
+    cutValue,
+    cutValues,
+    cutRanges,
+    setProjectDraft,
+    markSaved,
+    markSynced,
+  ]);
 
   const {
     shaderMode,
@@ -822,6 +912,13 @@ export function useViewerPageController() {
   return {
     saveStatus,
     history: editorHistory,
+    syncStatus,
+    pendingSync,
+    remoteContentId,
+    lockConflict,
+    kicked: contentLockKicked,
+    dismissKicked: dismissContentLockKicked,
+    handleBulkUpdate,
     openPlayerPreview,
     activeSidebar,
     setActiveSidebar,

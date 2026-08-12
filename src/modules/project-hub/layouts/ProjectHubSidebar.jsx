@@ -1,6 +1,11 @@
+import { lazy, Suspense, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Button, { cn } from "../../../components/ui/button";
 import MaterialIcon from "../../../components/ui/material-icon";
+
+const LicenseInfoDialog = lazy(
+  () => import("../../../components/dialog/LicenseInfoDialog"),
+);
 
 const menus = [
   {
@@ -15,42 +20,23 @@ const menus = [
     match: "/workspace",
     icon: "work",
   },
-  {
-    title: "Library",
-    href: "/library",
-    match: "/library",
-    icon: "video_library",
-  },
 
   { divider: true },
 
   {
-    title: "Assets Marketplace",
-    href: "/marketplace",
-    match: "/marketplace",
-    icon: "shopping_cart",
+    title: "License Information",
+    action: "license",
+    icon: "license",
   },
-  {
-    title: "VR Learn",
-    href: "/learn",
-    match: "/learn",
-    icon: "movie",
-  },
-  {
-    title: "GLB Compression",
-    href: "/glb",
-    match: "/glb",
-    icon: "compress",
-  },
-
-  { divider: true },
-
   {
     title: "Profile",
     href: "/profile",
     match: "/profile",
     icon: "manage_accounts",
   },
+
+  { divider: true },
+
   {
     title: "Documentation",
     href: "/documentation",
@@ -67,6 +53,7 @@ const menus = [
 
 export default function ProjectHubSidebar() {
   const location = useLocation();
+  const [isLicenseOpen, setIsLicenseOpen] = useState(false);
 
   return (
     <aside className="w-[56px] shrink-0 overflow-y-auto border-r border-divider-main bg-primary sm:w-[68px] lg:w-[220px]">
@@ -78,6 +65,31 @@ export default function ProjectHubSidebar() {
                 key={`divider-${index}`}
                 className="my-2 border-t border-divider-main"
               />
+            );
+          }
+
+          if (item.action === "license") {
+            return (
+              <div key="license-information" title={item.title}>
+                <Button
+                  type="button"
+                  variant="sidebar"
+                  size="sm"
+                  onClick={() => setIsLicenseOpen(true)}
+                  className="w-full justify-center px-2 hover:bg-accent-main/80! lg:justify-start lg:gap-3 lg:px-3"
+                >
+                  <MaterialIcon
+                    name={item.icon}
+                    fill={1}
+                    size={20}
+                    className="shrink-0 text-secondary-default"
+                  />
+
+                  <span className="hidden truncate lg:inline">
+                    {item.title}
+                  </span>
+                </Button>
+              </div>
             );
           }
 
@@ -120,6 +132,15 @@ export default function ProjectHubSidebar() {
           );
         })}
       </nav>
+
+      {isLicenseOpen && (
+        <Suspense fallback={null}>
+          <LicenseInfoDialog
+            open
+            onClose={() => setIsLicenseOpen(false)}
+          />
+        </Suspense>
+      )}
     </aside>
   );
 }

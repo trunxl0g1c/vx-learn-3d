@@ -9,6 +9,10 @@ import {
   getFlowEffectOption,
   getFlowOcclusionOption,
 } from "../../../engine/flow";
+import SelectField from "../../ui/select";
+import Slider from "../../ui/slider";
+import ClearAllPathPointButton from "./attributes/ClearAllPathPointButton";
+import DeleteFlowMaterialButton from "./attributes/DeleteFlowMaterialButton";
 
 const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
 
@@ -21,7 +25,7 @@ function Section({ title, step, children }) {
             {step}
           </span>
         )}
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+        <h3 className="text-sm font-normal text-white">{title}</h3>
       </div>
       {children}
     </section>
@@ -37,7 +41,7 @@ function SmallToolButton({ icon, children, ...props }) {
       className="min-w-0 flex-1 px-2"
       {...props}
     >
-      <MaterialIcon name={icon} className="size-4" />
+      <MaterialIcon name={icon} fill={1} size={15} />
       <span className="truncate">{children}</span>
     </Button>
   );
@@ -65,7 +69,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
           <MaterialIcon name="arrow_back" className="size-6" />
         </button>
         <div>
-          <p className="text-base font-semibold text-white">Flow Authoring</p>
+          <p className="text-base font-normal text-white">Flow Authoring</p>
           <p className="text-[11px] text-contrast-grayout">
             Create reusable visual flow material
           </p>
@@ -75,11 +79,17 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
       <div className="sidebar-scroll min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         <Section title="Create or Select Flow" step="1">
           <div className="flex gap-2">
-            <select
-              value={flow?.activeFlowId || ""}
-              onChange={(event) => {
-                const nextFlowId = event.target.value || null;
-
+            <SelectField
+              className="h-9!"
+              value={flow?.activeFlowId ?? ""}
+              placeholder="Select flow"
+              options={
+                flow?.flows?.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                })) || []
+              }
+              onChange={(nextFlowId) => {
                 if (flow?.selectFlow) {
                   flow.selectFlow(nextFlowId);
                   return;
@@ -89,18 +99,10 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 flow?.setPointMode?.(false);
                 flow?.setActiveFlowId?.(nextFlowId);
               }}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-secondary-default/70 bg-primary px-3 text-sm text-white outline-none"
-            >
-              <option value="">Select flow</option>
-              {(flow?.flows || []).map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
+            />
 
             <Button size="sm" onClick={flow?.createFlow}>
-              <MaterialIcon name="add" className="size-5" />
+              <MaterialIcon name="add" fill={1} size={20} />
               New
             </Button>
           </div>
@@ -160,9 +162,9 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
             <Section title="Build Flow Path" step="3">
               <p className="mb-3 text-xs leading-5 text-contrast-grayout">
                 Points are connected in order from start to end. Add points by
-                clicking the model, from the selected object center, or from
-                the current camera target. Click an existing waypoint, then use
-                its translate gizmo to move it freely inside or outside a mesh.
+                clicking the model, from the selected object center, or from the
+                current camera target. Click an existing waypoint, then use its
+                translate gizmo to move it freely inside or outside a mesh.
               </p>
 
               <Button
@@ -174,7 +176,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
               >
                 <MaterialIcon
                   name={flow.pointMode ? "close" : "add_location_alt"}
-                  className="size-5"
+                  fill={1}
+                  size={15}
                 />
                 {flow.pointMode
                   ? "Stop Adding Points"
@@ -202,7 +205,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                   name={
                     flow.multiplePointEditEnabled ? "group_off" : "select_all"
                   }
-                  className="size-5"
+                  fill={1}
+                  size={15}
                 />
                 {flow.multiplePointEditEnabled
                   ? "Stop Multiple Waypoint Edit"
@@ -226,7 +230,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                   <button
                     type="button"
                     onClick={flow.clearPointSelection}
-                    className="text-[11px] font-semibold text-secondary-default hover:text-white"
+                    className="text-[11px] font-normal text-secondary-default hover:text-white"
                   >
                     Clear selection
                   </button>
@@ -307,7 +311,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                           {index + 1}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-white">
+                          <p className="text-xs font-normal text-white">
                             {index === 0
                               ? "Start Point"
                               : index === activeFlow.points.length - 1
@@ -329,7 +333,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                           className="grid size-8 place-items-center rounded-lg text-contrast-grayout hover:bg-red-500/10 hover:text-red-300"
                           title="Delete point"
                         >
-                          <MaterialIcon name="delete" className="size-5" />
+                          <MaterialIcon name="delete" fill={1} size={15} />
                         </button>
                       </div>
                     ))}
@@ -338,49 +342,40 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
               </div>
 
               {activeFlow.points.length > 0 && (
-                <button
-                  type="button"
-                  onClick={flow.clearPoints}
-                  className="mt-3 text-xs text-red-300 hover:text-red-200"
-                >
-                  Clear all path points
-                </button>
+                <ClearAllPathPointButton flow={flow} />
               )}
             </Section>
 
             <Section title="Appearance & Playback" step="4">
               <div className="space-y-4">
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-white">
+                  <span className="mb-1.5 block text-xs font-normal text-white">
                     Effect Type
                   </span>
-                  <select
+                  <SelectField
                     value={activeFlow.settings.effectType}
-                    onChange={(event) => {
-                      const effectType = event.target.value;
+                    options={FLOW_EFFECT_OPTIONS.map((option) => ({
+                      label: option.label,
+                      value: option.value,
+                    }))}
+                    onChange={(value) => {
                       flow.updateFlow(activeFlow.id, {
-                        settings: {
-                          effectType,
-                          color: getFlowEffectDefaultColor(effectType),
-                        },
+                        settings: { effectType: value },
                       });
                     }}
-                    className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none focus:border-secondary-default"
-                  >
-                    {FLOW_EFFECT_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                    className="h-9!"
+                  />
                   <span className="mt-2 block text-[10px] leading-4 text-contrast-grayout">
-                    {getFlowEffectOption(activeFlow.settings.effectType).description}
+                    {
+                      getFlowEffectOption(activeFlow.settings.effectType)
+                        .description
+                    }
                   </span>
                 </label>
 
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-white">Color</p>
+                    <p className="text-sm font-normal text-white">Color</p>
                     <p className="text-[10px] text-contrast-grayout">
                       Main color of the selected effect
                     </p>
@@ -398,152 +393,123 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 </div>
 
                 <label className="block">
-                  <span className="mb-1.5 flex items-center justify-between text-xs text-white">
-                    <span className="font-semibold">Thickness</span>
-                    <span className="text-contrast-grayout">
-                      {Number(activeFlow.settings.thickness || 1).toFixed(1)}x
-                    </span>
-                  </span>
-                  <input
-                    type="range"
-                    min="0.4"
-                    max="3"
-                    step="0.1"
+                  <Slider
+                    label="Thickness"
                     value={activeFlow.settings.thickness || 1}
-                    onChange={(event) =>
+                    min={0.4}
+                    max={3}
+                    step={0.1}
+                    onChange={(value) =>
                       flow.updateFlow(activeFlow.id, {
-                        settings: { thickness: Number(event.target.value) },
+                        settings: { thickness: Number(value) },
                       })
                     }
-                    className="w-full accent-cyan-400"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-1.5 flex items-center justify-between text-xs text-white">
-                    <span className="font-semibold">Effect Density</span>
-                    <span className="text-contrast-grayout">
-                      {activeFlow.settings.particleCount}
-                    </span>
-                  </span>
-                  <input
-                    type="range"
-                    min="4"
-                    max="48"
-                    step="1"
+                  <Slider
+                    label="Effect Density"
                     value={activeFlow.settings.particleCount}
-                    onChange={(event) =>
+                    min={4}
+                    max={48}
+                    step={1}
+                    onChange={(value) =>
                       flow.updateFlow(activeFlow.id, {
-                        settings: { particleCount: Number(event.target.value) },
+                        settings: { particleCount: Number(value) },
                       })
                     }
-                    className="w-full accent-cyan-400"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-1.5 flex items-center justify-between text-xs text-white">
-                    <span className="font-semibold">Opacity</span>
-                    <span className="text-contrast-grayout">
-                      {Math.round((activeFlow.settings.opacity || 0.9) * 100)}%
-                    </span>
-                  </span>
-                  <input
-                    type="range"
-                    min="0.15"
-                    max="1"
-                    step="0.05"
+                  <Slider
+                    label="Opacity"
                     value={activeFlow.settings.opacity || 0.9}
-                    onChange={(event) =>
+                    min={0.15}
+                    max={1}
+                    step={0.05}
+                    onChange={(value) =>
                       flow.updateFlow(activeFlow.id, {
-                        settings: { opacity: Number(event.target.value) },
+                        settings: { opacity: Number(value) },
                       })
                     }
-                    className="w-full accent-cyan-400"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-white">
+                  <span className="mb-2.5 block text-xs font-normal text-white">
                     Behind Object Display
                   </span>
-                  <select
+                  <SelectField
                     value={activeFlow.settings.occlusionMode}
-                    onChange={(event) =>
+                    placeholder="Select occlusion mode"
+                    options={FLOW_OCCLUSION_OPTIONS.map((option) => ({
+                      label: option.label,
+                      value: option.value,
+                    }))}
+                    onChange={(value) => {
                       flow.updateFlow(activeFlow.id, {
-                        settings: { occlusionMode: event.target.value },
-                      })
+                        settings: { occlusionMode: value },
+                      });
+                    }}
+                    className="h-9!"
+                  />
+                  <span className="mt-3 block text-xs leading-4 text-contrast-grayout">
+                    {
+                      getFlowOcclusionOption(activeFlow.settings.occlusionMode)
+                        .description
                     }
-                    className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none focus:border-secondary-default"
-                  >
-                    {FLOW_OCCLUSION_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="mt-2 block text-[10px] leading-4 text-contrast-grayout">
-                    {getFlowOcclusionOption(activeFlow.settings.occlusionMode).description}
                   </span>
                 </label>
 
                 {activeFlow.settings.occlusionMode ===
                   FLOW_OCCLUSION_MODES.DEPTH_CUE && (
                   <label className="block">
-                    <span className="mb-1.5 flex items-center justify-between text-xs text-white">
-                      <span className="font-semibold">Behind Opacity</span>
-                      <span className="text-contrast-grayout">
-                        {Math.round(
-                          (activeFlow.settings.occludedOpacity || 0.28) * 100,
-                        )}%
-                      </span>
-                    </span>
-                    <input
-                      type="range"
-                      min="0.08"
-                      max="0.65"
-                      step="0.01"
+                    <Slider
+                      label="Behind Opacity"
                       value={activeFlow.settings.occludedOpacity || 0.28}
-                      onChange={(event) =>
+                      min={0.08}
+                      max={0.65}
+                      step={0.01}
+                      onChange={(value) =>
                         flow.updateFlow(activeFlow.id, {
                           settings: {
-                            occludedOpacity: Number(event.target.value),
+                            occludedOpacity: Number(value),
                           },
                         })
                       }
-                      className="w-full accent-cyan-400"
                     />
                   </label>
                 )}
 
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-white">Speed</p>
-                    <p className="text-[10px] text-contrast-grayout">
+                    <p className="text-sm font-normal text-white">Speed</p>
+                    <p className="text-xs text-contrast-grayout">
                       Model-relative speed for consistent playback across GLBs
                     </p>
                   </div>
-                  <select
+                  <SelectField
                     value={activeFlow.settings.speed}
-                    onChange={(event) =>
+                    placeholder="Select speed"
+                    options={SPEED_OPTIONS.map((speed) => ({
+                      label: `${speed}x`,
+                      value: speed,
+                    }))}
+                    onChange={(value) => {
                       flow.updateFlow(activeFlow.id, {
-                        settings: { speed: Number(event.target.value) },
-                      })
-                    }
-                    className="h-9 w-24 rounded-lg border border-secondary-default/60 bg-primary px-2 text-xs text-white outline-none"
-                  >
-                    {SPEED_OPTIONS.map((speed) => (
-                      <option key={speed} value={speed}>
-                        {speed}x
-                      </option>
-                    ))}
-                  </select>
+                        settings: { speed: value },
+                      });
+                    }}
+                    className="h-9! w-24!"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-white">Repeat</p>
-                    <p className="text-[10px] text-contrast-grayout">
+                    <p className="text-sm font-normal text-white">Repeat</p>
+                    <p className="text-xs text-contrast-grayout">
                       Restart automatically after reaching the end
                     </p>
                   </div>
@@ -559,8 +525,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
 
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-white">Show Guide</p>
-                    <p className="text-[10px] text-contrast-grayout">
+                    <p className="text-sm font-normal text-white">Show Guide</p>
+                    <p className="text-xs text-contrast-grayout">
                       Display a thin reference path behind the effect
                     </p>
                   </div>
@@ -576,10 +542,10 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
 
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-xs font-semibold text-white">
+                    <p className="text-sm font-normal text-white">
                       Show Waypoints
                     </p>
-                    <p className="text-[10px] text-contrast-grayout">
+                    <p className="text-xs text-contrast-grayout">
                       Display start, waypoint, and end markers in the final flow
                     </p>
                   </div>
@@ -638,8 +604,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
               >
                 <MaterialIcon
                   name={flow.isPreviewing ? "stop" : "play_arrow"}
-                  fill
-                  className="size-5"
+                  fill={1}
+                  size={15}
                 />
                 {flow.isPreviewing ? "Stop Preview" : "Preview Flow"}
               </Button>
@@ -650,15 +616,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 </p>
               )}
             </Section>
-
-            <button
-              type="button"
-              onClick={() => flow.deleteFlow(activeFlow.id)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-500/40 px-4 py-3 text-sm text-red-300 transition hover:bg-red-500/10"
-            >
-              <MaterialIcon name="delete" className="size-5" />
-              Delete Flow Material
-            </button>
+            
+            <DeleteFlowMaterialButton flow={flow} activeFlow={activeFlow} />
           </>
         )}
       </div>

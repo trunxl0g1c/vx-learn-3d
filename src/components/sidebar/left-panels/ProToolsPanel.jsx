@@ -84,13 +84,13 @@ export default function ProToolsPanel({
       </div>
 
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="rounded-xl border border-secondary-default/70 bg-[#171b1b] p-4">
+        <div className="rounded-xl border border-accent-main/70 bg-[#171b1b] p-4">
           <div className="mb-4 flex items-center gap-3">
-            <div className="grid size-10 place-items-center rounded-xl border border-accent-main/50 bg-accent-main/10 text-secondary-default">
+            <div className="grid size-10 place-items-center rounded-xl border border-accent-main/50 bg-accent-main/10 text-accent-main">
               <MaterialIcon name="workspace_premium" fill className="size-6" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Pro Tools</p>
+              <p className="text-sm font-normal text-white">Pro Tools</p>
               <p className="text-xs text-contrast-grayout">
                 Advanced authoring workspace
               </p>
@@ -130,10 +130,10 @@ export default function ProToolsPanel({
                     "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
                     active
                       ? "border-accent-main bg-accent-main/15"
-                      : "border-secondary-default/50 bg-primary/40 hover:border-secondary-default hover:bg-white/5",
+                      : "border-accent-main/50 bg-primary/40 hover:border-accent-main hover:bg-white/5",
                   ].join(" ")}
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-secondary-default/50 text-secondary-default">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-accent-main/50 text-accent-main">
                     <MaterialIcon
                       name={tool.icon}
                       fill={tool.id === "animation-creation" ? 0 : 1}
@@ -142,7 +142,7 @@ export default function ProToolsPanel({
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-white">
+                    <span className="block text-sm font-normal text-white">
                       {tool.label}
                     </span>
                     <span className="mt-1 block text-xs leading-4 text-contrast-grayout">
@@ -152,7 +152,7 @@ export default function ProToolsPanel({
 
                   <MaterialIcon
                     name="arrow_forward_ios"
-                    className="size-4 shrink-0 text-secondary-default"
+                    className="size-4 shrink-0 text-accent-main"
                   />
                 </button>
               );
