@@ -1,6 +1,5 @@
 import MaterialIcon from "../../../ui/material-icon";
 import Button from "../../../ui/button";
-import ProceduralStepSavedStateSection from "../../../procedural/ProceduralStepSavedStateSection";
 
 const TRANSFORM_MODES = [
   ["translate", "Move", "open_with"],
@@ -63,7 +62,7 @@ export default function ProcedureStepTransformSection({
       <div className="rounded-lg border border-secondary-default/50 bg-primary/40 p-3 text-[10px] leading-5 text-contrast-grayout">
         {isAssembly
           ? "Workflow: place the component in its loose/start position and save Start. Move/rotate it into the correct installed position and save Target. Use Show Start and Show Target to verify both states."
-          : "Workflow: assign the click target, add every object that should move, select each animated object in the list, then save its Start and End transforms. All assigned objects animate together."}
+          : "Workflow: add one or more click targets, add every object that should move, select each animated object in the list, then save its Start and End transforms. Playback follows the Together or Sequential mode selected above."}
       </div>
 
       {isAssembly && (
@@ -91,7 +90,6 @@ export default function ProcedureStepTransformSection({
         </div>
       )}
 
-      <ProceduralStepSavedStateSection procedural={procedural} step={step} />
     </>
   );
 }

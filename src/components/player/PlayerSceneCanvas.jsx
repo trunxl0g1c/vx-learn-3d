@@ -17,6 +17,7 @@ import CameraAnimator from "../viewer/CameraAnimator";
 import { getViewerBackground, getViewerBackgroundStyle } from "../../utils/viewerBackground";
 import CustomHdriEnvironment from "../canvas/CustomHdriEnvironment";
 import ViewerSceneBackground from "../canvas/ViewerSceneBackground";
+import ViewerSceneGrid from "../canvas/ViewerSceneGrid";
 import ViewerProjectionCameraController from "../canvas/ViewerProjectionCameraController";
 import ViewerStageFloor from "../canvas/ViewerStageFloor";
 import StageShadowDirectionalLight from "../canvas/StageShadowDirectionalLight";
@@ -27,6 +28,8 @@ import { DEFAULT_ORBIT_MIN_DISTANCE } from "../../engine/camera";
 import { getFlowReferenceLengthFromObject } from "../../engine/flow";
 import { collectMeshes } from "../../engine/selection";
 import BlinkSelectionOutline from "../viewer/BlinkSelectionOutline";
+import PlayerTurntableController from "./PlayerTurntableController";
+import PlayerXRSceneController from "./PlayerXRSceneController";
 import {
   GENERATED_ANNOTATION_COLOR,
   GeneratedObjectAnnotations,
@@ -69,6 +72,10 @@ export default function PlayerSceneCanvas({
   selectedObject,
   transformMode,
   activeChapter,
+  activeSlide = null,
+  activeProcedure = null,
+  turntableAnimation = null,
+  turntablePresentationActive = true,
   selectedAnimations,
   animationCommand,
   handleSelectObjectFromPlayer,
@@ -91,6 +98,9 @@ export default function PlayerSceneCanvas({
   flowPlaybackKey = 0,
   activeChapterFlows = [],
   chapterFlowPlaybackKey = 0,
+  activeSlideFlows = [],
+  slideFlowPlaybackKey = 0,
+  onSlideFlowComplete,
   onChapterFlowComplete,
   onFlowComplete,
   assemblyDragObject = null,
@@ -99,11 +109,17 @@ export default function PlayerSceneCanvas({
   assemblyDragEnabled = false,
   assemblyCameraLocked = false,
   assemblyShowGhost = false,
+  assemblyGhostRevision = 0,
   onAssemblyDragStart,
   onAssemblyDrag,
   onAssemblyDragEnd,
+  xrMode = null,
+  xrSettings = null,
+  onRendererReady,
 }) {
   const modelRootRef = useRef(null);
+  const turntableRootRef = useRef(null);
+  const xrRootRef = useRef(null);
   const [annotationOutlineObjects, setAnnotationOutlineObjects] = useState([]);
   const flowSpeedReferenceLength = useMemo(
     () => getFlowReferenceLengthFromObject(modelScene, 1),
@@ -113,6 +129,20 @@ export default function PlayerSceneCanvas({
     cameraProjectionMode ||
     viewerSettings?.cameraProjectionMode ||
     "perspective";
+  const animationPlaying = ["play", "playChapter", "resume"].includes(
+    animationCommand?.type,
+  );
+  const turntableEnabled =
+    Boolean(turntablePresentationActive) &&
+    !freePlay &&
+    !activeChapter &&
+    !activeSlide &&
+    !activeFlow &&
+    activeChapterFlows.length === 0 &&
+    activeSlideFlows.length === 0 &&
+    !activeProcedure &&
+    !xrMode &&
+    !animationPlaying;
 
   const handleAnnotationHighlight = useCallback((object) => {
     setAnnotationOutlineObjects(object ? collectMeshes(object) : []);
@@ -164,10 +194,29 @@ export default function PlayerSceneCanvas({
   const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle);
   const isSketchMode = shaderOutlineStyle === "sketch";
   const background = getViewerBackground(viewerSettings);
-  const stageBackgroundEnabled = background.type === "stage" && !isSketchMode;
-  const canvasStyle = isSketchMode
-    ? { background: "#ffffff" }
-    : getViewerBackgroundStyle(viewerSettings);
+  const stageBackgroundEnabled =
+    background.type === "stage" && !isSketchMode && xrMode !== "ar";
+  const isARSession = xrMode === "ar";
+  const xrGridEnabled = xrMode
+    ? xrMode === "vr"
+      ? Boolean(xrSettings?.vr?.showGrid)
+      : Boolean(xrSettings?.ar?.showGrid)
+    : null;
+  const gridViewerSettings = xrMode
+    ? {
+        ...viewerSettings,
+        grid: {
+          ...(viewerSettings?.grid || {}),
+          enabled: xrGridEnabled,
+          showInPlayer: xrGridEnabled,
+        },
+      }
+    : viewerSettings;
+  const canvasStyle = isARSession
+    ? { background: "transparent" }
+    : isSketchMode
+      ? { background: "#ffffff" }
+      : getViewerBackgroundStyle(viewerSettings);
 
   return (
     <Canvas
@@ -196,7 +245,7 @@ export default function PlayerSceneCanvas({
         clearPlayerSelection?.();
       }}
     >
-      <WebGLRendererLifecycle registryKey="__PLAYER_RENDERER__" />
+      <WebGLRendererLifecycle registryKey="__PLAYER_RENDERER__" onRendererReady={onRendererReady} />
       <ViewerProjectionCameraController
         mode={effectiveProjectionMode}
         cameraRef={cameraRef}
@@ -204,9 +253,17 @@ export default function PlayerSceneCanvas({
         focusTargetRef={focusTargetRef}
       />
       <RenderSettingsSync viewerSettings={viewerSettings} />
-      <ViewerSceneBackground
-        viewerSettings={viewerSettings}
-        backgroundOverrideColor={isSketchMode ? "#ffffff" : null}
+      {!isARSession && (
+        <ViewerSceneBackground
+          viewerSettings={viewerSettings}
+          backgroundOverrideColor={isSketchMode ? "#ffffff" : null}
+        />
+      )}
+      <ViewerSceneGrid
+        viewerSettings={gridViewerSettings}
+        modelRootRef={modelRootRef}
+        modelScene={modelScene}
+        player
       />
 
       <EffectComposer autoClear={false} multisampling={0}>
@@ -299,10 +356,12 @@ export default function PlayerSceneCanvas({
         />
       )}
 
-      <Suspense fallback={<LoadingModel />}>
-        <Bounds fit clip margin={1.2}>
-          <Center>
-            <group ref={modelRootRef}>
+      <group ref={xrRootRef}>
+        <Suspense fallback={<LoadingModel />}>
+          <Bounds fit clip margin={1.2}>
+            <Center>
+              <group ref={turntableRootRef}>
+              <group ref={modelRootRef}>
               <Model
                 modelUrl={material.modelUrl}
                 markerMode={false}
@@ -344,6 +403,19 @@ export default function PlayerSceneCanvas({
                 />
               ))}
 
+              {activeSlideFlows.map((flow) => (
+                <FlowRuntimeRenderer
+                  key={`slide-flow-${flow.id}`}
+                  flow={flow}
+                  playing
+                  visible
+                  showWaypoints={flow?.settings?.showWaypoints === true}
+                  restartToken={`${slideFlowPlaybackKey}:${flow.id}`}
+                  speedReferenceLength={flowSpeedReferenceLength}
+                  onComplete={() => onSlideFlowComplete?.(flow.id)}
+                />
+              ))}
+
               {freePlay && selectedObject && (
                 <TransformControls
                   object={selectedObject}
@@ -367,6 +439,16 @@ export default function PlayerSceneCanvas({
                   />
                 ))}
 
+              {!freePlay &&
+                (activeSlide?.markers || []).map((marker, index) => (
+                  <Marker
+                    key={`slide-${marker.id || index}`}
+                    marker={marker}
+                    modelScene={modelScene}
+                    chapter={activeSlide}
+                  />
+                ))}
+
               {showAnnotations && (
                 <GeneratedObjectAnnotations
                   modelScene={modelScene}
@@ -382,10 +464,27 @@ export default function PlayerSceneCanvas({
                   onAnnotationHierarchyBack={onAnnotationHierarchyBack}
                 />
               )}
+              </group>
             </group>
-          </Center>
-        </Bounds>
-      </Suspense>
+            </Center>
+          </Bounds>
+        </Suspense>
+      </group>
+
+      <PlayerXRSceneController
+        mode={xrMode}
+        settings={xrSettings}
+        rootRef={xrRootRef}
+        modelScene={modelScene}
+        onSelectObject={handleObjectSelect}
+      />
+
+      <PlayerTurntableController
+        rootRef={turntableRootRef}
+        enabled={turntableEnabled}
+        settings={turntableAnimation}
+        sceneKey={`${material?.projectId || "project"}:${modelScene?.uuid || "scene"}`}
+      />
 
       <CameraAnimator
         cameraRef={cameraRef}
@@ -404,6 +503,7 @@ export default function PlayerSceneCanvas({
         object={assemblyDragObject}
         targetTransform={assemblyTargetTransform}
         visible={assemblyDragEnabled && assemblyShowGhost}
+        refreshKey={assemblyGhostRevision}
       />
 
       <AssemblyDragController
@@ -420,7 +520,7 @@ export default function PlayerSceneCanvas({
 
       <OrbitControls
         ref={controlsRef}
-        enabled={!assemblyCameraLocked}
+        enabled={!assemblyCameraLocked && !xrMode}
         enableRotate={
           !assemblyCameraLocked && effectiveProjectionMode !== "orthographic"
         }

@@ -1,11 +1,16 @@
 import {
   createProceduralDefinition,
   createProceduralObjectReference,
+  createProceduralPlaybackDefinition,
+  createProceduralPlaybackStep,
   createProceduralStep,
+  duplicateProceduralDefinition,
   createStoredObjectTransform,
+  findProceduralObject,
   getProcedureReferenceLength,
   isAssemblyProcedure,
   normalizeProceduralAnimatedObjects,
+  normalizeProceduralClickTargets,
   normalizeProceduralDefinitions,
   validateAssemblyPlacement,
 } from "../engine/procedural";
@@ -19,6 +24,24 @@ export function createProceduralManagerAdapter(engine = null) {
       return (
         engine?.createDefinition?.(number, type) ||
         createProceduralDefinition(number, type)
+      );
+    },
+    duplicateDefinition(procedure, options) {
+      return (
+        engine?.duplicateDefinition?.(procedure, options) ||
+        duplicateProceduralDefinition(procedure, options)
+      );
+    },
+    createPlaybackDefinition(procedure) {
+      return (
+        engine?.createPlaybackDefinition?.(procedure) ||
+        createProceduralPlaybackDefinition(procedure)
+      );
+    },
+    createPlaybackStep(step, procedureType, options) {
+      return (
+        engine?.createPlaybackStep?.(step, procedureType, options) ||
+        createProceduralPlaybackStep(step, procedureType, options)
       );
     },
     createStep(number, type) {
@@ -53,6 +76,24 @@ export function createProceduralManagerAdapter(engine = null) {
         engine?.normalizeAnimatedObjects?.(step, assemblyStep) ||
         normalizeProceduralAnimatedObjects(step, assemblyStep)
       );
+    },
+    normalizeClickTargets(step, assemblyStep = false) {
+      return (
+        engine?.normalizeClickTargets?.(step, assemblyStep) ||
+        normalizeProceduralClickTargets(step, assemblyStep)
+      );
+    },
+    findClickTargets(scene, step) {
+      if (engine?.findClickTargets) {
+        return engine.findClickTargets(scene, step);
+      }
+
+      return normalizeProceduralClickTargets(
+        step,
+        isAssemblyProcedure(step?.procedureType),
+      )
+        .map((reference) => findProceduralObject(scene, reference))
+        .filter(Boolean);
     },
     findAnimatedObjects(scene, step) {
       return engine?.findAnimatedObjects?.(scene, step) || [];

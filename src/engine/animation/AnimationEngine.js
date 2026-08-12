@@ -1,4 +1,30 @@
 import { createId } from "../../utils/createId";
+import {
+  applyAuthoredAnimationAtTime,
+  applyAuthoredAnimationTransform,
+  captureAuthoredAnimationBaseline,
+  createAuthoredAnimationDefinition,
+  createAuthoredAnimationObjectReference,
+  createAuthoredAnimationLocalPivot,
+  createAuthoredAnimationLocalPivotFromHit,
+  createAuthoredAnimationTrack,
+  createAuthoredAnimationTransform,
+  duplicateAuthoredAnimationDefinition,
+  findAuthoredAnimationObject,
+  normalizeAuthoredAnimationDefinition,
+  normalizeAuthoredAnimationDefinitions,
+  removeAuthoredAnimationKeyframe,
+  restoreAuthoredAnimationBaseline,
+  upsertAuthoredAnimationKeyframe,
+} from "./AuthoredAnimation";
+import {
+  createMechanicalRigDefinition,
+  normalizeMechanicalRig,
+} from "./MechanicalRig";
+import {
+  organizeAuthoredAnimationTracks,
+  reorderAuthoredAnimationTrack,
+} from "./TrackHierarchy";
 
 export const ANIMATION_COMMAND_TYPES = {
   PLAY: "play",
@@ -37,7 +63,9 @@ export function isChapterAnimationSelected(chapter, animationName) {
   if (!chapter || !animationName) return false
 
   return (chapter.animations || []).some(
-    (item) => normalizeAnimationName(item) === animationName
+    (item) =>
+      item?.source !== "authored" &&
+      normalizeAnimationName(item) === animationName
   )
 }
 
@@ -52,7 +80,9 @@ export function getChapterAnimationConfig(chapter, animationName) {
   }
 
   const config = (chapter?.animations || []).find(
-    (item) => normalizeAnimationName(item) === animationName
+    (item) =>
+      item?.source !== "authored" &&
+      normalizeAnimationName(item) === animationName
   )
 
   return config || {
@@ -155,7 +185,9 @@ export function updateChapterAnimationFieldInMaterial(
 
 export function createSelectedAnimationMap(availableAnimations = [], chapterAnimations = []) {
   const chapterAnimationMap = new Map(
-    chapterAnimations.map((item) => [normalizeAnimationName(item), item])
+    chapterAnimations
+      .filter((item) => item?.source !== "authored")
+      .map((item) => [normalizeAnimationName(item), item])
   )
 
   return availableAnimations.reduce((result, animation) => {
@@ -369,6 +401,26 @@ export function createAnimationEngine() {
     seek,
     setSpeed,
     updateAnimationConfig,
+    normalizeAuthoredDefinitions: normalizeAuthoredAnimationDefinitions,
+    normalizeAuthoredDefinition: normalizeAuthoredAnimationDefinition,
+    createAuthoredDefinition: createAuthoredAnimationDefinition,
+    duplicateAuthoredDefinition: duplicateAuthoredAnimationDefinition,
+    createAuthoredObjectReference: createAuthoredAnimationObjectReference,
+    createAuthoredLocalPivot: createAuthoredAnimationLocalPivot,
+    createAuthoredLocalPivotFromHit: createAuthoredAnimationLocalPivotFromHit,
+    createMechanicalRig: createMechanicalRigDefinition,
+    normalizeMechanicalRig,
+    organizeAuthoredTracks: organizeAuthoredAnimationTracks,
+    reorderAuthoredTrack: reorderAuthoredAnimationTrack,
+    findAuthoredObject: findAuthoredAnimationObject,
+    createAuthoredTrack: createAuthoredAnimationTrack,
+    createAuthoredTransform: createAuthoredAnimationTransform,
+    applyAuthoredTransform: applyAuthoredAnimationTransform,
+    upsertAuthoredKeyframe: upsertAuthoredAnimationKeyframe,
+    removeAuthoredKeyframe: removeAuthoredAnimationKeyframe,
+    applyAuthoredAtTime: applyAuthoredAnimationAtTime,
+    captureAuthoredBaseline: captureAuthoredAnimationBaseline,
+    restoreAuthoredBaseline: restoreAuthoredAnimationBaseline,
     clear,
     reset: clear,
     dispose: clear,

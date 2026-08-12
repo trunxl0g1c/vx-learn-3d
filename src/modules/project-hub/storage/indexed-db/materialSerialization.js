@@ -4,6 +4,7 @@ import {
   markLazyMaterialRecord,
 } from "../../../../engine/project/LazyMaterialRecords";
 import {
+  ANIMATION_STORE,
   ARRAY_MATERIAL_STORES,
   CHAPTER_STORE,
   FLOW_STORE,
@@ -12,6 +13,8 @@ import {
   LAZY_PAYLOAD_VERSION,
   PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
+  QUIZ_STORE,
+  SLIDE_STORE,
   PROJECT_ID_INDEX,
 } from "./constants";
 import { hasOwn, isPlainObject } from "./common";
@@ -33,18 +36,61 @@ function normalizeStoredProcedureType(value) {
     : "guided";
 }
 
-function getLazyAwareCount(item, arrayField, countField) {
-  const storedCount = Number(item?.[countField]);
+function hasStoredLazyPayload(record) {
+  return Boolean(
+    record &&
+      (record.payloadBlob instanceof Blob ||
+        hasOwn(record, "payloadData") ||
+        Number(record.payloadVersion) > 0),
+  );
+}
 
-  if (
-    getLazyMaterialRecordMeta(item) &&
-    Number.isFinite(storedCount) &&
-    storedCount >= 0
-  ) {
-    return storedCount;
+function getLazyAwareCount(item, arrayField, countField, record = null) {
+  const itemStoredCount = Number(item?.[countField]);
+  const recordStoredCount = Number(record?.[countField]);
+  const storedCount = Number.isFinite(itemStoredCount)
+    ? itemStoredCount
+    : recordStoredCount;
+  const hasInlineArray = Array.isArray(item?.[arrayField]);
+  const isSummaryRecord = Boolean(
+    getLazyMaterialRecordMeta(item) ||
+      hasStoredLazyPayload(record) ||
+      !hasInlineArray,
+  );
+
+  if (isSummaryRecord && Number.isFinite(storedCount) && storedCount >= 0) {
+    return Math.floor(storedCount);
   }
 
   return getArrayItemCount(item?.[arrayField]);
+}
+
+function getLazyAwareBoolean(item, valueField, summaryField, record = null) {
+  if (item?.[valueField] !== undefined) return Boolean(item[valueField]);
+  if (item?.[summaryField] !== undefined) return Boolean(item[summaryField]);
+  if (record?.[summaryField] !== undefined) return Boolean(record[summaryField]);
+  return false;
+}
+
+function getLazyAwareCameraViewCount(item, record = null) {
+  const storedCount = Number(
+    item?.cameraViewCount ?? record?.cameraViewCount,
+  );
+  const hasInlineViews = Array.isArray(item?.cameraViews) || Boolean(item?.cameraView);
+  const isSummaryRecord = Boolean(
+    getLazyMaterialRecordMeta(item) ||
+      hasStoredLazyPayload(record) ||
+      !hasInlineViews,
+  );
+
+  if (isSummaryRecord && Number.isFinite(storedCount) && storedCount >= 0) {
+    return Math.floor(storedCount);
+  }
+
+  return Math.max(
+    getArrayItemCount(item?.cameraViews),
+    item?.cameraView ? 1 : 0,
+  );
 }
 
 function createLazyRecordSummary(storeName, item, record = null) {
@@ -60,29 +106,54 @@ function createLazyRecordSummary(storeName, item, record = null) {
       objectUuid: item?.objectUuid || item?.objectUUID || null,
       objectPath: Array.isArray(item?.objectPath) ? item.objectPath : null,
       enabled: item?.enabled !== false,
-      markerCount: getLazyAwareCount(item, "markers", "markerCount"),
+      markerCount: getLazyAwareCount(
+        item,
+        "markers",
+        "markerCount",
+        record,
+      ),
       parameterCount: getLazyAwareCount(
         item,
         "parameters",
         "parameterCount",
+        record,
       ),
-      cameraViewCount: getLazyMaterialRecordMeta(item)
-        ? Number(item?.cameraViewCount || 0)
-        : Math.max(
-            getArrayItemCount(item?.cameraViews),
-            item?.cameraView ? 1 : 0,
-          ),
-      mediaCount: getLazyAwareCount(item, "media", "mediaCount"),
+      cameraViewCount: getLazyAwareCameraViewCount(item, record),
+      mediaCount: getLazyAwareCount(
+        item,
+        "media",
+        "mediaCount",
+        record,
+      ),
       animationCount: getLazyAwareCount(
         item,
         "animations",
         "animationCount",
+        record,
       ),
       flowAssignmentCount: getLazyAwareCount(
         item,
         "flows",
         "flowAssignmentCount",
+        record,
       ),
+    };
+  }
+
+  if (storeName === SLIDE_STORE) {
+    return {
+      id: item?.id || item?.uuid || fallbackEntityId,
+      title: item?.title || "Untitled Slide",
+      description: item?.description || "",
+      enabled: item?.enabled !== false,
+      markerCount: getLazyAwareCount(item, "markers", "markerCount", record),
+      parameterCount: getLazyAwareCount(item, "parameters", "parameterCount", record),
+      cameraViewCount: getLazyAwareCameraViewCount(item, record),
+      mediaCount: getLazyAwareCount(item, "media", "mediaCount", record),
+      animationCount: getLazyAwareCount(item, "animations", "animationCount", record),
+      flowAssignmentCount: getLazyAwareCount(item, "flows", "flowAssignmentCount", record),
+      createdAt: item?.createdAt || null,
+      updatedAt: item?.updatedAt || null,
     };
   }
 
@@ -93,13 +164,62 @@ function createLazyRecordSummary(storeName, item, record = null) {
       description: item?.description || "",
       enabled: item?.enabled !== false,
       settings: isPlainObject(item?.settings) ? item.settings : {},
-      pointCount: getLazyAwareCount(item, "points", "pointCount"),
-      hasVisualState: getLazyMaterialRecordMeta(item)
-        ? Boolean(item?.hasVisualState)
-        : Boolean(item?.visualState),
-      hasCameraView: getLazyMaterialRecordMeta(item)
-        ? Boolean(item?.hasCameraView)
-        : Boolean(item?.cameraView),
+      pointCount: getLazyAwareCount(
+        item,
+        "points",
+        "pointCount",
+        record,
+      ),
+      hasVisualState: getLazyAwareBoolean(
+        item,
+        "visualState",
+        "hasVisualState",
+        record,
+      ),
+      hasCameraView: getLazyAwareBoolean(
+        item,
+        "cameraView",
+        "hasCameraView",
+        record,
+      ),
+      createdAt: item?.createdAt || null,
+      updatedAt: item?.updatedAt || null,
+    };
+  }
+
+
+  if (storeName === ANIMATION_STORE) {
+    return {
+      id: item?.id || item?.uuid || fallbackEntityId,
+      name: item?.name || "Untitled Animation",
+      description: item?.description || "",
+      enabled: item?.enabled !== false,
+      duration: Number(item?.duration) || 2,
+      settings: isPlainObject(item?.settings) ? item.settings : {},
+      trackCount: getLazyAwareCount(
+        item,
+        "tracks",
+        "trackCount",
+        record,
+      ),
+      createdAt: item?.createdAt || null,
+      updatedAt: item?.updatedAt || null,
+    };
+  }
+
+  if (storeName === QUIZ_STORE) {
+    return {
+      id: item?.id || item?.uuid || fallbackEntityId,
+      name: item?.name || "Untitled Quiz",
+      description: item?.description || "",
+      enabled: item?.enabled !== false,
+      settings: isPlainObject(item?.settings) ? item.settings : {},
+      questionCount: getLazyAwareCount(
+        item,
+        "questions",
+        "questionCount",
+        record,
+      ),
       createdAt: item?.createdAt || null,
       updatedAt: item?.updatedAt || null,
     };
@@ -113,7 +233,12 @@ function createLazyRecordSummary(storeName, item, record = null) {
       type: normalizeStoredProcedureType(item?.type),
       enabled: item?.enabled !== false,
       settings: isPlainObject(item?.settings) ? item.settings : {},
-      stepCount: getLazyAwareCount(item, "steps", "stepCount"),
+      stepCount: getLazyAwareCount(
+        item,
+        "steps",
+        "stepCount",
+        record,
+      ),
       createdAt: item?.createdAt || null,
       updatedAt: item?.updatedAt || null,
     };
@@ -213,11 +338,55 @@ function mergeLazySummaryIntoPayload(storeName, payload, summary) {
     };
   }
 
+  if (storeName === SLIDE_STORE) {
+    return {
+      ...sourcePayload,
+      id: summary?.id || sourcePayload.id || null,
+      title: summary?.title || sourcePayload.title || "Untitled Slide",
+      description: summary?.description ?? sourcePayload.description ?? "",
+      enabled: summary?.enabled !== false,
+      createdAt: summary?.createdAt || sourcePayload.createdAt || null,
+      updatedAt: summary?.updatedAt || sourcePayload.updatedAt || null,
+    };
+  }
+
   if (storeName === FLOW_STORE) {
     return {
       ...sourcePayload,
       id: summary?.id || sourcePayload.id || null,
       name: summary?.name || sourcePayload.name || "Untitled Flow",
+      description: summary?.description ?? sourcePayload.description ?? "",
+      enabled: summary?.enabled !== false,
+      settings: isPlainObject(summary?.settings)
+        ? summary.settings
+        : sourcePayload.settings,
+      createdAt: summary?.createdAt || sourcePayload.createdAt || null,
+      updatedAt: summary?.updatedAt || sourcePayload.updatedAt || null,
+    };
+  }
+
+
+  if (storeName === ANIMATION_STORE) {
+    return {
+      ...sourcePayload,
+      id: summary?.id || sourcePayload.id || null,
+      name: summary?.name || sourcePayload.name || "Untitled Animation",
+      description: summary?.description ?? sourcePayload.description ?? "",
+      enabled: summary?.enabled !== false,
+      duration: Number(summary?.duration ?? sourcePayload.duration) || 2,
+      settings: isPlainObject(summary?.settings)
+        ? summary.settings
+        : sourcePayload.settings,
+      createdAt: summary?.createdAt || sourcePayload.createdAt || null,
+      updatedAt: summary?.updatedAt || sourcePayload.updatedAt || null,
+    };
+  }
+
+  if (storeName === QUIZ_STORE) {
+    return {
+      ...sourcePayload,
+      id: summary?.id || sourcePayload.id || null,
+      name: summary?.name || sourcePayload.name || "Untitled Quiz",
       description: summary?.description ?? sourcePayload.description ?? "",
       enabled: summary?.enabled !== false,
       settings: isPlainObject(summary?.settings)
@@ -263,7 +432,11 @@ function createLegacyStoredArrayRecord(projectId, storeName, item, index) {
           createId(
             storeName === PROCEDURE_STORE
               ? "procedure"
-              : storeName.slice(0, -1),
+              : storeName === QUIZ_STORE
+                ? "quiz"
+                : storeName === SLIDE_STORE
+                  ? "slide"
+                  : storeName.slice(0, -1),
           ),
       }
     : sourceItem;
@@ -296,7 +469,11 @@ function createStoredArrayRecord(projectId, storeName, item, index) {
           createId(
             storeName === PROCEDURE_STORE
               ? "procedure"
-              : storeName.slice(0, -1),
+              : storeName === QUIZ_STORE
+                ? "quiz"
+                : storeName === SLIDE_STORE
+                  ? "slide"
+                  : storeName.slice(0, -1),
           ),
       }
     : sourceItem;
@@ -372,7 +549,7 @@ export async function readStoredArrayRecord(record, storeName, mode = "full") {
   if (mode === "summary") {
     const summary = createLazyRecordSummary(storeName, fallbackItem, record);
     const metadata = {
-      type: storeName,
+      type: storeName === ANIMATION_STORE ? "authoredAnimations" : storeName,
       entityId: summary?.id || stableEntityId,
       storageId: record.storageId,
       projectId: record.projectId,

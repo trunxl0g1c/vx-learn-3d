@@ -6,6 +6,19 @@ import {
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
 import { createPlayerProcedureActions } from "./createPlayerProcedureActions";
 import { createPlayerProcedureStepHighlighter } from "./createPlayerProcedureStepHighlighter";
+import { repairLegacyReverseProcedureForPlayback } from "../playerProcedureLegacyRepair";
+import { getPlayerInitialObjectTransform } from "../playerInitialSceneState";
+
+function waitForProcedureResetFrame() {
+  return new Promise((resolve) => {
+    if (typeof globalThis.requestAnimationFrame === "function") {
+      globalThis.requestAnimationFrame(() => resolve());
+      return;
+    }
+
+    setTimeout(resolve, 0);
+  });
+}
 
 export default function usePlayerProcedurePlayback({
   material,
@@ -22,12 +35,15 @@ export default function usePlayerProcedurePlayback({
   setOutlineObjects,
   stopFlow,
   stopChapterFlows,
+  initialSceneStateRef = null,
 }) {
   const [activeProcedureId, setActiveProcedureId] = useState(null);
+  const [activeProcedureSnapshot, setActiveProcedureSnapshot] = useState(null);
   const [status, setStatus] = useState("idle");
   const [stepIndex, setStepIndex] = useState(-1);
   const [completedStepIds, setCompletedStepIds] = useState([]);
   const [feedback, setFeedback] = useState("");
+  const [assemblyGhostRevision, setAssemblyGhostRevision] = useState(0);
   const runTokenRef = useRef(0);
   const referenceLengthRef = useRef(1);
   const engine = useMemo(() => createProceduralEngine(), []);
@@ -35,14 +51,31 @@ export default function usePlayerProcedurePlayback({
     () => normalizeProceduralDefinitions(material?.procedures),
     [material?.procedures],
   );
-  const activeProcedure = useMemo(
+  const activeProcedure = useMemo(() => {
+    if (
+      activeProcedureSnapshot?.id &&
+      activeProcedureSnapshot.id === activeProcedureId
+    ) {
+      return activeProcedureSnapshot;
+    }
+
+    return (
+      procedures.find((procedure) => procedure.id === activeProcedureId) || null
+    );
+  }, [activeProcedureId, activeProcedureSnapshot, procedures]);
+  const activePlaybackProcedure = useMemo(
     () =>
-      procedures.find((procedure) => procedure.id === activeProcedureId) || null,
-    [activeProcedureId, procedures],
+      activeProcedure
+        ? engine.createPlaybackDefinition?.(activeProcedure) || activeProcedure
+        : null,
+    [activeProcedure, engine],
   );
   const activeSteps = useMemo(
-    () => (activeProcedure?.steps || []).filter((step) => step.enabled !== false),
-    [activeProcedure],
+    () =>
+      (activePlaybackProcedure?.steps || []).filter(
+        (step) => step.enabled !== false,
+      ),
+    [activePlaybackProcedure],
   );
   const activeStep = activeSteps[stepIndex] || null;
   const isAssembly = engine.isAssemblyProcedure?.(activeProcedure) === true;
@@ -54,6 +87,7 @@ export default function usePlayerProcedurePlayback({
     ) {
       runTokenRef.current += 1;
       setActiveProcedureId(null);
+      setActiveProcedureSnapshot(null);
       setStatus("idle");
       setStepIndex(-1);
       setCompletedStepIds([]);
@@ -65,14 +99,21 @@ export default function usePlayerProcedurePlayback({
     return () => engine.dispose?.();
   }, [engine]);
 
-  const getStepTarget = (step) =>
-    engine.findObject?.(modelScene, step?.targetObject) || null;
+  const getStepTargets = (step) => {
+    const targets = engine.findClickTargets?.(modelScene, step) || [];
+
+    if (targets.length > 0) return targets;
+
+    const legacyTarget =
+      engine.findObject?.(modelScene, step?.targetObject) || null;
+    return legacyTarget ? [legacyTarget] : [];
+  };
 
   const getStepAnimatedEntries = (step) =>
     engine.findAnimatedObjects?.(modelScene, step) || [];
 
   const highlightStep = createPlayerProcedureStepHighlighter({
-    getProcedureStepTarget: getStepTarget,
+    getProcedureStepTargets: getStepTargets,
     restorePlayerRenderMode,
     playerFreePlay,
     applySavedVisualState,
@@ -81,6 +122,7 @@ export default function usePlayerProcedurePlayback({
     proceduralEngine: engine,
     applySavedCameraView,
     focusObject,
+    modelScene,
   });
 
   const {
@@ -108,12 +150,16 @@ export default function usePlayerProcedurePlayback({
     setOutlineObjects,
     highlightProcedureStep: highlightStep,
     playAnimationAssignments: playerAnimation.playAnimationAssignments,
+    refreshAssemblyGhost: () => {
+      setAssemblyGhostRevision((current) => current + 1);
+    },
   });
 
   const resetControllerState = () => {
     runTokenRef.current += 1;
     engine.dispose?.();
     setActiveProcedureId(null);
+    setActiveProcedureSnapshot(null);
     setStatus("idle");
     setStepIndex(-1);
     setCompletedStepIds([]);
@@ -124,12 +170,13 @@ export default function usePlayerProcedurePlayback({
     runTokenRef.current += 1;
     engine.dispose?.();
 
-    if (isAssembly && activeProcedure && modelScene) {
-      engine.resetProcedure?.(modelScene, activeProcedure);
+    if (isAssembly && activePlaybackProcedure && modelScene) {
+      engine.resetProcedure?.(modelScene, activePlaybackProcedure);
     }
 
     setStatus("idle");
     setActiveProcedureId(null);
+    setActiveProcedureSnapshot(null);
     setStepIndex(-1);
     setCompletedStepIds([]);
     setFeedback("");
@@ -140,8 +187,8 @@ export default function usePlayerProcedurePlayback({
     }
   };
 
-  const playProcedure = async (procedureId) => {
-    let procedure = procedures.find((item) => item.id === procedureId);
+  const resolveProcedureForPlayback = async (procedureId) => {
+    let procedure = procedures.find((item) => item.id === procedureId) || null;
 
     if (
       procedure &&
@@ -152,11 +199,39 @@ export default function usePlayerProcedurePlayback({
         (await playerProject.loadProcedureRecord(procedureId)) || procedure;
     }
 
-    const steps = (procedure?.steps || []).filter((step) => step.enabled !== false);
+    return procedure;
+  };
 
-    if (!procedure || steps.length === 0 || !modelScene) return false;
+  const startProcedurePlayback = async (
+    procedureId,
+    { replay = false } = {},
+  ) => {
+    const procedure = await resolveProcedureForPlayback(procedureId);
+    const repairedProcedure = procedure
+      ? repairLegacyReverseProcedureForPlayback({
+          procedure,
+          scene: modelScene,
+          engine,
+          resolveInitialTransform: (object) =>
+            getPlayerInitialObjectTransform(
+              initialSceneStateRef?.current,
+              object,
+            ),
+        })
+      : null;
+    const playbackProcedure = repairedProcedure
+      ? engine.createPlaybackDefinition?.(repairedProcedure) || repairedProcedure
+      : null;
+    const steps = (playbackProcedure?.steps || []).filter(
+      (step) => step.enabled !== false,
+    );
 
-    runTokenRef.current += 1;
+    if (!procedure || !playbackProcedure || steps.length === 0 || !modelScene) {
+      return false;
+    }
+
+    const runToken = ++runTokenRef.current;
+
     engine.dispose?.();
     stopFlow();
     stopChapterFlows();
@@ -164,21 +239,56 @@ export default function usePlayerProcedurePlayback({
     playerAnimation.stopChapterAnimations?.();
     playerFreePlay.resetVisualState?.({ animationDuration: 0 });
     restorePlayerRenderMode();
-    referenceLengthRef.current = engine.getReferenceLength?.(modelScene, 1) || 1;
-    engine.resetProcedure?.(modelScene, procedure);
 
+    // Keep the exact hydrated definition used to start playback as a runtime
+    // snapshot. IndexedDB hydration updates React state asynchronously; without
+    // this snapshot the first interaction could still read the lazy summary
+    // (0 inline steps), so Guided animation appeared to do nothing until a
+    // later render. This is especially visible immediately after duplicating a
+    // reversed Procedure.
+    setActiveProcedureSnapshot(playbackProcedure);
     setActiveProcedureId(procedureId);
-    setStepIndex(0);
+    setStepIndex(-1);
     setCompletedStepIds([]);
+    setSelectedObject(null);
+    setOutlineObjects([]);
+    setStatus("resetting");
     setFeedback(
-      steps[0]?.instruction ||
+      replay
+        ? "Mengembalikan semua step ke posisi awal..."
+        : "Menyiapkan procedure...",
+    );
+
+    referenceLengthRef.current =
+      engine.getReferenceLength?.(modelScene, 1) || 1;
+    engine.resetProcedure?.(modelScene, playbackProcedure);
+    modelScene.updateMatrixWorld?.(true);
+
+    // Re-apply the first step after the reset has reached the scene graph. This
+    // makes replay deterministic even when the same Procedure id stays active.
+    await waitForProcedureResetFrame();
+    if (runTokenRef.current !== runToken) return false;
+
+    const firstStep = steps[0];
+    setStepIndex(0);
+    setFeedback(
+      firstStep?.instruction ||
         (engine.isAssemblyProcedure?.(procedure)
           ? "Geser komponen ke target yang ditampilkan."
           : "Klik object yang ditandai."),
     );
     setStatus("waiting");
-    highlightStep(steps[0]);
+    setAssemblyGhostRevision((current) => current + 1);
+    highlightStep(firstStep, { applyStepStart: true });
     return true;
+  };
+
+  const playProcedure = (procedureId) =>
+    startProcedurePlayback(procedureId, { replay: false });
+
+  const replayProcedure = (procedureId = activeProcedureId) => {
+    if (!procedureId) return Promise.resolve(false);
+    return startProcedurePlayback(procedureId, { replay: true });
   };
 
   const handleObjectClick = (object) => {
@@ -190,7 +300,11 @@ export default function usePlayerProcedurePlayback({
     }
 
     const currentStep = activeSteps[stepIndex];
-    const targetObject = getStepTarget(currentStep);
+    const targetObjects = getStepTargets(currentStep);
+    const targetObject = targetObjects[0] || null;
+    const targetOutlineObjects = targetObjects.flatMap(
+      (entry) => engine.collectMeshes?.(entry) || [],
+    );
     const animatedEntries = getStepAnimatedEntries(currentStep);
     const animatedObject = animatedEntries[0]?.object3D || null;
     const animatedOutlineObjects = animatedEntries.flatMap(
@@ -241,20 +355,29 @@ export default function usePlayerProcedurePlayback({
       };
     }
 
-    const matchesClickTarget = engine.matchesClickTarget?.(
+    const matchesClickTarget = engine.matchesAnyClickTarget?.(
       object,
-      targetObject,
+      targetObjects,
       modelScene,
+    ) ?? targetObjects.some((entry) =>
+      engine.matchesClickTarget?.(object, entry, modelScene),
     );
 
     if (!matchesClickTarget) {
+      const targetNames = (currentStep.clickTargets || [])
+        .map((entry) => entry?.name)
+        .filter(Boolean);
       setFeedback(
-        `Object belum tepat. Klik ${currentStep.targetObject?.name || currentStep.name}.`,
+        targetNames.length > 1
+          ? `Object belum tepat. Klik salah satu dari ${targetNames.join(", ")}.`
+          : `Object belum tepat. Klik ${
+              currentStep.targetObject?.name || currentStep.name
+            }.`,
       );
       highlightStep(currentStep);
       return {
         selectedObject: targetObject,
-        outlineObjects: engine.collectMeshes?.(targetObject) || [],
+        outlineObjects: targetOutlineObjects,
       };
     }
 
@@ -267,8 +390,25 @@ export default function usePlayerProcedurePlayback({
     engine
       .animateStepObjects({ scene: modelScene, step: currentStep })
       .then((completed) => {
-        if (!completed || runTokenRef.current !== runToken) return;
+        if (runTokenRef.current !== runToken) return;
+
+        if (!completed) {
+          setStatus("waiting");
+          setFeedback(
+            "Animasi step tidak memiliki transform Start/End yang valid. Periksa Save Start dan Save Target pada Animated Object.",
+          );
+          highlightStep(currentStep, { applyStepStart: true });
+          return;
+        }
+
         advanceProcedureStep(currentStep);
+      })
+      .catch((error) => {
+        if (runTokenRef.current !== runToken) return;
+        console.error("Failed to play Guided Procedure step:", error);
+        setStatus("waiting");
+        setFeedback("Animasi step gagal dijalankan. Periksa transform object.");
+        highlightStep(currentStep, { applyStepStart: true });
       });
 
     return {
@@ -281,17 +421,30 @@ export default function usePlayerProcedurePlayback({
     if (!["waiting", "dragging", "animating"].includes(status)) return null;
 
     const currentStep = activeSteps[stepIndex];
-    const reference =
-      status === "animating"
-        ? currentStep?.animatedObject || currentStep?.targetObject
-        : currentStep?.targetObject;
-    const displayObject = engine.findObject?.(modelScene, reference);
+
+    if (status === "animating") {
+      const reference =
+        currentStep?.animatedObject || currentStep?.targetObject;
+      const displayObject = engine.findObject?.(modelScene, reference);
+
+      if (!displayObject) return null;
+
+      return {
+        selectedObject: displayObject,
+        outlineObjects: engine.collectMeshes?.(displayObject) || [],
+      };
+    }
+
+    const targetObjects = getStepTargets(currentStep);
+    const displayObject = targetObjects[0] || null;
 
     if (!displayObject) return null;
 
     return {
       selectedObject: displayObject,
-      outlineObjects: engine.collectMeshes?.(displayObject) || [],
+      outlineObjects: targetObjects.flatMap(
+        (entry) => engine.collectMeshes?.(entry) || [],
+      ),
     };
   };
 
@@ -299,6 +452,7 @@ export default function usePlayerProcedurePlayback({
     engine,
     procedures,
     activeProcedure,
+    activePlaybackProcedure,
     activeProcedureId,
     activeSteps,
     activeStep,
@@ -308,7 +462,9 @@ export default function usePlayerProcedurePlayback({
     completedStepIds,
     feedback,
     activeAssemblyObject,
+    assemblyGhostRevision,
     playProcedure,
+    replayProcedure,
     stopProcedure,
     resetControllerState,
     handleObjectClick,

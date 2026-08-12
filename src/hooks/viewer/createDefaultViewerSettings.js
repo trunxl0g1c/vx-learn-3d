@@ -1,4 +1,6 @@
 import { DEFAULT_BLINK_SELECTION_SETTINGS } from "../../engine/selection";
+import { DEFAULT_VIEWER_GRID } from "../../engine/viewer";
+import { DEFAULT_XR_SETTINGS } from "../../engine/xr";
 import { DEFAULT_VIEWER_BACKGROUND } from "../../utils/viewerBackground";
 
 export function createDefaultViewerSettings() {
@@ -19,6 +21,11 @@ export function createDefaultViewerSettings() {
     cameraProjectionMode: "perspective",
     blinkSettings: { ...DEFAULT_BLINK_SELECTION_SETTINGS },
     background: { ...DEFAULT_VIEWER_BACKGROUND },
+    grid: { ...DEFAULT_VIEWER_GRID },
+    xr: {
+      vr: { ...DEFAULT_XR_SETTINGS.vr },
+      ar: { ...DEFAULT_XR_SETTINGS.ar },
+    },
   };
 }
 

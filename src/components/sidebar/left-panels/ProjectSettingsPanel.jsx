@@ -8,7 +8,10 @@ import {
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
 import ColorFieldInput from "./attributes/ColorFieldInput";
+import TurntableAnimationSettings from "./TurntableAnimationSettings";
 import StageBackgroundControls from "./StageBackgroundControls";
+import GridSettingsControls from "./GridSettingsControls";
+import ProToolsSettingsControls from "./ProToolsSettingsControls";
 import InlineAlert from "../../ui/inline-alert";
 import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
@@ -237,6 +240,7 @@ export default function ProjectSettingsPanel({
 
   const mediaList = Array.isArray(material.media) ? material.media : [];
   const playerSettings = normalizePlayerSettings(material.playerSettings);
+  const turntableAnimation = playerSettings.turntableAnimation;
 
   const updatePlayerSettings = (patch) => {
     setMaterial((prev) => {
@@ -247,6 +251,15 @@ export default function ProjectSettingsPanel({
         playerSettings: {
           ...currentSettings,
           ...patch,
+          turntableAnimation: patch.turntableAnimation
+            ? normalizePlayerSettings({
+                ...currentSettings,
+                turntableAnimation: {
+                  ...currentSettings.turntableAnimation,
+                  ...patch.turntableAnimation,
+                },
+              }).turntableAnimation
+            : currentSettings.turntableAnimation,
           menuVisibility: patch.menuVisibility
             ? {
                 ...currentSettings.menuVisibility,
@@ -536,6 +549,16 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
+        <ProToolsSettingsControls
+          settings={material.proToolsSettings}
+          onChange={(nextSettings) =>
+            setMaterial((prev) => ({
+              ...prev,
+              proToolsSettings: nextSettings,
+            }))
+          }
+        />
+
         <div className="rounded-xl border border-secondary-default bg-primary p-4">
           <div className="mb-4 text-sm font-normal text-white">
             Player Settings
@@ -555,18 +578,6 @@ export default function ProjectSettingsPanel({
               />
             </div>
 
-            <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-              <span className="text-sm font-normal text-contrast-grayout">
-                List Materi
-              </span>
-
-              <Switch
-                checked={playerSettings.showMaterialList}
-                onCheckedChange={(checked) =>
-                  updatePlayerSettings({ showMaterialList: checked })
-                }
-              />
-            </div>
 
             <div className="border-t border-white/10 pt-4">
               <Button
@@ -622,6 +633,13 @@ export default function ProjectSettingsPanel({
             </div>
           </div>
         </div>
+
+        <TurntableAnimationSettings
+          settings={turntableAnimation}
+          onChange={(nextSettings) =>
+            updatePlayerSettings({ turntableAnimation: nextSettings })
+          }
+        />
 
         <div className="rounded-xl border border-secondary-default bg-primary p-4">
           <div className="mb-2 text-sm font-normal text-white">
@@ -872,6 +890,11 @@ export default function ProjectSettingsPanel({
                 />
               </>
             )}
+
+            <GridSettingsControls
+              viewerSettings={viewerSettings}
+              setViewerSettings={setViewerSettings}
+            />
 
             <div>
               <div className="mb-2 text-sm font-normal text-white">Preview</div>

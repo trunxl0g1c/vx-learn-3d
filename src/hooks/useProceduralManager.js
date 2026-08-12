@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createProceduralManagerAdapter } from "../managers/ProceduralManager";
-import { resolveLogicalObject } from "../utils/objectTreeUtils";
+import {
+  getLogicalObjectParent,
+  resolveLogicalObject,
+  resolveObjectTreeRoot,
+} from "../utils/objectTreeUtils";
 import { createSelectionPayload } from "../engine/selection/SelectionSceneUtils";
 import {
   createCameraStateFromStoredView,
@@ -19,7 +23,10 @@ export function useProceduralManager({
   controlsRef = null,
   setCameraProjectionMode = null,
   proceduralEngine = null,
+  modelEngine = null,
   setOutlineObjects = null,
+  setSelectedObject = null,
+  setSelectedObjectName = null,
   hydrateProcedureRecord = null,
 }) {
   const manager = useMemo(
@@ -96,6 +103,15 @@ export function useProceduralManager({
     () =>
       activeProcedure?.steps?.find((step) => step.id === activeStepId) || null,
     [activeProcedure, activeStepId],
+  );
+
+  const activeClickTargets = useMemo(
+    () =>
+      manager.normalizeClickTargets(
+        activeStep,
+        manager.isAssemblyProcedure(activeProcedure),
+      ),
+    [activeProcedure, activeStep, manager],
   );
 
   const activeAnimatedEntries = useMemo(
@@ -199,6 +215,95 @@ export function useProceduralManager({
     setIsAuthoringActive(true);
     return next;
   }, [commitProcedures, manager, procedures.length]);
+
+  const resolveImplicitProcedureStartTransform = useCallback(
+    (reference) => {
+      if (!modelScene || !reference) return null;
+
+      const object = manager.findObject(modelScene, reference);
+      const logicalObject = resolveLogicalObject(object);
+      if (!logicalObject) return null;
+
+      const originals = modelEngine?.getOriginalGroupPositions?.() || [];
+      const original = originals.find((entry) => entry?.object === logicalObject);
+
+      if (original?.position && original?.rotation) {
+        return {
+          position: original.position.toArray(),
+          rotation: [
+            original.rotation.x,
+            original.rotation.y,
+            original.rotation.z,
+          ],
+          scale:
+            original?.scale?.toArray?.() ||
+            logicalObject.scale?.toArray?.() ||
+            [1, 1, 1],
+        };
+      }
+
+      // Fallback for custom model engines that do not expose the original
+      // transform snapshot. This is still better than producing a reverse step
+      // with no End transform at all.
+      return manager.createStoredTransform(logicalObject);
+    },
+    [manager, modelEngine, modelScene],
+  );
+
+  const duplicateProcedure = useCallback(
+    (procedureId = activeProcedureId, { reverse = false } = {}) => {
+      const source =
+        procedures.find((procedure) => procedure.id === procedureId) || null;
+
+      if (!source || isLazyMaterialRecord(source, "procedures")) return null;
+
+      const duplicate = manager.duplicateDefinition(source, {
+        existingNames: procedures.map((procedure) => procedure.name),
+        reverse,
+        resolveImplicitStartTransform: reverse
+          ? resolveImplicitProcedureStartTransform
+          : null,
+      });
+
+      commitProcedures((current) => {
+        const index = current.findIndex((procedure) => procedure.id === source.id);
+        if (index < 0) return [...current, duplicate];
+
+        const next = [...current];
+        next.splice(index + 1, 0, duplicate);
+        return next;
+      });
+
+      setActiveProcedureId(duplicate.id);
+      setActiveStepId(duplicate.steps?.[0]?.id || null);
+      setActiveAnimatedEntryId(null);
+      setIsPreviewing(false);
+      setIsAuthoringActive(true);
+
+      if (reverse && modelScene && duplicate.steps?.[0]) {
+        const applyReverseStart = () => {
+          manager.resetStep(modelScene, duplicate.steps[0]);
+          modelScene.updateMatrixWorld?.(true);
+        };
+
+        if (typeof globalThis.requestAnimationFrame === "function") {
+          globalThis.requestAnimationFrame(applyReverseStart);
+        } else {
+          setTimeout(applyReverseStart, 0);
+        }
+      }
+
+      return duplicate;
+    },
+    [
+      activeProcedureId,
+      commitProcedures,
+      manager,
+      modelScene,
+      procedures,
+      resolveImplicitProcedureStartTransform,
+    ],
+  );
 
   const updateProcedure = useCallback(
     (procedureId, patch) => {
@@ -329,14 +434,27 @@ export function useProceduralManager({
       animatedObject: primary?.object || null,
       startTransform: primary?.startTransform || null,
       endTransform: primary?.endTransform || null,
+      startVisible: primary?.startVisible !== false,
+      hideAfterAnimation: primary?.hideAfterAnimation === true,
     };
   };
 
-  const createAnimatedEntry = (objectReference, transform) => ({
+  const syncLegacyClickTargetFields = (entries) => ({
+    clickTargets: entries,
+    targetObject: entries[0] || null,
+  });
+
+  const createAnimatedEntry = (
+    objectReference,
+    transform,
+    startVisible = true,
+  ) => ({
     id: `animated-${objectReference.uuid || objectReference.name || Date.now()}-${Date.now()}`,
     object: objectReference,
     startTransform: transform,
     endTransform: transform,
+    startVisible: startVisible !== false,
+    hideAfterAnimation: false,
   });
 
   const referencesMatch = (left, right) => {
@@ -357,9 +475,13 @@ export function useProceduralManager({
     if (!objectReference || !storedTransform) return false;
 
     if (manager.isAssemblyProcedure(activeProcedure)) {
-      const entry = createAnimatedEntry(objectReference, storedTransform);
+      const entry = createAnimatedEntry(
+        objectReference,
+        storedTransform,
+        logicalObject.visible !== false,
+      );
       updateStep(activeStepId, {
-        targetObject: objectReference,
+        ...syncLegacyClickTargetFields([objectReference]),
         ...syncLegacyAnimatedFields([entry]),
       });
       setActiveAnimatedEntryId(entry.id);
@@ -376,7 +498,11 @@ export function useProceduralManager({
         return true;
       }
 
-      const entry = createAnimatedEntry(objectReference, storedTransform);
+      const entry = createAnimatedEntry(
+        objectReference,
+        storedTransform,
+        logicalObject.visible !== false,
+      );
       updateStep(activeStepId, syncLegacyAnimatedFields([
         ...activeAnimatedEntries,
         entry,
@@ -385,20 +511,24 @@ export function useProceduralManager({
       return true;
     }
 
-    if (activeAnimatedEntries.length > 0) {
-      updateStep(activeStepId, { targetObject: objectReference });
+    const existingTarget = activeClickTargets.find((reference) =>
+      referencesMatch(reference, objectReference),
+    );
+
+    if (existingTarget) {
       return true;
     }
 
-    const entry = createAnimatedEntry(objectReference, storedTransform);
-    updateStep(activeStepId, {
-      targetObject: objectReference,
-      ...syncLegacyAnimatedFields([entry]),
-    });
-    setActiveAnimatedEntryId(entry.id);
+    const nextClickTargets = [...activeClickTargets, objectReference];
+
+    updateStep(
+      activeStepId,
+      syncLegacyClickTargetFields(nextClickTargets),
+    );
     return true;
   }, [
     activeAnimatedEntries,
+    activeClickTargets,
     activeProcedure,
     activeStepId,
     manager,
@@ -406,18 +536,66 @@ export function useProceduralManager({
     updateStep,
   ]);
 
+  const removeClickTarget = useCallback(
+    (targetReference) => {
+      if (
+        !activeStepId ||
+        manager.isAssemblyProcedure(activeProcedure) ||
+        !targetReference
+      ) {
+        return false;
+      }
+
+      updateStep(activeStepId, (currentStep) => {
+        const nextTargets = manager
+          .normalizeClickTargets(currentStep, false)
+          .filter((reference) => !referencesMatch(reference, targetReference));
+
+        return syncLegacyClickTargetFields(nextTargets);
+      });
+      return true;
+    },
+    [activeProcedure, activeStepId, manager, updateStep],
+  );
+
+  const selectAuthoringObject = (object) => {
+    const logicalObject = resolveLogicalObject(object);
+
+    if (!logicalObject) {
+      setSelectedObject?.(null);
+      setSelectedObjectName?.("");
+      setOutlineObjects?.([]);
+      return null;
+    }
+
+    setSelectedObject?.(logicalObject);
+    setSelectedObjectName?.(
+      String(logicalObject.name || logicalObject.type || "Unnamed Object")
+        .replaceAll("_", " "),
+    );
+    const payload = createSelectionPayload(logicalObject);
+    setOutlineObjects?.(payload.outlineObjects || []);
+    return logicalObject;
+  };
+
+  const selectClickTarget = (targetReference) => {
+    const object =
+      modelScene && targetReference
+        ? manager.findObject(modelScene, targetReference)
+        : null;
+
+    return selectAuthoringObject(object);
+  };
+
   const selectAnimatedEntry = useCallback(
     (entryId) => {
       const entry = activeAnimatedEntries.find((item) => item.id === entryId);
       setActiveAnimatedEntryId(entry?.id || null);
       const object = entry ? manager.findObject(modelScene, entry.object) : null;
-      if (object) {
-        const payload = createSelectionPayload(resolveLogicalObject(object));
-        setOutlineObjects?.(payload.outlineObjects || []);
-      }
-      return object;
+
+      return selectAuthoringObject(object);
     },
-    [activeAnimatedEntries, manager, modelScene, setOutlineObjects],
+    [activeAnimatedEntries, manager, modelScene],
   );
 
   const removeAnimatedEntry = useCallback(
@@ -442,6 +620,33 @@ export function useProceduralManager({
     ],
   );
 
+  const updateAnimatedEntry = useCallback(
+    (entryId, patch) => {
+      if (!activeStepId || !entryId) return false;
+
+      updateStep(activeStepId, (currentStep) => {
+        const entries = manager.normalizeAnimatedObjects(
+          currentStep,
+          manager.isAssemblyProcedure(activeProcedure),
+        );
+        const nextEntries = entries.map((entry) => {
+          if (entry.id !== entryId) return entry;
+          const resolved =
+            typeof patch === "function" ? patch(entry) : patch;
+
+          return {
+            ...entry,
+            ...(resolved || {}),
+          };
+        });
+
+        return syncLegacyAnimatedFields(nextEntries);
+      });
+      return true;
+    },
+    [activeProcedure, activeStepId, manager, updateStep],
+  );
+
   // Plain wrappers intentionally do not add more React hooks, keeping the hook
   // order stable for ViewerPage during development hot reloads.
   const highlightAuthoringObject = (object) => {
@@ -454,6 +659,14 @@ export function useProceduralManager({
     const payload = createSelectionPayload(logicalObject);
     setOutlineObjects?.(payload.outlineObjects || []);
     return logicalObject;
+  };
+
+  const getParentOfSelectedObject = () => {
+    const logicalObject = resolveLogicalObject(selectedObject);
+    const rootObject = resolveObjectTreeRoot(modelScene);
+    const parentObject = getLogicalObjectParent(logicalObject, rootObject);
+
+    return parentObject ? selectAuthoringObject(parentObject) : null;
   };
 
   const assignSelectedObject = (role = "target") =>
@@ -572,11 +785,21 @@ export function useProceduralManager({
     [applyActiveStepTransform],
   );
 
+  const getActivePlaybackStep = useCallback(() => {
+    if (!activeStep) return null;
+
+    return manager.createPlaybackStep(
+      activeStep,
+      activeProcedure?.type || "guided",
+    );
+  }, [activeProcedure?.type, activeStep, manager]);
+
   const resetActiveStep = useCallback(() => {
     if (!activeStep || !modelScene) return false;
     setIsPreviewing(false);
-    return manager.resetStep(modelScene, activeStep);
-  }, [activeStep, manager, modelScene]);
+    const playbackStep = getActivePlaybackStep();
+    return manager.resetStep(modelScene, playbackStep || activeStep);
+  }, [activeStep, getActivePlaybackStep, manager, modelScene]);
 
   const previewActiveStep = useCallback(async () => {
     if (!activeStep || !modelScene || activeAnimatedEntries.length === 0) {
@@ -588,15 +811,24 @@ export function useProceduralManager({
     );
     if (!ready) return false;
 
+    const playbackStep = getActivePlaybackStep();
+    if (!playbackStep) return false;
+
     setIsPreviewing(true);
-    manager.resetStep(modelScene, activeStep);
+    manager.resetStep(modelScene, playbackStep);
     const completed = await manager.animateStepObjects({
       scene: modelScene,
-      step: activeStep,
+      step: playbackStep,
     });
     setIsPreviewing(false);
     return completed;
-  }, [activeAnimatedEntries, activeStep, manager, modelScene]);
+  }, [
+    activeAnimatedEntries,
+    activeStep,
+    getActivePlaybackStep,
+    manager,
+    modelScene,
+  ]);
 
   const beginAuthoring = useCallback(() => {
     setIsAuthoringActive(true);
@@ -620,6 +852,7 @@ export function useProceduralManager({
     isLoadingActiveProcedure,
     activeStep,
     activeStepId,
+    activeClickTargets,
     activeAnimatedObject,
     activeAnimatedEntry,
     activeAnimatedEntries,
@@ -629,6 +862,7 @@ export function useProceduralManager({
     transformMode,
     setTransformMode,
     createProcedure,
+    duplicateProcedure,
     updateProcedure,
     deleteProcedure,
     selectProcedure,
@@ -641,12 +875,18 @@ export function useProceduralManager({
     useSelectedTriggerObject,
     useSelectedAnimatedObject,
     assignObject,
+    selectClickTarget,
+    removeClickTarget,
     selectAnimatedEntry,
     removeAnimatedEntry,
+    updateAnimatedEntry,
+    selectAuthoringObject,
+    getParentOfSelectedObject,
     highlightAuthoringObject,
     selectedLogicalObject: resolveLogicalObject(selectedObject),
     modelScene,
     resolveObjectReference,
+    normalizeClickTargets: manager.normalizeClickTargets,
     normalizeAnimatedObjects: manager.normalizeAnimatedObjects,
     captureStartTransform,
     captureEndTransform,

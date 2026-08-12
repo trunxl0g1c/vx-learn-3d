@@ -1,8 +1,10 @@
 import { createId } from "../../../utils/createId";
 import { normalizePlayerSettings } from "../../material/playerSettings";
+import { normalizeProToolsSettings } from "../../../engine/project/ProToolsSettings";
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
 import {
   ALL_STORE_NAMES,
+  ANIMATION_STORE,
   ARRAY_MATERIAL_STORES,
   CHAPTER_STORE,
   DRAFT_STORE,
@@ -11,6 +13,8 @@ import {
   NORMALIZED_STORE_NAMES,
   PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
+  QUIZ_STORE,
+  SLIDE_STORE,
   PROJECT_ID_INDEX,
   PROJECT_STORE,
 } from "./indexed-db/constants";
@@ -41,6 +45,7 @@ import {
   stripProjectForStorage,
 } from "./indexed-db/materialSerialization";
 
+import { DEFAULT_VIEWER_GRID } from "../../../engine/viewer";
 export { getCachedProjectSummaries } from "./indexed-db/catalogCache";
 
 function saveProjectRecord(db, project, file) {
@@ -106,9 +111,13 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
       modelUrl: "",
       chapters: [],
       flows: [],
+      authoredAnimations: [],
       objectNameOverrides: [],
       playerSettings: normalizePlayerSettings(),
+      proToolsSettings: normalizeProToolsSettings(),
       procedures: [],
+      quizzes: [],
+      slides: [],
     },
 
     viewer: {
@@ -124,6 +133,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
       metalness: 0.1,
       roughness: 0.1,
       cameraProjectionMode: "perspective",
+      grid: { ...DEFAULT_VIEWER_GRID },
     },
 
     scene: {
@@ -276,12 +286,28 @@ export function getFlowFromIndexedDb(projectId, flowId) {
   return getMaterialRecordFromIndexedDb(projectId, FLOW_STORE, flowId);
 }
 
+export function getAuthoredAnimationFromIndexedDb(projectId, animationId) {
+  return getMaterialRecordFromIndexedDb(
+    projectId,
+    ANIMATION_STORE,
+    animationId,
+  );
+}
+
 export function getProcedureFromIndexedDb(projectId, procedureId) {
   return getMaterialRecordFromIndexedDb(
     projectId,
     PROCEDURE_STORE,
     procedureId,
   );
+}
+
+export function getQuizFromIndexedDb(projectId, quizId) {
+  return getMaterialRecordFromIndexedDb(projectId, QUIZ_STORE, quizId);
+}
+
+export function getSlideFromIndexedDb(projectId, slideId) {
+  return getMaterialRecordFromIndexedDb(projectId, SLIDE_STORE, slideId);
 }
 
 export async function hydrateMaterialFromIndexedDb(projectId, material) {
@@ -299,17 +325,23 @@ export async function hydrateMaterialFromIndexedDb(projectId, material) {
     );
   };
 
-  const [chapters, flows, procedures] = await Promise.all([
+  const [chapters, flows, authoredAnimations, procedures, quizzes, slides] = await Promise.all([
     hydrateRecords("chapters", getChapterFromIndexedDb),
     hydrateRecords("flows", getFlowFromIndexedDb),
+    hydrateRecords("authoredAnimations", getAuthoredAnimationFromIndexedDb),
     hydrateRecords("procedures", getProcedureFromIndexedDb),
+    hydrateRecords("quizzes", getQuizFromIndexedDb),
+    hydrateRecords("slides", getSlideFromIndexedDb),
   ]);
 
   return {
     ...material,
     chapters,
     flows,
+    authoredAnimations,
     procedures,
+    quizzes,
+    slides,
   };
 }
 

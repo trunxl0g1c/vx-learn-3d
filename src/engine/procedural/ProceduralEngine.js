@@ -1,6 +1,10 @@
 import { createId } from "../../utils/createId";
 import * as THREE from "three";
 import {
+  getLazyMaterialRecordMeta,
+  markLazyMaterialRecord,
+} from "../project/LazyMaterialRecords";
+import {
   createObjectIndexPath,
   resolveObjectByStoredIndexPath,
 } from "../model";
@@ -8,10 +12,21 @@ import {
   getLogicalObjectParent,
   resolveLogicalObject,
 } from "../../utils/objectTreeUtils";
+import {
+  createProceduralPlaybackDefinitionWithHelpers,
+  createProceduralPlaybackStepWithHelpers,
+  duplicateProceduralDefinitionWithHelpers,
+  materializeReversedProceduralDefinitionWithHelpers,
+} from "./ProceduralDefinitionTransforms";
 
 const DEFAULT_DURATION = 1200;
 const MIN_DURATION = 100;
 const MAX_DURATION = 30000;
+
+export const PROCEDURAL_ANIMATION_MODES = {
+  TOGETHER: "together",
+  SEQUENTIAL: "sequential",
+};
 
 export const PROCEDURE_TYPES = {
   GUIDED: "guided",
@@ -164,6 +179,45 @@ function createAnimatedEntryId(reference, index = 0) {
   return `animated-${identity}-${index}`;
 }
 
+function getProceduralReferenceIdentity(reference) {
+  if (!reference || typeof reference !== "object") return "";
+
+  if (reference.uuid) return `uuid:${reference.uuid}`;
+  if (Array.isArray(reference.path)) return `path:${reference.path.join(".")}`;
+  if (reference.name) return `name:${String(reference.name).trim()}`;
+
+  return "";
+}
+
+export function normalizeProceduralClickTargets(step, assemblyStep = false) {
+  const source = Array.isArray(step?.clickTargets) ? step.clickTargets : [];
+  const legacyReference = assemblyStep
+    ? step?.targetObject || step?.animatedObject || step?.actionObject || null
+    : step?.targetObject || null;
+  const candidates =
+    source.length > 0
+      ? source
+      : legacyReference
+        ? [legacyReference]
+        : [];
+  const identities = new Set();
+
+  const normalized = candidates
+    .map((entry) => entry?.object || entry?.reference || entry)
+    .filter((reference) => reference && typeof reference === "object")
+    .filter((reference) => {
+      const identity = getProceduralReferenceIdentity(reference);
+
+      if (!identity) return true;
+      if (identities.has(identity)) return false;
+
+      identities.add(identity);
+      return true;
+    });
+
+  return assemblyStep ? normalized.slice(0, 1) : normalized;
+}
+
 export function normalizeProceduralAnimatedObjects(step, assemblyStep = false) {
   const source = Array.isArray(step?.animatedObjects)
     ? step.animatedObjects
@@ -200,6 +254,15 @@ export function normalizeProceduralAnimatedObjects(step, assemblyStep = false) {
         object: reference,
         startTransform,
         endTransform,
+        startVisible:
+          entry?.startVisible !== undefined
+            ? entry.startVisible !== false
+            : index === 0
+              ? step?.startVisible !== false
+              : true,
+        hideAfterAnimation:
+          entry?.hideAfterAnimation === true ||
+          (index === 0 && step?.hideAfterAnimation === true),
       };
     })
     .filter(Boolean);
@@ -217,11 +280,33 @@ export function getProceduralAnimatedObjects(
   );
 }
 
+function clearPendingModelTransformTargets(object) {
+  const logicalObject = resolveLogicalObject(object);
+  if (!logicalObject) return;
+
+  logicalObject.traverse?.((child) => {
+    if (!child?.userData) return;
+
+    delete child.userData.targetPosition;
+    delete child.userData.targetPositionAnimation;
+    delete child.userData.moveTargetPosition;
+    delete child.userData.moveTargetRotation;
+    delete child.userData.moveTargetTransformAnimation;
+  });
+}
+
 export function applyStoredObjectTransform(object, transform) {
   const logicalObject = resolveLogicalObject(object);
   const normalized = normalizeStoredObjectTransform(transform);
 
   if (!logicalObject || !normalized) return false;
+
+  // Model reset / Pull Apart uses per-frame targetPosition animations. If one
+  // remains armed while a Procedure Start transform is applied, Model.jsx can
+  // move the object straight back to its original GLB position on the next
+  // frame. Procedure transforms are authoritative, so cancel those pending
+  // model-level targets first.
+  clearPendingModelTransformTargets(logicalObject);
 
   logicalObject.position.fromArray(normalized.position);
   logicalObject.rotation.set(...normalized.rotation);
@@ -271,6 +356,18 @@ export function matchesProceduralClickTarget(
   return false;
 }
 
+export function matchesAnyProceduralClickTarget(
+  clickedObject,
+  targetObjects,
+  root = null,
+) {
+  return (Array.isArray(targetObjects) ? targetObjects : [targetObjects])
+    .filter(Boolean)
+    .some((targetObject) =>
+      matchesProceduralClickTarget(clickedObject, targetObject, root),
+    );
+}
+
 export function isAssemblyProcedure(procedureOrType) {
   const type =
     typeof procedureOrType === "string"
@@ -293,8 +390,10 @@ export function createProceduralStep(
       ? "Geser komponen yang ditandai ke posisi pemasangan yang benar."
       : "Klik object yang ditandai untuk menjalankan langkah ini.",
     enabled: true,
-    // Object the player must click to trigger this step.
+    // Objects the player may click to trigger this step. targetObject mirrors
+    // the first entry for backward compatibility with older project packages.
     targetObject: null,
+    clickTargets: [],
     // Object that receives the stored transform animation. It may be the
     // same logical object as targetObject or a different logical object.
     animatedObject: null,
@@ -312,6 +411,7 @@ export function createProceduralStep(
       easing: "easeOut",
       spinAxis: "z",
       spinTurns: 0,
+      animatedObjectMode: PROCEDURAL_ANIMATION_MODES.TOGETHER,
     },
   };
 }
@@ -331,6 +431,7 @@ export function createProceduralDefinition(
     settings: {
       resetOnStart: true,
       showProgress: true,
+      reverseSteps: false,
       completionAnimation: { ...DEFAULT_PROCEDURE_COMPLETION_ANIMATION },
     },
     steps: [],
@@ -354,9 +455,12 @@ export function normalizeProceduralStep(
   const animatedObjects = normalizeProceduralAnimatedObjects(step, assemblyStep);
   const primaryAnimatedEntry = animatedObjects[0] || null;
   const animatedObject = primaryAnimatedEntry?.object || null;
-  const targetObject = assemblyStep
+  const clickTargets = assemblyStep
     ? animatedObject
-    : step?.targetObject || null;
+      ? [animatedObject]
+      : []
+    : normalizeProceduralClickTargets(step, false);
+  const targetObject = clickTargets[0] || null;
 
   return {
     ...fallbackStep,
@@ -369,6 +473,7 @@ export function normalizeProceduralStep(
     ),
     enabled: step?.enabled !== false,
     targetObject,
+    clickTargets,
     // Backward compatibility keeps the first animated entry mirrored on the
     // legacy single-object fields used by older project packages.
     animatedObject,
@@ -413,6 +518,11 @@ export function normalizeProceduralStep(
       ...fallbackStep.action,
       ...(step?.action || {}),
       duration: clampDuration(step?.action?.duration),
+      animatedObjectMode:
+        step?.action?.animatedObjectMode ===
+        PROCEDURAL_ANIMATION_MODES.SEQUENTIAL
+          ? PROCEDURAL_ANIMATION_MODES.SEQUENTIAL
+          : PROCEDURAL_ANIMATION_MODES.TOGETHER,
       spinAxis: ["x", "y", "z"].includes(step?.action?.spinAxis)
         ? step.action.spinAxis
         : "z",
@@ -426,13 +536,14 @@ export function normalizeProceduralStep(
 export function normalizeProceduralDefinition(procedure, index = 0) {
   const requestedType = normalizeProcedureType(procedure?.type);
   const fallback = createProceduralDefinition(index + 1, requestedType);
+  const lazyMetadata = getLazyMaterialRecordMeta(procedure);
   const storedName = String(procedure?.name || `Procedure ${index + 1}`);
   const normalizedName =
     requestedType === PROCEDURE_TYPES.ASSEMBLY
       ? storedName.replace(/^Disassembly\b/i, "Assembly")
       : storedName;
 
-  return {
+  const normalized = {
     ...fallback,
     ...(procedure || {}),
     id: procedure?.id || fallback.id,
@@ -443,6 +554,7 @@ export function normalizeProceduralDefinition(procedure, index = 0) {
     settings: {
       ...fallback.settings,
       ...(procedure?.settings || {}),
+      reverseSteps: procedure?.settings?.reverseSteps === true,
       completionAnimation: normalizeProcedureCompletionAnimation(
         procedure?.settings?.completionAnimation,
       ),
@@ -452,6 +564,57 @@ export function normalizeProceduralDefinition(procedure, index = 0) {
         normalizeProceduralStep(step, stepIndex, requestedType),
     ),
   };
+  const materialized =
+    normalized.settings.reverseSteps && !lazyMetadata
+      ? materializeReversedProceduralDefinitionWithHelpers(normalized, {
+          normalizeAnimatedObjects: normalizeProceduralAnimatedObjects,
+          isAssemblyProcedure,
+          normalizeStep: normalizeProceduralStep,
+        })
+      : normalized;
+
+  return lazyMetadata
+    ? markLazyMaterialRecord(materialized, lazyMetadata)
+    : materialized;
+}
+
+
+function getProceduralDefinitionTransformHelpers() {
+  return {
+    normalizeDefinition: normalizeProceduralDefinition,
+    normalizeStep: normalizeProceduralStep,
+    normalizeAnimatedObjects: normalizeProceduralAnimatedObjects,
+    isAssemblyProcedure,
+    normalizeProcedureType,
+  };
+}
+
+export function duplicateProceduralDefinition(procedure, options = {}) {
+  return duplicateProceduralDefinitionWithHelpers(
+    procedure,
+    options,
+    getProceduralDefinitionTransformHelpers(),
+  );
+}
+
+export function createProceduralPlaybackStep(
+  step,
+  procedureType = PROCEDURE_TYPES.GUIDED,
+  options = {},
+) {
+  return createProceduralPlaybackStepWithHelpers(
+    step,
+    procedureType,
+    options,
+    getProceduralDefinitionTransformHelpers(),
+  );
+}
+
+export function createProceduralPlaybackDefinition(procedure) {
+  return createProceduralPlaybackDefinitionWithHelpers(
+    procedure,
+    getProceduralDefinitionTransformHelpers(),
+  );
 }
 
 export function normalizeProceduralDefinitions(procedures) {
@@ -643,6 +806,14 @@ export function createProceduralEngine() {
     });
   };
 
+  const findClickTargets = (scene, step) =>
+    normalizeProceduralClickTargets(
+      step,
+      isAssemblyProcedure(step?.procedureType),
+    )
+      .map((reference) => findProceduralObject(scene, reference))
+      .filter(Boolean);
+
   const findAnimatedObjects = (scene, step) =>
     normalizeProceduralAnimatedObjects(step, isAssemblyProcedure(step?.procedureType))
       .map((entry) => ({
@@ -655,23 +826,53 @@ export function createProceduralEngine() {
     const entries = findAnimatedObjects(scene, step);
     if (entries.length === 0) return Promise.resolve(false);
 
-    return Promise.all(
-      entries.map((entry) =>
-        animateStep({
-          object: entry.object3D,
-          step: {
-            ...step,
-            startTransform: entry.startTransform,
-            endTransform: entry.endTransform,
-          },
-          onUpdate,
-        }),
-      ),
-    ).then((results) => results.length > 0 && results.every(Boolean));
+    const animateEntry = async (entry) => {
+      entry.object3D.visible = entry.startVisible !== false;
+      entry.object3D.updateMatrixWorld?.(true);
+
+      const completed = await animateStep({
+        object: entry.object3D,
+        step: {
+          ...step,
+          startTransform: entry.startTransform,
+          endTransform: entry.endTransform,
+        },
+        onUpdate,
+      });
+
+      if (completed && entry.hideAfterAnimation === true) {
+        entry.object3D.visible = false;
+        entry.object3D.updateMatrixWorld?.(true);
+      }
+
+      return completed;
+    };
+
+    if (
+      step?.action?.animatedObjectMode ===
+      PROCEDURAL_ANIMATION_MODES.SEQUENTIAL
+    ) {
+      return entries
+        .reduce(
+          (promise, entry) =>
+            promise.then(async (completed) =>
+              completed ? animateEntry(entry) : false,
+            ),
+          Promise.resolve(true),
+        )
+        .then(Boolean);
+    }
+
+    return Promise.all(entries.map(animateEntry)).then(
+      (results) => results.length > 0 && results.every(Boolean),
+    );
   };
 
   return {
     createDefinition: createProceduralDefinition,
+    duplicateDefinition: duplicateProceduralDefinition,
+    createPlaybackDefinition: createProceduralPlaybackDefinition,
+    createPlaybackStep: createProceduralPlaybackStep,
     createStep: createProceduralStep,
     isAssemblyProcedure,
     getReferenceLength: getProcedureReferenceLength,
@@ -680,11 +881,14 @@ export function createProceduralEngine() {
     createObjectReference: createProceduralObjectReference,
     createStoredTransform: createStoredObjectTransform,
     normalizeAnimatedObjects: normalizeProceduralAnimatedObjects,
+    normalizeClickTargets: normalizeProceduralClickTargets,
+    findClickTargets,
     findAnimatedObjects,
     applyStoredTransform: applyStoredObjectTransform,
     findObject: findProceduralObject,
     collectMeshes: collectProceduralMeshes,
     matchesClickTarget: matchesProceduralClickTarget,
+    matchesAnyClickTarget: matchesAnyProceduralClickTarget,
     animateStep,
     animateStepObjects,
     cancelObjectAnimation,
@@ -692,6 +896,8 @@ export function createProceduralEngine() {
       let changed = false;
       findAnimatedObjects(scene, step).forEach((entry) => {
         cancelObjectAnimation(entry.object3D);
+        entry.object3D.visible = entry.startVisible !== false;
+        entry.object3D.updateMatrixWorld?.(true);
         changed =
           applyStoredObjectTransform(entry.object3D, entry.startTransform) ||
           changed;
@@ -707,6 +913,8 @@ export function createProceduralEngine() {
           if (resetObjectIds.has(entry.object3D.uuid)) return;
           resetObjectIds.add(entry.object3D.uuid);
           cancelObjectAnimation(entry.object3D);
+          entry.object3D.visible = entry.startVisible !== false;
+          entry.object3D.updateMatrixWorld?.(true);
           changed =
             applyStoredObjectTransform(entry.object3D, entry.startTransform) ||
             changed;

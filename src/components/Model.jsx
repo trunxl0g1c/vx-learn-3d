@@ -79,6 +79,8 @@ function Model({
   markerMode,
   flowPointMode = false,
   onAddFlowPoint,
+  animationPivotPickMode = false,
+  onAnimationPivotPick,
   onSelectObject,
   onDoubleClickObject,
 
@@ -461,6 +463,14 @@ function Model({
   const handleClick = (e) => {
     e.stopPropagation();
 
+    if (animationPivotPickMode) {
+      const hit = getVisibleHit(e);
+      if (!hit?.object || !hit?.point) return;
+
+      onAnimationPivotPick?.(hit);
+      return;
+    }
+
     if (flowPointMode) {
       const hit = getVisibleHit(e);
       const worldPoint = (hit?.point || e.point).clone();
@@ -526,6 +536,8 @@ function Model({
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
+
+    if (animationPivotPickMode) return;
 
     const hit = getVisibleHit(e);
     const object = hit?.object || null;

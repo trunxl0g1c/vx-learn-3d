@@ -6,10 +6,17 @@ const DEFAULT_PLAYER_MENU_VISIBILITY = Object.freeze({
   cut: true,
 });
 
+export const DEFAULT_TURNTABLE_ANIMATION_SETTINGS = Object.freeze({
+  enabled: false,
+  speed: 3,
+  direction: "clockwise",
+});
+
 export const DEFAULT_PLAYER_SETTINGS = Object.freeze({
-  autoShowMaterial: false,
+  autoShowMaterial: true,
   showMaterialList: true,
   defaultCameraView: null,
+  turntableAnimation: DEFAULT_TURNTABLE_ANIMATION_SETTINGS,
   menuVisibility: DEFAULT_PLAYER_MENU_VISIBILITY,
 });
 
@@ -19,6 +26,36 @@ function normalizeNumericArray(value, expectedLength) {
   const normalized = value.map((item) => Number(item));
 
   return normalized.every(Number.isFinite) ? normalized : null;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) return fallback;
+
+  return Math.min(max, Math.max(min, numericValue));
+}
+
+export function normalizeTurntableAnimationSettings(settings = {}) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const rawDirection = String(
+    source.direction ?? source.rotationDirection ?? "clockwise",
+  ).toLowerCase();
+
+  return {
+    enabled: Boolean(source.enabled ?? source.active ?? source.isEnabled ?? false),
+    speed: clampNumber(
+      source.speed ?? source.rpm ?? source.rotationSpeed,
+      0.5,
+      12,
+      DEFAULT_TURNTABLE_ANIMATION_SETTINGS.speed,
+    ),
+    direction: ["counterclockwise", "counter-clockwise", "ccw", "left"].includes(
+      rawDirection,
+    )
+      ? "counterclockwise"
+      : "clockwise",
+  };
 }
 
 export function normalizePlayerCameraView(cameraView = null) {
@@ -107,16 +144,16 @@ export function normalizePlayerSettings(settings = {}) {
 
   return {
     autoShowMaterial: Boolean(
-      source.autoShowMaterial ?? source.autoShowMateri ?? false,
+      source.autoShowMaterial ?? source.autoShowMateri ?? true,
     ),
-    showMaterialList: Boolean(
-      source.showMaterialList ??
-        source.listMaterial ??
-        source.listMateri ??
-        true,
-    ),
+    // Legacy field is retained in normalized output for package/data compatibility,
+    // but Slide/Materi list is now always enabled in Player.
+    showMaterialList: true,
     defaultCameraView: normalizePlayerCameraView(
       source.defaultCameraView || source.defaultView || source.cameraView,
+    ),
+    turntableAnimation: normalizeTurntableAnimationSettings(
+      source.turntableAnimation || source.turntable,
     ),
     menuVisibility: normalizeMenuVisibility(source),
   };

@@ -104,7 +104,7 @@ export function useViewerDataImport({
         setImportDataStatus("Saving imported content...");
         updateLoading?.({
           title: "Importing VIQUBED Data",
-          text: "Saving imported chapters, flows, and procedures...",
+          text: "Saving imported chapters, slides, flows, animations, procedures, and quizzes...",
           progress: null,
         });
 

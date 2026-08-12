@@ -3,6 +3,8 @@ import { Section } from "./PanelPrimitives";
 
 const DEFAULT_COMPLETION_ANIMATION = {
   name: "",
+  source: "embedded",
+  animationId: "",
   autoPlay: true,
   loop: false,
   speed: 1,
@@ -17,6 +19,13 @@ function updateCompletionAnimation(procedural, procedure, current, patch) {
       },
     },
   });
+}
+
+function getCompletionAnimationValue(animation) {
+  if (animation?.source === "authored" && animation?.animationId) {
+    return `authored::${animation.animationId}`;
+  }
+  return animation?.name ? `embedded::${animation.name}` : "";
 }
 
 export default function ProcedureInfoSection({
@@ -91,7 +100,7 @@ export default function ProcedureInfoSection({
                 Animation After Completion
               </p>
               <p className="mt-0.5 text-[10px] text-contrast-grayout">
-                Start a GLB animation after the last procedure step.
+                Start an embedded or authored animation after the last procedure step.
               </p>
             </div>
           </div>
@@ -101,21 +110,30 @@ export default function ProcedureInfoSection({
               Project Animation
             </span>
             <select
-              value={completionAnimation.name || ""}
-              onChange={(event) =>
+              value={getCompletionAnimationValue(completionAnimation)}
+              onChange={(event) => {
+                const selected = animationOptions.find(
+                  (animation) => animation.value === event.target.value,
+                );
                 updateCompletionAnimation(
                   procedural,
                   procedure,
                   completionAnimation,
-                  { name: event.target.value },
-                )
-              }
+                  selected
+                    ? {
+                        name: selected.name,
+                        source: selected.source,
+                        animationId: selected.animationId,
+                      }
+                    : { name: "", source: "embedded", animationId: "" },
+                );
+              }}
               className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
             >
               <option value="">No completion animation</option>
               {animationOptions.map((animation) => (
-                <option key={animation.name} value={animation.name}>
-                  {animation.name}
+                <option key={animation.value} value={animation.value}>
+                  {animation.label || animation.name}
                 </option>
               ))}
             </select>
@@ -185,7 +203,7 @@ export default function ProcedureInfoSection({
 
           {animationOptions.length === 0 && (
             <p className="mt-3 text-[10px] text-warning-main">
-              This GLB does not provide an embedded animation yet.
+              No embedded or authored animation is available yet.
             </p>
           )}
         </div>

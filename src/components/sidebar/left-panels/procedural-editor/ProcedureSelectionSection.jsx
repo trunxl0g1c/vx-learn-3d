@@ -40,6 +40,50 @@ export default function ProcedureSelectionSection({
             New
           </Button>
         </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="cyanOutline"
+            className="min-w-0"
+            disabled={
+              !procedural?.activeProcedureId ||
+              procedural?.isLoadingActiveProcedure
+            }
+            onClick={() =>
+              procedural?.duplicateProcedure?.(procedural.activeProcedureId)
+            }
+          >
+            <MaterialIcon name="content_copy" className="size-5" />
+            Duplicate
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="cyanOutline"
+            className="min-w-0"
+            disabled={
+              !procedural?.activeProcedureId ||
+              procedural?.isLoadingActiveProcedure
+            }
+            onClick={() =>
+              procedural?.duplicateProcedure?.(procedural.activeProcedureId, {
+                reverse: true,
+              })
+            }
+          >
+            <MaterialIcon name="swap_vert" className="size-5" />
+            Duplicate Reverse
+          </Button>
+        </div>
+
+        <p className="text-[10px] leading-4 text-contrast-grayout">
+          Duplicate Reverse creates editable reversed steps. Start/Target,
+          Guided animations, and Sequential order are reversed directly in the
+          new procedure.
+        </p>
       </div>
 
       {(procedural?.procedures || []).length === 0 && (

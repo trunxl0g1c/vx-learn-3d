@@ -24,6 +24,26 @@ export function capturePlayerInitialSceneState(scene) {
   };
 }
 
+export function getPlayerInitialObjectTransform(snapshot, object) {
+  if (!snapshot || !object) return null;
+
+  const entry = snapshot.objects?.find((item) => item?.object === object) || null;
+  if (!entry?.position || !entry?.quaternion || !entry?.scale) return null;
+
+  const euler = object.rotation?.clone?.();
+  if (euler?.setFromQuaternion) {
+    euler.setFromQuaternion(entry.quaternion, object.rotation.order || "XYZ");
+  }
+
+  return {
+    position: entry.position.toArray(),
+    rotation: euler
+      ? [euler.x, euler.y, euler.z]
+      : [0, 0, 0],
+    scale: entry.scale.toArray(),
+  };
+}
+
 export function restorePlayerInitialSceneState(scene, snapshot) {
   if (!scene || !snapshot || snapshot.scene !== scene) return false;
 

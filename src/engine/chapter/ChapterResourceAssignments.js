@@ -14,6 +14,8 @@ export function normalizeChapterAnimationAssignment(item, index = 0) {
     return {
       assignmentId: `legacy-animation-${index}-${item}`,
       name: item,
+      source: "embedded",
+      animationId: "",
       autoPlay: false,
       loop: false,
       speed: 1,
@@ -25,6 +27,8 @@ export function normalizeChapterAnimationAssignment(item, index = 0) {
     assignmentId:
       item?.assignmentId || `legacy-animation-${index}-${String(item?.name || "")}`,
     name: String(item?.name || ""),
+    source: item?.source === "authored" ? "authored" : "embedded",
+    animationId: String(item?.animationId || ""),
     autoPlay: normalizeBoolean(item?.autoPlay),
     loop: normalizeBoolean(item?.loop),
     speed: normalizeSpeed(item?.speed),

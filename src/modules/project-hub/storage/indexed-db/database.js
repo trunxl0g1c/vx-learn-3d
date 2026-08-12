@@ -1,5 +1,6 @@
 import {
   ALL_STORE_NAMES,
+  ANIMATION_STORE,
   CHAPTER_STORE,
   DB_NAME,
   DB_VERSION,
@@ -12,6 +13,8 @@ import {
   OBJECT_NAME_OVERRIDE_STORE,
   PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
+  QUIZ_STORE,
+  SLIDE_STORE,
   PROJECT_ENTITY_INDEX,
   PROJECT_ID_INDEX,
   PROJECT_STORE,
@@ -60,8 +63,11 @@ function ensureDatabaseStores(db, transaction) {
 
   createArrayStore(db, transaction, CHAPTER_STORE);
   createArrayStore(db, transaction, FLOW_STORE);
+  createArrayStore(db, transaction, ANIMATION_STORE);
   createArrayStore(db, transaction, OBJECT_NAME_OVERRIDE_STORE);
   createArrayStore(db, transaction, PROCEDURE_STORE);
+  createArrayStore(db, transaction, QUIZ_STORE);
+  createArrayStore(db, transaction, SLIDE_STORE);
 
   if (!db.objectStoreNames.contains(PLAYER_SETTINGS_STORE)) {
     db.createObjectStore(PLAYER_SETTINGS_STORE, { keyPath: "projectId" });

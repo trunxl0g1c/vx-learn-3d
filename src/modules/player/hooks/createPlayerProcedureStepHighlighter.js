@@ -1,5 +1,5 @@
 export function createPlayerProcedureStepHighlighter({
-  getProcedureStepTarget,
+  getProcedureStepTargets,
   restorePlayerRenderMode,
   playerFreePlay,
   applySavedVisualState,
@@ -8,38 +8,60 @@ export function createPlayerProcedureStepHighlighter({
   proceduralEngine,
   applySavedCameraView,
   focusObject,
+  modelScene,
 }) {
-  return (step) => {
-    const targetObject = getProcedureStepTarget(step)
+  return (step, { applyStepStart = false } = {}) => {
+    const targetObjects = getProcedureStepTargets(step);
+    const primaryTarget = targetObjects[0] || null;
 
-    if (!targetObject) {
-      setSelectedObject(null)
-      setOutlineObjects([])
-      return null
+    if (!primaryTarget) {
+      setSelectedObject(null);
+      setOutlineObjects([]);
+      return null;
     }
 
-    restorePlayerRenderMode()
-    playerFreePlay.resetSavedPresentationState?.()
+    restorePlayerRenderMode();
+    playerFreePlay.resetSavedPresentationState?.({
+      preserveTransforms: true,
+      preserveVisibility: true,
+    });
 
     const savedStateResult = step?.visualState
-      ? applySavedVisualState(step.visualState, { fallbackObject: targetObject })
-      : null
+      ? applySavedVisualState(step.visualState, {
+          fallbackObject: primaryTarget,
+        })
+      : null;
 
     if (!savedStateResult?.applied) {
-      setSelectedObject(targetObject)
-      setOutlineObjects(proceduralEngine.collectMeshes?.(targetObject) || [])
+      setSelectedObject(primaryTarget);
+      setOutlineObjects(
+        targetObjects.flatMap(
+          (targetObject) =>
+            proceduralEngine.collectMeshes?.(targetObject) || [],
+        ),
+      );
+    }
+
+    // A saved Start transform is the authoritative transform when a step
+    // becomes active. Apply it after the saved visual state because Pull Apart
+    // or other presentation state can change object positions. Calls that only
+    // refresh the highlight (wrong click / failed snap) leave the current
+    // transform untouched.
+    if (applyStepStart && modelScene) {
+      proceduralEngine.resetStep?.(modelScene, step);
+      modelScene.updateMatrixWorld?.(true);
     }
 
     const cameraApplied = Boolean(
       step?.cameraView && applySavedCameraView(step.cameraView),
-    )
+    );
 
     if (!cameraApplied) {
-      focusObject(savedStateResult?.selectedObject || targetObject)
+      focusObject(savedStateResult?.selectedObject || primaryTarget);
     }
 
-    return savedStateResult?.selectedObject || targetObject
-  }
+    return savedStateResult?.selectedObject || primaryTarget;
+  };
 }
 
-export default createPlayerProcedureStepHighlighter
+export default createPlayerProcedureStepHighlighter;

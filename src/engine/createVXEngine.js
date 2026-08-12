@@ -5,6 +5,9 @@ import { createSelectionEngine } from "./selection"
 import { createAnimationEngine } from "./animation"
 import { createFlowEngine } from "./flow"
 import { createProceduralEngine } from "./procedural"
+import { createQuizEngine } from "./quiz"
+import { createXRSessionEngine } from "./xr"
+import { createHistoryEngine } from "./history"
 
 export function createVXEngine(options = {}) {
   const camera = options.cameraEngine || createCameraEngine(options.camera)
@@ -15,6 +18,10 @@ export function createVXEngine(options = {}) {
   const flow = options.flowEngine || createFlowEngine(options.flow)
   const procedural =
     options.proceduralEngine || createProceduralEngine(options.procedural)
+  const quiz = options.quizEngine || createQuizEngine(options.quiz)
+  const xr = options.xrEngine || createXRSessionEngine(options.xr)
+  const history =
+    options.historyEngine || createHistoryEngine({ limit: 10, ...(options.history || {}) })
 
   const engine = {
     camera,
@@ -24,6 +31,9 @@ export function createVXEngine(options = {}) {
     animation,
     flow,
     procedural,
+    quiz,
+    xr,
+    history,
 
     initializeModel(scene, viewerSettings = {}) {
       camera.setScene?.(scene)
@@ -63,6 +73,9 @@ export function createVXEngine(options = {}) {
         animation: animation.getState?.(),
         flow: flow.getState?.(),
         procedural: procedural.getState?.(),
+        quiz: quiz.getState?.(),
+        xr: xr.getState?.(),
+        history: history.getState?.(),
       }
     },
 
@@ -81,6 +94,8 @@ export function createVXEngine(options = {}) {
       animation.clear?.()
       flow.reset?.()
       procedural.dispose?.()
+      quiz.reset?.()
+      history.clear?.()
       return this.getState()
     },
 
@@ -92,6 +107,9 @@ export function createVXEngine(options = {}) {
       animation.dispose?.()
       flow.dispose?.()
       procedural.dispose?.()
+      quiz.dispose?.()
+      xr.dispose?.()
+      history.dispose?.()
       return this.getState()
     },
   }

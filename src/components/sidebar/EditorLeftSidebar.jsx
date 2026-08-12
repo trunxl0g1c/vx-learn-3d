@@ -5,6 +5,7 @@ import AnimationTab from "../panels/right-tabs/AnimationTab";
 import HierarchyPanel from "./left-panels/HierarchyPanel";
 import ProjectSettingsPanel from "./left-panels/ProjectSettingsPanel";
 import ProToolsPanel from "./left-panels/ProToolsPanel";
+import SlideListPanel from "../panels/slide/SlideListPanel";
 
 export default function EditorLeftSidebar({
   activeSidebar,
@@ -82,8 +83,21 @@ export default function EditorLeftSidebar({
   setAnimationCommand,
   flow,
   procedural,
+  animationAuthoring,
+  quizAuthoring,
+  xrAuthoring,
+  slideAuthoring,
 }) {
   if (!activeSidebar) return null;
+
+  if (
+    activeSidebar === "pro" &&
+    (animationAuthoring?.isAuthoringActive ||
+      quizAuthoring?.isAuthoringActive ||
+      xrAuthoring?.isAuthoringActive)
+  ) {
+    return null;
+  }
 
   return (
     <aside
@@ -191,6 +205,10 @@ export default function EditorLeftSidebar({
           />
         )}
 
+        {activeSidebar === "slides" && (
+          <SlideListPanel slideAuthoring={slideAuthoring} />
+        )}
+
         {activeSidebar === "animation" && (
           <AnimationTab
             material={material}
@@ -206,8 +224,12 @@ export default function EditorLeftSidebar({
 
         {activeSidebar === "pro" && (
           <ProToolsPanel
+            proToolsSettings={material?.proToolsSettings}
             flow={flow}
             procedural={procedural}
+            animationAuthoring={animationAuthoring}
+            quizAuthoring={quizAuthoring}
+            xrAuthoring={xrAuthoring}
             selectedObjectName={selectedObjectName}
             animations={animations}
           />

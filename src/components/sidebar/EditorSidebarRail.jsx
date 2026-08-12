@@ -27,6 +27,12 @@ const sidebarItems = [
     target: "chapters",
   },
   {
+    id: "slides",
+    icon: "menu_book",
+    label: "Slide",
+    target: "slides",
+  },
+  {
     id: "animation",
     icon: "animation",
     label: "Object Animation",

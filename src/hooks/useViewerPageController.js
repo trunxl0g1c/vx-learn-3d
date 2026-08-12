@@ -3,11 +3,7 @@ import { useProjectStore } from "../modules/project-store/ProjectStoreContext";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGlobalLoading } from "../modules/loading/LoadingContext";
 import { panelSectionStyle, inputStyle, mediaButtonStyle } from "../constants/viewerStyles";
-import {
-  buildObjectTreeList,
-  getMaxTreeDepth,
-  resolveObjectTreeRoot,
-} from "../utils/objectTreeUtils";
+import { buildObjectTreeList, getMaxTreeDepth } from "../utils/objectTreeUtils";
 import { useChapterManager } from "./useChapterManager";
 import { useModelManager } from "./useModelManager";
 import { useShaderManager } from "./useShaderManager";
@@ -20,8 +16,15 @@ import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
 import { useVXEngine } from "./useVXEngine";
+import { useEditorHistory } from "./useEditorHistory";
 import { useFlowManager } from "./useFlowManager";
 import { useProceduralManager } from "./useProceduralManager";
+import { useAnimationAuthoring } from "./useAnimationAuthoring";
+import { useQuizAuthoring } from "./useQuizAuthoring";
+import { useSlideAuthoring } from "./useSlideAuthoring";
+import { useXRAuthoring } from "./useXRAuthoring";
+import { useContentAuthoringLock } from "./useContentAuthoringLock";
+import { useObjectRename } from "./useObjectRename";
 import { applySavedViewerVisualState } from "./viewer/applySavedViewerVisualState";
 import { useViewerAuthoringState } from "./viewer/useViewerAuthoringState";
 import { createChapterPreviewSelectionAdapters } from "./viewer/createChapterPreviewSelectionAdapters";
@@ -30,6 +33,7 @@ import { usePersistedViewerSettings } from "./viewer/usePersistedViewerSettings"
 import { launchPlayerPreview } from "./viewer/launchPlayerPreview";
 import { useViewerDataImport } from "./viewer/useViewerDataImport";
 import { createChapterHighlightPayload } from "../engine/selection";
+import { useViewerSceneHistory } from "./viewer/useViewerSceneHistory";
 import {
   getChapterCameraView,
   getChapterCameraVisualState,
@@ -41,9 +45,6 @@ import {
   applyChapterModelRotation,
   createChapterFocusTarget,
   applyObjectNameOverrides,
-  areObjectPathsEqual,
-  createObjectIndexPath,
-  upsertObjectNameOverride,
 } from "../engine/model";
 import {
   saveProjectDraftToIndexedDb,
@@ -54,6 +55,10 @@ export function useViewerPageController() {
   const vxEngine = useVXEngine();
   const navigate = useNavigate();
   const { projectId } = useParams();
+  const editorHistory = useEditorHistory({
+    historyEngine: vxEngine?.history,
+    projectId,
+  });
   const { updateLoading, hideLoading } = useGlobalLoading();
   const {
     currentProject,
@@ -112,20 +117,23 @@ export function useViewerPageController() {
   } = usePersistedViewerSettings({
     createInitialSettings: createDefaultViewerSettings,
     markDirty,
+    historyEngine: vxEngine?.history,
   });
   // Projection selection is viewport runtime state. Camera positions and types
   // are persisted only by explicit Save Camera actions, not by switching the
   // View Cube between Perspective and Orthographic.
   const [cameraProjectionMode, setCameraProjectionMode] =
     useState("perspective");
-
   const {
     material,
     setMaterial: updateMaterialState,
     rawSetMaterial,
     loadChapterRecord,
     loadFlowRecord,
+    loadAnimationRecord,
     loadProcedureRecord,
+    loadQuizRecord,
+    loadSlideRecord,
     modelUrl,
     modelFile,
     materialModelUrl,
@@ -143,8 +151,8 @@ export function useViewerPageController() {
     setRightTab,
     updateLoading,
     hideLoading,
+    historyEngine: vxEngine?.history,
   });
-
   const {
     importDataFile,
     isImportingData,
@@ -174,7 +182,6 @@ export function useViewerPageController() {
     updateLoading,
     hideLoading,
   });
-
   const flow = useFlowManager({
     material,
     setMaterial: updateMaterialState,
@@ -184,7 +191,6 @@ export function useViewerPageController() {
     flowEngine: vxEngine?.flow,
     hydrateFlowRecord: loadFlowRecord,
   });
-
   const procedural = useProceduralManager({
     material,
     setMaterial: updateMaterialState,
@@ -194,34 +200,46 @@ export function useViewerPageController() {
     controlsRef,
     setCameraProjectionMode,
     proceduralEngine: vxEngine?.procedural,
+    modelEngine: vxEngine?.model,
     setOutlineObjects,
+    setSelectedObject,
+    setSelectedObjectName,
     hydrateProcedureRecord: loadProcedureRecord,
   });
-
+  const animationAuthoring = useAnimationAuthoring({ material, setMaterial: updateMaterialState, modelScene, selectedObject, animationEngine: vxEngine?.animation, hydrateAnimationRecord: loadAnimationRecord });
+  const quiz = useQuizAuthoring({ material, setMaterial: updateMaterialState, modelScene, selectedObject, quizEngine: vxEngine?.quiz, hydrateQuizRecord: loadQuizRecord });
+  const xrAuthoring = useXRAuthoring({
+    viewerSettings,
+    updateViewerSettings,
+    cameraRef,
+    controlsRef,
+    xrEngine: vxEngine?.xr,
+  });
   useEffect(() => {
     if (activeSidebar !== "pro") {
       flow.stopAuthoring();
       procedural.stopAuthoring();
+      animationAuthoring.stopAuthoring();
+      quiz.stopAuthoring();
+      xrAuthoring.stopAuthoring();
     }
-  }, [activeSidebar, flow.stopAuthoring, procedural.stopAuthoring]);
-
-  const contentAuthoringLocked = Boolean(
-    flow.isAuthoringActive || procedural.isAuthoringActive,
-  );
-  const contentAuthoringLockReason = flow.isAuthoringActive
-    ? "Create Content is disabled while Flow Authoring is active."
-    : procedural.isAuthoringActive
-      ? "Create Content is disabled while Procedural Authoring is active."
-      : "";
-
+  }, [activeSidebar, flow.stopAuthoring, procedural.stopAuthoring, animationAuthoring.stopAuthoring, quiz.stopAuthoring, xrAuthoring.stopAuthoring]);
+  const slideModeActive = activeSidebar === "slides";
+  const { contentAuthoringLocked, contentAuthoringLockReason } =
+    useContentAuthoringLock({
+      slideModeActive,
+      flowAuthoringActive: flow.isAuthoringActive,
+      proceduralAuthoringActive: procedural.isAuthoringActive,
+      animationAuthoringActive: animationAuthoring.isAuthoringActive,
+      quizAuthoringActive: quiz.isAuthoringActive,
+      xrAuthoringActive: xrAuthoring.isAuthoringActive,
+    });
   const saveDefaultPlayerCameraView = useCallback(() => {
     const cameraView = createStoredCameraView(
       cameraRef.current,
       controlsRef.current,
     );
-
     if (!cameraView) return false;
-
     updateMaterialState((prev) => ({
       ...prev,
       playerSettings: {
@@ -235,10 +253,8 @@ export function useViewerPageController() {
         },
       },
     }));
-
     return true;
   }, [modelScene, updateMaterialState]);
-
   const rebuildObjectList = useCallback(
     (scene = modelScene) => {
       if (!scene) {
@@ -251,62 +267,9 @@ export function useViewerPageController() {
     [modelScene],
   );
 
-  const renameObject = useCallback(
-    (object, requestedName) => {
-      if (!object || !modelScene) return false;
-
-      const nextName = String(requestedName || "").trim();
-
-      if (!nextName) return false;
-
-      const previousName = String(object.name || "").trim();
-      const objectPath = createObjectIndexPath(object, modelScene);
-
-      const hierarchyRoot = resolveObjectTreeRoot(modelScene) || modelScene;
-
-      if (objectPath.length === 0 && object !== hierarchyRoot) return false;
-      if (previousName === nextName) return true;
-
-      const originalName = String(
-        object.userData?.vxOriginalObjectName || previousName,
-      ).trim();
-
-      object.userData.vxOriginalObjectName = originalName;
-      object.name = nextName;
-
-      updateMaterialState((prev) => ({
-        ...prev,
-        objectNameOverrides: upsertObjectNameOverride(
-          prev?.objectNameOverrides,
-          {
-            path: objectPath,
-            name: nextName,
-            originalName,
-          },
-        ),
-        chapters: (prev?.chapters || []).map((chapter) => {
-          const samePath = areObjectPathsEqual(chapter?.objectPath, objectPath);
-          const sameUuid =
-            Boolean(chapter?.objectUuid) && chapter.objectUuid === object.uuid;
-          const sameLegacyName =
-            !Array.isArray(chapter?.objectPath) &&
-            String(chapter?.objectName || "").trim() === previousName;
-
-          return samePath || sameUuid || sameLegacyName
-            ? { ...chapter, objectName: nextName }
-            : chapter;
-        }),
-      }));
-
-      if (selectedObject === object) {
-        setSelectedObjectName(nextName.replaceAll("_", " "));
-      }
-
-      rebuildObjectList(modelScene);
-      return true;
-    },
-    [modelScene, rebuildObjectList, selectedObject, updateMaterialState],
-  );
+  const renameObject = useObjectRename({
+    modelScene, selectedObject, updateMaterialState, setSelectedObjectName, rebuildObjectList,
+  });
 
   useEffect(() => {
     if (!modelScene) return;
@@ -517,6 +480,7 @@ export function useViewerPageController() {
     setIsAutoRotating,
     setRightTab,
     activeChapterId,
+    suppressInfoPanel: slideModeActive,
     restoreShaderMode,
   });
 
@@ -526,8 +490,8 @@ export function useViewerPageController() {
     soloSelectedObject: soloSelectedObjectBase,
     hideSelectedObject: hideSelectedObjectBase,
     hideSelectedObjects: hideSelectedObjectsBase,
-    showAllObjects,
-    hideAllObjects,
+    showAllObjects: showAllObjectsBase,
+    hideAllObjects: hideAllObjectsBase,
     resetAllTransforms,
     resetVisualState,
     applySavedPullApart,
@@ -588,10 +552,12 @@ export function useViewerPageController() {
     updateLoading,
     hideLoading,
     handleModelLoaded,
+    historyEngine: vxEngine?.history,
   });
-  const { flowAuthoring, proceduralAuthoring } = useViewerAuthoringState({
+  const { flowAuthoring, proceduralAuthoring, quizAuthoring } = useViewerAuthoringState({
     flow,
     procedural,
+    quiz,
     modelScene,
     selectedObject,
     selectedObjects,
@@ -608,7 +574,7 @@ export function useViewerPageController() {
     cameraRef,
     controlsRef,
     resetXray,
-    showAllObjects,
+    showAllObjects: showAllObjectsBase,
     clearCutSession,
     applySavedPullApart,
     makeOthersXray,
@@ -618,24 +584,39 @@ export function useViewerPageController() {
     setSelectedObjectName,
     applySavedCuts,
   });
-  const pullApartSelectedScope = () => {
-    pullApart(selectedObject);
-  };
-  const soloSelectedObject = () => soloSelectedObjectBase(selectedObject);
-  const hideSelectedObject = () => hideSelectedObjectBase(selectedObject);
-  const hideMultipleSelectedObjects = () => {
-    const targets = multipleSelectEnabled
-      ? selectedObjects
-      : selectedObject
-        ? [selectedObject]
-        : [];
-
-    const didHide = hideSelectedObjectsBase(targets);
-
-    if (didHide) {
-      clearSelection();
-    }
-  };
+  const slideAuthoring = useSlideAuthoring({
+    enabled: slideModeActive, material, setMaterial: updateMaterialState, hydrateSlideRecord: loadSlideRecord,
+    setRightTab, setActiveChapterId, setMarkerMode, modelScene, cameraRef, controlsRef, selectedObject, selectedObjects,
+    blinkSelectedObjectsEnabled, setBlinkSelectedObjectsEnabled, xrayTargetObject, xrayTargetObjects,
+    selectionVisualMode, pullApartState, getCutStates, cutEnabled, cutValues, cutRanges: engineCutRanges || cutRanges,
+    applyStoredCameraFocusTarget, resetXray, resetVisualState, clearCutSession, applySavedPullApart, makeOthersXray,
+    makeTargetObjectsXray, highlightObject, highlightSelectedObjectsPreservingVisualState, setSelectedObject,
+    setSelectedObjectName, setOutlineObjects, applySavedCuts, animationEngine: vxEngine?.animation, animations,
+    setSelectedAnimations, setAnimationCommand,
+  });
+  const {
+    beginObjectTransformHistory,
+    commitObjectTransformHistory,
+    pullApartSelectedScope,
+    soloSelectedObject,
+    hideSelectedObject,
+    hideMultipleSelectedObjects,
+    showAllObjects,
+    hideAllObjects,
+  } = useViewerSceneHistory({
+    historyEngine: vxEngine?.history,
+    modelScene,
+    selectedObject,
+    selectedObjects,
+    multipleSelectEnabled,
+    pullApart,
+    soloSelectedObjectBase,
+    hideSelectedObjectBase,
+    hideSelectedObjectsBase,
+    showAllObjectsBase,
+    hideAllObjectsBase,
+    clearSelection,
+  });
 
   const isSelectedObjectXray = Boolean(
     selectedObject && xrayTargetObject === selectedObject,
@@ -666,20 +647,19 @@ export function useViewerPageController() {
 
   const { addMarker, updateMarker } = useMarkerManager({
     activeChapterId,
+    activeSlideId: slideAuthoring.activeSlideId,
     setMaterial: updateMaterialState,
     markers,
     setMarkers,
   });
 
   const dialogs = useViewerDialogs({
-    addMarker,
-    setActiveChapterId,
-    setMarkerMode,
-    setRightTab,
+    addMarker, setActiveChapterId, setActiveSlideId: slideAuthoring.setActiveSlideId,
+    setMarkerMode, setRightTab,
   });
 
   const {
-    activeMarkers,
+    activeMarkers: chapterActiveMarkers,
     chapterFeedback,
     clearChapterFeedback,
     createChapterFromSelectedObject,
@@ -760,6 +740,10 @@ export function useViewerPageController() {
     contentAuthoringLocked,
     contentAuthoringLockReason,
   });
+
+  const activeMarkers = slideAuthoring.activeSlideId
+    ? slideAuthoring.activeMarkers
+    : chapterActiveMarkers;
 
   const previewChapterInEditor = async (chapterId, cameraViewId = null) => {
     const requestId = chapterPreviewRequestRef.current + 1;
@@ -927,6 +911,7 @@ export function useViewerPageController() {
 
   return {
     saveStatus,
+    history: editorHistory,
     syncStatus,
     pendingSync,
     remoteContentId,
@@ -972,6 +957,10 @@ export function useViewerPageController() {
     setMaterial: updateMaterialState,
     flow: flowAuthoring,
     procedural: proceduralAuthoring,
+    animationAuthoring,
+    quizAuthoring,
+    xrAuthoring,
+    slideAuthoring,
     saveDefaultPlayerCameraView,
     activeChapter,
     activeChapterId,
@@ -1041,6 +1030,8 @@ export function useViewerPageController() {
     setSelectedObject,
     setOutlineObjects,
     setSelectedObjectName,
+    beginObjectTransformHistory,
+    commitObjectTransformHistory,
     cutEnabled,
     cutAxis,
     updateCutAxis,

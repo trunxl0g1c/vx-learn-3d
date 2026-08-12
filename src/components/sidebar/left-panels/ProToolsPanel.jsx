@@ -2,6 +2,7 @@ import { useState } from "react";
 import MaterialIcon from "../../ui/material-icon";
 import FlowEditorPanel from "./FlowEditorPanel";
 import ProceduralEditorPanel from "./ProceduralEditorPanel";
+import { isProToolEnabled } from "../../../engine/project/ProToolsSettings";
 
 const PRO_TOOLS = [
   {
@@ -22,12 +23,36 @@ const PRO_TOOLS = [
     description: "Author custom object animation sequences.",
     icon: "animation",
   },
+  {
+    id: "quiz",
+    label: "Quiz",
+    description: "Create LMS and interactive 3D assessments.",
+    icon: "quiz",
+  },
+  {
+    id: "xr",
+    label: "XR / Immersive",
+    description: "Configure VR and AR player experiences.",
+    icon: "view_in_ar",
+  },
 ];
 
-export default function ProToolsPanel({ flow, procedural, selectedObjectName, animations = [] }) {
+export default function ProToolsPanel({
+  proToolsSettings,
+  flow,
+  procedural,
+  animationAuthoring,
+  quizAuthoring,
+  xrAuthoring,
+  selectedObjectName,
+  animations = [],
+}) {
   const [activeTool, setActiveTool] = useState(null);
+  const visibleTools = PRO_TOOLS.filter((tool) =>
+    isProToolEnabled(proToolsSettings, tool.id),
+  );
 
-  if (activeTool === "flow") {
+  if (activeTool === "flow" && isProToolEnabled(proToolsSettings, "flow")) {
     return (
       <FlowEditorPanel
         flow={flow}
@@ -37,12 +62,16 @@ export default function ProToolsPanel({ flow, procedural, selectedObjectName, an
     );
   }
 
-  if (activeTool === "procedural") {
+  if (
+    activeTool === "procedural" &&
+    isProToolEnabled(proToolsSettings, "procedural")
+  ) {
     return (
       <ProceduralEditorPanel
         procedural={procedural}
         selectedObjectName={selectedObjectName}
         animations={animations}
+        authoredAnimations={animationAuthoring?.animations || []}
         onBack={() => setActiveTool(null)}
       />
     );
@@ -69,7 +98,7 @@ export default function ProToolsPanel({ flow, procedural, selectedObjectName, an
           </div>
 
           <div className="space-y-3">
-            {PRO_TOOLS.map((tool) => {
+            {visibleTools.map((tool) => {
               const active = activeTool === tool.id;
 
               return (
@@ -77,17 +106,25 @@ export default function ProToolsPanel({ flow, procedural, selectedObjectName, an
                   key={tool.id}
                   type="button"
                   onClick={() => {
-                    if (tool.id === "flow") {
-                      flow?.beginAuthoring?.();
-                      procedural?.stopAuthoring?.();
-                    } else if (tool.id === "procedural") {
-                      flow?.stopAuthoring?.();
-                      procedural?.beginAuthoring?.();
-                    } else {
-                      flow?.stopAuthoring?.();
-                      procedural?.stopAuthoring?.();
+                    flow?.stopAuthoring?.();
+                    procedural?.stopAuthoring?.();
+                    animationAuthoring?.stopAuthoring?.();
+                    quizAuthoring?.stopAuthoring?.();
+                    xrAuthoring?.stopAuthoring?.();
+
+                    if (tool.id === "flow") flow?.beginAuthoring?.();
+                    if (tool.id === "procedural") procedural?.beginAuthoring?.();
+                    if (tool.id === "animation-creation") {
+                      animationAuthoring?.beginAuthoring?.();
                     }
-                    setActiveTool(tool.id);
+                    if (tool.id === "quiz") quizAuthoring?.beginAuthoring?.();
+                    if (tool.id === "xr") xrAuthoring?.beginAuthoring?.();
+
+                    setActiveTool(
+                      ["animation-creation", "quiz", "xr"].includes(tool.id)
+                        ? null
+                        : tool.id,
+                    );
                   }}
                   className={[
                     "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",

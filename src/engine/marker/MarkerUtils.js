@@ -241,16 +241,27 @@ export function createMarkerAttachment({ object, point, modelScene }) {
 export function resolveChapterTargetObject(chapter, modelScene) {
   if (!chapter || !modelScene) return null;
 
+  const objectPath = Array.isArray(chapter?.objectPath)
+    ? chapter.objectPath
+    : [];
+  const objectUuid = String(chapter?.objectUuid || "").trim();
+  const objectName = String(chapter?.objectName || "").trim();
+
+  // A Slide intentionally has no object target. Passing an empty path to
+  // resolveObjectByStoredIndexPath resolves the scene root, which is not a
+  // valid fallback target for a marker attachment. Besides being semantically
+  // wrong, applying a mesh-local marker coordinate to the scene root places
+  // the marker near the model origin (commonly the lower/center area).
+  if (objectPath.length === 0 && !objectUuid && !objectName) return null;
+
   return (
-    resolveObjectByStoredIndexPath(
-      modelScene,
-      chapter?.objectPath,
-      chapter?.objectName,
-    ) ||
-    (chapter?.objectUuid
-      ? modelScene.getObjectByProperty?.("uuid", chapter.objectUuid)
+    (objectPath.length > 0
+      ? resolveObjectByStoredIndexPath(modelScene, objectPath, objectName)
       : null) ||
-    findObjectByName(modelScene, chapter?.objectName)
+    (objectUuid
+      ? modelScene.getObjectByProperty?.("uuid", objectUuid)
+      : null) ||
+    findObjectByName(modelScene, objectName)
   );
 }
 
@@ -263,20 +274,28 @@ export function resolveMarkerAttachment(marker, modelScene, chapter = null) {
   }
 
   const attachment = marker?.attachment || marker?.targetObject || null;
+  const attachmentPath = Array.isArray(attachment?.objectPath)
+    ? attachment.objectPath
+    : [];
+  const attachmentName =
+    attachment?.objectOriginalName || attachment?.objectName || "";
+
+  // glTF node/mesh/primitive indices are the most stable identity available
+  // across Slide switches and scene reloads. Resolve them before hierarchy
+  // paths because paths may become stale when wrapper/helper nodes differ.
   const attachedObject = attachment
-    ? resolveObjectByStoredIndexPath(
-        modelScene,
-        attachment?.objectPath,
-        attachment?.objectOriginalName || attachment?.objectName,
-      ) ||
-      findObjectByAttachmentMetadata(modelScene, attachment) ||
+    ? findObjectByAttachmentMetadata(modelScene, attachment) ||
+      (attachmentPath.length > 0
+        ? resolveObjectByStoredIndexPath(
+            modelScene,
+            attachmentPath,
+            attachmentName,
+          )
+        : null) ||
       (attachment?.objectUuid
         ? modelScene.getObjectByProperty?.("uuid", attachment.objectUuid)
         : null) ||
-      findObjectByName(
-        modelScene,
-        attachment?.objectOriginalName || attachment?.objectName,
-      )
+      findObjectByName(modelScene, attachmentName)
     : null;
   const localPosition = getMarkerAttachedLocalPosition(marker);
   const attachmentVersion = Number(attachment?.version);
@@ -289,7 +308,13 @@ export function resolveMarkerAttachment(marker, modelScene, chapter = null) {
   }
 
   return {
-    object: attachedObject || resolveChapterTargetObject(chapter, modelScene),
+    // Never apply an explicit attachment's mesh-local coordinate to an
+    // unrelated Chapter/Slide fallback object. If the attachment temporarily
+    // cannot be resolved, Marker.jsx will safely use marker.position until the
+    // exact surface object is available again.
+    object: attachment
+      ? attachedObject
+      : resolveChapterTargetObject(chapter, modelScene),
     localPosition,
   };
 }

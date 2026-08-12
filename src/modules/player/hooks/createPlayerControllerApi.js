@@ -34,9 +34,15 @@ export function createPlayerControllerApi({
   setFlowPlaying,
   flowPlaybackKey,
   activeChapterFlows,
+  turntableAnimation,
   chapterFlowPlaybackKey,
   handleChapterFlowComplete,
   playerProcedure,
+  playerQuiz,
+  playerSlide,
+  playerXR,
+  handleSelectSlide,
+  handleSelectSlideCameraView,
   playerSpeech,
   getChapterFlowAssignments,
   activeChapterFlowIds,
@@ -108,6 +114,10 @@ export function createPlayerControllerApi({
       resetXray: resetPlayerObjectXray,
       setObjectListSelectedObject,
       activeChapter: playerChapter.activeChapter,
+      activeSlide: playerSlide.activeSlide,
+      activeProcedure: playerProcedure.activeProcedure,
+      activeQuiz: playerQuiz.activeQuiz,
+      turntableAnimation,
       selectedAnimations: playerAnimation.selectedAnimations,
       animationCommand: playerAnimation.animationCommand,
       handleSelectObjectFromPlayer,
@@ -123,6 +133,9 @@ export function createPlayerControllerApi({
       flowPlaybackKey,
       activeChapterFlows,
       chapterFlowPlaybackKey,
+      activeSlideFlows: playerSlide.activeSlideFlows,
+      slideFlowPlaybackKey: playerSlide.slideFlowPlaybackKey,
+      onSlideFlowComplete: playerSlide.handleFlowComplete,
       onChapterFlowComplete: handleChapterFlowComplete,
       onFlowComplete: () => {
         if (!activeFlow?.settings?.repeat) {
@@ -142,9 +155,13 @@ export function createPlayerControllerApi({
         Boolean(playerProcedure.activeStep),
       assemblyShowGhost:
         playerProcedure.activeStep?.interaction?.showGhost !== false,
+      assemblyGhostRevision: playerProcedure.assemblyGhostRevision,
       onAssemblyDragStart: playerProcedure.handleAssemblyDragStart,
       onAssemblyDrag: playerProcedure.handleAssemblyDrag,
       onAssemblyDragEnd: playerProcedure.handleAssemblyDragEnd,
+      xrMode: playerXR.activeMode,
+      xrSettings: playerXR.settings,
+      onRendererReady: playerXR.setRenderer,
     },
 
     chapterPanel: {
@@ -183,15 +200,58 @@ export function createPlayerControllerApi({
       stopFlow,
     },
 
+    quizPanel: {
+      ...playerQuiz,
+      startQuiz: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerQuiz.startQuiz?.(...args);
+      },
+      retryQuiz: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerQuiz.retryQuiz?.(...args);
+      },
+    },
+
+    slidePanel: {
+      slides: playerSlide.slides,
+      activeSlide: playerSlide.activeSlide,
+      activeSlideId: playerSlide.activeSlideId,
+      cameraViews: playerSlide.cameraViews,
+      activeCameraViewIndex: playerSlide.activeCameraViewIndex,
+      flowAssignments: playerSlide.slideFlowAssignments,
+      activeFlowIds: playerSlide.activeSlideFlowIds,
+      selectSlide: handleSelectSlide,
+      clearSlide: playerSlide.clearSlide,
+      selectCameraView: handleSelectSlideCameraView,
+      playAnimations: playerSlide.playAnimations,
+      stopAnimations: playerSlide.stopAnimations,
+      playFlow: playerSlide.playFlow,
+      stopFlows: playerSlide.stopFlows,
+      speakDescription: playerSlide.speakDescription,
+      stopSpeaking: playerSlide.stopSpeaking,
+    },
+
+    xrPanel: {
+      ...playerXR,
+    },
+
     procedurePanel: {
       procedures: playerProcedure.procedures,
       activeProcedure: playerProcedure.activeProcedure,
       activeProcedureId: playerProcedure.activeProcedureId,
+      activeSteps: playerProcedure.activeSteps,
       activeStepIndex: playerProcedure.stepIndex,
       completedStepIds: playerProcedure.completedStepIds,
       status: playerProcedure.status,
       feedback: playerProcedure.feedback,
-      playProcedure: playerProcedure.playProcedure,
+      playProcedure: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerProcedure.playProcedure?.(...args);
+      },
+      replayProcedure: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerProcedure.replayProcedure?.(...args);
+      },
       stopProcedure: playerProcedure.stopProcedure,
       playCompletionAnimation:
         playerProcedure.playProcedureCompletionAnimation,

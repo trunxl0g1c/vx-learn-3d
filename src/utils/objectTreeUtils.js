@@ -1,4 +1,4 @@
-const IGNORED_OBJECT_TREE_TYPES = new Set(["Bone"])
+const TRANSPARENT_OBJECT_TREE_TYPES = new Set(["Bone"])
 
 const GENERATED_PRIMITIVE_SUFFIX =
   /(?:[\s_.-]+(?:primitive|prim|part)?[\s_.-]*\d+)$/i
@@ -27,17 +27,55 @@ const isRenderablePrimitive = (object) => {
   )
 }
 
-export const isObjectTreeNode = (object) => {
+const isHiddenObjectTreeNode = (object) => {
   return Boolean(
-    object &&
-      !object.userData?.__vxInternal &&
-      !object.userData?.__vxFlowHelper &&
-      !IGNORED_OBJECT_TREE_TYPES.has(object.type),
+    object?.userData?.__vxInternal || object?.userData?.__vxFlowHelper,
   )
 }
 
+const isTransparentObjectTreeNode = (object) => {
+  return Boolean(object && TRANSPARENT_OBJECT_TREE_TYPES.has(object.type))
+}
+
+export const isObjectTreeNode = (object) => {
+  return Boolean(
+    object &&
+      !isHiddenObjectTreeNode(object) &&
+      !isTransparentObjectTreeNode(object),
+  )
+}
+
+/**
+ * Returns direct user-facing children. Bone nodes are intentionally transparent
+ * in Object List: their first visible descendants are promoted to the nearest
+ * visible ancestor. Internal/helper nodes remain fully hidden together with
+ * their subtree.
+ */
 const getMeaningfulChildren = (object) => {
-  return (object?.children || []).filter(isObjectTreeNode)
+  const result = []
+  const visited = new Set()
+
+  const collect = (children) => {
+    const childList = children || []
+
+    childList.forEach((child) => {
+      if (!child || visited.has(child)) return
+      visited.add(child)
+
+      if (isHiddenObjectTreeNode(child)) return
+
+      if (isTransparentObjectTreeNode(child)) {
+        collect(child.children)
+        return
+      }
+
+      result.push(child)
+    })
+  }
+
+  collect(object?.children)
+
+  return result
 }
 
 const getGltfAssociation = (parser, object) => {
