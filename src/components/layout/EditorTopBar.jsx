@@ -85,7 +85,14 @@ export default function EditorTopBar({
   syncStatus = "idle",
   pendingSync = false,
   hasRemote = false,
+  onPublish,
+  isPublishing = false,
+  publishStatus = "DRAFT",
 }) {
+  let publishLabel = "Publish";
+  if (isPublishing) publishLabel = "Publishing...";
+  else if (publishStatus === "PUBLISHED") publishLabel = "Published";
+
   return (
     <div
       style={{ height: EDITOR_TOP_BAR_HEIGHT }}
@@ -131,15 +138,29 @@ export default function EditorTopBar({
           onClick={onBulkUpdate}
         />
 
-        <Button variant="cyanOutline" size="sm" className="uppercase" title="Publish project">
-          {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
-          <MaterialIcon
-            name="published_with_changes"
-            fill={1}
-            size={20}
-            className="mr-1"
-          />
-          <span className="vx-editor-action-label">Publish</span>
+        <Button
+          variant={publishStatus === "PUBLISHED" ? "cyanSolid" : "cyanOutline"}
+          size="sm"
+          className="uppercase"
+          onClick={onPublish}
+          disabled={!onPublish || !hasRemote || isPublishing}
+          title={
+            publishStatus === "PUBLISHED"
+              ? "Republish with the latest changes"
+              : "Publish this content — required before it can be shared or assigned to a classroom"
+          }
+        >
+          {isPublishing ? (
+            <Loader2 className="mr-1 size-4.5 animate-spin" />
+          ) : (
+            <MaterialIcon
+              name="published_with_changes"
+              fill={1}
+              size={20}
+              className="mr-1"
+            />
+          )}
+          <span className="vx-editor-action-label">{publishLabel}</span>
         </Button>
 
         <Button

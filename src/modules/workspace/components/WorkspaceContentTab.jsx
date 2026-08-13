@@ -37,6 +37,14 @@ import { useWorkspaceMembers } from "../api/workspaces";
 import { CONTENT_LOCK_PRESENCE_POLL_INTERVAL_MS } from "../../../constants/contentLock";
 import { hasPermission } from "../../../utils/permissions";
 import { validateGlbFile } from "../../../utils/glbValidator";
+import {
+  SAFE_LABEL_MAX_LENGTH,
+  SAFE_LABEL_REGEX,
+  SAFE_LABEL_REGEX_MESSAGE,
+  sanitizeText,
+  validatePasswordComplexity,
+  validateRequiredText,
+} from "../../../utils/validation";
 import ContentRowMenu from "./ContentRowMenu";
 
 const ConfirmationDialog = lazy(
@@ -46,6 +54,10 @@ const DuplicateContentDialog = lazy(
   () => import("./DuplicateContentDialog"),
 );
 const ExportContentDialog = lazy(() => import("./ExportContentDialog"));
+const AssignToClassroomDialog = lazy(
+  () => import("./AssignToClassroomDialog"),
+);
+const ShareContentDialog = lazy(() => import("./ShareContentDialog"));
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -311,7 +323,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
+      setDebouncedSearch(sanitizeText(search, { maxLength: 100 }));
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
@@ -385,6 +397,9 @@ export default function WorkspaceContentTab({ workspaceId }) {
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [duplicateError, setDuplicateError] = useState("");
   const createContent = useCreateContent();
+
+  const [assignClassroomTarget, setAssignClassroomTarget] = useState(null);
+  const [shareTarget, setShareTarget] = useState(null);
 
   const [exportTarget, setExportTarget] = useState(null);
   const [exportPassword, setExportPassword] = useState("");
@@ -570,8 +585,16 @@ export default function WorkspaceContentTab({ workspaceId }) {
 
     setDuplicateError("");
 
-    if (!duplicateName.trim()) {
-      setDuplicateError("Project name is required.");
+    const { value: sanitizedDuplicateName, error: duplicateNameError } =
+      validateRequiredText(duplicateName, {
+        fieldLabel: "Project name",
+        maxLength: SAFE_LABEL_MAX_LENGTH,
+        pattern: SAFE_LABEL_REGEX,
+        patternMessage: SAFE_LABEL_REGEX_MESSAGE,
+      });
+
+    if (duplicateNameError) {
+      setDuplicateError(duplicateNameError);
       return;
     }
 
@@ -607,7 +630,7 @@ export default function WorkspaceContentTab({ workspaceId }) {
         await duplicateContentAsNewProject({
           sourceContentId: duplicateTarget.id,
           workspaceId,
-          name: duplicateName.trim(),
+          name: sanitizedDuplicateName,
           file: duplicateFile,
           role: "EDITOR",
           createContentFn: createContent.mutateAsync,
@@ -672,8 +695,10 @@ export default function WorkspaceContentTab({ workspaceId }) {
 
     setExportError("");
 
-    if (!exportPassword || exportPassword.length < 8) {
-      setExportError("Password must be at least 8 characters.");
+    const passwordCheck = validatePasswordComplexity(exportPassword);
+
+    if (!passwordCheck.valid) {
+      setExportError(`Password must include ${passwordCheck.reasons.join(", ")}.`);
       return;
     }
 
@@ -790,11 +815,17 @@ export default function WorkspaceContentTab({ workspaceId }) {
                       }
                       onDuplicate={() => handleOpenDuplicate(content)}
                       onExport={() => handleOpenExport(content)}
+                      onAssignToClassroom={() =>
+                        setAssignClassroomTarget(content)
+                      }
+                      onShareToWorkspace={() => setShareTarget(content)}
                       hasActiveLock={Boolean(locksByContentId[content.id])}
                       isCurrentUserOwner={isCurrentUserOwner}
                       canDelete={canDeleteContent}
                       canDuplicate={canDuplicateContent}
                       canExport
+                      canAssignToClassroom={canEditInWorkspace}
+                      canShareToWorkspace={canEditInWorkspace}
                     />
                   </td>
                 </tr>
@@ -904,6 +935,28 @@ export default function WorkspaceContentTab({ workspaceId }) {
             onClearError={() => setDuplicateError("")}
             onClose={handleCloseDuplicate}
             onSubmit={handleSubmitDuplicate}
+          />
+        </Suspense>
+      )}
+
+      {assignClassroomTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <AssignToClassroomDialog
+            open
+            workspaceId={workspaceId}
+            content={assignClassroomTarget}
+            onClose={() => setAssignClassroomTarget(null)}
+          />
+        </Suspense>
+      )}
+
+      {shareTarget && (
+        <Suspense fallback={<DialogLoadingFallback />}>
+          <ShareContentDialog
+            open
+            workspaceId={workspaceId}
+            content={shareTarget}
+            onClose={() => setShareTarget(null)}
           />
         </Suspense>
       )}

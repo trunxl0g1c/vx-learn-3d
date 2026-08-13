@@ -7,6 +7,16 @@ import Switch from "../../../components/ui/switch";
 import InlineAlert from "../../../components/ui/inline-alert";
 import { useRegister } from "../api/register";
 import { useAuth } from "../AuthContext";
+import {
+  EMAIL_MAX_LENGTH,
+  PASSWORD_REQUIREMENTS_TEXT,
+  SAFE_LABEL_MAX_LENGTH,
+  SAFE_LABEL_REGEX,
+  SAFE_LABEL_REGEX_MESSAGE,
+  isValidEmail,
+  validatePasswordComplexity,
+  validateRequiredText,
+} from "../../../utils/validation";
 
 export default function RegisterForm() {
   const navigate = useNavigate();
@@ -33,13 +43,37 @@ export default function RegisterForm() {
 
     setFormError("");
 
-    if (!name.trim() || !email.trim() || !password) {
-      setFormError("All fields are required.");
+    const { value: sanitizedName, error: nameError } = validateRequiredText(
+      name,
+      {
+        fieldLabel: "Name",
+        maxLength: SAFE_LABEL_MAX_LENGTH,
+        pattern: SAFE_LABEL_REGEX,
+        patternMessage: SAFE_LABEL_REGEX_MESSAGE,
+      },
+    );
+
+    if (nameError) {
+      setFormError(nameError);
       return;
     }
 
-    if (password.length < 8) {
-      setFormError("Password must be at least 8 characters.");
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+
+    if (!password) {
+      setFormError("Password is required.");
+      return;
+    }
+
+    const passwordCheck = validatePasswordComplexity(password);
+
+    if (!passwordCheck.valid) {
+      setFormError(`Password must include ${passwordCheck.reasons.join(", ")}.`);
       return;
     }
 
@@ -54,8 +88,8 @@ export default function RegisterForm() {
     }
 
     registerMutation.mutate({
-      name: name.trim(),
-      email: email.trim(),
+      name: sanitizedName,
+      email: trimmedEmail,
       password,
     });
   }
@@ -79,6 +113,7 @@ export default function RegisterForm() {
             name="name"
             placeholder="Type here..."
             autoComplete="name"
+            maxLength={SAFE_LABEL_MAX_LENGTH}
             disabled={registerMutation.isPending}
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -100,6 +135,7 @@ export default function RegisterForm() {
             type="email"
             placeholder="Type here..."
             autoComplete="email"
+            maxLength={EMAIL_MAX_LENGTH}
             disabled={registerMutation.isPending}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -121,12 +157,16 @@ export default function RegisterForm() {
             type="password"
             placeholder="Type here..."
             autoComplete="new-password"
+            maxLength={128}
             disabled={registerMutation.isPending}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             className="rounded-[16px]! bg-transparent! py-6!"
             inputClassName="py-6!"
           />
+          <p className="text-xs text-contrast-grayout">
+            {PASSWORD_REQUIREMENTS_TEXT}
+          </p>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -142,6 +182,7 @@ export default function RegisterForm() {
             type="password"
             placeholder="Type here..."
             autoComplete="new-password"
+            maxLength={128}
             disabled={registerMutation.isPending}
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}

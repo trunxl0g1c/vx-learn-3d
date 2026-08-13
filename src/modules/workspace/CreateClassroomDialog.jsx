@@ -1,85 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { ImageIcon, X } from "lucide-react";
+import { useState } from "react";
+import { X } from "lucide-react";
 import Button from "../../components/ui/button";
 import Input from "../../components/ui/input";
 import InlineAlert from "../../components/ui/inline-alert";
-import { useAlert } from "../../components/dialog/AlertContext";
-import {
-  useCreateWorkspace,
-  useUploadWorkspaceThumbnail,
-} from "./api/workspaces";
-import { slugify } from "../../utils/slugify";
+import { useCreateClassroom } from "../classroom/api/classrooms";
 import {
   SAFE_LABEL_REGEX,
   SAFE_LABEL_REGEX_MESSAGE,
   sanitizeText,
-  validateFile,
   validateRequiredText,
 } from "../../utils/validation";
 
 const NAME_MAX_LENGTH = 40;
 const DESCRIPTION_MAX_LENGTH = 200;
-const THUMBNAIL_ALLOWED_TYPES = new Set([
-  "image/png",
-  "image/jpeg",
-  "image/webp",
-]);
-const THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024;
 
-export default function CreateWorkspaceDialog({ open, onClose, onCreated }) {
-  const { showAlert } = useAlert();
-
+export default function CreateClassroomDialog({ open, workspaceId, onClose, onCreated }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [thumbnailFile, setThumbnailFile] = useState(null);
   const [error, setError] = useState("");
 
-  const thumbnailPreviewUrl = useMemo(
-    () => (thumbnailFile ? URL.createObjectURL(thumbnailFile) : ""),
-    [thumbnailFile],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
-    };
-  }, [thumbnailPreviewUrl]);
-
-  const createWorkspace = useCreateWorkspace();
-  const uploadThumbnail = useUploadWorkspaceThumbnail();
+  const createClassroom = useCreateClassroom();
 
   if (!open) return null;
 
-  const isSubmitting = createWorkspace.isPending || uploadThumbnail.isPending;
+  const isSubmitting = createClassroom.isPending;
 
   function handleClose() {
     if (isSubmitting) return;
 
     onClose?.();
-  }
-
-  function handleThumbnailChange(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!file) return;
-
-    const fileError = validateFile(file, {
-      allowedTypes: THUMBNAIL_ALLOWED_TYPES,
-      maxBytes: THUMBNAIL_MAX_BYTES,
-      fieldLabel: "Workspace thumbnails",
-    });
-
-    if (fileError) {
-      showAlert({
-        title: "Invalid file",
-        message: fileError,
-        type: "error",
-      });
-      return;
-    }
-
-    setThumbnailFile(file);
   }
 
   async function handleSubmit() {
@@ -88,7 +37,7 @@ export default function CreateWorkspaceDialog({ open, onClose, onCreated }) {
     const { value: sanitizedName, error: nameError } = validateRequiredText(
       name,
       {
-        fieldLabel: "Workspace name",
+        fieldLabel: "Classroom name",
         maxLength: NAME_MAX_LENGTH,
         pattern: SAFE_LABEL_REGEX,
         patternMessage: SAFE_LABEL_REGEX_MESSAGE,
@@ -100,46 +49,23 @@ export default function CreateWorkspaceDialog({ open, onClose, onCreated }) {
       return;
     }
 
-    const slug = slugify(sanitizedName);
-
-    if (!slug) {
-      setError("Workspace name must contain at least one letter or number.");
-      return;
-    }
-
     const sanitizedDescription = sanitizeText(description, {
       maxLength: DESCRIPTION_MAX_LENGTH,
       allowNewlines: true,
     });
 
     try {
-      const workspace = await createWorkspace.mutateAsync({
+      const classroom = await createClassroom.mutateAsync({
+        workspaceId,
         name: sanitizedName,
-        slug,
         description: sanitizedDescription,
       });
 
-      if (thumbnailFile && workspace?.id) {
-        try {
-          await uploadThumbnail.mutateAsync({
-            id: workspace.id,
-            file: thumbnailFile,
-          });
-        } catch {
-          showAlert({
-            title: "Workspace created",
-            message:
-              "The workspace was created, but the thumbnail failed to upload. You can try again from the workspace's Overview tab.",
-            type: "warning",
-          });
-        }
-      }
-
-      onCreated?.(workspace);
+      onCreated?.(classroom);
     } catch (mutationError) {
       setError(
         mutationError?.response?.data?.message ||
-          "Error encountered while creating workspace.",
+          "Error encountered while creating classroom.",
       );
     }
   }
@@ -148,7 +74,7 @@ export default function CreateWorkspaceDialog({ open, onClose, onCreated }) {
     <div className="fixed inset-0 z-999 grid place-items-center bg-black/45 backdrop-blur-sm">
       <div className="w-125 overflow-hidden rounded-[20px] bg-dark-alpha text-white shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
         <div className="flex h-18 items-center justify-between bg-dark-alpha px-5">
-          <h2 className="text-base font-normal">Create Workspace</h2>
+          <h2 className="text-base font-normal">Create Classroom</h2>
 
           {!isSubmitting && (
             <button
@@ -164,43 +90,16 @@ export default function CreateWorkspaceDialog({ open, onClose, onCreated }) {
         <div className="space-y-6 px-5 pb-5 pt-4">
           <InlineAlert type="error" message={error} autoHide={false} />
 
-          <label className="flex w-full cursor-pointer items-center gap-4 rounded-lg border border-grayout-dark bg-dark-alpha px-5 py-4 text-left transition hover:border-secondary-default">
-            <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded border border-secondary-default bg-secondary-dark text-grayout-main!">
-              {thumbnailPreviewUrl ? (
-                <img
-                  src={thumbnailPreviewUrl}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <ImageIcon className="size-6 text-grayout-main" />
-              )}
-            </div>
-
-            <strong className="text-sm font-normal text-white">
-              {thumbnailFile ? thumbnailFile.name : "Add Workspace Thumbnail"}
-            </strong>
-
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              hidden
-              disabled={isSubmitting}
-              onChange={handleThumbnailChange}
-            />
-          </label>
-
           <div className="space-y-2">
             <label className="block text-sm font-normal text-contrast-grayout">
-              Workspace Name
+              Classroom Name
             </label>
 
             <div className="relative">
               <Input
                 value={name}
                 maxLength={NAME_MAX_LENGTH}
-                placeholder="Type project name here"
-                onClick={(event) => event.stopPropagation()}
+                placeholder="Type classroom name here"
                 onChange={(event) => {
                   setName(event.target.value);
                   setError("");

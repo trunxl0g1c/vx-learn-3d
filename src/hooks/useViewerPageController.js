@@ -12,6 +12,7 @@ import { useMarkerManager } from "./useMarkerManager";
 import { useViewerProject } from "./useViewerProject";
 import { createViewerDraft, useViewerAutosave } from "./useViewerAutosave";
 import { syncProjectToBackend } from "../modules/project-hub/api/projectSync";
+import { publishContentRequest } from "../modules/project-hub/api/contents";
 import { useViewerSelection } from "./useViewerSelection";
 import { useViewerDialogs } from "./useViewerDialogs";
 import { useViewerCut } from "./useViewerCut";
@@ -406,6 +407,39 @@ export function useViewerPageController() {
     markSaved,
     markSynced,
   ]);
+
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Publishes the content this project is linked to — the gate Classroom
+  // assignment and Content Public sharing both require server-side (see
+  // ContentAccessService/ClassroomService/ContentPublicService in
+  // vxcubed-be). Pushes any unsynced local edits first (same reasoning as
+  // handleBulkUpdate) so the published version reflects the latest changes,
+  // not stale backend state.
+  const handlePublish = useCallback(async () => {
+    if (!remoteContentId || !projectId || projectId === "demo") return;
+
+    setIsPublishing(true);
+
+    try {
+      await handleBulkUpdate();
+
+      const updated = await publishContentRequest({ id: remoteContentId });
+
+      const nextMaterial = {
+        ...material,
+        status: updated?.status || "PUBLISHED",
+        publishedAt: updated?.publishedAt || new Date().toISOString(),
+      };
+
+      updateMaterialState(nextMaterial);
+      await updateProjectInIndexedDb(projectId, { material: nextMaterial });
+    } catch (error) {
+      console.error("Failed to publish content:", error);
+    } finally {
+      setIsPublishing(false);
+    }
+  }, [remoteContentId, projectId, material, handleBulkUpdate, updateMaterialState]);
 
   const {
     shaderMode,
@@ -918,6 +952,8 @@ export function useViewerPageController() {
     lockConflict,
     kicked: contentLockKicked,
     dismissKicked: dismissContentLockKicked,
+    handlePublish,
+    isPublishing,
     handleBulkUpdate,
     openPlayerPreview,
     activeSidebar,

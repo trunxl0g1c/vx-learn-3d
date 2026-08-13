@@ -8,8 +8,14 @@ import MaterialIcon from "../../components/ui/material-icon";
 import { useAuth } from "../auth/AuthContext";
 import { useLogout } from "../auth/api/logout";
 import { useUpdateProfile } from "./api/profile";
+import {
+  SAFE_LABEL_MAX_LENGTH,
+  SAFE_LABEL_REGEX,
+  SAFE_LABEL_REGEX_MESSAGE,
+  validateRequiredText,
+} from "../../utils/validation";
 
-const NAME_MAX_LENGTH = 60;
+const NAME_MAX_LENGTH = SAFE_LABEL_MAX_LENGTH;
 
 function formatPermissionLabel(permission) {
   const [resource, action] = permission.split(":");
@@ -61,14 +67,22 @@ export default function ProfilePage() {
     setError("");
     setSuccessMessage("");
 
-    const trimmedName = name.trim();
+    const { value: sanitizedName, error: nameError } = validateRequiredText(
+      name,
+      {
+        fieldLabel: "Name",
+        maxLength: NAME_MAX_LENGTH,
+        pattern: SAFE_LABEL_REGEX,
+        patternMessage: SAFE_LABEL_REGEX_MESSAGE,
+      },
+    );
 
-    if (!trimmedName) {
-      setError("Name is required.");
+    if (nameError) {
+      setError(nameError);
       return;
     }
 
-    updateProfile.mutate({ name: trimmedName });
+    updateProfile.mutate({ name: sanitizedName });
   }
 
   const isSaving = updateProfile.isPending;

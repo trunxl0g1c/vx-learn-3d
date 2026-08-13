@@ -11,11 +11,15 @@ export default function ContentRowMenu({
   onRevoke,
   onDuplicate,
   onExport,
+  onAssignToClassroom,
+  onShareToWorkspace,
   hasActiveLock = false,
   isCurrentUserOwner = false,
   canDelete = true,
   canDuplicate = true,
   canExport = true,
+  canAssignToClassroom = false,
+  canShareToWorkspace = false,
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(null);
@@ -27,6 +31,8 @@ export default function ContentRowMenu({
     (showRevoke ? 1 : 0) +
     (canExport ? 1 : 0) +
     (canDuplicate ? 1 : 0) +
+    (canAssignToClassroom ? 1 : 0) +
+    (canShareToWorkspace ? 1 : 0) +
     (canDelete ? 1 : 0);
   const estimatedHeight = MENU_ITEM_HEIGHT * Math.max(itemCount, 1) + 8;
 
@@ -150,6 +156,36 @@ export default function ContentRowMenu({
               >
                 <MaterialIcon name="content_copy" size={18} />
                 Duplicate
+              </button>
+            )}
+
+            {canAssignToClassroom && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onAssignToClassroom?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-white transition hover:bg-white/5"
+              >
+                <MaterialIcon name="school" size={18} />
+                Assign to Classroom
+              </button>
+            )}
+
+            {canShareToWorkspace && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  onShareToWorkspace?.();
+                }}
+                className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-sm text-white transition hover:bg-white/5"
+              >
+                <MaterialIcon name="share" size={18} />
+                Share to Workspace
               </button>
             )}
 

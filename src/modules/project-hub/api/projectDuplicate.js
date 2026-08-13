@@ -9,13 +9,14 @@ import { uploadFileInChunks } from "./uploads";
 import { syncProjectToBackend } from "./projectSync";
 
 // Pure: builds a brand-new local project record (fresh id, fresh material/
-// chapter/flow/procedure ids courtesy of createProjectRecord +
+// chapter/flow/procedure/quiz ids courtesy of createProjectRecord +
 // fetchContentEditorSnapshot's mappers) that carries over the source
-// content's "materi" — chapters, flows, procedures, object name overrides,
-// gallery media, thumbnail, description/version/author/marketplace flag,
-// viewer, and scene — but under the new name and backed by the new GLB
-// file. status/publishVersion are deliberately NOT copied from the source;
-// a duplicate always starts as a fresh DRAFT, same as any new project.
+// content's "materi" — chapters, flows, procedures, quizzes, object name
+// overrides, gallery media, thumbnail, description/version/author/
+// marketplace flag, viewer, and scene — but under the new name and backed
+// by the new GLB file. status/publishVersion are deliberately NOT copied
+// from the source; a duplicate always starts as a fresh DRAFT, same as any
+// new project.
 export function mergeSnapshotIntoNewProject(snapshot, { name, file, role }) {
   const project = createProjectRecord({ name, file, role });
 
@@ -34,6 +35,7 @@ export function mergeSnapshotIntoNewProject(snapshot, { name, file, role }) {
       chapters: snapshot.chapters,
       flows: snapshot.flows,
       procedures: snapshot.procedures,
+      quizzes: snapshot.quizzes,
       objectNameOverrides: snapshot.overrides,
       playerSettings: normalizePlayerSettings(snapshot.playerSettings),
     },

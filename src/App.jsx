@@ -4,6 +4,7 @@ import { LoadingProvider } from "./modules/loading/LoadingContext";
 import { ProjectStoreProvider } from "./modules/project-store/ProjectStoreContext";
 import { AuthProvider } from "./modules/auth/AuthContext";
 import ProtectedRoute from "./modules/auth/ProtectedRoute";
+import AdminRoute from "./modules/auth/AdminRoute";
 import LoginPage from "./modules/auth/LoginPage";
 import RegisterPage from "./modules/auth/RegisterPage";
 
@@ -11,6 +12,8 @@ import ProjectHubRoute from "./modules/project-hub/ProjectHubRoute";
 import WorkspaceRoute from "./modules/workspace/WorkspaceRoute";
 import WorkspaceDetailRoute from "./modules/workspace/WorkspaceDetailRoute";
 import ProfileRoute from "./modules/profile/ProfileRoute";
+import AdminCategoriesRoute from "./modules/admin/categories/AdminCategoriesRoute";
+import MyClassroomsRoute from "./modules/classroom/MyClassroomsRoute";
 import { loadPlayerPage, loadViewerPage } from "./routeLoaders";
 
 const ViewerPage = lazy(loadViewerPage);
@@ -62,8 +65,16 @@ export default function App() {
                   element={<WorkspaceDetailRoute />}
                 />
                 <Route path="/profile" element={<ProfileRoute />} />
+                <Route path="/classrooms" element={<MyClassroomsRoute />} />
                 <Route path="/viqubed/editor/:projectId" element={<ViewerPage />} />
                 <Route path="/viqubed/player/:projectId" element={<PlayerPage />} />
+
+                <Route element={<AdminRoute />}>
+                  <Route
+                    path="/admin/categories"
+                    element={<AdminCategoriesRoute />}
+                  />
+                </Route>
               </Route>
 
               {LEGACY_BASE_PATHS.map((basePath) => (

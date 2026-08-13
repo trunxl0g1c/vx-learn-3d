@@ -8,6 +8,7 @@ import { useAlert } from "../../../components/dialog/AlertContext";
 import { useLogin } from "../api/login";
 import { useAuth } from "../AuthContext";
 import MaterialIcon from "../../../components/ui/material-icon";
+import { EMAIL_MAX_LENGTH, isValidEmail } from "../../../utils/validation";
 
 function GoogleIcon() {
   return (
@@ -55,6 +56,7 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState("");
 
   const loginMutation = useLogin({
     onSuccess: (data) => {
@@ -68,9 +70,23 @@ export default function LoginForm() {
   function handleSubmit(event) {
     event.preventDefault();
 
-    if (!email.trim() || !password || loginMutation.isPending) return;
+    if (loginMutation.isPending) return;
 
-    loginMutation.mutate({ email: email.trim(), password });
+    setFormError("");
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+
+    if (!password) {
+      setFormError("Password is required.");
+      return;
+    }
+
+    loginMutation.mutate({ email: trimmedEmail, password });
   }
 
   function notifyUnavailable(feature) {
@@ -82,6 +98,7 @@ export default function LoginForm() {
   }
 
   const errorMessage =
+    formError ||
     loginMutation.error?.response?.data?.message ||
     (loginMutation.isError ? "Invalid email or password" : "");
 
@@ -97,9 +114,13 @@ export default function LoginForm() {
         autoComplete="email"
         placeholder="Email"
         aria-label="Email"
+        maxLength={EMAIL_MAX_LENGTH}
         disabled={loginMutation.isPending}
         value={email}
-        onChange={(event) => setEmail(event.target.value)}
+        onChange={(event) => {
+          setEmail(event.target.value);
+          setFormError("");
+        }}
         // leftIcon={<User className="text-contrast-main" size={18} />}
         leftIcon={
           <MaterialIcon
@@ -119,9 +140,13 @@ export default function LoginForm() {
         autoComplete="current-password"
         placeholder="Password"
         aria-label="Password"
+        maxLength={128}
         disabled={loginMutation.isPending}
         value={password}
-        onChange={(event) => setPassword(event.target.value)}
+        onChange={(event) => {
+          setPassword(event.target.value);
+          setFormError("");
+        }}
         leftIcon={
           <MaterialIcon
             name="lock"

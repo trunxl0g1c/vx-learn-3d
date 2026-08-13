@@ -8,6 +8,11 @@ import {
   deleteContentObjDescRequest,
 } from "./contentObjDescs";
 import {
+  createContentSlideRequest,
+  updateContentSlideRequest,
+  deleteContentSlideRequest,
+} from "./contentSlides";
+import {
   createContentFlowRequest,
   updateContentFlowRequest,
   deleteContentFlowRequest,
@@ -17,6 +22,11 @@ import {
   updateContentProcedureRequest,
   deleteContentProcedureRequest,
 } from "./contentProcedures";
+import {
+  createContentQuizRequest,
+  updateContentQuizRequest,
+  deleteContentQuizRequest,
+} from "./contentQuizzes";
 import { replaceContentObjectNameOverridesRequest } from "./contentObjectNameOverrides";
 import { upsertContentSettingRequest } from "./contentSettings";
 import { updateContentRequest } from "./contents";
@@ -29,10 +39,19 @@ import {
   deleteContentObjDescMediaRequest,
 } from "./contentObjDescMedia";
 import {
+  uploadContentSlideMediaRequest,
+  deleteContentSlideMediaRequest,
+} from "./contentSlideMedia";
+import {
   hashThumbnail,
   dataUrlToFile,
   dataUrlToNamedFile,
 } from "./thumbnailUtils";
+import {
+  SAFE_LABEL_MAX_LENGTH,
+  sanitizeSafeLabel,
+  sanitizeText,
+} from "../../../utils/validation";
 
 // Chapter -> ContentObjDesc. objectUuid is the only chapter field promoted
 // to its own column; everything else that isn't already a dedicated column
@@ -68,6 +87,42 @@ function mapChapterToContentObjDesc(chapter, index) {
   };
 }
 
+// Slide -> ContentSlide. Mechanically the same mapping as
+// mapChapterToContentObjDesc above (see content-slide's README for the
+// field-mapping convention), minus objectUuid (slides don't bind to a scene
+// object) — the extra per-slide camera fields (quaternion/up/zoom/type/fov)
+// that don't exist on chapter fold into the same cameraView JSON blob so
+// nothing is lost on a round trip.
+function mapSlideToContentSlide(slide, index) {
+  return {
+    aliasName: slide?.title || `Slide ${index + 1}`,
+    description: slide?.description || undefined,
+    marker: { items: slide?.markers || [] },
+    stateView: slide?.visualState || null,
+    cameraView: {
+      cameraView: slide?.cameraView || null,
+      cameraViews: slide?.cameraViews || [],
+      cameraViewSaved: Boolean(slide?.cameraViewSaved),
+      cameraPosition: slide?.cameraPosition || null,
+      cameraTarget: slide?.cameraTarget || null,
+      cameraQuaternion: slide?.cameraQuaternion || null,
+      cameraUp: slide?.cameraUp || null,
+      cameraZoom: slide?.cameraZoom ?? null,
+      cameraType: slide?.cameraType || null,
+      cameraFov: slide?.cameraFov ?? null,
+    },
+    parameter: {
+      enabled: slide?.enabled !== false,
+      modelRotation: slide?.modelRotation || null,
+      animations: slide?.animations || [],
+      flows: slide?.flows || [],
+      callouts: slide?.callouts || [],
+      parameters: slide?.parameters || [],
+    },
+    step: index,
+  };
+}
+
 function mapFlowToContentFlow(flow) {
   return {
     name: flow?.name || "Untitled Flow",
@@ -88,6 +143,16 @@ function mapProcedureToContentProcedure(procedure) {
     enabled: procedure?.enabled !== false,
     settings: procedure?.settings || null,
     steps: procedure?.steps || [],
+  };
+}
+
+function mapQuizToContentQuiz(quiz) {
+  return {
+    name: quiz?.name || "Untitled Quiz",
+    description: quiz?.description || undefined,
+    enabled: quiz?.enabled !== false,
+    settings: quiz?.settings || null,
+    questions: quiz?.questions || [],
   };
 }
 
@@ -262,6 +327,34 @@ async function syncAllChapterMedia({
   return nextChapterMediaIds;
 }
 
+// Same idea as syncAllChapterMedia, for slides — slides are synced first
+// (see syncProjectToBackend) so each slide's remote ContentSlide id is
+// already known here.
+async function syncAllSlideMedia({ slides, slideIds, previousSlideMediaIds }) {
+  const nextSlideMediaIds = {};
+
+  for (const slide of slides) {
+    const localSlideId = slide?.id;
+    const remoteSlideId = localSlideId && slideIds[localSlideId];
+
+    if (!remoteSlideId) continue;
+
+    nextSlideMediaIds[localSlideId] = await syncMediaList({
+      items: slide?.media || [],
+      idMap: previousSlideMediaIds[localSlideId] || {},
+      upload: (item, file) =>
+        uploadContentSlideMediaRequest({
+          contentSlideId: remoteSlideId,
+          mediaClassification: mapMediaTypeToClassification(item.type),
+          file,
+        }),
+      remove: (remoteId) => deleteContentSlideMediaRequest({ id: remoteId }),
+    });
+  }
+
+  return nextSlideMediaIds;
+}
+
 // material.thumbnail is a local base64 data URL (captured from the viewport
 // or an uploaded image, see ProjectSettingsPanel) — the backend instead
 // stores it as a ContentMedia row classified IMAGE, the same way any other
@@ -358,7 +451,7 @@ export async function syncProjectToBackend({
   const existingProject = await getProjectFromIndexedDb(projectId);
   const remote = existingProject?.remote || {};
 
-  const [chapterIds, flowIds, procedureIds] = await Promise.all([
+  const [chapterIds, slideIds, flowIds, procedureIds, quizIds] = await Promise.all([
     syncArray({
       items: material?.chapters || [],
       idMap: remote.chapterIds || {},
@@ -366,6 +459,15 @@ export async function syncProjectToBackend({
       create: createContentObjDescRequest,
       update: updateContentObjDescRequest,
       remove: deleteContentObjDescRequest,
+      extraCreateFields: { contentId },
+    }),
+    syncArray({
+      items: material?.slides || [],
+      idMap: remote.slideIds || {},
+      mapToPayload: mapSlideToContentSlide,
+      create: createContentSlideRequest,
+      update: updateContentSlideRequest,
+      remove: deleteContentSlideRequest,
       extraCreateFields: { contentId },
     }),
     syncArray({
@@ -386,6 +488,15 @@ export async function syncProjectToBackend({
       remove: deleteContentProcedureRequest,
       extraCreateFields: { contentId },
     }),
+    syncArray({
+      items: material?.quizzes || [],
+      idMap: remote.quizIds || {},
+      mapToPayload: mapQuizToContentQuiz,
+      create: createContentQuizRequest,
+      update: updateContentQuizRequest,
+      remove: deleteContentQuizRequest,
+      extraCreateFields: { contentId },
+    }),
   ]);
 
   const chapterMediaIds = await syncAllChapterMedia({
@@ -394,19 +505,35 @@ export async function syncProjectToBackend({
     previousChapterMediaIds: remote.chapterMediaIds || {},
   });
 
+  const slideMediaIds = await syncAllSlideMedia({
+    slides: material?.slides || [],
+    slideIds,
+    previousSlideMediaIds: remote.slideMediaIds || {},
+  });
+
   const [, , , thumbnailResult, mediaIds] = await Promise.all([
     // Content's own fields (title, description, version, author,
     // marketplace flag) — previously only ever sent once at creation, so
     // edits made afterward in Project Settings never reached the database.
     // `title` is required by the backend DTO even on update, so it always
-    // falls back to something non-empty.
+    // falls back to something non-empty. Re-sanitized here (not just relying
+    // on ProjectSettingsPanel's onChange caps) since this is the actual
+    // submission boundary — material can also be populated by import paths
+    // that bypass the panel's UI.
     updateContentRequest({
       id: contentId,
-      title: material?.title || "Untitled Project",
-      description: material?.description || undefined,
-      version: material?.version || undefined,
-      author: material?.author || undefined,
+      title:
+        sanitizeSafeLabel(material?.title, { maxLength: SAFE_LABEL_MAX_LENGTH }) ||
+        "Untitled Project",
+      description: sanitizeText(material?.description, {
+        maxLength: 650,
+        allowNewlines: true,
+      }) || undefined,
+      version: sanitizeText(material?.version, { maxLength: 32 }) || undefined,
+      author: sanitizeText(material?.author, { maxLength: 80 }) || undefined,
       availableOnMarketplace: Boolean(material?.availableOnMarketplace),
+      categoryId: material?.categoryId,
+      visibility: material?.visibility || undefined,
     }),
     upsertContentSettingRequest({
       contentId,
@@ -440,9 +567,12 @@ export async function syncProjectToBackend({
       ...remote,
       contentId,
       chapterIds,
+      slideIds,
       flowIds,
       procedureIds,
+      quizIds,
       chapterMediaIds,
+      slideMediaIds,
       mediaIds,
       thumbnailMediaId: thumbnailResult.thumbnailMediaId,
       thumbnailHash: thumbnailResult.thumbnailHash,

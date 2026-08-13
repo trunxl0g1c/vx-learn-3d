@@ -8,12 +8,16 @@ import { useWorkspaceDetail, useWorkspaceMembers } from "./api/workspaces";
 import WorkspaceOverviewTab from "./components/WorkspaceOverviewTab";
 import WorkspaceMemberTab from "./components/WorkspaceMemberTab";
 import WorkspaceContentTab from "./components/WorkspaceContentTab";
+import WorkspaceContentPublicTab from "./components/WorkspaceContentPublicTab";
+import WorkspaceClassroomTab from "./components/WorkspaceClassroomTab";
 import WorkspaceTrashTab from "./components/WorkspaceTrashTab";
 
 const BASE_TABS = [
   { id: "overview", label: "Overview" },
   { id: "member", label: "Member" },
   { id: "content", label: "Content" },
+  { id: "content-public", label: "Content Public" },
+  { id: "classroom", label: "Classroom" },
   { id: "trash", label: "Trash" },
   { id: "billing", label: "Billing" },
 ];
@@ -135,6 +139,14 @@ export default function WorkspaceDetailPage() {
 
         {activeTab === "content" && (
           <WorkspaceContentTab workspaceId={workspaceId} />
+        )}
+
+        {activeTab === "content-public" && (
+          <WorkspaceContentPublicTab workspaceId={workspaceId} />
+        )}
+
+        {activeTab === "classroom" && (
+          <WorkspaceClassroomTab workspaceId={workspaceId} />
         )}
 
         {activeTab === "trash" && isCurrentUserOwner && (

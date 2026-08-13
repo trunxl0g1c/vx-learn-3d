@@ -42,6 +42,8 @@ export async function createContentRequest({
   author,
   availableOnMarketplace,
   status,
+  categoryId,
+  visibility,
 }) {
   const response = await apiClient.post("/contents", {
     workspaceId,
@@ -52,6 +54,8 @@ export async function createContentRequest({
     author: author || undefined,
     availableOnMarketplace,
     status: status || undefined,
+    categoryId: categoryId || undefined,
+    visibility: visibility || undefined,
   });
 
   return response.data?.data;
@@ -92,6 +96,8 @@ export async function updateContentRequest({
   version,
   author,
   availableOnMarketplace,
+  categoryId,
+  visibility,
 }) {
   const response = await apiClient.put("/contents", {
     id,
@@ -103,7 +109,24 @@ export async function updateContentRequest({
     version: version || undefined,
     author: author || undefined,
     availableOnMarketplace,
+    categoryId: categoryId === undefined ? undefined : categoryId || null,
+    visibility: visibility || undefined,
   });
+
+  return response.data?.data;
+}
+
+// Publishing is the gate for Classroom assignment and Content Public sharing
+// (both require status === "PUBLISHED" server-side) — see EditorTopBar's
+// "Publish" button and useViewerPageController's handlePublish.
+export async function publishContentRequest({ id }) {
+  const response = await apiClient.post("/contents/publish", { id });
+
+  return response.data?.data;
+}
+
+export async function unpublishContentRequest({ id }) {
+  const response = await apiClient.post("/contents/unpublish", { id });
 
   return response.data?.data;
 }
@@ -186,6 +209,32 @@ export function useRecoverContent(options = {}) {
 
   return useMutation({
     mutationFn: recoverContentRequest,
+    ...options,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["contents"] });
+      options.onSuccess?.(data, variables, context);
+    },
+  });
+}
+
+export function usePublishContent(options = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: publishContentRequest,
+    ...options,
+    onSuccess: (data, variables, context) => {
+      queryClient.invalidateQueries({ queryKey: ["contents"] });
+      options.onSuccess?.(data, variables, context);
+    },
+  });
+}
+
+export function useUnpublishContent(options = {}) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: unpublishContentRequest,
     ...options,
     onSuccess: (data, variables, context) => {
       queryClient.invalidateQueries({ queryKey: ["contents"] });

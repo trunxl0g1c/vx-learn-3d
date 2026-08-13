@@ -5,6 +5,7 @@ import InlineAlert from "../../components/ui/inline-alert";
 import SelectField from "../../components/ui/select";
 import UploadProgressRing from "../../components/ui/upload-progress-ring";
 import { useWorkspaces } from "../workspace/api/workspaces";
+import { useCategories } from "../category/api/categories";
 
 export default function CreateProjectDialog({
   open,
@@ -13,6 +14,8 @@ export default function CreateProjectDialog({
   setWorkspaceId,
   projectName,
   setProjectName,
+  categoryId,
+  setCategoryId,
   file,
   setFile,
   createRole,
@@ -32,6 +35,12 @@ export default function CreateProjectDialog({
     isError: isWorkspacesError,
   } = useWorkspaces(undefined, { enabled: open });
 
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories,
+    isError: isCategoriesError,
+  } = useCategories(undefined, { enabled: open });
+
   if (!open) return null;
 
   const workspaceOptions = workspaces.map((workspace) => ({
@@ -42,6 +51,15 @@ export default function CreateProjectDialog({
   let workspacePlaceholder = "Select a workspace";
   if (isWorkspacesError) workspacePlaceholder = "Failed to load workspaces";
   else if (isLoadingWorkspaces) workspacePlaceholder = "Loading workspaces...";
+
+  const categoryOptions = categories.map((category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+
+  let categoryPlaceholder = "Select a category";
+  if (isCategoriesError) categoryPlaceholder = "Failed to load categories";
+  else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
 
   return (
     <div className="fixed inset-0 z-999 grid place-items-center bg-black/45 backdrop-blur-sm">
@@ -117,6 +135,26 @@ export default function CreateProjectDialog({
                     {projectName.length}/64
                   </span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-normal text-contrast-grayout">
+                  Category
+                </label>
+
+                <SelectField
+                  value={categoryId || ""}
+                  onChange={(value) => {
+                    setCategoryId(value);
+                    onClearError?.();
+                  }}
+                  options={categoryOptions}
+                  placeholder={categoryPlaceholder}
+                  disabled={
+                    isSubmitting || isLoadingCategories || isCategoriesError
+                  }
+                  className="h-11! rounded-lg border-accent-main!"
+                />
               </div>
 
               <label className="mb-4 flex min-h-35 cursor-pointer items-center gap-6 rounded-lg border border-grayout-dark bg-dark-alpha px-5 transition hover:border-secondary-default">

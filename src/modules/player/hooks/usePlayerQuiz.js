@@ -9,6 +9,7 @@ import {
 import { findProceduralObject } from "../../../engine/procedural";
 import { collectMeshes } from "../../../engine/selection";
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
+import { submitQuizAttemptToBackend } from "../../project-hub/api/contentQuizAttempts";
 
 function shuffle(items) {
   const result = [...items];
@@ -57,6 +58,7 @@ export default function usePlayerQuiz({
   const [questionElapsedSeconds, setQuestionElapsedSeconds] = useState(0);
   const startedAtRef = useRef(null);
   const questionStartedAtRef = useRef(null);
+  const submittedAttemptKeyRef = useRef(null);
 
   useEffect(() => {
     setActiveQuizId(null);
@@ -130,6 +132,29 @@ export default function usePlayerQuiz({
     playerAnimation,
     playerProcedure,
   ]);
+
+  // Best-effort push of a just-completed attempt to the backend, fired
+  // exactly once per completion regardless of which of the two paths above
+  // produced it (this time-limit auto-submit, or nextQuestion() reaching
+  // the last question below) — both just set `result` + `status`. Keying
+  // on quiz id + the local `quizAttempt` counter means retryQuiz() (which
+  // bumps quizAttempt) naturally produces a new key and submits again.
+  // Never blocks or surfaces an error into the UI — errors are swallowed
+  // and logged inside submitQuizAttemptToBackend itself.
+  useEffect(() => {
+    if (status !== "completed" || !result || !activeQuiz) return;
+
+    const key = `${activeQuiz.id}:${quizAttempt}`;
+    if (submittedAttemptKeyRef.current === key) return;
+    submittedAttemptKeyRef.current = key;
+
+    submitQuizAttemptToBackend({
+      projectId: material?.projectId,
+      quiz: activeQuiz,
+      answers,
+      result,
+    });
+  }, [status, result, activeQuiz, quizAttempt, answers, material?.projectId]);
 
   useEffect(() => {
     if (

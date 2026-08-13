@@ -2,57 +2,80 @@ import { lazy, Suspense, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Button, { cn } from "../../../components/ui/button";
 import MaterialIcon from "../../../components/ui/material-icon";
+import { useAuth } from "../../auth/AuthContext";
 
 const LicenseInfoDialog = lazy(
   () => import("../../../components/dialog/LicenseInfoDialog"),
 );
 
-const menus = [
-  {
-    title: "My Catalogue",
-    href: "/viqubed",
-    match: "/viqubed",
-    icon: "package_2",
-  },
-  {
-    title: "Workspace",
-    href: "/workspace",
-    match: "/workspace",
-    icon: "work",
-  },
+function buildMenus(isAdmin) {
+  return [
+    {
+      title: "My Catalogue",
+      href: "/viqubed",
+      match: "/viqubed",
+      icon: "package_2",
+    },
+    {
+      title: "Workspace",
+      href: "/workspace",
+      match: "/workspace",
+      icon: "work",
+    },
+    {
+      title: "My Classrooms",
+      href: "/classrooms",
+      match: "/classrooms",
+      icon: "school",
+    },
 
-  { divider: true },
+    ...(isAdmin
+      ? [
+          { divider: true },
+          {
+            title: "Category Management",
+            href: "/admin/categories",
+            match: "/admin/categories",
+            icon: "category",
+          },
+        ]
+      : []),
 
-  {
-    title: "License Information",
-    action: "license",
-    icon: "license",
-  },
-  {
-    title: "Profile",
-    href: "/profile",
-    match: "/profile",
-    icon: "manage_accounts",
-  },
+    { divider: true },
 
-  { divider: true },
+    {
+      title: "License Information",
+      action: "license",
+      icon: "license",
+    },
+    {
+      title: "Profile",
+      href: "/profile",
+      match: "/profile",
+      icon: "manage_accounts",
+    },
 
-  {
-    title: "Documentation",
-    href: "/documentation",
-    match: "/documentation",
-    icon: "book_3",
-  },
-  {
-    title: "Support",
-    href: "/support",
-    match: "/support",
-    icon: "support_agent",
-  },
-];
+    { divider: true },
+
+    {
+      title: "Documentation",
+      href: "/documentation",
+      match: "/documentation",
+      icon: "book_3",
+    },
+    {
+      title: "Support",
+      href: "/support",
+      match: "/support",
+      icon: "support_agent",
+    },
+  ];
+}
 
 export default function ProjectHubSidebar() {
   const location = useLocation();
+  const { user } = useAuth();
+  const menus = buildMenus(user?.role === "Admin");
   const [isLicenseOpen, setIsLicenseOpen] = useState(false);
 
   return (

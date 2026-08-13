@@ -3,6 +3,7 @@ import Button from "../../../components/ui/button";
 import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import UploadProgressRing from "../../../components/ui/upload-progress-ring";
+import { PASSWORD_REQUIREMENTS_TEXT } from "../../../utils/validation";
 
 export default function ExportContentDialog({
   open,
@@ -68,6 +69,10 @@ export default function ExportContentDialog({
                   className="h-[44px] rounded-lg bg-dark-alpha!"
                   inputClassName="text-sm italic"
                 />
+
+                <p className="text-xs text-contrast-grayout">
+                  {PASSWORD_REQUIREMENTS_TEXT}
+                </p>
               </div>
 
               <div className="space-y-2">

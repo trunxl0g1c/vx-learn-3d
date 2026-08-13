@@ -12,6 +12,8 @@ export default function ViewerPageLayout({ controller }) {
     pendingSync,
     remoteContentId,
     handleBulkUpdate,
+    handlePublish,
+    isPublishing,
     activeSidebar,
     setActiveSidebar,
     rightTab,
@@ -130,6 +132,9 @@ export default function ViewerPageLayout({ controller }) {
         syncStatus={syncStatus}
         pendingSync={pendingSync}
         hasRemote={Boolean(remoteContentId)}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
+        publishStatus={material?.status}
       />
 
       <EditorSidebarRail

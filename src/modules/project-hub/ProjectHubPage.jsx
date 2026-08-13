@@ -39,6 +39,12 @@ import {
 import { isEncryptedPackageFile } from "../../utils/cryptoUtils";
 import { useAuth } from "../auth/AuthContext";
 import { hasPermission } from "../../utils/permissions";
+import {
+  SAFE_LABEL_MAX_LENGTH,
+  SAFE_LABEL_REGEX,
+  SAFE_LABEL_REGEX_MESSAGE,
+  validateRequiredText,
+} from "../../utils/validation";
 
 
 const CreateProjectDialog = lazy(() => import("./CreateProjectDialog"));
@@ -103,6 +109,7 @@ export default function ProjectHubPage() {
   const [openCreate, setOpenCreate] = useState(false);
   const [workspaceId, setWorkspaceId] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState(null);
   const [createRole, setCreateRole] = useState("EDITOR");
 
@@ -325,6 +332,7 @@ export default function ProjectHubPage() {
   const resetCreateProjectForm = () => {
     setWorkspaceId("");
     setProjectName("");
+    setCategoryId("");
     setFile(null);
     setCreateRole("EDITOR");
     setGlbValidation(null);
@@ -482,8 +490,16 @@ export default function ProjectHubPage() {
       return;
     }
 
-    if (!projectName.trim()) {
-      setCreateProjectError("Project name is required.");
+    const { value: sanitizedProjectName, error: projectNameError } =
+      validateRequiredText(projectName, {
+        fieldLabel: "Project name",
+        maxLength: SAFE_LABEL_MAX_LENGTH,
+        pattern: SAFE_LABEL_REGEX,
+        patternMessage: SAFE_LABEL_REGEX_MESSAGE,
+      });
+
+    if (projectNameError) {
+      setCreateProjectError(projectNameError);
       return;
     }
 
@@ -518,10 +534,11 @@ export default function ProjectHubPage() {
       setProgressLabel("Preparing project...");
 
       const project = createProjectRecord({
-        name: projectName.trim(),
+        name: sanitizedProjectName,
         file,
         role: createRole,
       });
+      project.material.categoryId = categoryId || null;
 
       setProgress(15);
       setProgressLabel("Saving project locally...");
@@ -542,6 +559,7 @@ export default function ProjectHubPage() {
         const content = await createContent.mutateAsync({
           workspaceId,
           title: project.name,
+          categoryId: categoryId || undefined,
         });
 
         uploadedContentId = content.id;
@@ -1020,6 +1038,8 @@ export default function ProjectHubPage() {
             setWorkspaceId={setWorkspaceId}
             projectName={projectName}
             setProjectName={setProjectName}
+            categoryId={categoryId}
+            setCategoryId={setCategoryId}
             file={file}
             setFile={handleSelectGlbFile}
             glbValidation={glbValidation}

@@ -7,8 +7,10 @@ import {
 import { getContentDetailRequest } from "./contents";
 import { getContentSettingRequest } from "./contentSettings";
 import { listContentObjDescsRequest } from "./contentObjDescs";
+import { listContentSlidesRequest } from "./contentSlides";
 import { listContentFlowsRequest } from "./contentFlows";
 import { listContentProceduresRequest } from "./contentProcedures";
+import { listContentQuizzesRequest } from "./contentQuizzes";
 import { listContentObjectNameOverridesRequest } from "./contentObjectNameOverrides";
 import {
   listContentMediaRequest,
@@ -19,6 +21,10 @@ import {
   listContentObjDescMediaRequest,
   fetchContentObjDescMediaBlob,
 } from "./contentObjDescMedia";
+import {
+  listContentSlideMediaRequest,
+  fetchContentSlideMediaBlob,
+} from "./contentSlideMedia";
 import { hashThumbnail, blobToDataUrl } from "./thumbnailUtils";
 
 // Same convention projectSync.js's syncThumbnail uploads under — lets
@@ -161,6 +167,77 @@ async function hydrateChapterMedia(contentObjDescId) {
   }
 }
 
+// Same idea as hydrateChapterMedia, for slides — ContentSlideMedia rows
+// nested under one ContentSlide, back into slide.media's shape.
+async function hydrateSlideMedia(contentSlideId) {
+  try {
+    const items = await listContentSlideMediaRequest({ contentSlideId });
+    const mediaIds = {};
+    const media = await Promise.all(
+      (items || []).map(async (item) => {
+        try {
+          const blob = await fetchContentSlideMediaBlob({ id: item.id });
+          const data = await blobToDataUrl(blob);
+          const localId = createId();
+
+          mediaIds[localId] = item.id;
+
+          return {
+            id: localId,
+            type: classificationToChapterMediaType(item.mediaClassification),
+            name: item.filename,
+            mimeType: item.mimetype,
+            data,
+          };
+        } catch (error) {
+          console.error(`Failed to hydrate slide media ${item.id}:`, error);
+          return null;
+        }
+      }),
+    );
+
+    return { media: media.filter(Boolean), mediaIds };
+  } catch (error) {
+    console.error("Failed to hydrate slide media:", error);
+    return { media: [], mediaIds: {} };
+  }
+}
+
+// Reverse of projectSync.js's mapSlideToContentSlide.
+function mapContentSlideToSlide(contentSlide) {
+  const parameter = contentSlide?.parameter || {};
+  const cameraView = contentSlide?.cameraView || {};
+  const marker = contentSlide?.marker || {};
+  const now = new Date().toISOString();
+
+  return {
+    id: createId("slide"),
+    title: contentSlide?.aliasName || "",
+    description: contentSlide?.description || "",
+    enabled: parameter.enabled !== false,
+    parameters: parameter.parameters || [],
+    markers: marker.items || [],
+    media: [],
+    animations: parameter.animations || [],
+    flows: parameter.flows || [],
+    visualState: contentSlide?.stateView || null,
+    cameraViewSaved: Boolean(cameraView.cameraViewSaved),
+    cameraView: cameraView.cameraView || null,
+    cameraViews: cameraView.cameraViews || [],
+    cameraPosition: cameraView.cameraPosition || null,
+    cameraTarget: cameraView.cameraTarget || null,
+    cameraQuaternion: cameraView.cameraQuaternion || null,
+    cameraUp: cameraView.cameraUp || null,
+    cameraZoom: cameraView.cameraZoom ?? null,
+    cameraType: cameraView.cameraType || null,
+    cameraFov: cameraView.cameraFov ?? null,
+    modelRotation: parameter.modelRotation || null,
+    callouts: parameter.callouts || [],
+    createdAt: contentSlide?.createdAt || now,
+    updatedAt: contentSlide?.modifiedAt || now,
+  };
+}
+
 // Reverse of projectSync.js's mapChapterToContentObjDesc.
 function mapContentObjDescToChapter(desc) {
   const parameter = desc?.parameter || {};
@@ -222,6 +299,22 @@ function mapContentProcedureToProcedure(contentProcedure) {
   };
 }
 
+// Reverse of projectSync.js's mapQuizToContentQuiz.
+function mapContentQuizToQuiz(contentQuiz) {
+  const now = new Date().toISOString();
+
+  return {
+    id: createId("quiz"),
+    name: contentQuiz?.name || "Untitled Quiz",
+    description: contentQuiz?.description || "",
+    enabled: contentQuiz?.enabled !== false,
+    settings: contentQuiz?.settings || {},
+    questions: contentQuiz?.questions || [],
+    createdAt: contentQuiz?.createdAt || now,
+    updatedAt: contentQuiz?.modifiedAt || now,
+  };
+}
+
 function mapContentOverride(override) {
   return {
     path: Array.isArray(override?.path) ? override.path : [],
@@ -278,15 +371,25 @@ export async function fetchContentEditorSnapshot(contentId) {
   const thumbnailPromise = hydrateThumbnail(contentId);
   const projectMediaPromise = hydrateProjectMedia(contentId);
 
-  const [content, setting, objDescs, flows, procedures, overrides] =
-    await Promise.all([
-      getContentDetailRequest({ id: contentId }),
-      getContentSettingRequest({ contentId }),
-      listContentObjDescsRequest({ contentId }),
-      listContentFlowsRequest({ contentId }),
-      listContentProceduresRequest({ contentId }),
-      listContentObjectNameOverridesRequest({ contentId }),
-    ]);
+  const [
+    content,
+    setting,
+    objDescs,
+    slideRows,
+    flows,
+    procedures,
+    quizzes,
+    overrides,
+  ] = await Promise.all([
+    getContentDetailRequest({ id: contentId }),
+    getContentSettingRequest({ contentId }),
+    listContentObjDescsRequest({ contentId }),
+    listContentSlidesRequest({ contentId }),
+    listContentFlowsRequest({ contentId }),
+    listContentProceduresRequest({ contentId }),
+    listContentQuizzesRequest({ contentId }),
+    listContentObjectNameOverridesRequest({ contentId }),
+  ]);
 
   const { thumbnailDataUrl, thumbnailMediaId, thumbnailHash } =
     await thumbnailPromise;
@@ -311,6 +414,25 @@ export async function fetchContentEditorSnapshot(contentId) {
     chapterMediaIds[chapter.id] = chapterMediaResults[index].mediaIds;
   });
 
+  const slideIds = {};
+  const slides = (slideRows || [])
+    .slice()
+    .sort((a, b) => (a?.step ?? 0) - (b?.step ?? 0))
+    .map((row) => {
+      const slide = mapContentSlideToSlide(row);
+      slideIds[slide.id] = row.id;
+      return slide;
+    });
+
+  const slideMediaResults = await Promise.all(
+    slides.map((slide) => hydrateSlideMedia(slideIds[slide.id])),
+  );
+  const slideMediaIds = {};
+  slides.forEach((slide, index) => {
+    slide.media = slideMediaResults[index].media;
+    slideMediaIds[slide.id] = slideMediaResults[index].mediaIds;
+  });
+
   const flowIds = {};
   const mappedFlows = (flows || []).map((contentFlow) => {
     const flow = mapContentFlowToFlow(contentFlow);
@@ -325,6 +447,13 @@ export async function fetchContentEditorSnapshot(contentId) {
     return procedure;
   });
 
+  const quizIds = {};
+  const mappedQuizzes = (quizzes || []).map((contentQuiz) => {
+    const quiz = mapContentQuizToQuiz(contentQuiz);
+    quizIds[quiz.id] = contentQuiz.id;
+    return quiz;
+  });
+
   const { viewer, scene, playerSettings } =
     mapContentSettingToViewerAndScene(setting);
 
@@ -333,10 +462,15 @@ export async function fetchContentEditorSnapshot(contentId) {
     chapters,
     chapterIds,
     chapterMediaIds,
+    slides,
+    slideIds,
+    slideMediaIds,
     flows: mappedFlows,
     flowIds,
     procedures: mappedProcedures,
     procedureIds,
+    quizzes: mappedQuizzes,
+    quizIds,
     overrides: (overrides || []).map(mapContentOverride),
     viewer,
     scene,
@@ -383,10 +517,15 @@ export async function hydrateProjectFromBackend({
     chapters,
     chapterIds,
     chapterMediaIds,
+    slides,
+    slideIds,
+    slideMediaIds,
     flows: mappedFlows,
     flowIds,
     procedures: mappedProcedures,
     procedureIds,
+    quizzes: mappedQuizzes,
+    quizIds,
     overrides,
     viewer,
     scene,
@@ -425,9 +564,12 @@ export async function hydrateProjectFromBackend({
       contentId,
       mediaId: null,
       chapterIds,
+      slideIds,
       flowIds,
       procedureIds,
+      quizIds,
       chapterMediaIds,
+      slideMediaIds,
       mediaIds,
       thumbnailMediaId,
       thumbnailHash,
@@ -442,13 +584,19 @@ export async function hydrateProjectFromBackend({
       author: content?.author || "",
       thumbnail: thumbnailDataUrl || "",
       availableOnMarketplace: Boolean(content?.availableOnMarketplace),
+      categoryId: content?.categoryId || null,
+      visibility: content?.visibility || "PRIVATE",
+      status: content?.status || "DRAFT",
+      publishedAt: content?.publishedAt || null,
       modelUrl: "",
       media: projectMedia,
       chapters,
+      slides,
       flows: mappedFlows,
       objectNameOverrides: overrides,
       playerSettings: normalizePlayerSettings(playerSettings),
       procedures: mappedProcedures,
+      quizzes: mappedQuizzes,
     },
 
     viewer,
