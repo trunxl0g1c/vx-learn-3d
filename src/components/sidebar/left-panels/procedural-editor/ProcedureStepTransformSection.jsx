@@ -12,8 +12,30 @@ export default function ProcedureStepTransformSection({
   step,
   isAssembly,
 }) {
-  return (
+  const activeEntry = procedural.activeAnimatedEntry || null;
+  const activeEntries = procedural.activeAnimatedEntries || [];
+  const activeIndex = activeEntry
+    ? activeEntries.findIndex((entry) => entry.id === activeEntry.id)
+    : -1;
+
+  const content = (
     <>
+      {!isAssembly && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent-main/35 bg-accent-main/10 px-2.5 py-2">
+          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
+            {activeIndex >= 0 ? activeIndex + 1 : "-"}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[9px] uppercase tracking-wide text-contrast-grayout">
+              Active animation action
+            </span>
+            <span className="block truncate text-[11px] font-semibold text-white">
+              {activeEntry?.object?.name || "Select an animation action above"}
+            </span>
+          </span>
+        </div>
+      )}
+
       <div>
         <span className="mb-1.5 block text-xs text-contrast-grayout">
           Gizmo Mode
@@ -36,7 +58,7 @@ export default function ProcedureStepTransformSection({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <Button
           type="button"
           size="xs"
@@ -45,7 +67,7 @@ export default function ProcedureStepTransformSection({
           onClick={procedural.captureStartTransform}
         >
           <MaterialIcon name="flag" className="size-4" />
-          Save Start
+          Update Start
         </Button>
         <Button
           type="button"
@@ -55,18 +77,18 @@ export default function ProcedureStepTransformSection({
           onClick={procedural.captureEndTransform}
         >
           <MaterialIcon name="sports_score" className="size-4" />
-          {isAssembly ? "Save Target" : "Save End"}
+          {isAssembly ? "Update Target" : "Update End"}
         </Button>
       </div>
 
-      <div className="rounded-lg border border-secondary-default/50 bg-primary/40 p-3 text-[10px] leading-5 text-contrast-grayout">
+      <div className="mt-3 rounded-lg border border-secondary-default/40 bg-primary/40 p-2.5 text-[10px] leading-4 text-contrast-grayout">
         {isAssembly
-          ? "Workflow: place the component in its loose/start position and save Start. Move/rotate it into the correct installed position and save Target. Use Show Start and Show Target to verify both states."
-          : "Workflow: add one or more click targets, add every object that should move, select each animated object in the list, then save its Start and End transforms. Playback follows the Together or Sequential mode selected above."}
+          ? "Start and Target are saved automatically from the object's current pose when it is added. Move/rotate the component, then use Update Target only when the installed pose should change."
+          : "Start and End are saved automatically from the object's current pose when the Animation Action is added. If the object does not move, no extra save is needed. Use Update Start/End only after changing the pose."}
       </div>
 
       {isAssembly && (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <Button
             type="button"
             size="xs"
@@ -89,7 +111,25 @@ export default function ProcedureStepTransformSection({
           </Button>
         </div>
       )}
-
     </>
+  );
+
+  if (isAssembly) return content;
+
+  return (
+    <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
+          3
+        </span>
+        <div>
+          <p className="text-xs font-semibold text-white">Set Start & End</p>
+          <p className="mt-0.5 text-[10px] text-contrast-grayout">
+            Configure the selected animation action.
+          </p>
+        </div>
+      </div>
+      {content}
+    </section>
   );
 }

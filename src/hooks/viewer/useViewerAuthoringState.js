@@ -13,9 +13,14 @@ export function useViewerAuthoringState({
   selectedObject,
   selectedObjects,
   blinkSelectedObjectsEnabled,
+  blinkTargetObjects = [],
+  blinkAssignments = [],
   setBlinkSelectedObjectsEnabled,
+  setBlinkTargetObjects,
+  setBlinkAssignments,
   xrayTargetObject,
   xrayTargetObjects,
+  xrayNormalObjects = [],
   selectionVisualMode,
   pullApartState,
   getCutStates,
@@ -44,8 +49,11 @@ export function useViewerAuthoringState({
         selectedObjects,
         xrayTargetObject,
         xrayTargetObjects,
+        xrayNormalObjects,
         selectionVisualMode,
         blinkSelectedObjectsEnabled,
+        blinkTargetObjects,
+        blinkAssignments,
         pullApartState,
         cutStates: getCutStates?.() || [],
         cutEnabled,
@@ -59,12 +67,15 @@ export function useViewerAuthoringState({
       getCutStates,
       modelScene,
       blinkSelectedObjectsEnabled,
+      blinkTargetObjects,
+      blinkAssignments,
       pullApartState,
       selectedObject,
       selectedObjects,
       selectionVisualMode,
       xrayTargetObject,
       xrayTargetObjects,
+      xrayNormalObjects,
     ],
   );
 
@@ -188,20 +199,31 @@ export function useViewerAuthoringState({
     selectedObject,
   ]);
 
-  const showActiveProcedureStepVisualState = useCallback(() => {
-    const visualState = procedural.activeStep?.visualState;
+  const applyVisualState = useCallback(
+    (
+      visualState,
+      {
+        chapter = null,
+        chapterObject = null,
+        resetBeforeApply = true,
+        closeInfoOnReset = true,
+      } = {},
+    ) => {
+      if (!visualState || !modelScene) return null;
 
-    if (!visualState || !modelScene) return false;
+      if (resetBeforeApply) {
+        resetXray({ closeInfo: closeInfoOnReset });
+        setBlinkSelectedObjectsEnabled?.(false);
+        setBlinkTargetObjects?.([]);
+        setBlinkAssignments?.([]);
+        showAllObjects();
+        clearCutSession();
+      }
 
-    resetXray();
-    showAllObjects();
-    clearCutSession();
-
-    return Boolean(
-      applySavedViewerVisualState({
+      return applySavedViewerVisualState({
         scene: modelScene,
-        chapter: null,
-        chapterObject: procedural.activeAnimatedObject || selectedObject,
+        chapter,
+        chapterObject,
         visualState,
         applySavedPullApart,
         makeOthersXray,
@@ -210,25 +232,42 @@ export function useViewerAuthoringState({
         highlightSelectedObjectsPreservingVisualState,
         setSelectedObjectName,
         setBlinkSelectedObjectsEnabled,
+        setBlinkTargetObjects,
+        setBlinkAssignments,
         applySavedCuts,
+      });
+    },
+    [
+      applySavedCuts,
+      applySavedPullApart,
+      clearCutSession,
+      highlightObject,
+      highlightSelectedObjectsPreservingVisualState,
+      makeOthersXray,
+      makeTargetObjectsXray,
+      modelScene,
+      resetXray,
+      setBlinkSelectedObjectsEnabled,
+      setBlinkTargetObjects,
+      setBlinkAssignments,
+      setSelectedObjectName,
+      showAllObjects,
+    ],
+  );
+
+  const showActiveProcedureStepVisualState = useCallback(() => {
+    const visualState = procedural.activeStep?.visualState;
+
+    return Boolean(
+      applyVisualState(visualState, {
+        chapterObject: procedural.activeAnimatedObject || selectedObject,
       }),
     );
   }, [
-    applySavedCuts,
-    applySavedPullApart,
-    clearCutSession,
-    highlightObject,
-    highlightSelectedObjectsPreservingVisualState,
-    makeOthersXray,
-    makeTargetObjectsXray,
-    modelScene,
+    applyVisualState,
     procedural.activeAnimatedObject,
     procedural.activeStep?.visualState,
-    resetXray,
     selectedObject,
-    setBlinkSelectedObjectsEnabled,
-    setSelectedObjectName,
-    showAllObjects,
   ]);
 
   const showActiveProcedureStepViewState = useCallback(() => {
@@ -310,6 +349,9 @@ export function useViewerAuthoringState({
     flowAuthoring,
     proceduralAuthoring,
     quizAuthoring,
+    captureVisualState,
+    captureCameraView,
+    applyVisualState,
   };
 }
 

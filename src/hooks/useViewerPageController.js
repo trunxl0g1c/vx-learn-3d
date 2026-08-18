@@ -33,13 +33,13 @@ import { launchPlayerPreview } from "./viewer/launchPlayerPreview";
 import { useViewerDataImport } from "./viewer/useViewerDataImport";
 import { createChapterHighlightPayload } from "../engine/selection";
 import { useViewerSceneHistory } from "./viewer/useViewerSceneHistory";
+import { useDefaultViewerPresentation } from "./viewer/useDefaultViewerPresentation";
+import { useFocusSelectedObjectShortcut } from "./useFocusSelectedObjectShortcut";
 import {
   getChapterCameraView,
   getChapterCameraVisualState,
 } from "../engine/chapter";
 import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
-import { createStoredCameraView } from "../engine/camera";
-import { normalizePlayerSettings } from "../modules/material/playerSettings";
 import {
   applyChapterModelRotation,
   createChapterFocusTarget,
@@ -229,27 +229,6 @@ export function useViewerPageController() {
       quizAuthoringActive: quiz.isAuthoringActive,
       xrAuthoringActive: xrAuthoring.isAuthoringActive,
     });
-  const saveDefaultPlayerCameraView = useCallback(() => {
-    const cameraView = createStoredCameraView(
-      cameraRef.current,
-      controlsRef.current,
-    );
-    if (!cameraView) return false;
-    updateMaterialState((prev) => ({
-      ...prev,
-      playerSettings: {
-        ...normalizePlayerSettings(prev?.playerSettings),
-        defaultCameraView: {
-          ...cameraView,
-          modelRotation: modelScene
-            ? modelScene.rotation.toArray()
-            : [0, 0, 0],
-          savedAt: new Date().toISOString(),
-        },
-      },
-    }));
-    return true;
-  }, [modelScene, updateMaterialState]);
   const rebuildObjectList = useCallback(
     (scene = modelScene) => {
       if (!scene) {
@@ -353,13 +332,17 @@ export function useViewerPageController() {
     projectionResetKey: modelUrl,
   });
 
+  useFocusSelectedObjectShortcut({
+    selectedObject,
+    onFocus: focusObject,
+  });
+
   const {
     selectedObjects,
     selectionVisualMode,
     multipleSelectEnabled,
-    blinkSelectedObjectsEnabled,
-    setBlinkSelectedObjectsEnabled,
-    toggleBlinkSelectedObjects,
+    blinkSelectedObjectsEnabled, activeSelectionHasBlink, blinkTargetObjects, blinkAssignments, blinkRenderGroups, blinkOutlineObjects,
+    setBlinkSelectedObjectsEnabled, setBlinkTargetObjects, setBlinkAssignments, assignBlinkPresetToSelectedObjects, removeBlinkFromSelectedObjects, toggleBlinkSelectedObjects,
     toggleMultipleSelect,
     clearSelection,
     clearSelectionFromViewport,
@@ -368,14 +351,15 @@ export function useViewerPageController() {
     makeXrayExcept,
     makeOthersXray,
     makeSelectedObjectsXray,
+    highlightSelectedObjectsAgainstXray,
     makeTargetObjectsXray,
+    removeTargetObjectsXray,
     highlightSelectedObjectsPreservingVisualState,
     resetXray,
     selectObjectFromMesh,
     focusObjectFromMesh,
     selectionEngine,
-    xrayTargetObject,
-    xrayTargetObjects,
+    xrayTargetObject, xrayTargetObjects, xrayNormalObjects,
   } = useViewerSelection({
     vxEngine,
     modelScene,
@@ -464,17 +448,22 @@ export function useViewerPageController() {
     handleModelLoaded,
     historyEngine: vxEngine?.history,
   });
-  const { flowAuthoring, proceduralAuthoring, quizAuthoring } = useViewerAuthoringState({
+  const {
+    flowAuthoring,
+    proceduralAuthoring,
+    quizAuthoring,
+    captureVisualState,
+    captureCameraView,
+    applyVisualState,
+  } = useViewerAuthoringState({
     flow,
     procedural,
     quiz,
     modelScene,
     selectedObject,
-    selectedObjects,
-    blinkSelectedObjectsEnabled,
-    setBlinkSelectedObjectsEnabled,
-    xrayTargetObject,
-    xrayTargetObjects,
+    selectedObjects, blinkSelectedObjectsEnabled, blinkTargetObjects, blinkAssignments,
+    setBlinkSelectedObjectsEnabled, setBlinkTargetObjects, setBlinkAssignments,
+    xrayTargetObject, xrayTargetObjects, xrayNormalObjects,
     selectionVisualMode,
     pullApartState,
     getCutStates,
@@ -494,10 +483,17 @@ export function useViewerPageController() {
     setSelectedObjectName,
     applySavedCuts,
   });
+  const { saveDefaultPlayerCameraViewAndState } =
+    useDefaultViewerPresentation({
+      material, updateMaterialState, modelScene, cameraRef, controlsRef,
+      captureCameraView, captureVisualState, resetVisualState, applyVisualState,
+      applyStoredCameraFocusTarget,
+    });
   const slideAuthoring = useSlideAuthoring({
     enabled: slideModeActive, material, setMaterial: updateMaterialState, hydrateSlideRecord: loadSlideRecord,
     setRightTab, setActiveChapterId, setMarkerMode, modelScene, cameraRef, controlsRef, selectedObject, selectedObjects,
-    blinkSelectedObjectsEnabled, setBlinkSelectedObjectsEnabled, xrayTargetObject, xrayTargetObjects,
+    blinkSelectedObjectsEnabled, blinkTargetObjects, blinkAssignments, setBlinkSelectedObjectsEnabled, setBlinkTargetObjects, setBlinkAssignments,
+    xrayTargetObject, xrayTargetObjects, xrayNormalObjects,
     selectionVisualMode, pullApartState, getCutStates, cutEnabled, cutValues, cutRanges: engineCutRanges || cutRanges,
     applyStoredCameraFocusTarget, resetXray, resetVisualState, clearCutSession, applySavedPullApart, makeOthersXray,
     makeTargetObjectsXray, highlightObject, highlightSelectedObjectsPreservingVisualState, setSelectedObject,
@@ -529,7 +525,7 @@ export function useViewerPageController() {
   });
 
   const isSelectedObjectXray = Boolean(
-    selectedObject && xrayTargetObject === selectedObject,
+    selectedObject && xrayTargetObjects.includes(selectedObject),
   );
 
   const toggleSelectedObjectXray = () => {
@@ -539,9 +535,8 @@ export function useViewerPageController() {
     const targetName = String(targetObject.name || selectedObjectName || "")
       .replaceAll("_", " ");
 
-    if (xrayTargetObject === targetObject) {
-      resetXray();
-      highlightObject(targetObject);
+    if (xrayTargetObjects.includes(targetObject)) {
+      removeTargetObjectsXray([targetObject]);
       setSelectedObjectName(targetName);
       return;
     }
@@ -607,6 +602,8 @@ export function useViewerPageController() {
     selectedObject,
     selectedObjects,
     blinkSelectedObjectsEnabled,
+    blinkTargetObjects,
+    blinkAssignments,
     authoringObject,
     cameraRef,
     controlsRef,
@@ -638,6 +635,7 @@ export function useViewerPageController() {
     getCutStates,
     xrayTargetObject,
     xrayTargetObjects,
+    xrayNormalObjects,
     selectionVisualMode,
     pullApartState,
     activeChapterId,
@@ -680,6 +678,8 @@ export function useViewerPageController() {
       stopAnimationPreview();
       // Preview resets viewport state without closing the Chapter panel.
       resetXray({ closeInfo: false });
+      setBlinkSelectedObjectsEnabled(false);
+      setBlinkTargetObjects([]);
       resetVisualState();
       clearCutSession();
 
@@ -747,6 +747,7 @@ export function useViewerPageController() {
         ...previewSelection,
         setSelectedObjectName,
         setBlinkSelectedObjectsEnabled,
+        setBlinkTargetObjects, setBlinkAssignments,
         applySavedCuts,
       });
     } catch (error) {
@@ -864,7 +865,7 @@ export function useViewerPageController() {
     quizAuthoring,
     xrAuthoring,
     slideAuthoring,
-    saveDefaultPlayerCameraView,
+    saveDefaultPlayerCameraViewAndState,
     activeChapter,
     activeChapterId,
     setActiveChapterId,
@@ -921,7 +922,9 @@ export function useViewerPageController() {
     selectedObjects,
     multipleSelectEnabled,
     blinkSelectedObjectsEnabled,
-    toggleBlinkSelectedObjects,
+    activeSelectionHasBlink,
+    blinkRenderGroups, blinkOutlineObjects,
+    assignBlinkPresetToSelectedObjects, removeBlinkFromSelectedObjects, toggleBlinkSelectedObjects,
     toggleMultipleSelect,
     clearSelection,
     clearSelectionFromViewport,
@@ -954,6 +957,7 @@ export function useViewerPageController() {
     hideSelectedObject,
     hideMultipleSelectedObjects,
     makeSelectedObjectsXray,
+    highlightSelectedObjectsAgainstXray,
     toggleSelectedObjectXray,
     isSelectedObjectXray,
     resetXray,

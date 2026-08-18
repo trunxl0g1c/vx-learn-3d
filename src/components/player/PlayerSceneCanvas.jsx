@@ -26,10 +26,13 @@ import AssemblyDragController from "../procedural/AssemblyDragController";
 import AssemblyGhostTarget from "../procedural/AssemblyGhostTarget";
 import { DEFAULT_ORBIT_MIN_DISTANCE } from "../../engine/camera";
 import { getFlowReferenceLengthFromObject } from "../../engine/flow";
-import { collectMeshes } from "../../engine/selection";
+import { getXRModelMaxDimension } from "../../engine/xr";
+import { collectMeshes, getBlinkPresetById } from "../../engine/selection";
 import BlinkSelectionOutline from "../viewer/BlinkSelectionOutline";
 import PlayerTurntableController from "./PlayerTurntableController";
 import PlayerXRSceneController from "./PlayerXRSceneController";
+import PlayerIOSWebARScene from "./PlayerIOSWebARScene";
+import PlayerXRInteractionPanel from "./PlayerXRInteractionPanel";
 import {
   GENERATED_ANNOTATION_COLOR,
   GeneratedObjectAnnotations,
@@ -39,6 +42,25 @@ import {
   RenderSettingsSync,
   WebGLRendererLifecycle,
 } from "./PlayerSceneCanvasSupport";
+
+const XR_PANEL_FALLBACK_VIEW_MODEL = Object.freeze({
+  eyebrow: "VIQUBED XR",
+  title: "XR Player",
+  body: "Loading learning controls for this XR session...",
+  progress: "XR session active",
+  status: "Point the controller ray at the panel and press trigger.",
+  buttons: [{ label: "EXIT", action: "xr_exit" }],
+});
+
+function PlayerModelFit({ trackedAR = false, children }) {
+  if (trackedAR) return <Center>{children}</Center>;
+
+  return (
+    <Bounds fit clip margin={1.2}>
+      <Center>{children}</Center>
+    </Bounds>
+  );
+}
 
 function getShaderOutlineConfig(shaderOutlineStyle) {
   if (shaderOutlineStyle === "sketch") {
@@ -63,6 +85,7 @@ export default function PlayerSceneCanvas({
   cameraProjectionMode = null,
   outlineObjects,
   blinkSelectionEnabled = false,
+  blinkRenderGroups = [],
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
   cameraRef,
@@ -115,12 +138,23 @@ export default function PlayerSceneCanvas({
   onAssemblyDragEnd,
   xrMode = null,
   xrSettings = null,
+  xrInteraction = null,
+  iosWebARState = null,
+  iosWebARController = null,
   onRendererReady,
 }) {
   const modelRootRef = useRef(null);
   const turntableRootRef = useRef(null);
   const xrRootRef = useRef(null);
+  const xrInteractionRootRef = useRef(null);
   const [annotationOutlineObjects, setAnnotationOutlineObjects] = useState([]);
+  const [xrRuntimeMaxDimension, setXrRuntimeMaxDimension] = useState(0);
+  const xrModelMaxDimension = useMemo(
+    () => getXRModelMaxDimension(modelScene),
+    [modelScene],
+  );
+  const effectiveXRModelMaxDimension =
+    xrRuntimeMaxDimension > 0 ? xrRuntimeMaxDimension : xrModelMaxDimension;
   const flowSpeedReferenceLength = useMemo(
     () => getFlowReferenceLengthFromObject(modelScene, 1),
     [modelScene],
@@ -151,6 +185,10 @@ export default function PlayerSceneCanvas({
   useEffect(() => {
     setAnnotationOutlineObjects([]);
   }, [modelScene?.uuid, showAnnotations]);
+
+  useEffect(() => {
+    setXrRuntimeMaxDimension(0);
+  }, [material?.modelUrl, modelScene?.uuid]);
 
   const handleObjectSelect = (object) => {
     const selection = handleSelectObjectFromPlayer?.(object);
@@ -194,14 +232,19 @@ export default function PlayerSceneCanvas({
   const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle);
   const isSketchMode = shaderOutlineStyle === "sketch";
   const background = getViewerBackground(viewerSettings);
+  const isIOSTrackedWebAR = xrMode === "ios-tracked-ar";
+  const isImmersiveWebXR = xrMode === "vr" || xrMode === "ar";
+  const isTrackedARSession = isIOSTrackedWebAR;
+  const isARSession = xrMode === "ar" || isTrackedARSession;
   const stageBackgroundEnabled =
-    background.type === "stage" && !isSketchMode && xrMode !== "ar";
-  const isARSession = xrMode === "ar";
-  const xrGridEnabled = xrMode
+    background.type === "stage" && !isSketchMode && !isARSession;
+  const xrGridEnabled = isImmersiveWebXR
     ? xrMode === "vr"
       ? Boolean(xrSettings?.vr?.showGrid)
       : Boolean(xrSettings?.ar?.showGrid)
-    : null;
+    : isTrackedARSession
+      ? false
+      : null;
   const gridViewerSettings = xrMode
     ? {
         ...viewerSettings,
@@ -213,16 +256,68 @@ export default function PlayerSceneCanvas({
       }
     : viewerSettings;
   const canvasStyle = isARSession
-    ? { background: "transparent" }
+    ? { background: "transparent", position: "relative", zIndex: 1 }
     : isSketchMode
       ? { background: "#ffffff" }
       : getViewerBackgroundStyle(viewerSettings);
+  const xrPanelViewModel = isImmersiveWebXR
+    ? xrInteraction?.viewModel || XR_PANEL_FALLBACK_VIEW_MODEL
+    : null;
+
+  // iOS/iPad tracked WebAR must own its canvas and camera end-to-end. Do not
+  // keep the normal Player Canvas mounted behind it: Bounds, stage CSS, the
+  // desktop camera and the Player loading lifecycle can otherwise continue to
+  // compete with Zappar and recreate the exact "huge model + stage background"
+  // failure seen on device.
+  if (isTrackedARSession) {
+    return (
+      <PlayerIOSWebARScene
+        material={material}
+        modelScene={modelScene}
+        viewerSettings={viewerSettings}
+        xrSettings={xrSettings}
+        iosWebARState={iosWebARState}
+        iosWebARController={iosWebARController}
+        modelMaxDimension={effectiveXRModelMaxDimension}
+        cameraRef={cameraRef}
+        selectedAnimations={selectedAnimations}
+        animationCommand={animationCommand}
+        setAnimations={setAnimations}
+        handleSelectObjectFromPlayer={handleSelectObjectFromPlayer}
+        handleDoubleClickObjectFromPlayer={handleDoubleClickObjectFromPlayer}
+        onObjectSelectInteraction={onObjectSelectInteraction}
+        selectedObject={selectedObject}
+        activeChapter={activeChapter}
+        activeSlide={activeSlide}
+        activeFlow={activeFlow}
+        flowPlaying={flowPlaying}
+        flowPlaybackKey={flowPlaybackKey}
+        activeChapterFlows={activeChapterFlows}
+        chapterFlowPlaybackKey={chapterFlowPlaybackKey}
+        activeSlideFlows={activeSlideFlows}
+        slideFlowPlaybackKey={slideFlowPlaybackKey}
+        onSlideFlowComplete={onSlideFlowComplete}
+        onChapterFlowComplete={onChapterFlowComplete}
+        onFlowComplete={onFlowComplete}
+        showAnnotations={showAnnotations}
+        selectedAnnotationId={selectedAnnotationId}
+        onAnnotationClick={onAnnotationClick}
+        onAnnotationClose={onAnnotationClose}
+        onAnnotationOpenDetail={onAnnotationOpenDetail}
+        onAnnotationHierarchyBack={onAnnotationHierarchyBack}
+        preserveSelectionOnPointerMiss={preserveSelectionOnPointerMiss}
+        clearPlayerSelection={clearPlayerSelection}
+        onRendererReady={onRendererReady}
+      />
+    );
+  }
 
   return (
     <Canvas
       shadows={stageBackgroundEnabled ? 'soft' : false}
       camera={{ position: [0, 0, 5] }}
-      dpr={[1, 1.5]}
+      dpr={isTrackedARSession ? 1 : [1, 1.5]}
+      colorManagement={isTrackedARSession ? false : undefined}
       style={canvasStyle}
       gl={{
         alpha: true,
@@ -246,12 +341,14 @@ export default function PlayerSceneCanvas({
       }}
     >
       <WebGLRendererLifecycle registryKey="__PLAYER_RENDERER__" onRendererReady={onRendererReady} />
-      <ViewerProjectionCameraController
-        mode={effectiveProjectionMode}
-        cameraRef={cameraRef}
-        controlsRef={controlsRef}
-        focusTargetRef={focusTargetRef}
-      />
+      {!isImmersiveWebXR && !isTrackedARSession && (
+        <ViewerProjectionCameraController
+          mode={effectiveProjectionMode}
+          cameraRef={cameraRef}
+          controlsRef={controlsRef}
+          focusTargetRef={focusTargetRef}
+        />
+      )}
       <RenderSettingsSync viewerSettings={viewerSettings} />
       {!isARSession && (
         <ViewerSceneBackground
@@ -266,59 +363,77 @@ export default function PlayerSceneCanvas({
         player
       />
 
-      <EffectComposer autoClear={false} multisampling={0}>
-        {shaderOutlineObjects.length > 0 && (
-          <Outline
-            selection={shaderOutlineObjects}
-            selectionLayer={8}
-            edgeStrength={shaderOutlineConfig.edgeStrength}
-            visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
-            hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
-            blur={false}
-          />
-        )}
-
-        {annotationOutlineObjects.length > 0 && (
-          <Outline
-            selection={annotationOutlineObjects}
-            selectionLayer={9}
-            edgeStrength={7}
-            visibleEdgeColor={GENERATED_ANNOTATION_COLOR}
-            hiddenEdgeColor={GENERATED_ANNOTATION_COLOR}
-            blur={false}
-          />
-        )}
-
-        {outlineObjects.length > 0 &&
-          (blinkSelectionEnabled ? (
-            <BlinkSelectionOutline
-              selection={outlineObjects}
-              settings={viewerSettings?.blinkSettings}
-            />
-          ) : (
+      {!isImmersiveWebXR && !isTrackedARSession && (
+        <EffectComposer autoClear={false} multisampling={0}>
+          {shaderOutlineObjects.length > 0 && (
             <Outline
-              selection={outlineObjects}
-              selectionLayer={10}
-              edgeStrength={8}
-              pulseSpeed={0}
-              visibleEdgeColor="yellow"
-              hiddenEdgeColor="yellow"
+              selection={shaderOutlineObjects}
+              selectionLayer={8}
+              edgeStrength={shaderOutlineConfig.edgeStrength}
+              visibleEdgeColor={shaderOutlineConfig.visibleEdgeColor}
+              hiddenEdgeColor={shaderOutlineConfig.hiddenEdgeColor}
               blur={false}
             />
-          ))}
-      </EffectComposer>
+          )}
+
+          {annotationOutlineObjects.length > 0 && (
+            <Outline
+              selection={annotationOutlineObjects}
+              selectionLayer={9}
+              edgeStrength={7}
+              visibleEdgeColor={GENERATED_ANNOTATION_COLOR}
+              hiddenEdgeColor={GENERATED_ANNOTATION_COLOR}
+              blur={false}
+            />
+          )}
+
+          {blinkSelectionEnabled && blinkRenderGroups.length > 0
+            ? blinkRenderGroups.map((group, index) => (
+                <BlinkSelectionOutline
+                  key={group.presetId}
+                  selection={group.outlineObjects}
+                  selectionLayer={11 + (index % 20)}
+                  settings={getBlinkPresetById(
+                    viewerSettings?.blinkPresets,
+                    group.presetId,
+                    viewerSettings?.blinkSettings,
+                  )}
+                />
+              ))
+            : outlineObjects.length > 0 &&
+              (blinkSelectionEnabled ? (
+                <BlinkSelectionOutline
+                  selection={outlineObjects}
+                  settings={viewerSettings?.blinkSettings}
+                />
+              ) : (
+                <Outline
+                  selection={outlineObjects}
+                  selectionLayer={10}
+                  edgeStrength={8}
+                  pulseSpeed={0}
+                  visibleEdgeColor="yellow"
+                  hiddenEdgeColor="yellow"
+                  blur={false}
+                />
+              ))}
+        </EffectComposer>
+      )}
 
       <ambientLight intensity={viewerSettings.ambientLight} />
 
       {!isSketchMode && (
         viewerSettings?.hdriSource === "custom" &&
         viewerSettings?.customHdri?.dataUrl ? (
-          <CustomHdriEnvironment viewerSettings={viewerSettings} />
+          <CustomHdriEnvironment
+            viewerSettings={viewerSettings}
+            backgroundEnabled={!isARSession}
+          />
         ) : (
           viewerSettings.hdri && (
             <Environment
               files={viewerSettings.hdri}
-              background={viewerSettings.showHdriBackground}
+              background={!isARSession && viewerSettings.showHdriBackground}
               environmentIntensity={viewerSettings.envIntensity}
               backgroundIntensity={viewerSettings.envIntensity}
             />
@@ -356,10 +471,10 @@ export default function PlayerSceneCanvas({
         />
       )}
 
+      <>
       <group ref={xrRootRef}>
         <Suspense fallback={<LoadingModel />}>
-          <Bounds fit clip margin={1.2}>
-            <Center>
+          <PlayerModelFit trackedAR={false}>
               <group ref={turntableRootRef}>
               <group ref={modelRootRef}>
               <Model
@@ -368,7 +483,20 @@ export default function PlayerSceneCanvas({
                 onSelectObject={handleObjectSelect}
                 onDoubleClickObject={handleObjectDoubleClick}
                 onModelLoaded={(scene) => {
-                  handleModelLoaded(scene || modelRootRef.current);
+                  const loadedScene = scene || modelRootRef.current;
+                  const runtimeDimension = getXRModelMaxDimension(loadedScene);
+                  if (runtimeDimension > 0) {
+                    // Capture the authored/runtime model size only once. When
+                    // Zappar remounts the cached model under InstantTracker,
+                    // setFromObject() sees the AR parent scale as part of the
+                    // world matrix. Replacing this value at that point makes
+                    // normalized scale jump back toward 1 and the model becomes
+                    // enormous. Preserve the pre-AR measurement instead.
+                    setXrRuntimeMaxDimension((current) =>
+                      current > 0 ? current : runtimeDimension,
+                    );
+                  }
+                  handleModelLoaded(loadedScene);
                 }}
                 selectedAnimations={selectedAnimations}
                 animationCommand={animationCommand}
@@ -466,17 +594,34 @@ export default function PlayerSceneCanvas({
               )}
               </group>
             </group>
-            </Center>
-          </Bounds>
+          </PlayerModelFit>
         </Suspense>
       </group>
+      </>
+
+      <PlayerXRInteractionPanel
+        mode={isImmersiveWebXR ? xrMode : null}
+        visible={isImmersiveWebXR}
+        viewModel={xrPanelViewModel}
+        rootRef={xrInteractionRootRef}
+      />
 
       <PlayerXRSceneController
-        mode={xrMode}
+        mode={isImmersiveWebXR ? xrMode : null}
         settings={xrSettings}
         rootRef={xrRootRef}
         modelScene={modelScene}
+        modelMaxDimension={effectiveXRModelMaxDimension}
+        selectedObject={selectedObject}
+        presentation={xrInteraction?.presentation}
         onSelectObject={handleObjectSelect}
+        interactionRootRef={xrInteractionRootRef}
+        onXRAction={xrInteraction?.onAction}
+        assemblyDragObject={assemblyDragObject}
+        assemblyDragEnabled={assemblyDragEnabled}
+        onAssemblyDragStart={onAssemblyDragStart}
+        onAssemblyDrag={onAssemblyDrag}
+        onAssemblyDragEnd={onAssemblyDragEnd}
       />
 
       <PlayerTurntableController
@@ -486,18 +631,22 @@ export default function PlayerSceneCanvas({
         sceneKey={`${material?.projectId || "project"}:${modelScene?.uuid || "scene"}`}
       />
 
-      <CameraAnimator
-        cameraRef={cameraRef}
-        controlsRef={controlsRef}
-        focusTargetRef={focusTargetRef}
-      />
+      {!isTrackedARSession && (
+        <CameraAnimator
+          cameraRef={cameraRef}
+          controlsRef={controlsRef}
+          focusTargetRef={focusTargetRef}
+        />
+      )}
 
-      <InitialPlayerCameraSnapshot
-        modelScene={modelScene}
-        controlsRef={controlsRef}
-        onCapture={captureInitialCameraState}
-        onReady={onSceneReady}
-      />
+      {!isTrackedARSession && (
+        <InitialPlayerCameraSnapshot
+          modelScene={modelScene}
+          controlsRef={controlsRef}
+          onCapture={captureInitialCameraState}
+          onReady={onSceneReady}
+        />
+      )}
 
       <AssemblyGhostTarget
         object={assemblyDragObject}
@@ -507,7 +656,7 @@ export default function PlayerSceneCanvas({
       />
 
       <AssemblyDragController
-        enabled={assemblyDragEnabled}
+        enabled={assemblyDragEnabled && !isImmersiveWebXR && !isTrackedARSession}
         object={assemblyDragObject}
         startTransform={assemblyStartTransform}
         targetTransform={assemblyTargetTransform}
@@ -520,7 +669,7 @@ export default function PlayerSceneCanvas({
 
       <OrbitControls
         ref={controlsRef}
-        enabled={!assemblyCameraLocked && !xrMode}
+        enabled={!assemblyCameraLocked && !isImmersiveWebXR && !isTrackedARSession}
         enableRotate={
           !assemblyCameraLocked && effectiveProjectionMode !== "orthographic"
         }

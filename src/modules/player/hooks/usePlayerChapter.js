@@ -27,11 +27,13 @@ export default function usePlayerChapter({
   loadChapterRecord = null,
 }) {
   const [activeCameraViewIndex, setActiveCameraViewIndex] = useState(0)
+  const [activeChapterData, setActiveChapterData] = useState(null)
   const chapterSelectionRequestRef = useRef(0)
 
-  const activeChapter = material?.chapters?.find(
-    (chapter) => chapter.id === activeChapterId
-  )
+  const activeChapter = useMemo(() => {
+    if (activeChapterData?.id === activeChapterId) return activeChapterData
+    return material?.chapters?.find((chapter) => chapter.id === activeChapterId) || null
+  }, [activeChapterData, activeChapterId, material?.chapters])
 
   const cameraViews = useMemo(
     () => getChapterCameraViews(activeChapter),
@@ -40,7 +42,12 @@ export default function usePlayerChapter({
 
   useEffect(() => {
     setActiveCameraViewIndex(0)
+    if (!activeChapterId) setActiveChapterData(null)
   }, [activeChapterId])
+
+  useEffect(() => {
+    setActiveChapterData(null)
+  }, [material?.projectId, material?.id])
 
   const highlightChapterObject = (chapter, sceneOverride = null) => {
     const rootScene = sceneOverride || modelScene
@@ -105,6 +112,10 @@ export default function usePlayerChapter({
 
     if (chapterSelectionRequestRef.current !== requestId) return null
 
+    // Keep the hydrated Chapter as the active runtime record. The material
+    // catalogue may intentionally contain only lazy summaries, which do not
+    // include authored media, parameters, markers, animations, or camera data.
+    setActiveChapterData(chapter)
     playerAnimation.prepareChapterAnimations(chapter)
     const selection = highlightChapterObject(chapter)
     const cameraResult = applyChapterCameraView(chapter, 0)

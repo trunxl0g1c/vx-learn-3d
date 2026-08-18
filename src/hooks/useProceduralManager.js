@@ -444,16 +444,39 @@ export function useProceduralManager({
     targetObject: entries[0] || null,
   });
 
+  const cloneStoredTransform = (transform) => {
+    if (!transform) return null;
+
+    return {
+      position: Array.isArray(transform.position)
+        ? [...transform.position]
+        : [0, 0, 0],
+      rotation: Array.isArray(transform.rotation)
+        ? [...transform.rotation]
+        : [0, 0, 0],
+      scale: Array.isArray(transform.scale)
+        ? [...transform.scale]
+        : [1, 1, 1],
+    };
+  };
+
   const createAnimatedEntry = (
     objectReference,
     transform,
     startVisible = true,
   ) => ({
-    id: `animated-${objectReference.uuid || objectReference.name || Date.now()}-${Date.now()}`,
+    id: `animated-${
+      globalThis.crypto?.randomUUID?.() ||
+      `${objectReference.uuid || objectReference.name || "object"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    }`,
     object: objectReference,
-    startTransform: transform,
-    endTransform: transform,
+    // Start and End are captured immediately from the object's current pose.
+    // They are intentionally separate snapshots so a no-motion action is
+    // already valid, while later editing one endpoint cannot mutate the other.
+    startTransform: cloneStoredTransform(transform),
+    endTransform: cloneStoredTransform(transform),
     startVisible: startVisible !== false,
+    showBeforeAnimation: false,
     hideAfterAnimation: false,
   });
 
@@ -489,18 +512,27 @@ export function useProceduralManager({
     }
 
     if (role === "animated") {
-      const existing = activeAnimatedEntries.find((entry) =>
-        referencesMatch(entry.object, objectReference),
-      );
+      // Animated entries are animation actions, not unique-object assignments.
+      // The same logical object may therefore appear multiple times in one
+      // Procedure step (for example Move first, then Rotate). When that happens
+      // continue the new action from the previous action's authored End pose so
+      // the chain is deterministic in both Editor preview and Player playback.
+      const previousSameObject = [...activeAnimatedEntries]
+        .reverse()
+        .find((entry) => referencesMatch(entry.object, objectReference));
+      const chainedStartTransform =
+        previousSameObject?.endTransform || storedTransform;
 
-      if (existing) {
-        setActiveAnimatedEntryId(existing.id);
-        return true;
+      if (previousSameObject?.endTransform) {
+        manager.applyStoredTransform?.(
+          logicalObject,
+          previousSameObject.endTransform,
+        );
       }
 
       const entry = createAnimatedEntry(
         objectReference,
-        storedTransform,
+        chainedStartTransform,
         logicalObject.visible !== false,
       );
       updateStep(activeStepId, syncLegacyAnimatedFields([

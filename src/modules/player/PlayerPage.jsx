@@ -1,9 +1,11 @@
 import usePlayerController from "./hooks/usePlayerController";
+import usePlayerXRInteraction from "./hooks/usePlayerXRInteraction";
 import PlayerFlowListPanel from "../../components/player/PlayerFlowListPanel";
 import PlayerProceduralListPanel from "../../components/player/PlayerProceduralListPanel";
 import PlayerQuizPanel from "../../components/player/PlayerQuizPanel";
 import PlayerMaterialObjectListPanel from "../../components/player/PlayerMaterialObjectListPanel";
 import PlayerXRControls from "../../components/player/PlayerXRControls";
+import PlayerXRMobileOverlay from "../../components/player/PlayerXRMobileOverlay";
 import { buildPlayerMaterialObjectTree } from "../../engine/chapter";
 import {
   Box,
@@ -25,6 +27,7 @@ import PlayerLayout from "./components/layouts/PlayerLayout";
 import PlayerCutSlider from "../../components/player/PlayerCutSlider";
 import Button from "../../components/ui/button";
 import MaterialIcon from "../../components/ui/material-icon";
+import useFullscreen from "../../hooks/useFullscreen";
 import { normalizePlayerSettings } from "../material/playerSettings";
 import {
   focusEditorAndClosePlayer,
@@ -42,6 +45,7 @@ import {
 export default function PlayerPage() {
   const player = usePlayerController();
   const { isLoadingProject, isSceneReady, loadError } = player.status;
+  const { isFullscreen, isSupported: isFullscreenSupported, toggleFullscreen } = useFullscreen();
 
   const [activePanel, setActivePanel] = useState(null);
   const [activeMedia, setActiveMedia] = useState(null);
@@ -75,7 +79,6 @@ export default function PlayerPage() {
       ),
     [player.scene.modelScene, player.scene.objectList, visibleChapters],
   );
-
   useEffect(() => {
     const material = player.scene.material;
     if (!material) return;
@@ -192,11 +195,25 @@ export default function PlayerPage() {
 
   const handleSelectSlide = async (slideId) => {
     const opened = await player.slidePanel?.selectSlide?.(slideId);
-    if (!opened) return;
+    if (!opened) return false;
     setActiveMedia(null);
     setSelectedAnnotation(null);
     setActivePanel("slide");
+    return true;
   };
+
+  const xrInteraction = usePlayerXRInteraction({
+    player,
+    visibleChapters,
+    onSelectChapter: handleSelectChapter,
+    onSelectSlide: handleSelectSlide,
+    onClearTransientUI: ({ clearChapterReturn = false } = {}) => {
+      if (clearChapterReturn) chapterReturnPanelRef.current = null;
+      setActiveMedia(null);
+      setSelectedAnnotation(null);
+      setActivePanel(null);
+    },
+  });
 
   const handleOpenAnnotationDetail = (chapterId) => {
     if (!chapterId) return;
@@ -393,6 +410,10 @@ export default function PlayerPage() {
     ? sidebarItems.filter((item) => item?.key === "quiz")
     : sidebarItems;
 
+  const isIOSTrackedARActive = player.xrPanel?.activeMode === "ios-tracked-ar";
+  const showBrowserPlayerUI =
+    !player.xrPanel?.activeMode || isIOSTrackedARActive;
+
   if (isLoadingProject) {
     return <div style={{ padding: 24 }}>Loading project...</div>;
   }
@@ -405,7 +426,7 @@ export default function PlayerPage() {
     <PlayerLayout
       player={player}
       sidebarItems={visibleSidebarItems}
-      showSidebar={isSceneReady && !player.xrPanel?.activeMode}
+      showSidebar={isSceneReady && showBrowserPlayerUI}
       selectedAnnotationId={selectedAnnotation?.id || null}
       onAnnotationClick={handleAnnotationClick}
       onAnnotationClose={() => setSelectedAnnotation(null)}
@@ -415,26 +436,65 @@ export default function PlayerPage() {
       turntablePresentationActive={
         activePanel === null || activePanel === "project"
       }
+      xrInteraction={xrInteraction}
     >
       {isSceneReady && (
         <>
       <PlayerXRControls xr={player.xrPanel} />
-      {showBackToEditor && (
-        <Button
-          size="sm"
-          type="button"
-          variant="cyanOutline"
-          onClick={handleBackToEditor}
-          className="vx-player-back-button absolute right-16 top-5 z-50"
-        >
-          <MaterialIcon
-            name="arrow_left_alt"
-            fill
-            size={20}
-            className="text-secondary-default"
+      {player.xrPanel?.activeMode === "ar" &&
+        player.xrPanel?.platform?.isAndroid && (
+          <PlayerXRMobileOverlay
+            interaction={xrInteraction}
+            xr={player.xrPanel}
           />
-          <span className="vx-player-back-label">Back to Editor</span>
-        </Button>
+        )}
+      {showBrowserPlayerUI && (
+        <>
+      {!player.xrPanel?.activeMode && (isFullscreenSupported || showBackToEditor) && (
+        <div className="vx-player-top-actions absolute right-2 top-2 z-50 flex max-w-[calc(100vw-1rem)] items-center justify-end gap-2 sm:right-3 sm:top-3 md:right-5 md:top-5">
+          {showBackToEditor && (
+            <Button
+              size="sm"
+              type="button"
+              variant="cyanOutline"
+              onClick={handleBackToEditor}
+              title="Back to Editor"
+              className="vx-player-back-button min-w-0 shrink px-2! sm:px-3! md:px-4!"
+            >
+              <MaterialIcon
+                name="arrow_left_alt"
+                fill
+                size={20}
+                className="shrink-0 text-secondary-default"
+              />
+              <span className="vx-player-back-label hidden truncate sm:inline">Back to Editor</span>
+            </Button>
+          )}
+
+          {isFullscreenSupported && (
+            <Button
+              type="button"
+              size="sm"
+              variant={isFullscreen ? "default" : "cyanOutline"}
+              onClick={toggleFullscreen}
+              aria-pressed={isFullscreen}
+              title={isFullscreen ? "Exit full screen" : "Full screen"}
+              className={
+                `vx-player-fullscreen-button h-9! w-9! shrink-0 p-0! ${
+                  isFullscreen
+                    ? "border-accent-main shadow-[0_0_14px_rgba(3,105,157,0.55)]"
+                    : ""
+                }`
+              }
+            >
+              <MaterialIcon
+                name={isFullscreen ? "fullscreen_exit" : "fullscreen"}
+                fill={1}
+                size={22}
+              />
+            </Button>
+          )}
+        </div>
       )}
 
       {activePanel === "project" && (
@@ -629,6 +689,8 @@ export default function PlayerPage() {
           media={activeMedia}
           onClose={() => setActiveMedia(null)}
         />
+      )}
+        </>
       )}
         </>
       )}

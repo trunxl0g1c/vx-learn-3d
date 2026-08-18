@@ -5,6 +5,7 @@ export function createPlayerControllerApi({
   viewerSettings,
   outlineObjects,
   blinkSelectionEnabled,
+  blinkRenderGroups,
   shaderOutlineObjects,
   shaderOutlineStyle,
   setOutlineObjects,
@@ -98,6 +99,7 @@ export function createPlayerControllerApi({
       viewerSettings,
       outlineObjects,
       blinkSelectionEnabled,
+      blinkRenderGroups,
       shaderOutlineObjects,
       shaderOutlineStyle,
       setOutlineObjects,
@@ -161,6 +163,8 @@ export function createPlayerControllerApi({
       onAssemblyDragEnd: playerProcedure.handleAssemblyDragEnd,
       xrMode: playerXR.activeMode,
       xrSettings: playerXR.settings,
+      iosWebARState: playerXR.iosWebAR,
+      iosWebARController: playerXR.iosWebARController,
       onRendererReady: playerXR.setRenderer,
     },
 
@@ -264,6 +268,14 @@ export function createPlayerControllerApi({
       toggleCutSection: playerFreePlay.toggleCutSection,
       hideSelectedObject: hideSelectedPlayerObject,
       pullApart: pullApartPlayerObjects,
+      // XR needs Pull Apart to remain useful from Project Overview and Slide
+      // playback, where the desktop wrapper intentionally may have no Chapter
+      // target. The same ModelEngine implementation is still used.
+      pullApartXR: ({ targetObject = null } = {}) =>
+        playerFreePlay.pullApart({
+          targetObject: targetObject || selectedObject || null,
+          allowSceneFallback: true,
+        }),
       isPullApartActive: playerFreePlay.isPullApartActive,
       resetAllTransforms: resetAllPlayerView,
       soloSelectedObject: playerFreePlay.soloSelectedObject,

@@ -18,6 +18,7 @@ import {
   duplicateProceduralDefinitionWithHelpers,
   materializeReversedProceduralDefinitionWithHelpers,
 } from "./ProceduralDefinitionTransforms";
+import { createProceduralVisibilityRuntime } from "./ProceduralVisibilityRuntime";
 
 const DEFAULT_DURATION = 1200;
 const MIN_DURATION = 100;
@@ -260,6 +261,7 @@ export function normalizeProceduralAnimatedObjects(step, assemblyStep = false) {
             : index === 0
               ? step?.startVisible !== false
               : true,
+        showBeforeAnimation: entry?.showBeforeAnimation === true,
         hideAfterAnimation:
           entry?.hideAfterAnimation === true ||
           (index === 0 && step?.hideAfterAnimation === true),
@@ -712,6 +714,7 @@ const getEasing = (name) => {
 
 export function createProceduralEngine() {
   const activeAnimations = new Map();
+  const visibilityRuntime = createProceduralVisibilityRuntime();
 
   const cancelObjectAnimation = (object) => {
     const logicalObject = resolveLogicalObject(object);
@@ -827,8 +830,17 @@ export function createProceduralEngine() {
     if (entries.length === 0) return Promise.resolve(false);
 
     const animateEntry = async (entry) => {
-      entry.object3D.visible = entry.startVisible !== false;
-      entry.object3D.updateMatrixWorld?.(true);
+      if (entry.showBeforeAnimation === true) {
+        visibilityRuntime.setVisible(entry.object3D, true);
+      } else if (visibilityRuntime.isHidden(entry.object3D)) {
+        // Do not let the next action implicitly show an object that a previous
+        // action hid. Its transform can still be updated while hidden.
+        entry.object3D.visible = false;
+        entry.object3D.updateMatrixWorld?.(true);
+      } else {
+        entry.object3D.visible = entry.startVisible !== false;
+        entry.object3D.updateMatrixWorld?.(true);
+      }
 
       const completed = await animateStep({
         object: entry.object3D,
@@ -841,8 +853,7 @@ export function createProceduralEngine() {
       });
 
       if (completed && entry.hideAfterAnimation === true) {
-        entry.object3D.visible = false;
-        entry.object3D.updateMatrixWorld?.(true);
+        visibilityRuntime.setVisible(entry.object3D, false);
       }
 
       return completed;
@@ -863,7 +874,28 @@ export function createProceduralEngine() {
         .then(Boolean);
     }
 
-    return Promise.all(entries.map(animateEntry)).then(
+    // Together means different logical objects may animate in parallel. A
+    // repeated object represents a chain of animation actions for that same
+    // object (for example Move -> Rotate), so those entries must stay
+    // sequential or two animations would fight over one Object3D transform.
+    const chainsByObject = new Map();
+    entries.forEach((entry) => {
+      const identity = entry.object3D?.uuid || entry.id;
+      const chain = chainsByObject.get(identity) || [];
+      chain.push(entry);
+      chainsByObject.set(identity, chain);
+    });
+
+    const animateChain = (chain) =>
+      chain.reduce(
+        (promise, entry) =>
+          promise.then(async (completed) =>
+            completed ? animateEntry(entry) : false,
+          ),
+        Promise.resolve(true),
+      );
+
+    return Promise.all([...chainsByObject.values()].map(animateChain)).then(
       (results) => results.length > 0 && results.every(Boolean),
     );
   };
@@ -892,21 +924,48 @@ export function createProceduralEngine() {
     animateStep,
     animateStepObjects,
     cancelObjectAnimation,
-    resetStep(scene, step) {
+    reapplyProcedureVisibility: visibilityRuntime.reapply,
+    resetStep(scene, step, { preserveProcedureVisibility = false } = {}) {
       let changed = false;
+      const resetObjectIds = new Set();
+
+      // Editor preview resets visibility; Player opts in to Procedure persistence.
+      if (!preserveProcedureVisibility) visibilityRuntime.clear();
+
+      // A repeated object may have multiple actions in the same step. Reset it
+      // only from the first action so chained actions begin from the authored
+      // beginning instead of being overwritten by a later segment's Start.
       findAnimatedObjects(scene, step).forEach((entry) => {
+        const objectId = entry.object3D?.uuid || entry.id;
+        if (resetObjectIds.has(objectId)) return;
+        resetObjectIds.add(objectId);
+
         cancelObjectAnimation(entry.object3D);
-        entry.object3D.visible = entry.startVisible !== false;
-        entry.object3D.updateMatrixWorld?.(true);
+        if (entry.showBeforeAnimation === true) {
+          visibilityRuntime.setVisible(entry.object3D, true);
+        } else if (
+          preserveProcedureVisibility &&
+          visibilityRuntime.isHidden(objectId)
+        ) {
+          entry.object3D.visible = false;
+          entry.object3D.updateMatrixWorld?.(true);
+        } else {
+          entry.object3D.visible = entry.startVisible !== false;
+          entry.object3D.updateMatrixWorld?.(true);
+        }
         changed =
           applyStoredObjectTransform(entry.object3D, entry.startTransform) ||
           changed;
       });
+
+      if (preserveProcedureVisibility) changed = visibilityRuntime.reapply(scene) || changed;
       return changed;
     },
     resetProcedure(scene, procedure) {
       let changed = false;
       const resetObjectIds = new Set();
+
+      visibilityRuntime.clear();
 
       (procedure?.steps || []).forEach((step) => {
         findAnimatedObjects(scene, step).forEach((entry) => {
@@ -927,9 +986,13 @@ export function createProceduralEngine() {
         animation.cancelled = true;
       });
       activeAnimations.clear();
+      visibilityRuntime.clear();
     },
     getState() {
-      return { activeAnimationCount: activeAnimations.size };
+      return {
+        activeAnimationCount: activeAnimations.size,
+        hiddenProcedureObjectCount: visibilityRuntime.getHiddenCount(),
+      };
     },
   };
 }

@@ -16,6 +16,7 @@ export const DEFAULT_PLAYER_SETTINGS = Object.freeze({
   autoShowMaterial: true,
   showMaterialList: true,
   defaultCameraView: null,
+  defaultVisualState: null,
   turntableAnimation: DEFAULT_TURNTABLE_ANIMATION_SETTINGS,
   menuVisibility: DEFAULT_PLAYER_MENU_VISIBILITY,
 });
@@ -56,6 +57,18 @@ export function normalizeTurntableAnimationSettings(settings = {}) {
       ? "counterclockwise"
       : "clockwise",
   };
+}
+
+export function normalizePlayerVisualState(visualState = null) {
+  if (
+    !visualState ||
+    typeof visualState !== "object" ||
+    Array.isArray(visualState)
+  ) {
+    return null;
+  }
+
+  return visualState;
 }
 
 export function normalizePlayerCameraView(cameraView = null) {
@@ -151,6 +164,9 @@ export function normalizePlayerSettings(settings = {}) {
     showMaterialList: true,
     defaultCameraView: normalizePlayerCameraView(
       source.defaultCameraView || source.defaultView || source.cameraView,
+    ),
+    defaultVisualState: normalizePlayerVisualState(
+      source.defaultVisualState || source.defaultState || source.visualState,
     ),
     turntableAnimation: normalizeTurntableAnimationSettings(
       source.turntableAnimation || source.turntable,

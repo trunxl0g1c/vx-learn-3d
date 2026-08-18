@@ -2,10 +2,42 @@ import MaterialIcon from "../ui/material-icon";
 import Button from "../ui/button";
 import Switch from "../ui/switch";
 
-function getEntryStatus(entry) {
-  return entry?.startTransform && entry?.endTransform
-    ? "Ready"
-    : "Set transforms";
+const EPSILON = 1e-5;
+
+function vectorChanged(start, end) {
+  if (!Array.isArray(start) || !Array.isArray(end)) return false;
+  return start.some(
+    (value, index) => Math.abs(Number(value) - Number(end[index])) > EPSILON,
+  );
+}
+
+function getMotionSummary(entry) {
+  if (!entry?.startTransform || !entry?.endTransform) return "Set Start & End";
+
+  const parts = [];
+  if (
+    vectorChanged(
+      entry.startTransform.position,
+      entry.endTransform.position,
+    )
+  ) {
+    parts.push("Move");
+  }
+  if (
+    vectorChanged(
+      entry.startTransform.rotation,
+      entry.endTransform.rotation,
+    )
+  ) {
+    parts.push("Rotate");
+  }
+  if (
+    vectorChanged(entry.startTransform.scale, entry.endTransform.scale)
+  ) {
+    parts.push("Scale");
+  }
+
+  return parts.length > 0 ? parts.join(" + ") : "Saved · No movement";
 }
 
 export default function ProceduralAnimatedObjectList({
@@ -17,8 +49,8 @@ export default function ProceduralAnimatedObjectList({
 }) {
   if (!Array.isArray(entries) || entries.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-secondary-default/40 px-3 py-4 text-center text-[10px] text-contrast-grayout">
-        No animated objects added yet.
+      <div className="rounded-lg border border-dashed border-secondary-default/40 px-3 py-3 text-center text-[10px] text-contrast-grayout">
+        No animation actions yet.
       </div>
     );
   }
@@ -28,6 +60,7 @@ export default function ProceduralAnimatedObjectList({
       {entries.map((entry, index) => {
         const active = entry.id === activeEntryId;
         const ready = Boolean(entry.startTransform && entry.endTransform);
+        const motionSummary = getMotionSummary(entry);
 
         return (
           <div
@@ -36,7 +69,7 @@ export default function ProceduralAnimatedObjectList({
               "rounded-lg border p-2",
               active
                 ? "border-accent-main bg-accent-main/10"
-                : "border-secondary-default/40 bg-primary/50",
+                : "border-secondary-default/35 bg-primary/40",
             ].join(" ")}
           >
             <div className="flex items-center gap-2">
@@ -58,7 +91,7 @@ export default function ProceduralAnimatedObjectList({
                       ready ? "text-green-300" : "text-warning-main",
                     ].join(" ")}
                   >
-                    {getEntryStatus(entry)}
+                    Action {index + 1} · {motionSummary}
                   </span>
                 </span>
                 {active && (
@@ -73,29 +106,47 @@ export default function ProceduralAnimatedObjectList({
                 type="button"
                 size="xs"
                 variant="destructive"
-                className="size-8 px-0"
-                title="Remove animated object"
+                className="size-7 px-0"
+                title="Remove animation action"
                 onClick={() => onRemove?.(entry.id)}
               >
                 <MaterialIcon name="delete" className="size-4 text-red-300" />
               </Button>
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-3 rounded-md border border-secondary-default/30 bg-black/10 px-2.5 py-2">
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-white">
-                  Hide after animation
-                </p>
-                <p className="text-[9px] leading-4 text-contrast-grayout">
-                  Hide this object after its movement finishes.
-                </p>
+            <div className="mt-2 rounded-md border border-secondary-default/25 bg-black/10 px-2.5 py-2">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <p className="text-[10px] font-medium text-white">Visibility</p>
+                <span className="text-[8px] text-contrast-grayout">
+                  Persists in this Procedure
+                </span>
               </div>
-              <Switch
-                checked={entry.hideAfterAnimation === true}
-                onCheckedChange={(checked) =>
-                  onUpdate?.(entry.id, { hideAfterAnimation: checked })
-                }
-              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center justify-between gap-2 rounded-md border border-secondary-default/15 px-2 py-1.5">
+                  <span className="text-[9px] text-contrast-grayout">
+                    Show before
+                  </span>
+                  <Switch
+                    checked={entry.showBeforeAnimation === true}
+                    onCheckedChange={(checked) =>
+                      onUpdate?.(entry.id, { showBeforeAnimation: checked })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-2 rounded-md border border-secondary-default/15 px-2 py-1.5">
+                  <span className="text-[9px] text-contrast-grayout">
+                    Hide after
+                  </span>
+                  <Switch
+                    checked={entry.hideAfterAnimation === true}
+                    onCheckedChange={(checked) =>
+                      onUpdate?.(entry.id, { hideAfterAnimation: checked })
+                    }
+                  />
+                </div>
+              </div>
             </div>
           </div>
         );

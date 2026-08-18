@@ -21,9 +21,20 @@ export function createPlayerProcedureStepHighlighter({
     }
 
     restorePlayerRenderMode();
+
+    // Visibility inside a saved Procedure visual state is a full snapshot, not
+    // just a list of additional objects to hide. When the previous step hid an
+    // object and the current step saved that object as visible, we must restore
+    // the scene visibility baseline before applying the current hidden list.
+    // Without this, hidden state leaks forward and an authored click target can
+    // remain invisible (and therefore impossible to raycast/click) in Player.
+    const hasSavedVisibilitySnapshot = Array.isArray(
+      step?.visualState?.visibility?.hiddenObjects,
+    );
+
     playerFreePlay.resetSavedPresentationState?.({
       preserveTransforms: true,
-      preserveVisibility: true,
+      preserveVisibility: !hasSavedVisibilitySnapshot,
     });
 
     const savedStateResult = step?.visualState
@@ -48,9 +59,17 @@ export function createPlayerProcedureStepHighlighter({
     // refresh the highlight (wrong click / failed snap) leave the current
     // transform untouched.
     if (applyStepStart && modelScene) {
-      proceduralEngine.resetStep?.(modelScene, step);
+      proceduralEngine.resetStep?.(modelScene, step, {
+        preserveProcedureVisibility: true,
+      });
       modelScene.updateMatrixWorld?.(true);
     }
+
+    // Wrong-click / failed-drag feedback can refresh the saved visual state
+    // without resetting transforms. Re-assert Procedure visibility every time
+    // so a hidden object never reappears just because the current step was
+    // highlighted again.
+    proceduralEngine.reapplyProcedureVisibility?.(modelScene);
 
     const cameraApplied = Boolean(
       step?.cameraView && applySavedCameraView(step.cameraView),

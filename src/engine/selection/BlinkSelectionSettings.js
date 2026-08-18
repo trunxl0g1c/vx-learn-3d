@@ -4,6 +4,16 @@ export const DEFAULT_BLINK_SELECTION_SETTINGS = Object.freeze({
   speed: 1.5,
 });
 
+export const DEFAULT_BLINK_PRESET_ID = "blink-preset-1";
+
+export const DEFAULT_BLINK_PRESETS = Object.freeze([
+  Object.freeze({
+    id: DEFAULT_BLINK_PRESET_ID,
+    name: "Blink Preset 1",
+    ...DEFAULT_BLINK_SELECTION_SETTINGS,
+  }),
+]);
+
 const BLINK_THICKNESS_MIN = 1;
 const BLINK_THICKNESS_MAX = 20;
 
@@ -41,6 +51,57 @@ export function normalizeBlinkSelectionSettings(settings = {}) {
       DEFAULT_BLINK_SELECTION_SETTINGS.speed,
     ),
   };
+}
+
+export function normalizeBlinkPreset(preset = {}, index = 0) {
+  const settings = normalizeBlinkSelectionSettings(preset);
+  const safeIndex = Math.max(0, Number(index) || 0);
+
+  return {
+    id: String(preset?.id || `blink-preset-${safeIndex + 1}`),
+    name: String(preset?.name || `Blink Preset ${safeIndex + 1}`),
+    ...settings,
+  };
+}
+
+export function normalizeBlinkPresets(presets, legacySettings = null) {
+  const source = Array.isArray(presets) ? presets.filter(Boolean) : [];
+
+  if (source.length === 0) {
+    return [
+      normalizeBlinkPreset(
+        {
+          ...DEFAULT_BLINK_PRESETS[0],
+          ...(legacySettings || {}),
+        },
+        0,
+      ),
+    ];
+  }
+
+  const usedIds = new Set();
+
+  return source.map((preset, index) => {
+    const normalized = normalizeBlinkPreset(preset, index);
+    let nextId = normalized.id;
+    let suffix = 2;
+
+    while (usedIds.has(nextId)) {
+      nextId = `${normalized.id}-${suffix}`;
+      suffix += 1;
+    }
+
+    usedIds.add(nextId);
+    return { ...normalized, id: nextId };
+  });
+}
+
+export function getBlinkPresetById(presets, presetId, legacySettings = null) {
+  const normalizedPresets = normalizeBlinkPresets(presets, legacySettings);
+  return (
+    normalizedPresets.find((preset) => preset.id === presetId) ||
+    normalizedPresets[0]
+  );
 }
 
 function resolveKernelSize(thickness) {

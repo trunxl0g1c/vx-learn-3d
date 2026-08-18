@@ -32,6 +32,7 @@ function normalizeSelection(selection) {
 export default function BlinkSelectionOutline({
   selection = [],
   settings = {},
+  selectionLayer = BLINK_SELECTION_LAYER,
 }) {
   const safeSelection = normalizeSelection(selection);
 
@@ -45,7 +46,7 @@ export default function BlinkSelectionOutline({
   return (
     <Outline
       selection={safeSelection}
-      selectionLayer={BLINK_SELECTION_LAYER}
+      selectionLayer={selectionLayer}
       blendFunction={BlendFunction.SCREEN}
       edgeStrength={profile.edgeStrength}
       pulseSpeed={normalizedSettings.speed}

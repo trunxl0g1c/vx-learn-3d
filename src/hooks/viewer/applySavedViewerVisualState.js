@@ -70,6 +70,19 @@ function getBlinkReferences(visualState) {
   return Array.isArray(blinkState.objects) ? blinkState.objects : []
 }
 
+
+function getBlinkAssignments(visualState) {
+  const blinkState = visualState?.blink
+  if (!blinkState || typeof blinkState !== "object") return []
+  if (!Array.isArray(blinkState.assignments)) return []
+  return blinkState.assignments
+    .map((assignment) => ({
+      presetId: String(assignment?.presetId || "blink-preset-1"),
+      objects: Array.isArray(assignment?.objects) ? assignment.objects : [],
+    }))
+    .filter((assignment) => assignment.objects.length > 0)
+}
+
 function getDisplayName(object, chapter) {
   return String(
     object?.name || chapter?.objectName || chapter?.title || "",
@@ -88,6 +101,8 @@ export function applySavedViewerVisualState({
   highlightSelectedObjectsPreservingVisualState,
   setSelectedObjectName,
   setBlinkSelectedObjectsEnabled,
+  setBlinkTargetObjects,
+  setBlinkAssignments,
   applySavedCuts,
 }) {
   if (!scene || !visualState) return null
@@ -123,10 +138,13 @@ export function applySavedViewerVisualState({
   const savedBlinkObjects = getBlinkReferences(visualState)
     .map(resolveReference)
     .filter(Boolean)
+  const savedBlinkAssignments = getBlinkAssignments(visualState)
+    .map((assignment) => ({
+      presetId: assignment.presetId,
+      objects: assignment.objects.map(resolveReference).filter(Boolean),
+    }))
+    .filter((assignment) => assignment.objects.length > 0)
 
-  if (savedHighlightObjects.length === 0 && savedBlinkObjects.length > 0) {
-    savedHighlightObjects = savedBlinkObjects
-  }
   const savedHighlightActiveObject = resolveReference(
     getHighlightActiveReference(visualState),
   )
@@ -152,7 +170,9 @@ export function applySavedViewerVisualState({
     if (xrayMode === "non-targets") {
       makeOthersXray(xrayTargets, activeXrayTarget)
     } else {
-      makeTargetObjectsXray(xrayTargets, activeXrayTarget)
+      makeTargetObjectsXray(xrayTargets, activeXrayTarget, {
+        replaceExisting: true,
+      })
     }
 
     setSelectedObjectName(getDisplayName(activeXrayTarget, chapter))
@@ -177,8 +197,14 @@ export function applySavedViewerVisualState({
     setSelectedObjectName("")
   }
 
+  if (savedBlinkAssignments.length > 0 && setBlinkAssignments) {
+    setBlinkAssignments(savedBlinkAssignments)
+  } else {
+    setBlinkTargetObjects?.(savedBlinkObjects)
+  }
   setBlinkSelectedObjectsEnabled?.(
-    Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+    Boolean(visualState?.blink?.enabled) &&
+      (savedBlinkAssignments.length > 0 || savedBlinkObjects.length > 0),
   )
 
   const savedCuts = Array.isArray(visualState.cuts)
@@ -199,8 +225,10 @@ export function applySavedViewerVisualState({
     selectedObject: preferredSelection,
     highlightObjects: savedHighlightObjects,
     blinkObjects: savedBlinkObjects,
+    blinkAssignments: savedBlinkAssignments,
     blinkEnabled:
-      Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+      Boolean(visualState?.blink?.enabled) &&
+      (savedBlinkAssignments.length > 0 || savedBlinkObjects.length > 0),
     xrayMode,
     xrayTargets,
     hiddenCount: hiddenReferences.length,

@@ -170,8 +170,8 @@ export default function EditorRightPanel({
           : "h-16",
       ].join(" ")}
     >
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl">
-        <span className="truncate text-base font-normal">
+      <div className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-divider-main bg-dark-alpha/80 px-3 text-left backdrop-blur-xl sm:px-4 xl:px-5">
+        <span className="min-w-0 flex-1 truncate text-sm font-normal sm:text-base">
           {isSlideTab
             ? slideAuthoring?.activeSlide?.title || "Slide"
             : activeChapterId
@@ -179,13 +179,13 @@ export default function EditorRightPanel({
               : selectedObjectName || "Object Settings"}
         </span>
 
-        <div className="flex">
+        <div className="flex shrink-0 items-center gap-0.5">
           {/* <Button
             size="xs"
             variant="ghost"
             type="button"
             onClick={() => setRightTab("chapter")}
-            className="border-none"
+            className="h-9! w-9! shrink-0 border-none p-0!"
           >
             {rightTab === "chapter" ? (
               <Locate className="size-6 text-secondary-default" />
@@ -201,7 +201,7 @@ export default function EditorRightPanel({
                 variant="ghost"
                 type="button"
                 onClick={soloSelectedObject}
-                className="border-none"
+                className="h-9! w-9! shrink-0 border-none p-0!"
               >
                 <MaterialIcon
                   name="my_location"
@@ -217,7 +217,7 @@ export default function EditorRightPanel({
                 type="button"
                 onClick={toggleSelectedObjectXray}
                 className={[
-                  "border-none",
+                  "h-9! w-9! shrink-0 border-none p-0!",
                   isSelectedObjectXray ? "bg-accent-main/25" : "",
                 ].join(" ")}
                 title={
@@ -242,7 +242,7 @@ export default function EditorRightPanel({
                 variant="ghost"
                 type="button"
                 onClick={hideSelectedObject}
-                className="border-none"
+                className="h-9! w-9! shrink-0 border-none p-0!"
               >
                 <MaterialIcon
                   name="visibility"
@@ -259,7 +259,7 @@ export default function EditorRightPanel({
             variant="ghost"
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="border-none"
+            className="h-9! w-9! shrink-0 border-none p-0!"
           >
             {isOpen ? (
               <MaterialIcon

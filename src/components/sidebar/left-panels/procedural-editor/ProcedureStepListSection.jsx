@@ -97,8 +97,7 @@ export default function ProcedureStepListSection({
                   </span>
                   {!isAssembly && (
                     <span className="mt-0.5 block truncate text-[10px] text-contrast-grayout">
-                      Animate: {animatedEntries.length || 0} object
-                      {animatedEntries.length === 1 ? "" : "s"} · {animationMode}
+                      Actions: {animatedEntries.length || 0} · {animationMode}
                     </span>
                   )}
                 </span>

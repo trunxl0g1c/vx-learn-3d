@@ -4,6 +4,7 @@ import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 import EditorDataMenu from "./EditorDataMenu";
+import useFullscreen from "../../hooks/useFullscreen";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -47,6 +48,7 @@ export default function EditorTopBar({
   exportStatus = "",
 }) {
   const currentUserName = getCurrentUserName();
+  const { isFullscreen, isSupported, toggleFullscreen } = useFullscreen();
 
   return (
     <div
@@ -85,6 +87,22 @@ export default function EditorTopBar({
           />
           {/* <PlayCircle className="size-6.5" color="#66B0C0" /> */}
         </Button>
+        <Button
+          variant={isFullscreen ? "default" : "cyanOutline"}
+          size="sm"
+          className={isFullscreen ? "border-accent-main shadow-[0_0_14px_rgba(3,105,157,0.55)]" : ""}
+          onClick={toggleFullscreen}
+          disabled={!isSupported}
+          aria-pressed={isFullscreen}
+          title={isFullscreen ? "Exit full screen" : "Full screen"}
+        >
+          <MaterialIcon
+            name={isFullscreen ? "fullscreen_exit" : "fullscreen"}
+            fill={1}
+            size={22}
+          />
+        </Button>
+
         <Button variant="cyanOutline" size="sm" className="uppercase" title="Publish project">
           {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
           <MaterialIcon
