@@ -8,13 +8,16 @@ function isExrFile(name = "") {
   return String(name).toLowerCase().endsWith(".exr");
 }
 
-export default function CustomHdriEnvironment({ viewerSettings }) {
+export default function CustomHdriEnvironment({
+  viewerSettings,
+  backgroundEnabled = true,
+}) {
   const { gl, scene, invalidate } = useThree();
   const customHdri = viewerSettings?.customHdri;
   const dataUrl = customHdri?.dataUrl;
   const fileName = customHdri?.name || "custom.hdr";
-  
-  const showBackground = Boolean(viewerSettings?.showHdriBackground);
+  const showBackground =
+    backgroundEnabled && Boolean(viewerSettings?.showHdriBackground);
 
   useEffect(() => {
     if (!dataUrl) return undefined;
@@ -43,7 +46,12 @@ export default function CustomHdriEnvironment({ viewerSettings }) {
         envMap = pmremGenerator.fromEquirectangular(sourceTexture).texture;
 
         scene.environment = envMap;
-        scene.background = showBackground ? envMap : null;
+        // AR camera components own scene.background. When background rendering
+        // is disabled, preserve whichever background is already installed
+        // instead of clearing it to null after an async HDRI load.
+        if (backgroundEnabled) {
+          scene.background = showBackground ? envMap : null;
+        }
 
         if ("environmentIntensity" in scene) {
           scene.environmentIntensity = Number(viewerSettings?.envIntensity ?? 1);
@@ -60,13 +68,24 @@ export default function CustomHdriEnvironment({ viewerSettings }) {
     return () => {
       cancelled = true;
       scene.environment = previousEnvironment;
-      scene.background = previousBackground;
+      if (backgroundEnabled) {
+        scene.background = previousBackground;
+      }
       sourceTexture?.dispose?.();
       envMap?.dispose?.();
       pmremGenerator?.dispose?.();
       invalidate();
     };
-  }, [dataUrl, fileName, gl, scene, invalidate, showBackground, viewerSettings?.envIntensity]);
+  }, [
+    dataUrl,
+    fileName,
+    gl,
+    scene,
+    invalidate,
+    showBackground,
+    backgroundEnabled,
+    viewerSettings?.envIntensity,
+  ]);
 
   return null;
 }

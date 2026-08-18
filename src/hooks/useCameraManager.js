@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import * as THREE from "three";
 import {
   applyCameraProjectionSnapshot,
@@ -108,27 +108,29 @@ export function useCameraManager({
       controls,
     });
   };
-  const focusObject = (object) => {
+  const focusObject = useCallback((object, options = {}) => {
     if (!object || !modelScene) return;
 
     syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
+
+    const focusOptions = {
+      distanceMultiplier: 1.8,
+      direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+      ...options,
+    };
 
     const focusTarget =
       vxEngine?.camera?.focusObject?.(object, {
         camera: cameraRef?.current,
         controls: controlsRef?.current,
-        distanceMultiplier: 1.8,
-        direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+        ...focusOptions,
         apply: false,
       }) ||
       createFocusTargetFromObject(
         object,
         cameraRef?.current,
         controlsRef?.current,
-        {
-          distanceMultiplier: 1.8,
-          direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
-        }
+        focusOptions,
       );
 
     if (!focusTarget) return;
@@ -138,7 +140,15 @@ export function useCameraManager({
 
     setIsAutoRotating(false);
     setTargetRotationY(modelScene.rotation.y);
-  };
+  }, [
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    modelScene,
+    setIsAutoRotating,
+    setTargetRotationY,
+    vxEngine,
+  ]);
 
   const resetCameraToInitialView = () => {
     if (!modelScene || !cameraRef?.current || !controlsRef?.current) return;

@@ -110,8 +110,8 @@ export function createProceduralManagerAdapter(engine = null) {
     animateStepObjects(payload) {
       return engine?.animateStepObjects?.(payload) || Promise.resolve(false);
     },
-    resetStep(scene, step) {
-      return engine?.resetStep?.(scene, step) || false;
+    resetStep(scene, step, options) {
+      return engine?.resetStep?.(scene, step, options) || false;
     },
     resetProcedure(scene, procedure) {
       return engine?.resetProcedure?.(scene, procedure) || false;

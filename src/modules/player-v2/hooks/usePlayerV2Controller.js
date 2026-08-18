@@ -9,6 +9,7 @@ import {
 } from "../../../engine/model"
 import { switchCameraProjectionThen } from "../../../engine/camera"
 import { getChapterCameraViews } from "../../../engine/chapter"
+import { speakText, stopSpeech } from "../../../engine/speech"
 import usePlayerV2Project from "./usePlayerV2Project"
 import usePlayerV2Selection from "./usePlayerV2Selection"
 import usePlayerV2Camera from "./usePlayerV2Camera"
@@ -189,21 +190,18 @@ export default function usePlayerV2Controller() {
   }
 
   const speakChapterDescription = () => {
-    if (!activeChapter?.description) return
+    if (!activeChapter?.description) return false
 
-    window.speechSynthesis.cancel()
-
-    const utterance = new SpeechSynthesisUtterance(activeChapter.description)
-    utterance.lang = "id-ID"
-    utterance.rate = 1
-    utterance.pitch = 1
-
-    window.speechSynthesis.speak(utterance)
+    return speakText(activeChapter.description, {
+      language: "auto",
+      defaultLanguage: "id-ID",
+      rate: 1,
+      pitch: 1,
+      consistentVoice: true,
+    })
   }
 
-  const stopSpeaking = () => {
-    window.speechSynthesis.cancel()
-  }
+  const stopSpeaking = stopSpeech
 
   const noopAnimationAction = () => {}
 

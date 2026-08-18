@@ -49,6 +49,10 @@ export function createSelectionEngine(options = {}) {
       return outlineObjects
     },
 
+    getOutlineObjectsForTargets(targetObjects = []) {
+      return createMultiSelectionPayload(targetObjects).outlineObjects || []
+    },
+
     getMaterialOverrideMode() {
       return materialOverrideMode
     },

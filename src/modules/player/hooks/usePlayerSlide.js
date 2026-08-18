@@ -11,6 +11,7 @@ import {
 } from "../../../engine/model";
 import { normalizeSlideDefinition, normalizeSlideDefinitions } from "../../../engine/slide";
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
+import { speakText, stopSpeech } from "../../../engine/speech";
 
 export default function usePlayerSlide({
   material,
@@ -183,7 +184,7 @@ export default function usePlayerSlide({
     setActiveSlideFlowIds([]);
     setSlideFlowPlaybackKey((key) => key + 1);
     playerAnimation?.stopChapterAnimations?.();
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel?.();
+    stopSpeech();
   };
 
   const selectCameraView = (index) => {
@@ -217,16 +218,18 @@ export default function usePlayerSlide({
   };
 
   const speakDescription = () => {
-    if (!activeSlide?.description || typeof window === "undefined") return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(activeSlide.description);
-    utterance.lang = "id-ID";
-    window.speechSynthesis.speak(utterance);
+    if (!activeSlide?.description) return false;
+
+    return speakText(activeSlide.description, {
+      language: "auto",
+      defaultLanguage: "id-ID",
+      rate: 1,
+      pitch: 1,
+      consistentVoice: true,
+    });
   };
 
-  const stopSpeaking = () => {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel?.();
-  };
+  const stopSpeaking = stopSpeech;
 
   return {
     slides,

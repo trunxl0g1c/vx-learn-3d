@@ -42,9 +42,14 @@ export function useSlideAuthoring({
   selectedObject,
   selectedObjects = [],
   blinkSelectedObjectsEnabled = false,
+  blinkTargetObjects = [],
+  blinkAssignments = [],
   setBlinkSelectedObjectsEnabled,
+  setBlinkTargetObjects,
+  setBlinkAssignments,
   xrayTargetObject,
   xrayTargetObjects = [],
+  xrayNormalObjects = [],
   selectionVisualMode = "none",
   pullApartState,
   getCutStates,
@@ -281,8 +286,11 @@ export function useSlideAuthoring({
       selectedObjects,
       xrayTargetObject,
       xrayTargetObjects,
+      xrayNormalObjects,
       selectionVisualMode,
       blinkSelectedObjectsEnabled,
+      blinkTargetObjects,
+      blinkAssignments,
       pullApartState,
       cutStates: getCutStates?.() || [],
       cutEnabled,
@@ -291,6 +299,8 @@ export function useSlideAuthoring({
     });
   }, [
     blinkSelectedObjectsEnabled,
+    blinkTargetObjects,
+    blinkAssignments,
     cutEnabled,
     cutRanges,
     cutValues,
@@ -302,6 +312,7 @@ export function useSlideAuthoring({
     selectionVisualMode,
     xrayTargetObject,
     xrayTargetObjects,
+    xrayNormalObjects,
   ]);
 
   const saveCameraView = useCallback(
@@ -397,6 +408,9 @@ export function useSlideAuthoring({
       setActiveSlideId(slideId);
       setRightTab?.("slide");
       resetXray?.({ closeInfo: false });
+      setBlinkSelectedObjectsEnabled?.(false);
+      setBlinkTargetObjects?.([]);
+      setBlinkAssignments?.([]);
       resetVisualState?.();
       clearCutSession?.();
       setSelectedObject?.(null);
@@ -422,6 +436,8 @@ export function useSlideAuthoring({
           highlightSelectedObjectsPreservingVisualState,
           setSelectedObjectName,
           setBlinkSelectedObjectsEnabled,
+          setBlinkTargetObjects,
+          setBlinkAssignments,
           applySavedCuts,
         });
       }
@@ -441,6 +457,8 @@ export function useSlideAuthoring({
       resetVisualState,
       resetXray,
       setBlinkSelectedObjectsEnabled,
+      setBlinkTargetObjects,
+      setBlinkAssignments,
       setOutlineObjects,
       setRightTab,
       setSelectedObject,

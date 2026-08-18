@@ -38,7 +38,9 @@ import {
   replaceMaterialRecord,
 } from "../../../engine/project/LazyMaterialRecords"
 import {
+  DEFAULT_BLINK_PRESETS,
   DEFAULT_BLINK_SELECTION_SETTINGS,
+  normalizeBlinkPresets,
   normalizeBlinkSelectionSettings,
 } from "../../../engine/selection"
 
@@ -58,6 +60,7 @@ export const DEFAULT_VIEWER_SETTINGS = {
   roughness: 0.1,
   cameraProjectionMode: "perspective",
   blinkSettings: { ...DEFAULT_BLINK_SELECTION_SETTINGS },
+  blinkPresets: DEFAULT_BLINK_PRESETS.map((preset) => ({ ...preset })),
   background: DEFAULT_VIEWER_BACKGROUND,
   grid: { ...DEFAULT_VIEWER_GRID },
   xr: {
@@ -234,14 +237,24 @@ export default function usePlayerProject({
 
   const notifyModelLoaded = useCallback(
     (scene) => {
-      expectedSceneIdRef.current = scene?.uuid || scene?.id || null
+      const sceneId = scene?.uuid || scene?.id || null
+
+      // Entering iOS tracked AR can remount the already-loaded cached GLTF.
+      // If the Player is already ready and this is the same scene, do not
+      // reopen the global loading cover. XR deliberately disables the desktop
+      // camera-settling snapshot, so such a cover would otherwise stay at 88%.
+      if (isSceneReady && sceneId && expectedSceneIdRef.current === sceneId) {
+        return
+      }
+
+      expectedSceneIdRef.current = sceneId
       updateLoading({
         title: "Opening Player",
         text: "Preparing scene and applying default camera view...",
         progress: 88,
       })
     },
-    [updateLoading],
+    [isSceneReady, updateLoading],
   )
 
   const notifySceneReady = useCallback(
@@ -402,17 +415,24 @@ export default function usePlayerProject({
         }
 
         if (nextViewer) {
-          setViewerSettings((prev) => ({
-            ...prev,
-            ...nextViewer,
-            blinkSettings: normalizeBlinkSelectionSettings(
+          setViewerSettings((prev) => {
+            const blinkPresets = normalizeBlinkPresets(
+              nextViewer?.blinkPresets ||
+                (nextViewer?.blinkSettings ? [] : prev?.blinkPresets),
               nextViewer?.blinkSettings || prev?.blinkSettings,
-            ),
-            background: {
-              ...(prev?.background || {}),
-              ...(nextViewer?.background || {}),
-            },
-          }))
+            )
+
+            return {
+              ...prev,
+              ...nextViewer,
+              blinkPresets,
+              blinkSettings: normalizeBlinkSelectionSettings(blinkPresets[0]),
+              background: {
+                ...(prev?.background || {}),
+                ...(nextViewer?.background || {}),
+              },
+            }
+          })
         }
 
         resetPlayerState?.({
@@ -513,18 +533,25 @@ export default function usePlayerProject({
       resetAnimationState?.()
 
       if (json.viewerSettings) {
-        setViewerSettings((prev) => ({
-          ...prev,
-          ...json.viewerSettings,
-          blinkSettings: normalizeBlinkSelectionSettings(
+        setViewerSettings((prev) => {
+          const blinkPresets = normalizeBlinkPresets(
+            json.viewerSettings?.blinkPresets ||
+              (json.viewerSettings?.blinkSettings ? [] : prev?.blinkPresets),
             json.viewerSettings?.blinkSettings || prev?.blinkSettings,
-          ),
-          background: {
-            ...(prev?.background || {}),
-            ...(json.viewerSettings?.background || {}),
-          },
-          xr: normalizeXRSettings(json.viewerSettings?.xr || prev?.xr),
-        }))
+          )
+
+          return {
+            ...prev,
+            ...json.viewerSettings,
+            blinkPresets,
+            blinkSettings: normalizeBlinkSelectionSettings(blinkPresets[0]),
+            background: {
+              ...(prev?.background || {}),
+              ...(json.viewerSettings?.background || {}),
+            },
+            xr: normalizeXRSettings(json.viewerSettings?.xr || prev?.xr),
+          }
+        })
       }
 
       const hasModel = Boolean(json.modelUrl || json.model?.uri)

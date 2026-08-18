@@ -10,9 +10,16 @@ function getXRNavigator() {
 
 function buildSessionInit(mode, settings = {}) {
   if (mode === "ar") {
+    const requiredFeatures =
+      settings.placement === "surface" ? ["hit-test"] : [];
+    if (settings.requireDomOverlay) requiredFeatures.push("dom-overlay");
+
+    const optionalFeatures = ["local-floor", "anchors"];
+    if (!settings.requireDomOverlay) optionalFeatures.push("dom-overlay");
+
     const init = {
-      requiredFeatures: settings.placement === "surface" ? ["hit-test"] : [],
-      optionalFeatures: ["local-floor", "dom-overlay", "anchors"],
+      requiredFeatures,
+      optionalFeatures,
     };
 
     if (typeof document !== "undefined" && document.body) {

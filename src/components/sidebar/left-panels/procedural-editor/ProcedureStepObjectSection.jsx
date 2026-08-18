@@ -9,17 +9,19 @@ const ANIMATION_MODES = [
     value: "together",
     label: "Together",
     icon: "animation",
-    description: "All animated objects move at the same time.",
+    description:
+      "Different objects can start together. Repeated actions on the same object stay chained.",
   },
   {
     value: "sequential",
     label: "Sequential",
     icon: "format_list_numbered",
-    description: "Object 2 starts after object 1 finishes, and so on.",
+    description: "Run every animation action one-by-one in the listed order.",
   },
 ];
 
 function AssignmentGroup({
+  stepNumber,
   title,
   description,
   ready,
@@ -27,11 +29,18 @@ function AssignmentGroup({
   children,
 }) {
   return (
-    <section className="rounded-xl border border-secondary-default/60 bg-primary/50 p-3">
+    <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold text-white">{title}</p>
-          <p className="mt-1 text-[10px] leading-4 text-contrast-grayout">
+          <div className="flex items-center gap-2">
+            {stepNumber && (
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
+                {stepNumber}
+              </span>
+            )}
+            <p className="text-xs font-semibold text-white">{title}</p>
+          </div>
+          <p className="mt-1.5 text-[10px] leading-4 text-contrast-grayout">
             {description}
           </p>
         </div>
@@ -41,7 +50,7 @@ function AssignmentGroup({
               {count}
             </span>
           )}
-          <StatusBadge ready={ready}>{ready ? "Assigned" : "Required"}</StatusBadge>
+          <StatusBadge ready={ready}>{ready ? "Ready" : "Required"}</StatusBadge>
         </div>
       </div>
       <div className="space-y-3">{children}</div>
@@ -57,15 +66,14 @@ function AnimatedObjectMode({ procedural, step, entryCount }) {
   const disabled = entryCount < 2;
 
   return (
-    <div className="rounded-lg border border-secondary-default/40 bg-black/10 p-3">
-      <div className="mb-2">
-        <p className="text-[11px] font-semibold text-white">
-          Animation Playback
-        </p>
-        <p className="mt-1 text-[9px] leading-4 text-contrast-grayout">
-          Choose how multiple animated objects run after a click target is
-          triggered.
-        </p>
+    <div className="rounded-lg border border-secondary-default/35 bg-black/10 p-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-semibold text-white">Playback Order</p>
+          <p className="mt-0.5 text-[9px] leading-4 text-contrast-grayout">
+            Only matters when there is more than one animation action.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -83,11 +91,11 @@ function AnimatedObjectMode({ procedural, step, entryCount }) {
                 })
               }
               className={[
-                "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition",
+                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition",
                 "disabled:cursor-not-allowed disabled:opacity-45",
                 active
                   ? "border-accent-main bg-accent-main/15 text-white"
-                  : "border-secondary-default/40 bg-primary/40 text-contrast-grayout hover:border-secondary-default/70",
+                  : "border-secondary-default/35 bg-primary/40 text-contrast-grayout hover:border-secondary-default/70",
               ].join(" ")}
             >
               <span className="flex items-center gap-1.5 text-[10px] font-semibold">
@@ -99,12 +107,6 @@ function AnimatedObjectMode({ procedural, step, entryCount }) {
           );
         })}
       </div>
-
-      {disabled && (
-        <p className="mt-2 text-[9px] text-contrast-grayout">
-          Add at least two animated objects to choose a playback mode.
-        </p>
-      )}
     </div>
   );
 }
@@ -131,8 +133,9 @@ export default function ProcedureStepObjectSection({
       ) : (
         <>
           <AssignmentGroup
-            title="Click Targets"
-            description="Clicking any assigned target in Player completes the click condition."
+            stepNumber="1"
+            title="Choose Click Target"
+            description="Select an object in the viewport, then add it as a target. Clicking any one target will trigger this step."
             ready={clickTargets.length > 0}
             count={clickTargets.length}
           >
@@ -157,8 +160,9 @@ export default function ProcedureStepObjectSection({
           </AssignmentGroup>
 
           <AssignmentGroup
-            title="Animated Objects"
-            description="Add every object that should move after a valid click target is selected."
+            stepNumber="2"
+            title="Add Animation Actions"
+            description="Add one action for every movement. The same object can be added again for a second action, such as Move first, then Rotate."
             ready={animatedEntries.length > 0}
             count={animatedEntries.length}
           >
@@ -166,7 +170,7 @@ export default function ProcedureStepObjectSection({
               key={`${step.id}-animated-object`}
               procedural={procedural}
               role="animated"
-              title="Add Animated Object"
+              title="Add Animation Action"
               icon="animation"
               assignedReference={procedural.activeAnimatedEntry?.object}
               embedded
@@ -193,7 +197,7 @@ export default function ProcedureStepObjectSection({
       <p className="text-[10px] leading-4 text-contrast-grayout">
         {isAssembly
           ? "Select the component that the learner must drag. Use Get Parent repeatedly when the authored target should be a higher logical object."
-          : "Click targets use OR logic. Animated objects follow the selected playback mode and can optionally be hidden after their own animation completes."}
+          : "Tip: for Move → Rotate on one object, save the first action End, then add the same object again. The new action automatically starts from the previous End."}
       </p>
     </div>
   );

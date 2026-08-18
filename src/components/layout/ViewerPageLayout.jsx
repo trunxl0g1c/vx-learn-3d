@@ -104,9 +104,9 @@ export default function ViewerPageLayout({ controller }) {
 
   return (
     <div
+      className="vx-editor-shell"
       style={{
         width: "100vw",
-        height: "100vh",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

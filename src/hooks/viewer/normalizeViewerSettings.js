@@ -1,4 +1,4 @@
-import { normalizeBlinkSelectionSettings } from "../../engine/selection";
+import { normalizeBlinkPresets, normalizeBlinkSelectionSettings } from "../../engine/selection";
 import { normalizeViewerGrid } from "../../engine/viewer";
 import { normalizeXRSettings } from "../../engine/xr";
 
@@ -34,8 +34,12 @@ export function normalizeLoadedViewerSettings(viewer = {}) {
     normalizedViewer.cameraProjectionMode === "orthographic"
       ? "orthographic"
       : "perspective";
-  normalizedViewer.blinkSettings = normalizeBlinkSelectionSettings(
+  normalizedViewer.blinkPresets = normalizeBlinkPresets(
+    normalizedViewer.blinkPresets,
     normalizedViewer.blinkSettings,
+  );
+  normalizedViewer.blinkSettings = normalizeBlinkSelectionSettings(
+    normalizedViewer.blinkPresets[0],
   );
   normalizedViewer.grid = normalizeViewerGrid(normalizedViewer.grid);
   normalizedViewer.xr = normalizeXRSettings(normalizedViewer.xr);

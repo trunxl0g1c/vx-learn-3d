@@ -44,6 +44,72 @@ export default function MiniLogicalObjectPicker({
     role === "target" && assignedCount > 1
       ? `${assignedCount} click targets assigned`
       : assignedReference?.name || "No object assigned";
+  const compact = embedded && hideHeader;
+
+  const assignCurrentObject = () => {
+    if (!currentObject) return;
+    procedural?.selectAuthoringObject?.(currentObject);
+    procedural?.assignObject?.(currentObject, role);
+  };
+
+  if (compact) {
+    return (
+      <div className="space-y-2">
+        <div className="rounded-lg border border-secondary-default/45 bg-[#111717] p-2.5">
+          <div className="flex items-center gap-2">
+            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent-main/15 text-secondary-default">
+              <MaterialIcon name={icon} className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[9px] uppercase tracking-wide text-contrast-grayout">
+                Selected in viewport
+              </span>
+              <span className="block truncate text-[11px] font-semibold text-white">
+                {currentObject ? currentName : "Select an object first"}
+              </span>
+            </span>
+            <Button
+              type="button"
+              size="xs"
+              variant="darkOutline"
+              className="shrink-0 px-2"
+              disabled={!parentObject}
+              onClick={() => procedural?.selectAuthoringObject?.(parentObject)}
+              title={
+                parentObject
+                  ? `Select parent ${getObjectLabel(parentObject)}`
+                  : "No selectable parent"
+              }
+            >
+              <MaterialIcon name="arrow_upward" className="size-4" />
+              Parent
+            </Button>
+          </div>
+
+          {currentObject && objectPath.length > 0 && (
+            <p
+              className="mt-1.5 truncate text-[9px] text-contrast-grayout"
+              title={objectPath.map(getObjectLabel).join(" / ")}
+            >
+              {objectPath.map(getObjectLabel).join(" / ")}
+            </p>
+          )}
+        </div>
+
+        <Button
+          type="button"
+          size="xs"
+          variant="cyanOutline"
+          className="w-full"
+          disabled={!currentObject}
+          onClick={assignCurrentObject}
+        >
+          <MaterialIcon name={role === "animated" ? "add" : icon} className="size-4" />
+          {role === "target" ? "Add as Click Target" : "Add Animation Action"}
+        </Button>
+      </div>
+    );
+  }
 
   const content = (
     <>
@@ -120,10 +186,7 @@ export default function MiniLogicalObjectPicker({
         variant="cyanOutline"
         className="mt-3 w-full"
         disabled={!currentObject}
-        onClick={() => {
-          procedural?.selectAuthoringObject?.(currentObject);
-          procedural?.assignObject?.(currentObject, role);
-        }}
+        onClick={assignCurrentObject}
       >
         <MaterialIcon name={icon} className="size-4" />
         {currentObject

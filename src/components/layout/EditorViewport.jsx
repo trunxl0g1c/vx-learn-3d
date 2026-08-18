@@ -50,6 +50,11 @@ export default function EditorViewport({ controller }) {
     selectedObjects,
     multipleSelectEnabled,
     blinkSelectedObjectsEnabled,
+    activeSelectionHasBlink,
+    blinkRenderGroups,
+    blinkOutlineObjects,
+    assignBlinkPresetToSelectedObjects,
+    removeBlinkFromSelectedObjects,
     toggleBlinkSelectedObjects,
     toggleMultipleSelect,
     clearSelection,
@@ -79,6 +84,7 @@ export default function EditorViewport({ controller }) {
     hideSelectedObject,
     hideMultipleSelectedObjects,
     makeSelectedObjectsXray,
+    highlightSelectedObjectsAgainstXray,
     resetXray,
     pullApart,
     resetAllTransforms,
@@ -101,7 +107,7 @@ export default function EditorViewport({ controller }) {
 
     material,
     setMaterial,
-    saveDefaultPlayerCameraView,
+    saveDefaultPlayerCameraViewAndState,
     flow,
     procedural,
     animationAuthoring,
@@ -204,6 +210,8 @@ export default function EditorViewport({ controller }) {
         cameraProjectionMode={activeCameraProjectionMode}
         outlineObjects={outlineObjects}
         blinkSelectionEnabled={blinkSelectedObjectsEnabled}
+        blinkRenderGroups={blinkRenderGroups}
+        blinkOutlineObjects={blinkOutlineObjects}
         shaderOutlineObjects={shaderOutlineObjects}
         shaderOutlineStyle={shaderOutlineStyle}
         modelUrl={modelUrl}
@@ -313,7 +321,10 @@ export default function EditorViewport({ controller }) {
         setMarkerMode={setMarkerMode}
         cutEnabled={cutEnabled}
         multipleSelectEnabled={multipleSelectEnabled}
-        blinkSelectedObjectsEnabled={blinkSelectedObjectsEnabled}
+        activeSelectionHasBlink={activeSelectionHasBlink}
+        blinkPresets={viewerSettings?.blinkPresets}
+        assignBlinkPresetToSelectedObjects={assignBlinkPresetToSelectedObjects}
+        removeBlinkFromSelectedObjects={removeBlinkFromSelectedObjects}
         toggleBlinkSelectedObjects={toggleBlinkSelectedObjects}
         toggleMultipleSelect={toggleMultipleSelect}
         handleFile={handleFile}
@@ -321,7 +332,14 @@ export default function EditorViewport({ controller }) {
         hideSelectedObject={hideSelectedObject}
         hideMultipleSelectedObjects={hideMultipleSelectedObjects}
         makeSelectedObjectsXray={makeSelectedObjectsXray}
-        selectedObjectCount={selectedObjects.length}
+        highlightSelectedObjectsAgainstXray={highlightSelectedObjectsAgainstXray}
+        selectedObjectCount={
+          multipleSelectEnabled
+            ? selectedObjects.length
+            : selectedObject
+              ? 1
+              : 0
+        }
         resetXray={resetXray}
         pullApart={pullApart}
         resetAllTransforms={resetAllTransforms}
@@ -385,7 +403,7 @@ export default function EditorViewport({ controller }) {
         renameObject={renameObject}
         material={material}
         setMaterial={setMaterial}
-        saveDefaultPlayerCameraView={saveDefaultPlayerCameraView}
+        saveDefaultPlayerCameraViewAndState={saveDefaultPlayerCameraViewAndState}
         selectedObjectName={selectedObjectName}
         applyShaderMode={applyShaderMode}
         shaderMode={shaderMode}

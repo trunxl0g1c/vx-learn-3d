@@ -98,6 +98,50 @@ function syncStepAnimatedLegacyFields(step, entries) {
   };
 }
 
+function getAnimatedReferenceIdentity(entry, index = 0) {
+  const reference =
+    entry?.object || entry?.reference || entry?.animatedObject || null;
+
+  if (reference?.uuid) return `uuid:${reference.uuid}`;
+  if (Array.isArray(reference?.path)) {
+    return `path:${reference.path.join(".")}`;
+  }
+  if (reference?.name) return `name:${String(reference.name).trim()}`;
+
+  return `entry:${index}`;
+}
+
+function reverseAnimatedPlaybackEntries(entries, sequential) {
+  if (sequential) return [...entries].reverse();
+
+  // In Together mode, different objects run in parallel but repeated entries
+  // for one object form a sequential action chain. Reverse each object's chain
+  // independently so Move -> Rotate becomes Rotate(reverse) -> Move(reverse)
+  // without disturbing the parallel grouping of other objects.
+  const groups = new Map();
+  entries.forEach((entry, index) => {
+    const identity = getAnimatedReferenceIdentity(entry, index);
+    const group = groups.get(identity) || [];
+    group.push(entry);
+    groups.set(identity, group);
+  });
+
+  const reversedGroups = new Map(
+    [...groups.entries()].map(([identity, group]) => [
+      identity,
+      [...group].reverse(),
+    ]),
+  );
+  const offsets = new Map();
+
+  return entries.map((entry, index) => {
+    const identity = getAnimatedReferenceIdentity(entry, index);
+    const offset = offsets.get(identity) || 0;
+    offsets.set(identity, offset + 1);
+    return reversedGroups.get(identity)?.[offset] || entry;
+  });
+}
+
 function reverseNormalizedStepWithHelpers(
   step,
   procedureType,
@@ -107,7 +151,7 @@ function reverseNormalizedStepWithHelpers(
   const assemblyStep = isAssemblyProcedure(procedureType);
   const entries = normalizeAnimatedObjects(step, assemblyStep);
   const sequential = step?.action?.animatedObjectMode === "sequential";
-  const playbackEntries = sequential ? [...entries].reverse() : [...entries];
+  const playbackEntries = reverseAnimatedPlaybackEntries(entries, sequential);
   const reversedEntries = playbackEntries.map((entry) => ({
     ...cloneProceduralValue(entry),
     startTransform: cloneProceduralValue(entry.endTransform),
@@ -116,7 +160,12 @@ function reverseNormalizedStepWithHelpers(
     // visible while it travels back to the authored Start pose. If the original
     // Start pose was hidden, hide only after the reverse animation completes.
     startVisible: true,
-    hideAfterAnimation: entry.startVisible === false,
+    // Visibility transitions are reversed too: an original Hide After means
+    // the reverse action must Show Before, while an authored Show Before means
+    // the reverse path returns to hidden after it reaches the original Start.
+    showBeforeAnimation: entry.hideAfterAnimation === true,
+    hideAfterAnimation:
+      entry.showBeforeAnimation === true || entry.startVisible === false,
   }));
 
   const reversedStep = syncStepAnimatedLegacyFields(

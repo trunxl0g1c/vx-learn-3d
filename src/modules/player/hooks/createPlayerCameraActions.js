@@ -21,7 +21,7 @@ export function createPlayerCameraActions({
   modelScene,
   setViewerSettings,
 }) {
-  const focusObject = (object) => {
+  const focusObject = (object, options = {}) => {
     if (!object || !focusTargetRef) return;
 
     const focusTarget = createFocusTargetFromObject(
@@ -30,6 +30,7 @@ export function createPlayerCameraActions({
       controlsRef?.current,
       {
         distanceMultiplier: 1.8,
+        ...options,
       },
     );
 

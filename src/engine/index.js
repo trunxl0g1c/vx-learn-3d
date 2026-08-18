@@ -9,6 +9,7 @@ export * from "./procedural"
 export * from "./quiz"
 export * from "./xr"
 export * from "./history"
+export * from "./speech"
 export * from "./createVXEngine"
 
 export * from "./chapter"

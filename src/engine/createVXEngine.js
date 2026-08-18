@@ -8,6 +8,7 @@ import { createProceduralEngine } from "./procedural"
 import { createQuizEngine } from "./quiz"
 import { createXRSessionEngine } from "./xr"
 import { createHistoryEngine } from "./history"
+import { createSpeechEngine } from "./speech"
 
 export function createVXEngine(options = {}) {
   const camera = options.cameraEngine || createCameraEngine(options.camera)
@@ -22,6 +23,7 @@ export function createVXEngine(options = {}) {
   const xr = options.xrEngine || createXRSessionEngine(options.xr)
   const history =
     options.historyEngine || createHistoryEngine({ limit: 10, ...(options.history || {}) })
+  const speech = options.speechEngine || createSpeechEngine(options.speech)
 
   const engine = {
     camera,
@@ -34,6 +36,7 @@ export function createVXEngine(options = {}) {
     quiz,
     xr,
     history,
+    speech,
 
     initializeModel(scene, viewerSettings = {}) {
       camera.setScene?.(scene)
@@ -76,6 +79,7 @@ export function createVXEngine(options = {}) {
         quiz: quiz.getState?.(),
         xr: xr.getState?.(),
         history: history.getState?.(),
+        speech: { supported: speech.isSupported?.() },
       }
     },
 
@@ -96,6 +100,7 @@ export function createVXEngine(options = {}) {
       procedural.dispose?.()
       quiz.reset?.()
       history.clear?.()
+      speech.stop?.()
       return this.getState()
     },
 
@@ -110,6 +115,7 @@ export function createVXEngine(options = {}) {
       quiz.dispose?.()
       xr.dispose?.()
       history.dispose?.()
+      speech.stop?.()
       return this.getState()
     },
   }

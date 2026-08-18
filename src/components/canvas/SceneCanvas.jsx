@@ -32,6 +32,7 @@ import AssemblyGhostTarget from '../procedural/AssemblyGhostTarget'
 import AnimationPivotEditor from '../animation/AnimationPivotEditor'
 import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
 import { getFlowReferenceLengthFromObject } from '../../engine/flow'
+import { getBlinkPresetById } from '../../engine/selection'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 import BlinkSelectionOutline from '../viewer/BlinkSelectionOutline'
@@ -158,6 +159,8 @@ export default function SceneCanvas({
   cameraProjectionMode = "perspective",
   outlineObjects,
   blinkSelectionEnabled = false,
+  blinkRenderGroups = [],
+  blinkOutlineObjects = [],
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
   modelUrl,
@@ -233,6 +236,15 @@ export default function SceneCanvas({
   const transformShowX = !animationRigLocksAxis || animationRigAxis === "x"
   const transformShowY = !animationRigLocksAxis || animationRigAxis === "y"
   const transformShowZ = !animationRigLocksAxis || animationRigAxis === "z"
+
+  const transientOutlineObjects = useMemo(() => {
+    if (!blinkSelectionEnabled || blinkOutlineObjects.length === 0) {
+      return outlineObjects
+    }
+
+    const blinkSet = new Set(blinkOutlineObjects)
+    return outlineObjects.filter((object) => !blinkSet.has(object))
+  }, [blinkOutlineObjects, blinkSelectionEnabled, outlineObjects])
 
   const flowSpeedReferenceLength = useMemo(
     () => getFlowReferenceLengthFromObject(modelScene, 1),
@@ -329,23 +341,37 @@ export default function SceneCanvas({
           />
         )}
 
-        {outlineObjects.length > 0 &&
-          (blinkSelectionEnabled ? (
-            <BlinkSelectionOutline
-              selection={outlineObjects}
-              settings={viewerSettings?.blinkSettings}
-            />
-          ) : (
-            <Outline
-              selection={outlineObjects}
-              selectionLayer={10}
-              edgeStrength={8}
-              pulseSpeed={0}
-              visibleEdgeColor="yellow"
-              hiddenEdgeColor="yellow"
-              blur={false}
-            />
-          ))}
+        {transientOutlineObjects.length > 0 && (
+          <Outline
+            selection={transientOutlineObjects}
+            selectionLayer={10}
+            edgeStrength={8}
+            pulseSpeed={0}
+            visibleEdgeColor="yellow"
+            hiddenEdgeColor="yellow"
+            blur={false}
+          />
+        )}
+
+        {blinkSelectionEnabled && blinkRenderGroups.length > 0
+          ? blinkRenderGroups.map((group, index) => (
+              <BlinkSelectionOutline
+                key={group.presetId}
+                selection={group.outlineObjects}
+                selectionLayer={11 + (index % 20)}
+                settings={getBlinkPresetById(
+                  viewerSettings?.blinkPresets,
+                  group.presetId,
+                  viewerSettings?.blinkSettings,
+                )}
+              />
+            ))
+          : blinkSelectionEnabled && blinkOutlineObjects.length > 0 && (
+              <BlinkSelectionOutline
+                selection={blinkOutlineObjects}
+                settings={viewerSettings?.blinkSettings}
+              />
+            )}
       </EffectComposer>
 
       <ambientLight intensity={viewerSettings.ambientLight} />

@@ -295,6 +295,69 @@ export function createCameraFocusTargetFromBox(box, options = {}) {
   }
 }
 
+function createOrthographicFocusZoom(box, camera, controls, options = {}) {
+  if (!box || !camera?.isOrthographicCamera) return null
+
+  camera.updateMatrixWorld?.(true)
+
+  const corners = [
+    new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+    new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+    new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+    new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+    new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+    new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+    new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+    new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+  ]
+
+  let minX = Infinity
+  let maxX = -Infinity
+  let minY = Infinity
+  let maxY = -Infinity
+
+  corners.forEach((corner) => {
+    corner.applyMatrix4(camera.matrixWorldInverse)
+    minX = Math.min(minX, corner.x)
+    maxX = Math.max(maxX, corner.x)
+    minY = Math.min(minY, corner.y)
+    maxY = Math.max(maxY, corner.y)
+  })
+
+  const projectedWidth = Math.max(maxX - minX, MIN_RENDERABLE_SIZE)
+  const projectedHeight = Math.max(maxY - minY, MIN_RENDERABLE_SIZE)
+  const frustumWidth = Math.max(
+    Math.abs(Number(camera.right) - Number(camera.left)),
+    MIN_RENDERABLE_SIZE,
+  )
+  const frustumHeight = Math.max(
+    Math.abs(Number(camera.top) - Number(camera.bottom)),
+    MIN_RENDERABLE_SIZE,
+  )
+  const requestedPadding = Number(options.orthographicPadding)
+  const padding = Number.isFinite(requestedPadding)
+    ? Math.max(requestedPadding, 1)
+    : 1.25
+
+  let zoom = Math.min(
+    frustumWidth / (projectedWidth * padding),
+    frustumHeight / (projectedHeight * padding),
+  )
+
+  const minZoom = Number(controls?.minZoom)
+  const maxZoom = Number(controls?.maxZoom)
+
+  if (Number.isFinite(minZoom) && minZoom > 0) {
+    zoom = Math.max(zoom, minZoom)
+  }
+
+  if (Number.isFinite(maxZoom) && maxZoom > 0) {
+    zoom = Math.min(zoom, maxZoom)
+  }
+
+  return Number.isFinite(zoom) && zoom > 0 ? zoom : null
+}
+
 export function createFocusTargetFromObject(object, camera, controls, options = {}) {
   if (!object) return null
 
@@ -308,11 +371,26 @@ export function createFocusTargetFromObject(object, camera, controls, options = 
     ? currentCameraPosition.sub(currentTarget)
     : null
 
-  return createCameraFocusTargetFromBox(box, {
+  const focusTarget = createCameraFocusTargetFromBox(box, {
     ...options,
     camera,
     direction: options.direction || cameraDirection,
   })
+
+  if (
+    focusTarget &&
+    camera?.isOrthographicCamera &&
+    options.fitOrthographicZoom === true
+  ) {
+    const zoom = createOrthographicFocusZoom(box, camera, controls, options)
+
+    if (zoom) {
+      focusTarget.zoom = zoom
+      focusTarget.cameraType = "orthographic"
+    }
+  }
+
+  return focusTarget
 }
 
 export function createFocusTargetFromScene(scene, options = {}) {
@@ -453,5 +531,20 @@ export function createCameraStateFromStoredView(cameraView) {
     zoom: Number.isFinite(zoom) && zoom > 0 ? zoom : 1,
     cameraType: getStoredCameraProjectionMode(cameraView),
     fov: Number.isFinite(fov) && fov > 0 ? fov : null,
+  }
+}
+
+export function createFocusTargetFromStoredView(cameraView) {
+  const cameraState = createCameraStateFromStoredView(cameraView)
+
+  if (!cameraState) return null
+
+  return {
+    cameraPosition: cameraState.position.clone(),
+    target: cameraState.target.clone(),
+    cameraUp: cameraState.up?.clone?.() || null,
+    zoom: cameraState.zoom,
+    fov: cameraState.fov,
+    cameraType: cameraState.cameraType,
   }
 }

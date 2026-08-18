@@ -1,4 +1,4 @@
-import { DEFAULT_BLINK_SELECTION_SETTINGS } from "../../engine/selection";
+import { DEFAULT_BLINK_PRESETS, DEFAULT_BLINK_SELECTION_SETTINGS } from "../../engine/selection";
 import { DEFAULT_VIEWER_GRID } from "../../engine/viewer";
 import { DEFAULT_XR_SETTINGS } from "../../engine/xr";
 import { DEFAULT_VIEWER_BACKGROUND } from "../../utils/viewerBackground";
@@ -20,6 +20,7 @@ export function createDefaultViewerSettings() {
     roughness: 0.1,
     cameraProjectionMode: "perspective",
     blinkSettings: { ...DEFAULT_BLINK_SELECTION_SETTINGS },
+    blinkPresets: DEFAULT_BLINK_PRESETS.map((preset) => ({ ...preset })),
     background: { ...DEFAULT_VIEWER_BACKGROUND },
     grid: { ...DEFAULT_VIEWER_GRID },
     xr: {

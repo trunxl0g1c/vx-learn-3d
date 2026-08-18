@@ -16,6 +16,7 @@ import InlineAlert from "../../ui/inline-alert";
 import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
 import { createId } from "../../../utils/createId";
+import BlinkPresetSettings from "./BlinkPresetSettings";
 import { normalizeBlinkSelectionSettings } from "../../../engine/selection";
 import { useCategories } from "../../../modules/category/api/categories";
 import {
@@ -161,7 +162,7 @@ export default function ProjectSettingsPanel({
   setMaterial,
   viewerSettings,
   setViewerSettings,
-  saveDefaultPlayerCameraView,
+  saveDefaultPlayerCameraViewAndState,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
@@ -200,16 +201,6 @@ export default function ProjectSettingsPanel({
         ...background,
         ...patch,
       },
-    }));
-  };
-
-  const updateBlinkSettings = (patch) => {
-    setViewerSettings?.((prev) => ({
-      ...prev,
-      blinkSettings: normalizeBlinkSelectionSettings({
-        ...prev?.blinkSettings,
-        ...patch,
-      }),
     }));
   };
 
@@ -341,10 +332,10 @@ export default function ProjectSettingsPanel({
     });
   };
 
-  const handleSaveDefaultPlayerCameraView = () => {
+  const handleSaveDefaultPlayerCameraViewAndState = () => {
     clearPanelError();
 
-    const didSave = saveDefaultPlayerCameraView?.();
+    const didSave = saveDefaultPlayerCameraViewAndState?.();
 
     if (!didSave) {
       showPanelError(
@@ -710,20 +701,23 @@ export default function ProjectSettingsPanel({
 
 
             <div className="border-t border-white/10 pt-4">
-              <Button
+              <button
                 type="button"
-                onClick={handleSaveDefaultPlayerCameraView}
-                className="w-full my-3"
+                onClick={handleSaveDefaultPlayerCameraViewAndState}
+                className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-secondary-default text-sm font-bold text-white transition hover:bg-secondary-default hover:text-primary"
               >
                 <Camera className="size-4" />
-                {playerSettings.defaultCameraView
-                  ? "Update Default Camera View"
-                  : "Save Default Camera View"}
-              </Button>
+                {playerSettings.defaultCameraView ||
+                  playerSettings.defaultVisualState
+                  ? "Update Default Camera View and State"
+                  : "Save Default Camera View and State"}
+              </button>
 
               <p className="mt-2 text-xs leading-5 text-contrast-grayout">
-                Posisi kamera Editor saat ini akan menjadi tampilan awal serta
-                target Reset View dan Reset All di Player.
+                Posisi kamera dan state visual Editor saat ini akan menjadi
+                tampilan awal saat project dibuka di Editor maupun Player.
+                Kamera menjadi target Reset View, sedangkan kamera + state
+                menjadi target Reset All di Player.
               </p>
             </div>
 
@@ -771,46 +765,10 @@ export default function ProjectSettingsPanel({
           }
         />
 
-        <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-2 text-sm font-normal text-white">
-            Blink Selected Objects
-          </div>
-
-          <p className="mb-4 text-xs leading-5 text-contrast-grayout">
-            Pengaturan ini digunakan oleh tombol Blink Selected Objects pada
-            menu Multiple Select dan ikut disimpan bersama camera view Chapter.
-          </p>
-
-          <div className="space-y-4">
-            <Slider
-              label="Blink Thickness"
-              value={blinkSettings.thickness}
-              min={1}
-              max={20}
-              step={0.5}
-              onChange={(value) =>
-                updateBlinkSettings({ thickness: Number(value) })
-              }
-            />
-
-            <ColorFieldInput
-              label="Blink Color"
-              value={blinkSettings.color}
-              onChange={(value) => updateBlinkSettings({ color: value })}
-            />
-
-            <Slider
-              label="Blink Speed"
-              value={blinkSettings.speed}
-              min={0.1}
-              max={5}
-              step={0.1}
-              onChange={(value) =>
-                updateBlinkSettings({ speed: Number(value) })
-              }
-            />
-          </div>
-        </div>
+        <BlinkPresetSettings
+          viewerSettings={viewerSettings}
+          setViewerSettings={setViewerSettings}
+        />
 
         <div className="rounded-xl border border-secondary-default bg-primary p-4">
           <div className="mb-2 text-sm font-normal text-white">Background</div>

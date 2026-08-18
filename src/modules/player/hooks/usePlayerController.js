@@ -27,6 +27,7 @@ import usePlayerProject, { DEFAULT_VIEWER_SETTINGS } from "./usePlayerProject"
 import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
 import { createPlayerCameraActions } from "./createPlayerCameraActions"
+import { useFocusSelectedObjectShortcut } from "../../../hooks/useFocusSelectedObjectShortcut"
 import { createPlayerXrayActions } from "./createPlayerXrayActions"
 import { createPlayerSavedViewActions } from "./createPlayerSavedViewActions"
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords"
@@ -59,6 +60,7 @@ export default function usePlayerController() {
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [outlineObjects, setOutlineObjects] = useState([])
   const [blinkSelectionEnabled, setBlinkSelectionEnabled] = useState(false)
+  const [blinkRenderGroups, setBlinkRenderGroups] = useState([])
   const [shaderOutlineObjects, setShaderOutlineObjects] = useState([])
   const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [selectedObject, setSelectedObject] = useState(null)
@@ -107,7 +109,7 @@ export default function usePlayerController() {
     () => normalizePlayerSettings(material?.playerSettings),
     [material?.playerSettings],
   )
-  const playerXR = usePlayerXR(viewerSettings)
+  const playerXR = usePlayerXR(viewerSettings, modelScene, material?.modelFileName || material?.model?.fileName, material)
   const visibleChapters = useMemo(() => {
     const chapters = Array.isArray(material?.chapters) ? material.chapters : []
 
@@ -303,6 +305,12 @@ export default function usePlayerController() {
     setViewerSettings,
   })
 
+  useFocusSelectedObjectShortcut({
+    selectedObject,
+    onFocus: focusObject,
+    enabled: freePlay,
+  })
+
   const xrayMaterialRef = useRef(null)
 
   if (!xrayMaterialRef.current) {
@@ -358,8 +366,25 @@ export default function usePlayerController() {
     setSelectedObject,
     setOutlineObjects,
     setBlinkSelectionEnabled,
+    setBlinkRenderGroups,
     applyCameraState,
   })
+
+  const applySavedVisualStateRef = useRef(applySavedVisualState)
+  const defaultVisualStateApplyRef = useRef({ scene: null, state: null })
+  applySavedVisualStateRef.current = applySavedVisualState
+
+  useEffect(() => {
+    const visualState = normalizedPlayerSettings.defaultVisualState
+    if (!modelScene || !visualState) return
+    if (
+      defaultVisualStateApplyRef.current.scene === modelScene &&
+      defaultVisualStateApplyRef.current.state === visualState
+    ) return
+
+    defaultVisualStateApplyRef.current = { scene: modelScene, state: visualState }
+    applySavedVisualStateRef.current(visualState)
+  }, [modelScene, normalizedPlayerSettings.defaultVisualState])
 
   const playerProcedure = usePlayerProcedurePlayback({
     material,
@@ -622,6 +647,7 @@ export default function usePlayerController() {
     setActiveChapterId(null)
     focusTargetRef.current = null
     resetCameraToOverview()
+    applySavedVisualState(normalizedPlayerSettings.defaultVisualState)
   }
 
   const setPlayerFreePlayMode = (nextValue) => {
@@ -652,6 +678,8 @@ export default function usePlayerController() {
   }
 
   const handleModelLoaded = (scene) => {
+    if (scene && modelScene === scene) return
+
     initialCameraStateRef.current = null
     applyObjectNameOverrides(scene, material?.objectNameOverrides)
     setModelScene(scene)
@@ -706,9 +734,9 @@ export default function usePlayerController() {
     setShaderOutlineObjects(modelInit.shaderOutlineObjects || [])
     setShaderOutlineStyle(modelInit.shaderOutlineStyle || null)
 
-    // Initial player load must show the full model overview.
-    // Chapter selection, object highlight, and camera focus happen only after
-    // the user explicitly selects a chapter/object.
+    // Keep a clean baseline here. The saved project default visual state is
+    // applied after modelScene commits, so Pull Apart/Cut engines already point
+    // at the active scene.
     setSelectedObject(null)
     setOutlineObjects([])
     setBlinkSelectionEnabled(false)
@@ -887,6 +915,7 @@ export default function usePlayerController() {
     viewerSettings,
     outlineObjects,
     blinkSelectionEnabled,
+    blinkRenderGroups,
     shaderOutlineObjects,
     shaderOutlineStyle,
     setOutlineObjects,

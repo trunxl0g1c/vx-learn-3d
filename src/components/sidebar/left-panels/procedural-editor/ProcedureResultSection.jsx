@@ -25,12 +25,13 @@ export default function ProcedureResultSection({
               Clicking any one of them satisfies the step condition.
             </p>
             <p>
-              Animated objects follow the Together or Sequential playback mode
-              saved on each step.
+              Animation actions follow the Together or Sequential playback mode
+              saved on each step. Repeated actions on the same object always run
+              as one continuous chain.
             </p>
             <p>
-              Objects with Hide after animation enabled disappear after their
-              own movement finishes.
+              Objects with Hide after this action enabled disappear when that
+              action finishes.
             </p>
             <p>
               After the animation finishes, the next step&apos;s click targets become active.

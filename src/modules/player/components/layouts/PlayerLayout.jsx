@@ -14,17 +14,20 @@ export default function PlayerLayout({
   onAnnotationHierarchyBack,
   onObjectSelectInteraction,
   turntablePresentationActive = true,
+  xrInteraction = null,
 }) {
-  const backgroundStyle = getViewerBackgroundStyle(
-    player?.scene?.viewerSettings,
-  );
+  const isIOSTrackedWebAR =
+    player?.xrPanel?.activeMode === "ios-tracked-ar";
+  const backgroundStyle = isIOSTrackedWebAR
+    ? { background: "#000000" }
+    : getViewerBackgroundStyle(player?.scene?.viewerSettings);
 
   return (
     <div
       className="vx-player-layout"
       style={{
         width: "100vw",
-        height: "100vh",
+        height: "100dvh",
         position: "relative",
         ...backgroundStyle,
         color: "white",
@@ -35,7 +38,7 @@ export default function PlayerLayout({
         style={{
           position: "absolute",
           inset: 0,
-          height: "100vh",
+          height: "100dvh",
           ...backgroundStyle,
         }}
       >
@@ -57,6 +60,7 @@ export default function PlayerLayout({
           onAnnotationHierarchyBack={onAnnotationHierarchyBack}
           onObjectSelectInteraction={onObjectSelectInteraction}
           turntablePresentationActive={turntablePresentationActive}
+          xrInteraction={xrInteraction}
         />
 
         {showSidebar && <PlayerSidebar items={sidebarItems} />}

@@ -36,7 +36,7 @@ export default function EditorLeftSidebar({
 
   material,
   setMaterial,
-  saveDefaultPlayerCameraView,
+  saveDefaultPlayerCameraViewAndState,
   selectedObjectName,
 
   applyShaderMode,
@@ -162,7 +162,7 @@ export default function EditorLeftSidebar({
           <ProjectSettingsPanel
             material={material}
             setMaterial={setMaterial}
-            saveDefaultPlayerCameraView={saveDefaultPlayerCameraView}
+            saveDefaultPlayerCameraViewAndState={saveDefaultPlayerCameraViewAndState}
             viewerSettings={viewerSettings}
             setViewerSettings={setViewerSettings}
           />

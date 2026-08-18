@@ -84,6 +84,18 @@ function getSavedBlinkReferences(visualState) {
   return Array.isArray(blinkState.objects) ? blinkState.objects : []
 }
 
+function getSavedBlinkAssignments(visualState) {
+  const blinkState = visualState?.blink
+  if (!blinkState || typeof blinkState !== "object") return []
+  if (!Array.isArray(blinkState.assignments)) return []
+  return blinkState.assignments
+    .map((assignment) => ({
+      presetId: String(assignment?.presetId || "blink-preset-1"),
+      objects: Array.isArray(assignment?.objects) ? assignment.objects : [],
+    }))
+    .filter((assignment) => assignment.objects.length > 0)
+}
+
 export function createPlayerSavedViewActions({
   modelScene,
   material,
@@ -93,6 +105,7 @@ export function createPlayerSavedViewActions({
   setSelectedObject,
   setOutlineObjects,
   setBlinkSelectionEnabled,
+  setBlinkRenderGroups,
   applyCameraState,
 }) {
   const resolveReference = (reference) =>
@@ -124,6 +137,7 @@ export function createPlayerSavedViewActions({
   ) => {
     if (!visualState || !modelScene) {
       setBlinkSelectionEnabled?.(false)
+      setBlinkRenderGroups?.([])
       return {
         applied: false,
         selectedObject: fallbackObject,
@@ -142,16 +156,28 @@ export function createPlayerSavedViewActions({
     const savedSelectedObject =
       resolveReference(visualState.selectedObject) || fallbackObject || null
     const explicitHighlightState = hasExplicitHighlightState(visualState)
-    let savedHighlightObjects = getSavedHighlightReferences(visualState)
+    const savedHighlightObjects = getSavedHighlightReferences(visualState)
       .map(resolveReference)
       .filter(Boolean)
     const savedBlinkObjects = getSavedBlinkReferences(visualState)
       .map(resolveReference)
       .filter(Boolean)
+    const savedBlinkAssignments = getSavedBlinkAssignments(visualState)
+      .map((assignment) => ({
+        presetId: assignment.presetId,
+        objects: assignment.objects.map(resolveReference).filter(Boolean),
+      }))
+      .filter((assignment) => assignment.objects.length > 0)
+    const blinkRenderGroups = (savedBlinkAssignments.length > 0
+      ? savedBlinkAssignments
+      : savedBlinkObjects.length > 0
+        ? [{ presetId: "blink-preset-1", objects: savedBlinkObjects }]
+        : []
+    ).map((assignment) => ({
+      presetId: assignment.presetId,
+      outlineObjects: createMultiSelectionPayload(assignment.objects).outlineObjects,
+    }))
 
-    if (savedHighlightObjects.length === 0 && savedBlinkObjects.length > 0) {
-      savedHighlightObjects = savedBlinkObjects
-    }
 
     if (
       !explicitHighlightState &&
@@ -211,8 +237,9 @@ export function createPlayerSavedViewActions({
       setOutlineObjects([])
     }
 
+    setBlinkRenderGroups?.(blinkRenderGroups)
     setBlinkSelectionEnabled?.(
-      Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+      Boolean(visualState?.blink?.enabled) && blinkRenderGroups.length > 0,
     )
 
     const resolvedCuts = normalizeSavedCuts(visualState)
@@ -238,8 +265,10 @@ export function createPlayerSavedViewActions({
       selectedObject: activeSelection,
       highlightObjects: savedHighlightObjects,
       blinkObjects: savedBlinkObjects,
+      blinkAssignments: savedBlinkAssignments,
+      blinkRenderGroups,
       blinkEnabled:
-        Boolean(visualState?.blink?.enabled) && savedBlinkObjects.length > 0,
+        Boolean(visualState?.blink?.enabled) && blinkRenderGroups.length > 0,
       xrayMode,
       xrayTargets,
       hiddenCount,

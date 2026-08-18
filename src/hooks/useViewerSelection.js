@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createSelectionEngine } from "../engine/selection";
+import {
+  DEFAULT_BLINK_PRESET_ID,
+  assignBlinkPresetToTargets,
+  createSelectionEngine,
+  getBlinkAssignmentTargets,
+  normalizeBlinkAssignments,
+  removeTargetsFromBlinkAssignments,
+} from "../engine/selection";
 import { createViqubedXrayMaterial } from "../engine/model";
 
 function getObjectDisplayName(object, fallback = "") {
@@ -28,11 +35,15 @@ export function useViewerSelection({
 }) {
   const [xrayTargetObject, setXrayTargetObject] = useState(null);
   const [xrayTargetObjects, setXrayTargetObjects] = useState([]);
+  const [xrayNormalObjects, setXrayNormalObjects] = useState([]);
   const [multipleSelectEnabled, setMultipleSelectEnabled] = useState(false);
-  const [blinkSelectedObjectsEnabled, setBlinkSelectedObjectsEnabled] =
+  const [blinkSelectedObjectsEnabled, setBlinkSelectedObjectsEnabledState] =
     useState(false);
+  const [blinkTargetObjects, setBlinkTargetObjectsState] = useState([]);
+  const [blinkAssignments, setBlinkAssignments] = useState([]);
   const [selectedObjects, setSelectedObjects] = useState([]);
   const selectedObjectsRef = useRef([]);
+  const xrayTargetObjectsRef = useRef([]);
   const xrayMaterialDisposeVersionRef = useRef(0);
 
   const xrayMaterialRef = useRef(null);
@@ -46,6 +57,43 @@ export function useViewerSelection({
     [vxEngine],
   );
 
+  const syncBlinkAssignments = (assignments = [], enabled = true) => {
+    const normalizedAssignments = normalizeBlinkAssignments(assignments);
+    const allObjects = getBlinkAssignmentTargets(normalizedAssignments);
+
+    setBlinkAssignments(normalizedAssignments);
+    setBlinkTargetObjectsState(allObjects);
+    setBlinkSelectedObjectsEnabledState(Boolean(enabled) && allObjects.length > 0);
+    return normalizedAssignments;
+  };
+
+  const setBlinkTargetObjects = (objects = []) => {
+    const normalizedObjects = Array.from(
+      new Set((Array.isArray(objects) ? objects : [objects]).filter(Boolean)),
+    );
+
+    if (normalizedObjects.length === 0) {
+      syncBlinkAssignments([], false);
+      return;
+    }
+
+    syncBlinkAssignments(
+      [{ presetId: DEFAULT_BLINK_PRESET_ID, objects: normalizedObjects }],
+      true,
+    );
+  };
+
+  const setBlinkSelectedObjectsEnabled = (enabled) => {
+    const nextEnabled = typeof enabled === "function"
+      ? enabled(blinkSelectedObjectsEnabled)
+      : enabled;
+    setBlinkSelectedObjectsEnabledState(Boolean(nextEnabled));
+    if (!nextEnabled) {
+      setBlinkAssignments([]);
+      setBlinkTargetObjectsState([]);
+    }
+  };
+
   const commitSelectedObjects = (nextObjects = []) => {
     const normalizedObjects = Array.from(
       new Set((Array.isArray(nextObjects) ? nextObjects : [nextObjects]).filter(Boolean)),
@@ -53,6 +101,22 @@ export function useViewerSelection({
 
     selectedObjectsRef.current = normalizedObjects;
     setSelectedObjects(normalizedObjects);
+    return normalizedObjects;
+  };
+
+  const syncXrayTargetObjects = (objects = [], activeObject = null) => {
+    const normalizedObjects = Array.from(
+      new Set((Array.isArray(objects) ? objects : [objects]).filter(Boolean)),
+    );
+
+    xrayTargetObjectsRef.current = normalizedObjects;
+    setXrayTargetObjects(normalizedObjects);
+    setXrayTargetObject(
+      activeObject && normalizedObjects.includes(activeObject)
+        ? activeObject
+        : normalizedObjects.at(-1) || null,
+    );
+
     return normalizedObjects;
   };
 
@@ -66,9 +130,11 @@ export function useViewerSelection({
   useEffect(() => {
     commitSelectedObjects([]);
     setMultipleSelectEnabled(false);
-    setBlinkSelectedObjectsEnabled(false);
+    syncBlinkAssignments([], false);
+    xrayTargetObjectsRef.current = [];
     setXrayTargetObject(null);
     setXrayTargetObjects([]);
+    setXrayNormalObjects([]);
   }, [modelScene]);
 
   useEffect(() => {
@@ -90,11 +156,6 @@ export function useViewerSelection({
   }, [multipleSelectEnabled, selectedObject]);
 
   useEffect(() => {
-    if (selectedObjects.length > 0) return;
-    setBlinkSelectedObjectsEnabled(false);
-  }, [selectedObjects.length]);
-
-  useEffect(() => {
     if (!multipleSelectEnabled || selectedObjects.length === 0) return;
 
     const activeObject =
@@ -114,6 +175,21 @@ export function useViewerSelection({
     selectionEngine,
     setOutlineObjects,
   ]);
+
+  const blinkRenderGroups = useMemo(
+    () =>
+      blinkAssignments.map((assignment) => ({
+        presetId: assignment.presetId,
+        objects: assignment.objects,
+        outlineObjects:
+          selectionEngine.getOutlineObjectsForTargets?.(assignment.objects) || [],
+      })),
+    [blinkAssignments, selectionEngine],
+  );
+  const blinkOutlineObjects = useMemo(
+    () => Array.from(new Set(blinkRenderGroups.flatMap((group) => group.outlineObjects))),
+    [blinkRenderGroups],
+  );
 
   useEffect(() => {
     const disposeVersion = xrayMaterialDisposeVersionRef.current + 1;
@@ -165,11 +241,8 @@ export function useViewerSelection({
   };
 
   const clearSelection = ({ closeInfo = true } = {}) => {
-    setBlinkSelectedObjectsEnabled(false);
-    setXrayTargetObject(null);
-    setXrayTargetObjects([]);
     commitSelectedObjects([]);
-    applySelectionPayload(selectionEngine.resetXray());
+    applySelectionPayload(selectionEngine.clearSelectionPreservingMaterials());
     setSelectedObjectName("");
     setOrbitEnabled(true);
     focusTargetRef.current = null;
@@ -179,56 +252,31 @@ export function useViewerSelection({
     }
   };
 
-  const clearMultipleSelectionPreservingVisualState = ({
-    closeInfo = true,
-  } = {}) => {
-    setBlinkSelectedObjectsEnabled(false);
-    commitSelectedObjects([]);
-    applySelectionPayload(
-      selectionEngine.clearSelectionPreservingMaterials(),
-    );
-    setSelectedObjectName("");
-    setOrbitEnabled(true);
-    focusTargetRef.current = null;
-
-    if (closeInfo && !activeChapterId && !suppressInfoPanel) {
-      setRightTab?.(null);
-    }
-  };
-
+  // Viewport deselection is transient UI state only. Persistent visual
+  // assignments (X-Ray / Blink / visibility) must remain untouched.
   const clearSelectionFromViewport = ({ closeInfo = true } = {}) => {
-    if (multipleSelectEnabled) {
-      clearMultipleSelectionPreservingVisualState({ closeInfo });
-      return;
-    }
-
     clearSelection({ closeInfo });
   };
 
   const highlightObject = (targetObject, options = {}) => {
-    setXrayTargetObject(null);
-    setXrayTargetObjects([]);
     commitSelectedObjects(targetObject ? [targetObject] : []);
 
-    return updateActiveSelection(
-      selectionEngine.highlightObject(targetObject),
-      targetObject?.name,
-      options,
-    );
+    const payload =
+      selectionEngine.getMaterialOverrideMode?.() !== "none"
+        ? selectionEngine.highlightObjectsPreservingMaterials(
+            targetObject ? [targetObject] : [],
+            targetObject || null,
+          )
+        : selectionEngine.highlightObject(targetObject);
+
+    return updateActiveSelection(payload, targetObject?.name, options);
   };
 
   // Explicit object X-Ray action: the selected target itself becomes
   // transparent, while the rest of the model remains in its active mode.
   const makeXrayExcept = (targetObject, options = {}) => {
-    setXrayTargetObject(targetObject || null);
-    setXrayTargetObjects(targetObject ? [targetObject] : []);
-    commitSelectedObjects(targetObject ? [targetObject] : []);
-
-    return updateActiveSelection(
-      selectionEngine.makeXrayExcept(targetObject),
-      targetObject?.name,
-      options,
-    );
+    if (!targetObject) return null;
+    return makeTargetObjectsXray([targetObject], targetObject, options);
   };
 
   // Object List isolation action: selected objects stay normal and every
@@ -243,35 +291,14 @@ export function useViewerSelection({
       new Set((targetObjects || []).filter(Boolean)),
     );
 
+    xrayTargetObjectsRef.current = [];
     setXrayTargetObject(null);
     setXrayTargetObjects([]);
+    setXrayNormalObjects(normalizedTargets);
     commitSelectedObjects(normalizedTargets);
 
     return updateActiveSelection(
       selectionEngine.makeOthersXray(
-        normalizedTargets,
-        activeTargetObject || normalizedTargets.at(-1) || null,
-      ),
-      activeTargetObject?.name,
-      options,
-    );
-  };
-
-  const highlightSelectedObjects = (
-    targetObjects,
-    activeTargetObject = null,
-    options = {},
-  ) => {
-    const normalizedTargets = Array.from(
-      new Set((targetObjects || []).filter(Boolean)),
-    );
-
-    setXrayTargetObject(null);
-    setXrayTargetObjects([]);
-    commitSelectedObjects(normalizedTargets);
-
-    return updateActiveSelection(
-      selectionEngine.highlightObjects(
         normalizedTargets,
         activeTargetObject || normalizedTargets.at(-1) || null,
       ),
@@ -314,6 +341,16 @@ export function useViewerSelection({
 
     if (normalizedTargets.length === 0) return null;
 
+    const { replaceExisting = false, ...selectionOptions } = options || {};
+    const canMergeExistingTargets =
+      !replaceExisting &&
+      selectionEngine.getMaterialOverrideMode?.() === "targets";
+    const nextXrayTargets = Array.from(
+      new Set([
+        ...(canMergeExistingTargets ? xrayTargetObjectsRef.current : []),
+        ...normalizedTargets,
+      ]),
+    );
     const resolvedActiveTarget =
       activeTargetObject && normalizedTargets.includes(activeTargetObject)
         ? activeTargetObject
@@ -321,25 +358,120 @@ export function useViewerSelection({
           ? selectedObject
           : normalizedTargets.at(-1);
 
-    setXrayTargetObject(resolvedActiveTarget || null);
-    setXrayTargetObjects(normalizedTargets);
+    syncXrayTargetObjects(nextXrayTargets, resolvedActiveTarget);
+    setXrayNormalObjects([]);
     commitSelectedObjects(normalizedTargets);
 
     return updateActiveSelection(
       selectionEngine.makeTargetsXray(
-        normalizedTargets,
+        nextXrayTargets,
         resolvedActiveTarget,
       ),
       resolvedActiveTarget?.name,
-      options,
+      selectionOptions,
     );
   };
 
-  const makeSelectedObjectsXray = () =>
-    makeTargetObjectsXray(selectedObjects, selectedObject);
+  const removeTargetObjectsXray = (targetObjects = []) => {
+    const normalizedTargets = Array.from(
+      new Set((Array.isArray(targetObjects) ? targetObjects : [targetObjects]).filter(Boolean)),
+    );
+    if (normalizedTargets.length === 0) return false;
+    if (selectionEngine.getMaterialOverrideMode?.() !== "targets") return false;
+
+    const targetSet = new Set(normalizedTargets);
+    const remainingTargets = xrayTargetObjectsRef.current.filter(
+      (object) => !targetSet.has(object),
+    );
+    const currentSelection = multipleSelectEnabled
+      ? selectedObjectsRef.current
+      : selectedObject
+        ? [selectedObject]
+        : [];
+    const activeSelection =
+      selectedObject && currentSelection.includes(selectedObject)
+        ? selectedObject
+        : currentSelection.at(-1) || null;
+
+    if (remainingTargets.length > 0) {
+      syncXrayTargetObjects(remainingTargets, remainingTargets.at(-1));
+      selectionEngine.makeTargetsXray(
+        remainingTargets,
+        remainingTargets.at(-1),
+      );
+    } else {
+      syncXrayTargetObjects([], null);
+      selectionEngine.resetXray();
+    }
+
+    if (currentSelection.length > 0) {
+      updateActiveSelection(
+        selectionEngine.highlightObjectsPreservingMaterials(
+          currentSelection,
+          activeSelection,
+        ),
+        activeSelection?.name,
+        { openInfo: false },
+      );
+    }
+
+    return true;
+  };
+
+  const getActionTargets = () => {
+    if (multipleSelectEnabled) {
+      return selectedObjectsRef.current;
+    }
+
+    return selectedObject ? [selectedObject] : [];
+  };
+
+  const getActionActiveTarget = (targets = []) =>
+    selectedObject && targets.includes(selectedObject)
+      ? selectedObject
+      : targets.at(-1) || null;
+
+  const activeSelectionHasBlink = useMemo(() => {
+    const actionTargets = multipleSelectEnabled
+      ? selectedObjects
+      : selectedObject
+        ? [selectedObject]
+        : [];
+    if (actionTargets.length === 0) return false;
+
+    const assignedTargets = new Set(getBlinkAssignmentTargets(blinkAssignments));
+    return actionTargets.every((object) => assignedTargets.has(object));
+  }, [
+    multipleSelectEnabled,
+    selectedObjects,
+    selectedObject,
+    blinkAssignments,
+  ]);
+
+  const makeSelectedObjectsXray = () => {
+    const targets = getActionTargets();
+    return makeTargetObjectsXray(targets, getActionActiveTarget(targets));
+  };
+
+  const highlightSelectedObjectsAgainstXray = () => {
+    const targets = getActionTargets();
+    return makeOthersXray(targets, getActionActiveTarget(targets));
+  };
 
   const resetXray = ({ closeInfo = true } = {}) => {
-    clearSelection({ closeInfo });
+    xrayTargetObjectsRef.current = [];
+    setXrayTargetObject(null);
+    setXrayTargetObjects([]);
+    setXrayNormalObjects([]);
+    commitSelectedObjects([]);
+    applySelectionPayload(selectionEngine.resetXray());
+    setSelectedObjectName("");
+    setOrbitEnabled(true);
+    focusTargetRef.current = null;
+
+    if (closeInfo && !activeChapterId && !suppressInfoPanel) {
+      setRightTab?.(null);
+    }
   };
 
   const selectObjectFromList = (
@@ -354,7 +486,7 @@ export function useViewerSelection({
         return null;
       }
 
-      const payload = makeOthersXray([targetObject], targetObject);
+      const payload = highlightObject(targetObject);
 
       if (shouldFocus) {
         focusObject?.(targetObject);
@@ -386,51 +518,64 @@ export function useViewerSelection({
     setMultipleSelectEnabled(nextEnabled);
 
     if (!nextEnabled) {
-      setBlinkSelectedObjectsEnabled(false);
+      clearSelection({ closeInfo: false });
+      return;
     }
 
     const activeTargetObject =
       selectedObject || selectedObjectsRef.current.at(-1) || null;
+    const initialSelection = activeTargetObject ? [activeTargetObject] : [];
 
-    if (nextEnabled) {
-      const initialSelection = activeTargetObject ? [activeTargetObject] : [];
-
-      if (initialSelection.length > 0) {
-        highlightSelectedObjectsPreservingVisualState(
-          initialSelection,
-          activeTargetObject,
-        );
-      } else {
-        commitSelectedObjects([]);
-      }
-
-      return;
+    if (initialSelection.length > 0) {
+      highlightSelectedObjectsPreservingVisualState(
+        initialSelection,
+        activeTargetObject,
+      );
+    } else {
+      commitSelectedObjects([]);
     }
-
-    if (!activeTargetObject) {
-      clearSelection();
-      return;
-    }
-
-    highlightSelectedObjects([activeTargetObject], activeTargetObject);
   };
 
-  const toggleBlinkSelectedObjects = () => {
-    if (!multipleSelectEnabled || selectedObjectsRef.current.length === 0) {
-      setBlinkSelectedObjectsEnabled(false);
-      return false;
-    }
+  const assignBlinkPresetToSelectedObjects = (presetId = DEFAULT_BLINK_PRESET_ID) => {
+    const targets = getActionTargets();
+    if (targets.length === 0) return false;
 
-    const nextEnabled = !blinkSelectedObjectsEnabled;
-    setBlinkSelectedObjectsEnabled(nextEnabled);
-    return nextEnabled;
+    const nextAssignments = assignBlinkPresetToTargets(
+      blinkAssignments,
+      presetId,
+      targets,
+    );
+
+    syncBlinkAssignments(nextAssignments, true);
+    return true;
   };
+
+  const removeBlinkFromSelectedObjects = () => {
+    const targets = getActionTargets();
+    if (targets.length === 0) return false;
+
+    const nextAssignments = removeTargetsFromBlinkAssignments(
+      blinkAssignments,
+      targets,
+    );
+
+    syncBlinkAssignments(nextAssignments, nextAssignments.length > 0);
+    return true;
+  };
+
+  const toggleBlinkSelectedObjects = () =>
+    assignBlinkPresetToSelectedObjects(DEFAULT_BLINK_PRESET_ID);
+
 
   const applyMeshSelection = (mesh) => {
     const resolvedPayload = selectionEngine.selectFromMesh(
       mesh,
       objectList,
-      { preserveMaterialOverride: multipleSelectEnabled },
+      {
+        preserveMaterialOverride:
+          multipleSelectEnabled ||
+          selectionEngine.getMaterialOverrideMode?.() !== "none",
+      },
     );
 
     if (!resolvedPayload) return null;
@@ -453,8 +598,6 @@ export function useViewerSelection({
       );
     }
 
-    setXrayTargetObject(null);
-    setXrayTargetObjects([]);
     commitSelectedObjects([resolvedPayload.selectedObject]);
     setSelectedObjectName(resolvedPayload.selectedObjectName);
     setSelectedObject(resolvedPayload.selectedObject);
@@ -488,7 +631,16 @@ export function useViewerSelection({
     selectedObjects,
     multipleSelectEnabled,
     blinkSelectedObjectsEnabled,
+    activeSelectionHasBlink,
+    blinkTargetObjects,
+    blinkAssignments,
+    blinkRenderGroups,
+    blinkOutlineObjects,
     setBlinkSelectedObjectsEnabled,
+    setBlinkTargetObjects,
+    setBlinkAssignments: (assignments) => syncBlinkAssignments(assignments, true),
+    assignBlinkPresetToSelectedObjects,
+    removeBlinkFromSelectedObjects,
     toggleBlinkSelectedObjects,
     toggleMultipleSelect,
     clearSelection,
@@ -498,12 +650,15 @@ export function useViewerSelection({
     makeXrayExcept,
     makeOthersXray,
     makeSelectedObjectsXray,
+    highlightSelectedObjectsAgainstXray,
     makeTargetObjectsXray,
+    removeTargetObjectsXray,
     resetXray,
     selectObjectFromMesh,
     focusObjectFromMesh,
     highlightSelectedObjectsPreservingVisualState,
     xrayTargetObject,
     xrayTargetObjects,
+    xrayNormalObjects,
   };
 }

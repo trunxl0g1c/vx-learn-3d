@@ -88,8 +88,11 @@ export function createViewerVisualState({
   selectedObjects = [],
   xrayTargetObject = null,
   xrayTargetObjects = [],
+  xrayNormalObjects = [],
   selectionVisualMode = "none",
   blinkSelectedObjectsEnabled = false,
+  blinkTargetObjects = [],
+  blinkAssignments = [],
   pullApartState = null,
   cutStates = [],
   cutEnabled = false,
@@ -108,6 +111,14 @@ export function createViewerVisualState({
     ...(Array.isArray(xrayTargetObjects) ? xrayTargetObjects : []),
     xrayTargetObject,
   ]);
+  const normalizedXrayNormalObjects = normalizeObjectList(xrayNormalObjects);
+  const normalizedBlinkTargets = normalizeObjectList(
+    Array.isArray(blinkTargetObjects) && blinkTargetObjects.length > 0
+      ? blinkTargetObjects
+      : blinkSelectedObjectsEnabled
+        ? normalizedSelectedObjects
+        : [],
+  );
 
   const selectedReference = createViewerObjectReference(
     storedSelectedObject,
@@ -125,6 +136,27 @@ export function createViewerVisualState({
     highlightActiveObject,
     scene,
   );
+  const blinkActiveObject =
+    selectedObject && normalizedBlinkTargets.includes(selectedObject)
+      ? selectedObject
+      : normalizedBlinkTargets.at(-1) || null;
+  const blinkActiveReference = createViewerObjectReference(
+    blinkActiveObject,
+    scene,
+  );
+  const blinkReferences = createUniqueViewerObjectReferences(
+    normalizedBlinkTargets,
+    scene,
+  );
+  const storedBlinkAssignments = (Array.isArray(blinkAssignments)
+    ? blinkAssignments
+    : []
+  )
+    .map((assignment) => ({
+      presetId: String(assignment?.presetId || "blink-preset-1"),
+      objects: createUniqueViewerObjectReferences(assignment?.objects || [], scene),
+    }))
+    .filter((assignment) => assignment.objects.length > 0);
   const xrayMode =
     selectionVisualMode === "non-targets"
       ? "non-targets"
@@ -133,7 +165,9 @@ export function createViewerVisualState({
         : "none";
   const xrayStateObjects =
     xrayMode === "non-targets"
-      ? normalizedSelectedObjects
+      ? normalizedXrayNormalObjects.length > 0
+        ? normalizedXrayNormalObjects
+        : normalizedSelectedObjects
       : normalizedXrayTargets;
   const xrayActiveObject =
     selectedObject ||
@@ -191,7 +225,7 @@ export function createViewerVisualState({
   };
 
   return {
-    version: 6,
+    version: 8,
     selectedObject: selectedReference,
     selectedObjects: selectedReferences,
     highlight: {
@@ -201,10 +235,10 @@ export function createViewerVisualState({
     },
     blink: {
       enabled:
-        Boolean(blinkSelectedObjectsEnabled) &&
-        selectedReferences.length > 0,
-      activeObject: highlightActiveReference,
-      objects: selectedReferences,
+        Boolean(blinkSelectedObjectsEnabled) && blinkReferences.length > 0,
+      activeObject: blinkActiveReference,
+      objects: blinkReferences,
+      assignments: storedBlinkAssignments,
     },
     visibility: {
       hiddenObjects: collectHiddenViewerObjectReferences(scene),
