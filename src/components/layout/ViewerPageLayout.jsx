@@ -8,6 +8,12 @@ import { Activity } from "react";
 export default function ViewerPageLayout({ controller }) {
   const {
     saveStatus,
+    syncStatus,
+    pendingSync,
+    remoteContentId,
+    handleBulkUpdate,
+    handlePublish,
+    isPublishing,
     activeSidebar,
     setActiveSidebar,
     rightTab,
@@ -122,6 +128,13 @@ export default function ViewerPageLayout({ controller }) {
         exportMode={savePackageMode}
         exportProgress={savePackageProgress}
         exportStatus={savePackageStatus}
+        onBulkUpdate={handleBulkUpdate}
+        syncStatus={syncStatus}
+        pendingSync={pendingSync}
+        hasRemote={Boolean(remoteContentId)}
+        onPublish={handlePublish}
+        isPublishing={isPublishing}
+        publishStatus={material?.status}
       />
 
       <EditorSidebarRail

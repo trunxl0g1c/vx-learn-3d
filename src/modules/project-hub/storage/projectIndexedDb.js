@@ -5,21 +5,24 @@ import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecord
 import {
   ALL_STORE_NAMES,
   ANIMATION_STORE,
+  ARRAY_MATERIAL_STORES,
   CHAPTER_STORE,
   DRAFT_STORE,
   FILE_STORE,
   FLOW_STORE,
   NORMALIZED_STORE_NAMES,
+  PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
   QUIZ_STORE,
   SLIDE_STORE,
+  PROJECT_ID_INDEX,
   PROJECT_STORE,
 } from "./indexed-db/constants";
 import { isPlainObject } from "./indexed-db/common";
 import {
   clearProjectCatalogCache,
   createProjectSummary,
-  getCachedProjectSummaries,
+  removeProjectFromCatalogCache,
   sortProjectsByRecent,
   upsertProjectCatalogCache,
   writeProjectCatalogCache,
@@ -43,7 +46,7 @@ import {
 } from "./indexed-db/materialSerialization";
 
 import { DEFAULT_VIEWER_GRID } from "../../../engine/viewer";
-export { getCachedProjectSummaries };
+export { getCachedProjectSummaries } from "./indexed-db/catalogCache";
 
 function saveProjectRecord(db, project, file) {
   const { normalizedFields } = splitMaterialForStorage(project?.material);
@@ -99,7 +102,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
 
     material: {
       id: createId(),
-      title: "Materi 3D Baru",
+      title: name || "Materi 3D Baru",
       description: "",
       version: "1.0.0",
       author: "",
@@ -174,7 +177,7 @@ export async function updateProjectInIndexedDb(projectId, patch = {}) {
     ...patch,
     metadata: {
       ...oldProject.metadata,
-      ...(patch.metadata || {}),
+      ...patch.metadata,
       updatedAt: new Date().toISOString(),
     },
   };
@@ -345,6 +348,46 @@ export async function hydrateMaterialFromIndexedDb(projectId, material) {
 export async function getProjectFileFromIndexedDb(projectId) {
   const db = await openViqubedDb();
   return getStoreRecord(db, FILE_STORE, projectId);
+}
+
+function deleteArrayRowsByProject(transaction, projectId, storeName) {
+  const store = transaction.objectStore(storeName);
+  const index = store.index(PROJECT_ID_INDEX);
+  const cursorRequest = index.openKeyCursor(IDBKeyRange.only(projectId));
+
+  cursorRequest.onsuccess = () => {
+    const cursor = cursorRequest.result;
+
+    if (cursor) {
+      store.delete(cursor.primaryKey);
+      cursor.continue();
+    }
+  };
+}
+
+export async function deleteProjectFromIndexedDb(projectId) {
+  if (!projectId) return;
+
+  const db = await openViqubedDb();
+
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(ALL_STORE_NAMES, "readwrite");
+
+    tx.objectStore(PROJECT_STORE).delete(projectId);
+    tx.objectStore(FILE_STORE).delete(projectId);
+    tx.objectStore(DRAFT_STORE).delete(projectId);
+    tx.objectStore(PLAYER_SETTINGS_STORE).delete(projectId);
+
+    ARRAY_MATERIAL_STORES.forEach(({ storeName }) => {
+      deleteArrayRowsByProject(tx, projectId, storeName);
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("Project delete aborted"));
+  });
+
+  removeProjectFromCatalogCache(projectId);
 }
 
 export async function clearViqubedIndexedDb() {

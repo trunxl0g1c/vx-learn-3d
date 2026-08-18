@@ -1,7 +1,7 @@
 import { CircleCheckBig, Loader2, CloudOff } from "lucide-react";
 import Button from "../ui/button";
-import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
+import UserMenu from "../../modules/auth/components/UserMenu";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 import EditorDataMenu from "./EditorDataMenu";
 import useFullscreen from "../../hooks/useFullscreen";
@@ -33,6 +33,42 @@ function SaveStatusBadge({ status }) {
   );
 }
 
+function BulkUpdateButton({ syncStatus, pendingSync, hasRemote, onClick }) {
+  if (!hasRemote) return null;
+
+  const isSyncing = syncStatus === "syncing";
+  const isError = syncStatus === "error";
+
+  let variant = "cyanOutline";
+  if (isError) variant = "destructive";
+  else if (pendingSync) variant = "cyanSolid";
+
+  let label = "Bulk Update";
+  if (isSyncing) label = "Updating...";
+  else if (isError) label = "Retry Update";
+
+  return (
+    <Button
+      variant={variant}
+      size="sm"
+      className="uppercase"
+      onClick={onClick}
+      disabled={isSyncing}
+      title="Push local changes (chapters, flows, settings) to the database"
+    >
+      {isSyncing ? (
+        <Loader2 className="mr-1 size-4.5 animate-spin" />
+      ) : (
+        <MaterialIcon name="cloud_upload" fill={1} size={20} className="mr-1" />
+      )}
+      <span className="vx-editor-action-label">{label}</span>
+      {!isSyncing && pendingSync && !isError && (
+        <span className="ml-1 size-1.5 rounded-full bg-amber-400" title="Unsynced local changes" />
+      )}
+    </Button>
+  );
+}
+
 export default function EditorTopBar({
   title,
   saveStatus = "saved",
@@ -46,9 +82,20 @@ export default function EditorTopBar({
   exportMode = null,
   exportProgress = 0,
   exportStatus = "",
+  onBulkUpdate,
+  syncStatus = "idle",
+  pendingSync = false,
+  hasRemote = false,
+  onPublish,
+  isPublishing = false,
+  publishStatus = "DRAFT",
 }) {
   const currentUserName = getCurrentUserName();
   const { isFullscreen, isSupported, toggleFullscreen } = useFullscreen();
+  
+  let publishLabel = "Publish";
+  if (isPublishing) publishLabel = "Publishing...";
+  else if (publishStatus === "PUBLISHED") publishLabel = "Published";
 
   return (
     <div
@@ -112,6 +159,37 @@ export default function EditorTopBar({
             className="mr-1"
           />
           <span className="vx-editor-action-label">Publish</span>
+
+        <BulkUpdateButton
+          syncStatus={syncStatus}
+          pendingSync={pendingSync}
+          hasRemote={hasRemote}
+          onClick={onBulkUpdate}
+        />
+
+        <Button
+          variant={publishStatus === "PUBLISHED" ? "cyanSolid" : "cyanOutline"}
+          size="sm"
+          className="uppercase"
+          onClick={onPublish}
+          disabled={!onPublish || !hasRemote || isPublishing}
+          title={
+            publishStatus === "PUBLISHED"
+              ? "Republish with the latest changes"
+              : "Publish this content — required before it can be shared or assigned to a classroom"
+          }
+        >
+          {isPublishing ? (
+            <Loader2 className="mr-1 size-4.5 animate-spin" />
+          ) : (
+            <MaterialIcon
+              name="published_with_changes"
+              fill={1}
+              size={20}
+              className="mr-1"
+            />
+          )}
+          <span className="vx-editor-action-label">{publishLabel}</span>
         </Button>
 
         <Button
@@ -160,28 +238,7 @@ export default function EditorTopBar({
           <span className="vx-editor-action-label">Share</span>
         </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex border-none items-center"
-          title={currentUserName || "Guest"}
-        >
-          <span className="vx-editor-topbar__user-name text-base">{currentUserName || "Guest"}</span>
-          {/* <ChevronDown className="size-4.5" /> */}
-          <MaterialIcon
-            name="arrow_back_2"
-            fill={1}
-            size={20}
-            className="vx-editor-user-chevron -rotate-90"
-          />
-          <MaterialIcon
-            name="account_circle"
-            fill
-            size={30}
-            className="text-accent-main"
-          />
-          {/* <CircleUser className="size-7" color="#03699D" /> */}
-        </Button>
+        <UserMenu />
       </div>
     </div>
   );

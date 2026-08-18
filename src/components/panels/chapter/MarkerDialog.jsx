@@ -7,7 +7,7 @@ export default function MarkerDialog({
   onChange,
   onClose,
   onSubmit,
-  maxLength = 16,
+  maxLength = 48,
 }) {
   if (!open) return null;
 

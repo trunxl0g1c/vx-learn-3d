@@ -1,3 +1,4 @@
+import { useState } from "react";
 import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubCard({
@@ -7,10 +8,24 @@ export default function ProjectHubCard({
   priority = false,
   formatLastOpened,
 }) {
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
   const thumbnail =
     project.thumbnail ||
     project.metadata?.thumbnail ||
     project.metadata?.thumbnailUrl;
+  // Cloud-only cards get a URL back regardless of whether the content
+  // actually has a thumbnail uploaded (see getContentThumbnailUrl) — a
+  // content with none 404s, so this falls back the same way the blank
+  // placeholder below always has.
+  const showThumbnail = Boolean(thumbnail) && !thumbnailFailed;
+
+  let accessIcon = <MaterialIcon name="play_arrow" size={25} />;
+  if (project.isCloudOnly) {
+    accessIcon = <MaterialIcon name="cloud" size={20} />;
+  } else if (project.role === "EDITOR") {
+    accessIcon = <MaterialIcon name="edit_square" size={20} />;
+  }
 
   return (
     <button
@@ -21,7 +36,7 @@ export default function ProjectHubCard({
       className="viqubed-project-card min-h-[190px] w-full cursor-pointer overflow-hidden rounded-lg border border-secondary-dark bg-dark text-left transition hover:border-accent-main hover:bg-white/5 sm:min-h-[200px] xl:min-h-[210px]"
     >
       <div className="h-[128px] w-full overflow-hidden bg-secondary-dark sm:h-[132px] xl:h-[140px]">
-        {thumbnail ? (
+        {showThumbnail ? (
           <img
             src={thumbnail}
             alt={project.name}
@@ -29,6 +44,7 @@ export default function ProjectHubCard({
             fetchPriority={priority ? "high" : "low"}
             decoding="async"
             className="h-full w-full object-cover"
+            onError={() => setThumbnailFailed(true)}
           />
         ) : (
           <div className="h-full w-full bg-secondary-dark" />
@@ -47,11 +63,7 @@ export default function ProjectHubCard({
         </div>
 
         <div className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-main text-primary">
-          {project.role === "EDITOR" ? (
-            <MaterialIcon name="edit_square" size={20} />
-          ) : (
-            <MaterialIcon name="play_arrow" size={25} />
-          )}
+          {accessIcon}
         </div>
       </div>
     </button>

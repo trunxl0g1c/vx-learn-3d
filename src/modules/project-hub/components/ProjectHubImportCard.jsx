@@ -21,7 +21,7 @@ export default function ProjectHubImportCard({ onImport, isImporting = false }) 
       <input
         ref={inputRef}
         type="file"
-        accept=".vxpack,application/zip"
+        accept=".vxpack,.vxenc,application/zip"
         className="hidden"
         onChange={handleFileChange}
       />

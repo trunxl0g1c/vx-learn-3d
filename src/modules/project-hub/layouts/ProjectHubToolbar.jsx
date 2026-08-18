@@ -17,7 +17,7 @@ export default function ProjectHubToolbar({
         placeholder="Find the content you want to learn..."
         onClick={(event) => event.stopPropagation()}
         onChange={(event) => setSearch(event.target.value)}
-        className="h-10! w-full! min-w-0 rounded-lg border-accent-main! xl:max-w-[390px] 2xl:max-w-[430px]"
+        className="h-10! w-full! min-w-0 rounded-lg xl:max-w-[390px] 2xl:max-w-[430px]"
         leftIcon={
           <MaterialIcon
             name="search"

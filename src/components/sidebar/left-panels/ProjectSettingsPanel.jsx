@@ -17,6 +17,39 @@ import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
 import { createId } from "../../../utils/createId";
 import BlinkPresetSettings from "./BlinkPresetSettings";
+import { normalizeBlinkSelectionSettings } from "../../../engine/selection";
+import { useCategories } from "../../../modules/category/api/categories";
+import {
+  sanitizeSafeLabel,
+  sanitizeText,
+  validateFile,
+} from "../../../utils/validation";
+
+const VERSION_MAX_LENGTH = 32;
+const AUTHOR_MAX_LENGTH = 80;
+const THUMBNAIL_ALLOWED_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+const THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024;
+const MEDIA_MAX_BYTES = 200 * 1024 * 1024;
+const DOCUMENT_ALLOWED_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+]);
+
+function getMediaAllowedTypes(type) {
+  if (type === "IMAGE") return ["image/*"];
+  if (type === "VIDEO") return ["video/*"];
+  return [...DOCUMENT_ALLOWED_TYPES];
+}
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -134,6 +167,23 @@ export default function ProjectSettingsPanel({
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
   const background = getViewerBackground(viewerSettings);
+  const blinkSettings = normalizeBlinkSelectionSettings(
+    viewerSettings?.blinkSettings,
+  );
+
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories,
+    isError: isCategoriesError,
+  } = useCategories();
+  const categoryOptions = categories.map((category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+  let categoryPlaceholder = "Select a category";
+  if (isCategoriesError) categoryPlaceholder = "Failed to load categories";
+  else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
+
   const [panelError, setPanelError] = useState("");
 
   const showPanelError = (message) => {
@@ -167,8 +217,14 @@ export default function ProjectSettingsPanel({
   const handleImportThumbnail = async (file) => {
     if (!file) return;
 
-    if (!file.type?.startsWith("image/")) {
-      alert("Thumbnail must be an image.");
+    const fileError = validateFile(file, {
+      allowedTypes: THUMBNAIL_ALLOWED_TYPES,
+      maxBytes: THUMBNAIL_MAX_BYTES,
+      fieldLabel: "Project thumbnail",
+    });
+
+    if (fileError) {
+      showPanelError(fileError);
       return;
     }
 
@@ -189,12 +245,23 @@ export default function ProjectSettingsPanel({
         type: "image/jpeg",
       });
     } catch (error) {
-      alert(error?.message || "Failed to capture viewport.");
+      showPanelError(error?.message || "Failed to capture viewport.");
     }
   };
 
   const addProjectMedia = async (type, file) => {
     if (!file) return;
+
+    const fileError = validateFile(file, {
+      allowedTypes: getMediaAllowedTypes(type),
+      maxBytes: MEDIA_MAX_BYTES,
+      fieldLabel: `${getMediaLabel(type)} media`,
+    });
+
+    if (fileError) {
+      showPanelError(fileError);
+      return;
+    }
 
     const dataUrl = await readFileAsDataUrl(file);
 
@@ -306,7 +373,9 @@ export default function ProjectSettingsPanel({
 
                 setMaterial((previousMaterial) => ({
                   ...previousMaterial,
-                  title: event.target.value,
+                  title: sanitizeSafeLabel(event.target.value, {
+                    maxLength: 48,
+                  }),
                 }));
               }}
               className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
@@ -316,6 +385,26 @@ export default function ProjectSettingsPanel({
               {titleLength}/48
             </span>
           </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
+            Category
+          </label>
+
+          <SelectField
+            value={material.categoryId || ""}
+            onChange={(value) =>
+              setMaterial((prev) => ({
+                ...prev,
+                categoryId: value || null,
+              }))
+            }
+            options={categoryOptions}
+            placeholder={categoryPlaceholder}
+            disabled={isLoadingCategories || isCategoriesError}
+            className="h-[44px]! rounded-lg border-secondary-default!"
+          />
         </div>
 
         <div className="flex items-center justify-between">
@@ -334,6 +423,28 @@ export default function ProjectSettingsPanel({
           />
         </div>
 
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="block text-base font-normal text-contrast-grayout">
+              Public
+            </span>
+            <span className="block text-xs text-contrast-grayout/70">
+              Required before this content can be shared to another workspace
+              or assigned to a classroom (it also needs to be Published).
+            </span>
+          </div>
+
+          <Switch
+            checked={material.visibility === "PUBLIC"}
+            onCheckedChange={(checked) =>
+              setMaterial((prev) => ({
+                ...prev,
+                visibility: checked ? "PUBLIC" : "PRIVATE",
+              }))
+            }
+          />
+        </div>
+
         <div>
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Description
@@ -347,7 +458,11 @@ export default function ProjectSettingsPanel({
               onChange={(e) =>
                 setMaterial((prev) => ({
                   ...prev,
-                  description: e.target.value,
+                  description: sanitizeText(e.target.value, {
+                    maxLength: 650,
+                    collapseWhitespace: false,
+                    allowNewlines: true,
+                  }),
                 }))
               }
               className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-normal leading-6 text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
@@ -364,17 +479,27 @@ export default function ProjectSettingsPanel({
             Version
           </label>
 
-          <input
-            value={material.version || ""}
-            placeholder="1.0.0"
-            onChange={(e) =>
-              setMaterial((prev) => ({
-                ...prev,
-                version: e.target.value,
-              }))
-            }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
-          />
+          <div className="relative">
+            <input
+              value={material.version || ""}
+              maxLength={VERSION_MAX_LENGTH}
+              placeholder="1.0.0"
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  version: sanitizeText(e.target.value, {
+                    maxLength: VERSION_MAX_LENGTH,
+                    collapseWhitespace: false,
+                  }),
+                }))
+              }
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
+            />
+
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
+              {(material.version || "").length}/{VERSION_MAX_LENGTH}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -382,17 +507,27 @@ export default function ProjectSettingsPanel({
             Author
           </label>
 
-          <input
-            value={material.author || ""}
-            placeholder="Author name"
-            onChange={(e) =>
-              setMaterial((prev) => ({
-                ...prev,
-                author: e.target.value,
-              }))
-            }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
-          />
+          <div className="relative">
+            <input
+              value={material.author || ""}
+              maxLength={AUTHOR_MAX_LENGTH}
+              placeholder="Author name"
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  author: sanitizeText(e.target.value, {
+                    maxLength: AUTHOR_MAX_LENGTH,
+                    collapseWhitespace: false,
+                  }),
+                }))
+              }
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
+            />
+
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
+              {(material.author || "").length}/{AUTHOR_MAX_LENGTH}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -696,7 +831,20 @@ export default function ProjectSettingsPanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = "";
+
                     if (!file) return;
+
+                    const fileError = validateFile(file, {
+                      allowedTypes: THUMBNAIL_ALLOWED_TYPES,
+                      maxBytes: THUMBNAIL_MAX_BYTES,
+                      fieldLabel: "Background image",
+                    });
+
+                    if (fileError) {
+                      showPanelError(fileError);
+                      return;
+                    }
 
                     const reader = new FileReader();
                     reader.onload = () => {
@@ -707,7 +855,6 @@ export default function ProjectSettingsPanel({
                       });
                     };
                     reader.readAsDataURL(file);
-                    e.target.value = "";
                   }}
                 />
               </label>
