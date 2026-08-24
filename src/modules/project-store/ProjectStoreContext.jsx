@@ -13,10 +13,18 @@ export function ProjectStoreProvider({ children }) {
   const [projectDraft, setProjectDraft] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState("saved");
+  // Local save (IndexedDB) and backend sync are now independent: every edit
+  // still autosaves locally, but nothing pushes to the database until the
+  // user presses "Bulk Update" in EditorTopBar. pendingSync tracks whether
+  // there are local changes the backend doesn't have yet — it's set on every
+  // edit (alongside dirty) but only cleared by markSynced(), not by the
+  // local-only markSaved().
+  const [pendingSync, setPendingSync] = useState(false);
 
   const markDirty = useCallback(() => {
     setDirty(true);
     setSaveStatus("saving");
+    setPendingSync(true);
   }, []);
 
   const markSaved = useCallback(() => {
@@ -28,6 +36,10 @@ export function ProjectStoreProvider({ children }) {
     setSaveStatus("error");
   }, []);
 
+  const markSynced = useCallback(() => {
+    setPendingSync(false);
+  }, []);
+
   const updateProjectDraft = useCallback((updater) => {
     setProjectDraft((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -36,6 +48,7 @@ export function ProjectStoreProvider({ children }) {
 
     setDirty(true);
     setSaveStatus("saving");
+    setPendingSync(true);
   }, []);
 
   const resetProjectStore = useCallback(() => {
@@ -43,6 +56,7 @@ export function ProjectStoreProvider({ children }) {
     setProjectDraft(null);
     setDirty(false);
     setSaveStatus("saved");
+    setPendingSync(false);
   }, []);
 
   const value = useMemo(
@@ -60,9 +74,12 @@ export function ProjectStoreProvider({ children }) {
       saveStatus,
       setSaveStatus,
 
+      pendingSync,
+
       markDirty,
       markSaved,
       markSaveError,
+      markSynced,
       resetProjectStore,
     }),
     [
@@ -71,9 +88,11 @@ export function ProjectStoreProvider({ children }) {
       updateProjectDraft,
       dirty,
       saveStatus,
+      pendingSync,
       markDirty,
       markSaved,
       markSaveError,
+      markSynced,
       resetProjectStore,
     ],
   );

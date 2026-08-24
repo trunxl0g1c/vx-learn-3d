@@ -1,3 +1,4 @@
+import { useState } from "react";
 import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubCard({
@@ -8,10 +9,24 @@ export default function ProjectHubCard({
   priority = false,
   formatLastOpened,
 }) {
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
   const thumbnail =
     project.thumbnail ||
     project.metadata?.thumbnail ||
     project.metadata?.thumbnailUrl;
+  // Cloud-only cards get a URL back regardless of whether the content
+  // actually has a thumbnail uploaded (see getContentThumbnailUrl) — a
+  // content with none 404s, so this falls back the same way the blank
+  // placeholder below always has.
+  const showThumbnail = Boolean(thumbnail) && !thumbnailFailed;
+
+  let accessIcon = <MaterialIcon name="play_arrow" size={25} />;
+  if (project.isCloudOnly) {
+    accessIcon = <MaterialIcon name="cloud" size={20} />;
+  } else if (project.role === "EDITOR") {
+    accessIcon = <MaterialIcon name="edit_square" size={20} />;
+  }
 
   return (
     <div className="viqubed-project-card group relative min-h-[190px] w-full overflow-hidden rounded-lg border border-secondary-dark bg-dark transition hover:border-accent-main hover:bg-white/5 sm:min-h-[200px] xl:min-h-[210px]">

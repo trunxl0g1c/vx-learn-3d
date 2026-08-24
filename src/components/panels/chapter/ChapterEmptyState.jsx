@@ -1,17 +1,13 @@
 export default function ChapterEmptyState() {
   return (
-    <div
-      style={{
-        padding: 12,
-        borderRadius: 10,
-        background: "#1f2937",
-        color: "#9ca3af",
-        fontSize: 13,
-        lineHeight: 1.5,
-      }}
-    >
-      No chapters yet. Select an object from the hierarchy, then click Create Chapter from Object.
-      <span style={{ color: "white" }}> Create Chapter from Selected Object</span>.
+    <div className="p-3 mx-3 rounded-xl bg-dark-alpha text-contrast-grayout text-sm leading-6">
+      No chapters yet. Select an object from the hierarchy, then click Create
+      Chapter from Object.
+      <span style={{ color: "white" }}>
+        {" "}
+        Create Chapter from Selected Object
+      </span>
+      .
     </div>
-  )
+  );
 }

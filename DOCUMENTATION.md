@@ -104,6 +104,38 @@ Fitur utama:
 - Menampilkan deskripsi bab di panel overlay.
 - Memuat marker yang disimpan dalam JSON.
 
+### WorkspaceContentTab (Konten Workspace)
+
+> Catatan: bagian ini mendokumentasikan modul `src/modules/workspace/` dan
+> `src/modules/project-hub/`, yang jauh lebih baru daripada struktur folder
+> di atas (`ViewerPage`/`EditorPage`/`PlayerPage` lama). Dokumen ini belum
+> diperbarui secara menyeluruh untuk mencakup modul `auth`, `workspace`,
+> dan `project-hub`.
+
+`WorkspaceContentTab.jsx` menampilkan daftar konten (project) milik satu
+workspace, diambil dari backend lewat `GET /contents`.
+
+Fitur utama:
+- Menampilkan thumbnail asli tiap konten (`ContentThumbnail`, via
+  `GET /contents/thumbnail`), dengan fallback ke avatar inisial bila konten
+  belum punya thumbnail atau gagal dimuat.
+- Menu aksi per baris (`ContentRowMenu`) — tombol ikon titik tiga yang
+  membuka popover berisi aksi "Delete". Popover di-render lewat
+  `createPortal` ke `document.body` dengan posisi `fixed` (dihitung dari
+  posisi tombolnya), supaya tidak terpotong oleh kontainer tabel yang
+  `overflow-x-auto`/`overflow-hidden`.
+- Hapus konten meminta konfirmasi lebih dulu lewat `ConfirmationDialog`
+  bersama, lalu memanggil `DELETE /contents` (`useDeleteContent` di
+  `api/contents.js`) — endpoint ini sudah melakukan cascade delete di
+  backend (media, chapter/`content_obj_desc` beserta medianya, flow,
+  procedure, dan file tersimpan di disk), sehingga frontend cukup memanggil
+  satu request ini saja tanpa perlu menghapus setiap sub-resource secara
+  manual satu per satu.
+- Bila konten yang dihapus juga punya salinan project lokal di
+  IndexedDB (dibuka sebelumnya di browser yang sama), salinan tersebut ikut
+  dihapus lewat `deleteProjectFromIndexedDb` di
+  `storage/projectIndexedDb.js`.
+
 ## Komponen Kunci
 
 ### `Model.jsx`

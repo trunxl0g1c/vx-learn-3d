@@ -14,6 +14,8 @@
     "@react-three/fiber": "9.6.1",
     "@react-three/postprocessing": "3.0.4",
     "@tailwindcss/vite": "^4.3.1",
+    "@zappar/zappar-react-three-fiber": "^4.3.0",
+    "@zappar/zappar-threejs": "^4.3.0",
     "@tanstack/react-query": "^5.101.4",
     "axios": "^1.19.0",
     "file-saver": "^2.0.5",

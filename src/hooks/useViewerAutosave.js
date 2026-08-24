@@ -4,6 +4,12 @@ import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
+// Autosave used to push every local save straight to the backend in the
+// background (best-effort, via remoteContentId below). Per the user's
+// request, local saves now stay local-only — backend sync only happens when
+// the user presses "Bulk Update" in EditorTopBar, which calls
+// syncProjectToBackend directly (see useViewerPageController.handleBulkUpdate).
+// import { syncProjectToBackend } from "../modules/project-hub/api/projectSync";
 
 export function createViewerDraft({
   projectId,
@@ -52,6 +58,11 @@ export function useViewerAutosave({
   markSaved,
   markSaveError,
   setProjectDraft,
+  // remoteContentId used to trigger an automatic background push to the
+  // backend on every autosave. That's now handled manually via the "Bulk
+  // Update" button instead (see useViewerPageController.handleBulkUpdate),
+  // so it's no longer read here.
+  // remoteContentId,
 }) {
   const previousSceneRef = useRef(previousScene || {});
   const saveRevisionRef = useRef(0);
