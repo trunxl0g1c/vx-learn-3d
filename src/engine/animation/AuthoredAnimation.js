@@ -14,6 +14,11 @@ import {
   normalizeMechanicalRig,
 } from "./MechanicalRig";
 import { organizeAuthoredAnimationTracks } from "./TrackHierarchy";
+import {
+  applyMorphAnimationState,
+  captureMorphAnimationBaseline,
+  restoreMorphAnimationBaseline,
+} from "./MorphAnimation";
 
 export const AUTHORED_ANIMATION_EASINGS = [
   "linear",
@@ -31,6 +36,16 @@ const clampDuration = (value) =>
 
 const clampTime = (value, duration) =>
   THREE.MathUtils.clamp(Number(value) || 0, 0, clampDuration(duration));
+
+const clampOpacity = (value) => {
+  const numeric = Number(value);
+  return THREE.MathUtils.clamp(Number.isFinite(numeric) ? numeric : 1, 0, 1);
+};
+
+const clampMorphProgress = (value) => {
+  const numeric = Number(value);
+  return THREE.MathUtils.clamp(Number.isFinite(numeric) ? numeric : 0, 0, 1);
+};
 
 const normalizeVector = (value, fallback) => {
   if (!Array.isArray(value) || value.length < fallback.length) {
@@ -250,6 +265,8 @@ export function normalizeAuthoredAnimationKeyframe(keyframe, index = 0, duration
       quaternion: [0, 0, 0, 1],
       scale: [1, 1, 1],
     },
+    opacity: clampOpacity(source.opacity),
+    morphProgress: clampMorphProgress(source.morphProgress),
     easing: normalizeEasing(source.easing),
     orderIndex: Number.isFinite(Number(source.orderIndex))
       ? Number(source.orderIndex)
@@ -276,6 +293,7 @@ export function normalizeAuthoredAnimationTrack(track, index = 0, duration = 2) 
     object: source.object || source.reference || null,
     keyframes,
     rig: normalizeMechanicalRig(source.rig, fallbackBaseTransform),
+    opacityAnimated: source.opacityAnimated === true,
     enabled: source.enabled !== false,
     orderIndex: Number.isFinite(Number(source.orderIndex))
       ? Number(source.orderIndex)
@@ -378,6 +396,8 @@ export function upsertAuthoredAnimationKeyframe(
   transform,
   duration,
   easing = "easeInOut",
+  opacity = null,
+  morphProgress = null,
 ) {
   if (!track || !transform) return track;
 
@@ -398,6 +418,18 @@ export function upsertAuthoredAnimationKeyframe(
           : createId("animation-keyframe"),
       time: targetTime,
       transform: normalizedTransform,
+      opacity:
+        opacity == null
+          ? existingIndex >= 0
+            ? keyframes[existingIndex].opacity
+            : 1
+          : clampOpacity(opacity),
+      morphProgress:
+        morphProgress == null
+          ? existingIndex >= 0
+            ? keyframes[existingIndex].morphProgress
+            : 0
+          : clampMorphProgress(morphProgress),
       easing,
     },
     existingIndex >= 0 ? existingIndex : keyframes.length,
@@ -445,17 +477,27 @@ function interpolateTransform(first, second, alpha) {
   };
 }
 
-export function evaluateAuthoredAnimationTrack(track, time) {
+export function evaluateAuthoredAnimationTrackState(track, time) {
   const keyframes = (track?.keyframes || []).filter(
     (keyframe) => keyframe?.transform,
   );
   if (keyframes.length === 0) return null;
   if (keyframes.length === 1 || time <= keyframes[0].time) {
-    return keyframes[0].transform;
+    return {
+      transform: keyframes[0].transform,
+      opacity: clampOpacity(keyframes[0].opacity),
+      morphProgress: clampMorphProgress(keyframes[0].morphProgress),
+    };
   }
 
   const last = keyframes[keyframes.length - 1];
-  if (time >= last.time) return last.transform;
+  if (time >= last.time) {
+    return {
+      transform: last.transform,
+      opacity: clampOpacity(last.opacity),
+      morphProgress: clampMorphProgress(last.morphProgress),
+    };
+  }
 
   for (let index = 0; index < keyframes.length - 1; index += 1) {
     const first = keyframes[index];
@@ -464,14 +506,39 @@ export function evaluateAuthoredAnimationTrack(track, time) {
 
     const span = Math.max(EPSILON, second.time - first.time);
     const progress = (time - first.time) / span;
-    return interpolateTransform(
-      first.transform,
-      second.transform,
-      applyEasing(progress, second.easing || first.easing),
+    const easedProgress = applyEasing(
+      progress,
+      second.easing || first.easing,
     );
+
+    return {
+      transform: interpolateTransform(
+        first.transform,
+        second.transform,
+        easedProgress,
+      ),
+      opacity: THREE.MathUtils.lerp(
+        clampOpacity(first.opacity),
+        clampOpacity(second.opacity),
+        easedProgress,
+      ),
+      morphProgress: THREE.MathUtils.lerp(
+        clampMorphProgress(first.morphProgress),
+        clampMorphProgress(second.morphProgress),
+        easedProgress,
+      ),
+    };
   }
 
-  return last.transform;
+  return {
+    transform: last.transform,
+    opacity: clampOpacity(last.opacity),
+    morphProgress: clampMorphProgress(last.morphProgress),
+  };
+}
+
+export function evaluateAuthoredAnimationTrack(track, time) {
+  return evaluateAuthoredAnimationTrackState(track, time)?.transform || null;
 }
 
 function getTrackBaseTransform(track, object) {
@@ -482,10 +549,12 @@ function getTrackBaseTransform(track, object) {
   );
 }
 
-function getObjectWorldPosition(object) {
+function getObjectWorldPoint(object, localPoint = [0, 0, 0]) {
   if (!object) return null;
   object.updateMatrixWorld?.(true);
-  return new THREE.Vector3().setFromMatrixPosition(object.matrixWorld);
+  return new THREE.Vector3()
+    .fromArray(Array.isArray(localPoint) ? localPoint : [0, 0, 0])
+    .applyMatrix4(object.matrixWorld);
 }
 
 function createTrackRuntimeEntries(scene, definition, time) {
@@ -494,7 +563,8 @@ function createTrackRuntimeEntries(scene, definition, time) {
     .map((track) => {
       const object = findAuthoredAnimationObject(scene, track.object);
       const baseTransform = getTrackBaseTransform(track, object);
-      const targetTransform = evaluateAuthoredAnimationTrack(track, time) || baseTransform;
+      const evaluatedState = evaluateAuthoredAnimationTrackState(track, time);
+      const targetTransform = evaluatedState?.transform || baseTransform;
       return object && baseTransform
         ? {
             track,
@@ -502,6 +572,9 @@ function createTrackRuntimeEntries(scene, definition, time) {
             rig: normalizeMechanicalRig(track.rig, baseTransform),
             baseTransform,
             targetTransform,
+            opacity: clampOpacity(evaluatedState?.opacity),
+            morphProgress: clampMorphProgress(evaluatedState?.morphProgress),
+            opacityAnimated: track.opacityAnimated === true,
             baseWorldMatrix: null,
             relativeToVirtualParent: null,
           }
@@ -592,8 +665,14 @@ function applyHydraulicEntries(scene, entries) {
         scene,
         entry.rig.hydraulic?.targetObject,
       );
-      const basePoint = getObjectWorldPosition(baseObject);
-      const targetPoint = getObjectWorldPosition(targetObject);
+      const basePoint = getObjectWorldPoint(
+        baseObject,
+        entry.rig.hydraulic?.baseAnchor,
+      );
+      const targetPoint = getObjectWorldPoint(
+        targetObject,
+        entry.rig.hydraulic?.targetAnchor,
+      );
       if (!basePoint || !targetPoint) return;
 
       const restBase = entry._restBasePoint || basePoint.clone();
@@ -612,7 +691,136 @@ function applyHydraulicEntries(scene, entries) {
     });
 }
 
-export function applyAuthoredAnimationAtTime(scene, animation, time) {
+function getMaterialArray(material) {
+  return (Array.isArray(material) ? material : [material]).filter(Boolean);
+}
+
+function captureMaterialStates(object) {
+  const states = [];
+  object?.traverse?.((child) => {
+    if (!child?.material) return;
+    getMaterialArray(child.material).forEach((material) => {
+      states.push({
+        material,
+        opacity: Number.isFinite(Number(material.opacity))
+          ? Number(material.opacity)
+          : 1,
+        transparent: material.transparent === true,
+        depthWrite: material.depthWrite !== false,
+      });
+    });
+  });
+  return states;
+}
+
+function restoreMaterialStates(states = []) {
+  let restored = false;
+  states.forEach((state) => {
+    const material = state?.material;
+    if (!material) return;
+    const transparentChanged = material.transparent !== state.transparent;
+    material.opacity = state.opacity;
+    material.transparent = state.transparent;
+    material.depthWrite = state.depthWrite;
+    if (transparentChanged) material.needsUpdate = true;
+    restored = true;
+  });
+  return restored;
+}
+
+function applyOpacityToMaterialStates(states = [], opacity = 1) {
+  const multiplier = clampOpacity(opacity);
+  states.forEach((state) => {
+    const material = state?.material;
+    if (!material) return;
+    const baseOpacity = Number.isFinite(Number(state.opacity))
+      ? Number(state.opacity)
+      : 1;
+    const nextOpacity = THREE.MathUtils.clamp(baseOpacity * multiplier, 0, 1);
+    const nextTransparent = state.transparent || nextOpacity < 0.999999;
+    const transparentChanged = material.transparent !== nextTransparent;
+    material.opacity = nextOpacity;
+    material.transparent = nextTransparent;
+    material.depthWrite = state.depthWrite;
+    if (transparentChanged) material.needsUpdate = true;
+  });
+}
+
+export function captureAuthoredAnimationTrackBaseline(object, trackId = null) {
+  const transform = createAuthoredAnimationTransform(object);
+  if (!object || !transform) return null;
+  return {
+    trackId: trackId || null,
+    object,
+    transform,
+    materialStates: captureMaterialStates(object),
+  };
+}
+
+function findBaselineEntry(entries, trackId, object) {
+  return (entries || []).find(
+    (entry) =>
+      (trackId && entry?.trackId === trackId) ||
+      (!entry?.trackId && entry?.object === object),
+  ) || null;
+}
+
+function resetEntriesToMaterialBaseline(entries, baselineEntries) {
+  entries.forEach((entry) => {
+    if (!entry.opacityAnimated || entry.rig.type === "morph") return;
+    const baseline = findBaselineEntry(
+      baselineEntries,
+      entry.track.id,
+      entry.object,
+    );
+    restoreMaterialStates(baseline?.materialStates);
+  });
+}
+
+function applyEntryOpacities(entries, baselineEntries) {
+  entries.forEach((entry) => {
+    if (!entry.opacityAnimated || entry.rig.type === "morph") return;
+    const baseline = findBaselineEntry(
+      baselineEntries,
+      entry.track.id,
+      entry.object,
+    );
+    if (!baseline?.materialStates?.length) return;
+    applyOpacityToMaterialStates(baseline.materialStates, entry.opacity);
+  });
+}
+
+
+function applyMorphEntries(entries, baselineEntries) {
+  entries
+    .filter((entry) => entry.rig.type === "morph")
+    .forEach((entry) => {
+      const baseline = findBaselineEntry(
+        baselineEntries,
+        entry.track.id,
+        entry.object,
+      );
+      if (!baseline?.morphState) return;
+      applyMorphAnimationState(
+        baseline.morphState,
+        entry.morphProgress,
+        entry.rig.morph?.mode || "auto",
+        {
+          hideSourceWhenComplete:
+            entry.rig.morph?.hideSourceWhenComplete !== false,
+          hideTargetWhenStart: entry.rig.morph?.hideTargetWhenStart !== false,
+        },
+        entry.opacityAnimated ? entry.opacity : 1,
+      );
+    });
+}
+
+export function applyAuthoredAnimationAtTime(
+  scene,
+  animation,
+  time,
+  baselineEntries = null,
+) {
   const definition = normalizeAuthoredAnimationDefinition(animation);
   if (!scene) return false;
 
@@ -620,6 +828,7 @@ export function applyAuthoredAnimationAtTime(scene, animation, time) {
   if (entries.length === 0) return false;
 
   resetEntriesToRigBaseline(entries);
+  if (baselineEntries) resetEntriesToMaterialBaseline(entries, baselineEntries);
 
   entries.forEach((entry) => {
     if (entry.rig.type !== "hydraulic") return;
@@ -631,13 +840,21 @@ export function applyAuthoredAnimationAtTime(scene, animation, time) {
       scene,
       entry.rig.hydraulic?.targetObject,
     );
-    entry._restBasePoint = getObjectWorldPosition(baseObject);
-    entry._restTargetPoint = getObjectWorldPosition(targetObject);
+    entry._restBasePoint = getObjectWorldPoint(
+      baseObject,
+      entry.rig.hydraulic?.baseAnchor,
+    );
+    entry._restTargetPoint = getObjectWorldPoint(
+      targetObject,
+      entry.rig.hydraulic?.targetAnchor,
+    );
   });
 
   applyMechanicalEntries(entries);
   scene.updateMatrixWorld?.(true);
   applyHydraulicEntries(scene, entries);
+  applyMorphEntries(entries, baselineEntries);
+  applyEntryOpacities(entries, baselineEntries);
   scene.updateMatrixWorld?.(true);
   return true;
 }
@@ -649,17 +866,33 @@ export function captureAuthoredAnimationBaseline(scene, animation) {
   return definition.tracks
     .map((track) => {
       const object = findAuthoredAnimationObject(scene, track.object);
-      const transform = createAuthoredAnimationTransform(object);
-      return object && transform ? { object, transform } : null;
+      const baseline = captureAuthoredAnimationTrackBaseline(object, track.id);
+      if (!baseline) return null;
+      if (track.rig?.type === "morph") {
+        const targetObject = findAuthoredAnimationObject(
+          scene,
+          track.rig?.morph?.targetObject,
+        );
+        baseline.morphState = captureMorphAnimationBaseline(object, targetObject);
+      }
+      return baseline;
     })
     .filter(Boolean);
 }
 
 export function restoreAuthoredAnimationBaseline(entries = []) {
   let restored = false;
+  const restoredMaterials = new Set();
   entries.forEach((entry) => {
+    restored = restoreMorphAnimationBaseline(entry?.morphState) || restored;
     restored =
       applyAuthoredAnimationTransform(entry?.object, entry?.transform) || restored;
+    (entry?.materialStates || []).forEach((state) => {
+      if (!state?.material || restoredMaterials.has(state.material)) return;
+      restoredMaterials.add(state.material);
+      restoreMaterialStates([state]);
+      restored = true;
+    });
   });
   return restored;
 }

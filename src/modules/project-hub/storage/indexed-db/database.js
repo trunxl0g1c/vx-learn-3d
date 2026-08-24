@@ -1,5 +1,6 @@
 import {
   ALL_STORE_NAMES,
+  ADDITIONAL_MODEL_FILE_STORE,
   ANIMATION_STORE,
   CHAPTER_STORE,
   DB_NAME,
@@ -55,6 +56,25 @@ function ensureDatabaseStores(db, transaction) {
 
   if (!db.objectStoreNames.contains(FILE_STORE)) {
     db.createObjectStore(FILE_STORE, { keyPath: "projectId" });
+  }
+
+  if (!db.objectStoreNames.contains(ADDITIONAL_MODEL_FILE_STORE)) {
+    const additionalModelStore = db.createObjectStore(
+      ADDITIONAL_MODEL_FILE_STORE,
+      { keyPath: "storageId" },
+    );
+    additionalModelStore.createIndex(PROJECT_ID_INDEX, "projectId", {
+      unique: false,
+    });
+  } else {
+    const additionalModelStore = transaction.objectStore(
+      ADDITIONAL_MODEL_FILE_STORE,
+    );
+    if (!additionalModelStore.indexNames.contains(PROJECT_ID_INDEX)) {
+      additionalModelStore.createIndex(PROJECT_ID_INDEX, "projectId", {
+        unique: false,
+      });
+    }
   }
 
   if (!db.objectStoreNames.contains(DRAFT_STORE)) {

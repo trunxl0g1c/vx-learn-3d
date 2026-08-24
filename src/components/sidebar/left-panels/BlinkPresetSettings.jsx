@@ -10,7 +10,7 @@ import {
   normalizeBlinkSelectionSettings,
 } from "../../../engine/selection";
 
-export default function BlinkPresetSettings({ viewerSettings, setViewerSettings }) {
+export default function BlinkPresetSettings({ viewerSettings, setViewerSettings, embedded = false }) {
   const presets = normalizeBlinkPresets(
     viewerSettings?.blinkPresets,
     viewerSettings?.blinkSettings,
@@ -56,8 +56,10 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings 
   };
 
   return (
-    <div className="rounded-xl border border-secondary-default bg-primary p-4">
-      <div className="mb-2 text-sm font-normal text-white">Blink Setting</div>
+    <div className={embedded ? "" : "rounded-xl border border-secondary-default bg-primary p-4"}>
+      {!embedded && (
+        <div className="mb-2 text-sm font-normal text-white">Blink Setting</div>
+      )}
 
       <p className="mb-4 text-xs leading-5 text-contrast-grayout">
         Buat beberapa preset Blink. Saat Blink di-assign ke object, pilih preset

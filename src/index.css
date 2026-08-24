@@ -492,6 +492,10 @@ input[type="range"]::-moz-range-thumb {
     font-size: 12px !important;
   }
 
+  .vx-editor-selected-badge--below-transform {
+    top: 112px !important;
+  }
+
   .vx-editor-cut-panel,
   .vx-player-cut-panel {
     left: 8px !important;
@@ -786,4 +790,12 @@ canvas {
     height: auto !important;
     padding: 10px 12px !important;
   }
+}
+
+
+/* Keep the main editor action toolbar reachable while the Animation workspace is open.
+   The Animation dock is 360px tall, so leave the normal 20px breathing room above it. */
+.vx-editor-toolbar-dock--animation-open {
+  bottom: calc(380px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 160 !important;
 }

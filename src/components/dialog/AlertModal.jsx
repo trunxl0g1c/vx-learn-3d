@@ -100,17 +100,19 @@ export default function AlertModal({
           </div>
         </div>
 
-        {/* <div className="flex justify-end px-6 pb-4">
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            onClick={handleConfirm}
-            className="w-1/3"
-          >
-            {confirmText}
-          </Button>
-        </div> */}
+        {typeof onConfirm === "function" && (
+          <div className="flex justify-end px-6 pb-5">
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              onClick={handleConfirm}
+              className="min-w-44"
+            >
+              {confirmText}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

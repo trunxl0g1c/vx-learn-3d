@@ -2,9 +2,16 @@ import { useState } from "react";
 import MaterialIcon from "../../ui/material-icon";
 import FlowEditorPanel from "./FlowEditorPanel";
 import ProceduralEditorPanel from "./ProceduralEditorPanel";
+import AddMoreGlbPanel from "./AddMoreGlbPanel";
 import { isProToolEnabled } from "../../../engine/project/ProToolsSettings";
 
 const PRO_TOOLS = [
+  {
+    id: "add-more-glb",
+    label: "Add More GLB",
+    description: "Load more GLB models into the current project scene.",
+    icon: "deployed_code",
+  },
   {
     id: "flow",
     label: "Flow",
@@ -46,11 +53,28 @@ export default function ProToolsPanel({
   xrAuthoring,
   selectedObjectName,
   animations = [],
+  additionalModels = [],
+  onAddAdditionalGlbFiles,
+  onRemoveAdditionalGlb,
 }) {
   const [activeTool, setActiveTool] = useState(null);
   const visibleTools = PRO_TOOLS.filter((tool) =>
     isProToolEnabled(proToolsSettings, tool.id),
   );
+
+  if (
+    activeTool === "add-more-glb" &&
+    isProToolEnabled(proToolsSettings, "add-more-glb")
+  ) {
+    return (
+      <AddMoreGlbPanel
+        models={additionalModels}
+        onAddFiles={onAddAdditionalGlbFiles}
+        onRemoveModel={onRemoveAdditionalGlb}
+        onBack={() => setActiveTool(null)}
+      />
+    );
+  }
 
   if (activeTool === "flow" && isProToolEnabled(proToolsSettings, "flow")) {
     return (

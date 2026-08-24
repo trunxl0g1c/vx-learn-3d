@@ -3,15 +3,23 @@ import {
   EDITOR_VIEW_CUBE_GAP,
 } from "../../constants/editorLayout";
 
-export default function SelectedObjectBadge({ selectedObjectName }) {
+export default function SelectedObjectBadge({
+  selectedObjectName,
+  transformToolbarVisible = false,
+}) {
   if (!selectedObjectName) return null
 
   return (
     <div
-      className="vx-editor-selected-badge"
+      className={[
+        "vx-editor-selected-badge",
+        transformToolbarVisible ? "vx-editor-selected-badge--below-transform" : "",
+      ].join(" ")}
       style={{
         position: 'absolute',
-        top: EDITOR_TOP_BAR_HEIGHT + EDITOR_VIEW_CUBE_GAP,
+        top: transformToolbarVisible
+          ? EDITOR_TOP_BAR_HEIGHT + 64
+          : EDITOR_TOP_BAR_HEIGHT + EDITOR_VIEW_CUBE_GAP,
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10,

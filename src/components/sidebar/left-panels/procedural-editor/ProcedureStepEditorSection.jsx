@@ -14,7 +14,10 @@ export default function ProcedureStepEditorSection({
   isAssembly,
 }) {
   return (
-    <Section title={`Configure Step ${stepIndex + 1}`} step="4">
+    <Section
+      title={`${isAssembly ? "Configure Assembly Step" : "Configure Step"} ${stepIndex + 1}`}
+      step="4"
+    >
       <div className="space-y-4">
         <label className="block">
           <span className="mb-1.5 block text-xs text-contrast-grayout">

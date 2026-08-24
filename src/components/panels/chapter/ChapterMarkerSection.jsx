@@ -49,8 +49,8 @@ export default function ChapterMarkerSection({
         <>
           {markers.length > 0 && (
             <div className="rounded-lg border border-secondary-default/25 bg-secondary-default/5 px-3 py-2 text-xs leading-5 text-contrast-grayout">
-              Click and drag a marker text block in the viewport to reposition
-              it. The connector line and label position are saved automatically.
+              Click a marker text block to edit it. Drag to reposition it, or
+              drag its right edge to change the label width and wrapping.
             </div>
           )}
 

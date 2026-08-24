@@ -5,6 +5,7 @@ const RIG_TYPES = [
   { id: "revolute", label: "Revolute Joint" },
   { id: "linear", label: "Linear Joint" },
   { id: "hydraulic", label: "Hydraulic / Aim" },
+  { id: "morph", label: "Morph" },
 ];
 
 const AXES = ["x", "y", "z"];
@@ -34,15 +35,96 @@ function ReferenceChip({ label, reference, onAssign, selectedObjectName }) {
       >
         {reference?.name || "Not assigned"}
       </span>
+      {onAssign && (
+        <button
+          type="button"
+          disabled={!selectedObjectName}
+          onClick={onAssign}
+          title={selectedObjectName ? `Use ${selectedObjectName}` : "Select an object in the viewport"}
+          className="ml-1 grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
+        >
+          <MaterialIcon name="my_location" className="size-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function RigPointControl({
+  label,
+  point,
+  active,
+  canDrag = true,
+  onToggleDrag,
+  onPointChange,
+  onAssignSelected = null,
+  selectedObjectName = "",
+  snapMode = "surface",
+  onSnapModeChange,
+}) {
+  const values = Array.isArray(point) ? point : [0, 0, 0];
+
+  return (
+    <div className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-divider-main bg-primary/70 px-2">
+      <span className="mr-1 text-[9px] uppercase tracking-wide text-contrast-grayout">
+        {label}
+      </span>
+      {onAssignSelected && (
+        <button
+          type="button"
+          disabled={!selectedObjectName}
+          onClick={onAssignSelected}
+          title={selectedObjectName ? `Use ${selectedObjectName} as ${label.toLowerCase()}` : "Select an object in the viewport"}
+          className="grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
+        >
+          <MaterialIcon name="my_location" className="size-3.5" />
+        </button>
+      )}
       <button
         type="button"
-        disabled={!selectedObjectName}
-        onClick={onAssign}
-        title={selectedObjectName ? `Use ${selectedObjectName}` : "Select an object in the viewport"}
-        className="ml-1 grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
+        disabled={!canDrag}
+        onClick={onToggleDrag}
+        title={active ? `Finish ${label.toLowerCase()} drag mode` : `Drag ${label.toLowerCase()} in viewport`}
+        className={`grid h-6 min-w-[38px] shrink-0 place-items-center rounded-md border px-1.5 text-[8px] font-semibold uppercase tracking-wide transition disabled:opacity-30 ${
+          active
+            ? "border-accent-main bg-accent-main/20 text-white"
+            : "border-divider-main text-secondary-default hover:bg-white/5"
+        }`}
       >
-        <MaterialIcon name="my_location" className="size-3.5" />
+        {active ? "Done" : "Drag"}
       </button>
+      {active && (
+        <label
+          className="flex h-6 items-center gap-1 rounded-md border border-divider-main px-1.5"
+          title={`Click a mesh in the viewport to snap the ${label.toLowerCase()}`}
+        >
+          <span className="text-[8px] uppercase tracking-wide text-contrast-grayout">Snap</span>
+          <select
+            value={snapMode}
+            onChange={(event) => onSnapModeChange?.(event.target.value)}
+            className="bg-transparent text-[8px] text-white outline-none"
+          >
+            <option value="surface" className="bg-primary">Surface</option>
+            <option value="vertex" className="bg-primary">Vertex</option>
+          </select>
+        </label>
+      )}
+      {AXES.map((axis, index) => (
+        <label key={axis} className="flex items-center gap-1">
+          <span className="text-[8px] uppercase text-contrast-grayout">{axis}</span>
+          <input
+            type="number"
+            step="0.01"
+            value={Number(values[index] || 0)}
+            onChange={(event) => {
+              const next = [...values];
+              next[index] = Number(event.target.value) || 0;
+              onPointChange?.(next);
+            }}
+            className="w-11 bg-transparent text-right font-mono text-[9px] text-white outline-none"
+          />
+        </label>
+      ))}
     </div>
   );
 }
@@ -59,13 +141,30 @@ export default function AnimationRigToolbar({
   const type = rig.type || "free";
   const limits = rig.limits || {};
   const hydraulic = rig.hydraulic || {};
+  const morph = rig.morph || {};
+  const morphCompatibility = animationAuthoring?.activeMorphCompatibility;
   const otherTracks = (animation.tracks || []).filter((item) => item.id !== track.id);
+  const pointEditorActive = animationAuthoring?.isPivotEditing === true;
+  const pointEditorTarget = animationAuthoring?.rigPointEditTarget || "pivot";
+  const sharedPointProps = {
+    snapMode: animationAuthoring?.pivotSnapMode || "surface",
+    onSnapModeChange: animationAuthoring?.setPivotSnapMode,
+  };
+
+  const updateHydraulicAnchor = (field, value) => {
+    animationAuthoring?.updateActiveTrackRig?.((currentRig) => ({
+      hydraulic: {
+        ...(currentRig?.hydraulic || {}),
+        [field]: value,
+      },
+    }));
+  };
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b border-divider-main bg-[#101717] px-3 scrollbar-thin">
       <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-secondary-default">
         <MaterialIcon name="account_tree" className="size-4" />
-        Mechanical Rig
+        Animation Rig
       </div>
 
       <select
@@ -96,7 +195,7 @@ export default function AnimationRigToolbar({
         </select>
       </label>
 
-      {type !== "free" && (
+      {["revolute", "linear", "hydraulic"].includes(type) && (
         <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
           <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">Axis</span>
           <select
@@ -113,65 +212,17 @@ export default function AnimationRigToolbar({
         </label>
       )}
 
-      {type === "revolute" && (
-        <>
-          <div className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-divider-main bg-primary/70 px-2">
-            <span className="mr-1 text-[9px] uppercase tracking-wide text-contrast-grayout">Pivot</span>
-            <button
-              type="button"
-              disabled={!selectedObjectName}
-              onClick={animationAuthoring?.assignRigPivotFromSelectedObject}
-              title={selectedObjectName ? `Use ${selectedObjectName} as pivot` : "Select a hinge/pivot object in the viewport"}
-              className="grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
-            >
-              <MaterialIcon name="my_location" className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => animationAuthoring?.togglePivotEditing?.()}
-              title={animationAuthoring?.isPivotEditing ? "Finish pivot drag mode" : "Drag pivot in viewport"}
-              className={`grid h-6 min-w-[38px] shrink-0 place-items-center rounded-md border px-1.5 text-[8px] font-semibold uppercase tracking-wide transition ${
-                animationAuthoring?.isPivotEditing
-                  ? "border-accent-main bg-accent-main/20 text-white"
-                  : "border-divider-main text-secondary-default hover:bg-white/5"
-              }`}
-            >
-              {animationAuthoring?.isPivotEditing ? "Done" : "Drag"}
-            </button>
-            {animationAuthoring?.isPivotEditing && (
-              <label
-                className="flex h-6 items-center gap-1 rounded-md border border-divider-main px-1.5"
-                title="Click a mesh in the viewport to snap the pivot"
-              >
-                <span className="text-[8px] uppercase tracking-wide text-contrast-grayout">Snap</span>
-                <select
-                  value={animationAuthoring?.pivotSnapMode || "surface"}
-                  onChange={(event) => animationAuthoring?.setPivotSnapMode?.(event.target.value)}
-                  className="bg-transparent text-[8px] text-white outline-none"
-                >
-                  <option value="surface" className="bg-primary">Surface</option>
-                  <option value="vertex" className="bg-primary">Vertex</option>
-                </select>
-              </label>
-            )}
-            {AXES.map((axis, index) => (
-              <label key={axis} className="flex items-center gap-1">
-                <span className="text-[8px] uppercase text-contrast-grayout">{axis}</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={Number(rig.pivot?.[index] || 0)}
-                  onChange={(event) => {
-                    const pivot = [...(rig.pivot || [0, 0, 0])];
-                    pivot[index] = Number(event.target.value) || 0;
-                    animationAuthoring?.updateActiveTrackRig?.({ pivot });
-                  }}
-                  className="w-11 bg-transparent text-right font-mono text-[9px] text-white outline-none"
-                />
-              </label>
-            ))}
-          </div>
-        </>
+      {["free", "revolute", "linear"].includes(type) && (
+        <RigPointControl
+          label={type === "linear" ? "Origin" : "Pivot"}
+          point={rig.pivot}
+          active={pointEditorActive && pointEditorTarget === "pivot"}
+          onToggleDrag={() => animationAuthoring?.togglePivotEditing?.()}
+          onPointChange={animationAuthoring?.setActiveTrackRigPivot}
+          onAssignSelected={animationAuthoring?.assignRigPivotFromSelectedObject}
+          selectedObjectName={selectedObjectName}
+          {...sharedPointProps}
+        />
       )}
 
       {(type === "revolute" || type === "linear") && (
@@ -207,6 +258,83 @@ export default function AnimationRigToolbar({
         </div>
       )}
 
+      {type === "morph" && (
+        <>
+          <ReferenceChip label="Source" reference={track.object} />
+          <ReferenceChip
+            label="Target"
+            reference={morph.targetObject}
+            selectedObjectName={selectedObjectName}
+            onAssign={animationAuthoring?.assignMorphTargetFromSelectedObject}
+          />
+          <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
+            <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">Mode</span>
+            <select
+              value={morph.mode || "auto"}
+              onChange={(event) =>
+                animationAuthoring?.updateActiveTrackRig?.({
+                  morph: { mode: event.target.value },
+                })
+              }
+              className="bg-transparent text-[10px] text-white outline-none"
+            >
+              <option value="auto" className="bg-primary">Auto</option>
+              <option value="true" className="bg-primary">True Morph</option>
+              <option value="cross" className="bg-primary">Cross Fade</option>
+            </select>
+          </label>
+          <div
+            title={morphCompatibility?.reason || "Assign a target object"}
+            className={[
+              "flex h-8 max-w-52 shrink-0 items-center gap-1.5 truncate rounded-lg border px-2 text-[9px]",
+              morphCompatibility?.compatible
+                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
+                : "border-amber-500/40 bg-amber-500/10 text-amber-200",
+            ].join(" ")}
+          >
+            <MaterialIcon
+              name={morphCompatibility?.compatible ? "check_circle" : "swap_horiz"}
+              className="size-3.5 shrink-0"
+            />
+            <span className="truncate">
+              {morph.mode === "cross" && morph.targetObject
+                ? "Cross Fade selected"
+                : morphCompatibility?.compatible
+                  ? `True Morph · ${morphCompatibility.meshCount || 0} mesh`
+                  : morph.targetObject
+                    ? `Cross Fade · ${morphCompatibility?.reason || "different topology"}`
+                    : "Assign Target"}
+            </span>
+          </div>
+          <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
+            <input
+              type="checkbox"
+              checked={morph.hideSourceWhenComplete !== false}
+              onChange={(event) =>
+                animationAuthoring?.updateActiveTrackRig?.({
+                  morph: { hideSourceWhenComplete: event.target.checked },
+                })
+              }
+              className="size-3.5 accent-accent-main"
+            />
+            Swap at 100%
+          </label>
+          <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
+            <input
+              type="checkbox"
+              checked={morph.hideTargetWhenStart !== false}
+              onChange={(event) =>
+                animationAuthoring?.updateActiveTrackRig?.({
+                  morph: { hideTargetWhenStart: event.target.checked },
+                })
+              }
+              className="size-3.5 accent-accent-main"
+            />
+            Hide Target at 0%
+          </label>
+        </>
+      )}
+
       {type === "hydraulic" && (
         <>
           <ReferenceChip
@@ -217,6 +345,15 @@ export default function AnimationRigToolbar({
               animationAuthoring?.assignRigReferenceFromSelectedObject?.("baseObject")
             }
           />
+          <RigPointControl
+            label="Base Anchor"
+            point={hydraulic.baseAnchor}
+            active={pointEditorActive && pointEditorTarget === "baseAnchor"}
+            canDrag={Boolean(hydraulic.baseObject)}
+            onToggleDrag={() => animationAuthoring?.toggleHydraulicAnchorEditing?.("baseAnchor")}
+            onPointChange={(value) => updateHydraulicAnchor("baseAnchor", value)}
+            {...sharedPointProps}
+          />
           <ReferenceChip
             label="Target"
             reference={hydraulic.targetObject}
@@ -224,6 +361,15 @@ export default function AnimationRigToolbar({
             onAssign={() =>
               animationAuthoring?.assignRigReferenceFromSelectedObject?.("targetObject")
             }
+          />
+          <RigPointControl
+            label="Target Anchor"
+            point={hydraulic.targetAnchor}
+            active={pointEditorActive && pointEditorTarget === "targetAnchor"}
+            canDrag={Boolean(hydraulic.targetObject)}
+            onToggleDrag={() => animationAuthoring?.toggleHydraulicAnchorEditing?.("targetAnchor")}
+            onPointChange={(value) => updateHydraulicAnchor("targetAnchor", value)}
+            {...sharedPointProps}
           />
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
             <input

@@ -3,6 +3,11 @@ import { normalizeProToolsSettings } from "../../../engine/project/ProToolsSetti
 
 const PRO_TOOL_OPTIONS = [
   {
+    key: "addMoreGlb",
+    label: "Add More GLB",
+    description: "Allow this project to load and use additional GLB models.",
+  },
+  {
     key: "flow",
     label: "Flow",
     description: "Show Flow authoring in the Pro menu.",
@@ -29,12 +34,14 @@ const PRO_TOOL_OPTIONS = [
   },
 ];
 
-export default function ProToolsSettingsControls({ settings, onChange }) {
+export default function ProToolsSettingsControls({ settings, onChange, embedded = false }) {
   const normalized = normalizeProToolsSettings(settings);
 
   return (
-    <div className="rounded-xl border border-secondary-default bg-primary p-4">
-      <div className="mb-2 text-sm font-normal text-white">Pro Tools</div>
+    <div className={embedded ? "" : "rounded-xl border border-secondary-default bg-primary p-4"}>
+      {!embedded && (
+        <div className="mb-2 text-sm font-normal text-white">Pro Tools</div>
+      )}
       <p className="mb-4 text-xs leading-5 text-contrast-grayout">
         Choose which authoring tools are available in the Pro menu for this
         project.

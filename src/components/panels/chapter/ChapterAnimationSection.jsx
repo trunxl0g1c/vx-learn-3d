@@ -204,6 +204,42 @@ export default function ChapterAnimationSection({
                           }
                         />
                       </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`content-animation-speed-${assignment.assignmentId}`}
+                          className="text-xs text-contrast-grayout"
+                        >
+                          Speed
+                        </label>
+                        <select
+                          id={`content-animation-speed-${assignment.assignmentId}`}
+                          value={String(assignment.speed || 1)}
+                          disabled={!currentValue}
+                          onChange={(event) =>
+                            updateChapterAnimation?.(
+                              chapter.id,
+                              assignment.assignmentId,
+                              { speed: Number(event.target.value) || 1 },
+                            )
+                          }
+                          className={[
+                            "h-8 w-20 rounded-md border border-divider-main",
+                            "bg-primary px-2 text-xs text-white outline-none",
+                            "transition-colors hover:border-accent-main",
+                            "focus:border-accent-main",
+                            "disabled:cursor-not-allowed disabled:opacity-50",
+                          ].join(" ")}
+                        >
+                          <option value="0.25">0.25x</option>
+                          <option value="0.5">0.5x</option>
+                          <option value="0.75">0.75x</option>
+                          <option value="1">1x</option>
+                          <option value="1.25">1.25x</option>
+                          <option value="1.5">1.5x</option>
+                          <option value="2">2x</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 );

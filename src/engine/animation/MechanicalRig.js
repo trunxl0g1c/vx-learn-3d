@@ -5,6 +5,7 @@ export const MECHANICAL_RIG_TYPES = [
   "revolute",
   "linear",
   "hydraulic",
+  "morph",
 ];
 
 export const MECHANICAL_RIG_AXES = ["x", "y", "z"];
@@ -44,8 +45,16 @@ export function createMechanicalRigDefinition(baseTransform = null) {
     hydraulic: {
       baseObject: null,
       targetObject: null,
+      baseAnchor: [0, 0, 0],
+      targetAnchor: [0, 0, 0],
       anchorToBase: true,
       stretch: true,
+    },
+    morph: {
+      targetObject: null,
+      mode: "auto",
+      hideSourceWhenComplete: true,
+      hideTargetWhenStart: true,
     },
     baseTransform: baseTransform || null,
   };
@@ -82,8 +91,18 @@ export function normalizeMechanicalRig(rig, baseTransform = null) {
     hydraulic: {
       baseObject: source.hydraulic?.baseObject || null,
       targetObject: source.hydraulic?.targetObject || null,
+      baseAnchor: normalizeVector3(source.hydraulic?.baseAnchor, [0, 0, 0]),
+      targetAnchor: normalizeVector3(source.hydraulic?.targetAnchor, [0, 0, 0]),
       anchorToBase: source.hydraulic?.anchorToBase !== false,
       stretch: source.hydraulic?.stretch !== false,
+    },
+    morph: {
+      targetObject: source.morph?.targetObject || null,
+      mode: ["auto", "true", "cross"].includes(source.morph?.mode)
+        ? source.morph.mode
+        : "auto",
+      hideSourceWhenComplete: source.morph?.hideSourceWhenComplete !== false,
+      hideTargetWhenStart: source.morph?.hideTargetWhenStart !== false,
     },
     baseTransform: source.baseTransform || baseTransform || null,
   };
@@ -138,6 +157,35 @@ function extractTwistAngle(deltaQuaternion, axis) {
   twist.normalize();
   const signedSinHalf = new THREE.Vector3(twist.x, twist.y, twist.z).dot(axis);
   return normalizeSignedRadians(2 * Math.atan2(signedSinHalf, twist.w));
+}
+
+function createFreeDeltaMatrix(rig, baseTransform, targetTransform) {
+  const baseMatrix = createTransformMatrix(baseTransform);
+  const targetMatrix = createTransformMatrix(targetTransform || baseTransform);
+  const relativeMatrix = baseMatrix.clone().invert().multiply(targetMatrix);
+  const pivot = new THREE.Vector3().fromArray(rig.pivot || [0, 0, 0]);
+  if (pivot.lengthSq() <= EPSILON) return relativeMatrix;
+
+  const relative = decomposeTransformMatrix(relativeMatrix);
+  const translation = new THREE.Matrix4().makeTranslation(
+    relative.position[0],
+    relative.position[1],
+    relative.position[2],
+  );
+  const rotation = new THREE.Matrix4().makeRotationFromQuaternion(
+    new THREE.Quaternion().fromArray(relative.quaternion).normalize(),
+  );
+  const scale = new THREE.Matrix4().makeScale(
+    relative.scale[0],
+    relative.scale[1],
+    relative.scale[2],
+  );
+
+  return translation
+    .multiply(new THREE.Matrix4().makeTranslation(pivot.x, pivot.y, pivot.z))
+    .multiply(rotation)
+    .multiply(scale)
+    .multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
 }
 
 function createRevoluteDeltaMatrix(rig, baseTransform, targetTransform) {
@@ -216,6 +264,10 @@ export function createMechanicalJointDeltaMatrix(
 
   if (rig.type === "hydraulic") {
     return new THREE.Matrix4().identity();
+  }
+
+  if (rig.type === "free" || rig.type === "morph") {
+    return createFreeDeltaMatrix(rig, baseTransform, targetTransform || baseTransform);
   }
 
   return baseMatrix.clone().invert().multiply(targetMatrix);

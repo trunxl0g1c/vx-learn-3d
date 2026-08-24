@@ -18,8 +18,24 @@ export default function ProcedureStepTransformSection({
     ? activeEntries.findIndex((entry) => entry.id === activeEntry.id)
     : -1;
 
-  const content = (
-    <>
+  return (
+    <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
+      <div className="mb-3 flex items-start gap-2">
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
+          {isAssembly ? "2" : "3"}
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-white">
+            {isAssembly ? "Set Start & Target" : "Set Start & End"}
+          </p>
+          <p className="mt-0.5 text-[10px] leading-4 text-contrast-grayout">
+            {isAssembly
+              ? "Start and Target are already saved when the object is assigned. Move the object only when you want to change either pose."
+              : "Configure the selected animation action."}
+          </p>
+        </div>
+      </div>
+
       {!isAssembly && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent-main/35 bg-accent-main/10 px-2.5 py-2">
           <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
@@ -32,6 +48,15 @@ export default function ProcedureStepTransformSection({
             <span className="block truncate text-[11px] font-semibold text-white">
               {activeEntry?.object?.name || "Select an animation action above"}
             </span>
+          </span>
+        </div>
+      )}
+
+      {isAssembly && activeEntry?.object && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent-main/35 bg-accent-main/10 px-2.5 py-2">
+          <MaterialIcon name="precision_manufacturing" className="size-4 text-secondary-default" />
+          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white">
+            {activeEntry.object.name || "Assembly object"}
           </span>
         </div>
       )}
@@ -63,7 +88,7 @@ export default function ProcedureStepTransformSection({
           type="button"
           size="xs"
           variant="darkOutline"
-          disabled={!procedural.activeAnimatedEntry}
+          disabled={!activeEntry}
           onClick={procedural.captureStartTransform}
         >
           <MaterialIcon name="flag" className="size-4" />
@@ -73,7 +98,7 @@ export default function ProcedureStepTransformSection({
           type="button"
           size="xs"
           variant="darkOutline"
-          disabled={!procedural.activeAnimatedEntry}
+          disabled={!activeEntry}
           onClick={procedural.captureEndTransform}
         >
           <MaterialIcon name="sports_score" className="size-4" />
@@ -81,10 +106,10 @@ export default function ProcedureStepTransformSection({
         </Button>
       </div>
 
-      <div className="mt-3 rounded-lg border border-secondary-default/40 bg-primary/40 p-2.5 text-[10px] leading-4 text-contrast-grayout">
+      <div className="mt-3 rounded-lg border border-secondary-default/35 bg-black/10 p-2.5 text-[9px] leading-4 text-contrast-grayout">
         {isAssembly
-          ? "Start and Target are saved automatically from the object's current pose when it is added. Move/rotate the component, then use Update Target only when the installed pose should change."
-          : "Start and End are saved automatically from the object's current pose when the Animation Action is added. If the object does not move, no extra save is needed. Use Update Start/End only after changing the pose."}
+          ? "Simple flow: assign object → move it to the install position → Update Target. Update Start is only needed when the initial pose changes."
+          : "Start and End are saved automatically when the Animation Action is added. If the object does not move, no extra save is needed."}
       </div>
 
       {isAssembly && (
@@ -93,7 +118,7 @@ export default function ProcedureStepTransformSection({
             type="button"
             size="xs"
             variant="darkOutline"
-            disabled={!step.startTransform}
+            disabled={!activeEntry?.startTransform}
             onClick={procedural.showActiveStepStart}
           >
             <MaterialIcon name="first_page" className="size-4" />
@@ -103,7 +128,7 @@ export default function ProcedureStepTransformSection({
             type="button"
             size="xs"
             variant="darkOutline"
-            disabled={!step.endTransform}
+            disabled={!activeEntry?.endTransform}
             onClick={procedural.showActiveStepTarget}
           >
             <MaterialIcon name="my_location" className="size-4" />
@@ -111,25 +136,6 @@ export default function ProcedureStepTransformSection({
           </Button>
         </div>
       )}
-    </>
-  );
-
-  if (isAssembly) return content;
-
-  return (
-    <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
-      <div className="mb-3 flex items-center gap-2">
-        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
-          3
-        </span>
-        <div>
-          <p className="text-xs font-semibold text-white">Set Start & End</p>
-          <p className="mt-0.5 text-[10px] text-contrast-grayout">
-            Configure the selected animation action.
-          </p>
-        </div>
-      </div>
-      {content}
     </section>
   );
 }

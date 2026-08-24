@@ -31,7 +31,6 @@ import { collectMeshes, getBlinkPresetById } from "../../engine/selection";
 import BlinkSelectionOutline from "../viewer/BlinkSelectionOutline";
 import PlayerTurntableController from "./PlayerTurntableController";
 import PlayerXRSceneController from "./PlayerXRSceneController";
-import PlayerIOSWebARScene from "./PlayerIOSWebARScene";
 import PlayerXRInteractionPanel from "./PlayerXRInteractionPanel";
 import {
   GENERATED_ANNOTATION_COLOR,
@@ -52,9 +51,7 @@ const XR_PANEL_FALLBACK_VIEW_MODEL = Object.freeze({
   buttons: [{ label: "EXIT", action: "xr_exit" }],
 });
 
-function PlayerModelFit({ trackedAR = false, children }) {
-  if (trackedAR) return <Center>{children}</Center>;
-
+function PlayerModelFit({ children }) {
   return (
     <Bounds fit clip margin={1.2}>
       <Center>{children}</Center>
@@ -93,7 +90,7 @@ export default function PlayerSceneCanvas({
   focusTargetRef,
   freePlay,
   selectedObject,
-  transformMode,
+  transformMode = "translate",
   activeChapter,
   activeSlide = null,
   activeProcedure = null,
@@ -107,7 +104,7 @@ export default function PlayerSceneCanvas({
   captureInitialCameraState,
   onSceneReady,
   setAnimations,
-  showAnnotations = true,
+  showAnnotations = false,
   selectedAnnotationId = null,
   onAnnotationClick,
   onAnnotationClose,
@@ -139,8 +136,6 @@ export default function PlayerSceneCanvas({
   xrMode = null,
   xrSettings = null,
   xrInteraction = null,
-  iosWebARState = null,
-  iosWebARController = null,
   onRendererReady,
 }) {
   const modelRootRef = useRef(null);
@@ -166,6 +161,11 @@ export default function PlayerSceneCanvas({
   const animationPlaying = ["play", "playChapter", "resume"].includes(
     animationCommand?.type,
   );
+  const additionalModelsEnabled =
+    material?.proToolsSettings?.addMoreGlb === true;
+  const additionalModels = Array.isArray(material?.additionalModels)
+    ? material.additionalModels
+    : [];
   const turntableEnabled =
     Boolean(turntablePresentationActive) &&
     !freePlay &&
@@ -232,19 +232,15 @@ export default function PlayerSceneCanvas({
   const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle);
   const isSketchMode = shaderOutlineStyle === "sketch";
   const background = getViewerBackground(viewerSettings);
-  const isIOSTrackedWebAR = xrMode === "ios-tracked-ar";
   const isImmersiveWebXR = xrMode === "vr" || xrMode === "ar";
-  const isTrackedARSession = isIOSTrackedWebAR;
-  const isARSession = xrMode === "ar" || isTrackedARSession;
+  const isARSession = xrMode === "ar";
   const stageBackgroundEnabled =
     background.type === "stage" && !isSketchMode && !isARSession;
   const xrGridEnabled = isImmersiveWebXR
     ? xrMode === "vr"
       ? Boolean(xrSettings?.vr?.showGrid)
       : Boolean(xrSettings?.ar?.showGrid)
-    : isTrackedARSession
-      ? false
-      : null;
+    : null;
   const gridViewerSettings = xrMode
     ? {
         ...viewerSettings,
@@ -264,60 +260,11 @@ export default function PlayerSceneCanvas({
     ? xrInteraction?.viewModel || XR_PANEL_FALLBACK_VIEW_MODEL
     : null;
 
-  // iOS/iPad tracked WebAR must own its canvas and camera end-to-end. Do not
-  // keep the normal Player Canvas mounted behind it: Bounds, stage CSS, the
-  // desktop camera and the Player loading lifecycle can otherwise continue to
-  // compete with Zappar and recreate the exact "huge model + stage background"
-  // failure seen on device.
-  if (isTrackedARSession) {
-    return (
-      <PlayerIOSWebARScene
-        material={material}
-        modelScene={modelScene}
-        viewerSettings={viewerSettings}
-        xrSettings={xrSettings}
-        iosWebARState={iosWebARState}
-        iosWebARController={iosWebARController}
-        modelMaxDimension={effectiveXRModelMaxDimension}
-        cameraRef={cameraRef}
-        selectedAnimations={selectedAnimations}
-        animationCommand={animationCommand}
-        setAnimations={setAnimations}
-        handleSelectObjectFromPlayer={handleSelectObjectFromPlayer}
-        handleDoubleClickObjectFromPlayer={handleDoubleClickObjectFromPlayer}
-        onObjectSelectInteraction={onObjectSelectInteraction}
-        selectedObject={selectedObject}
-        activeChapter={activeChapter}
-        activeSlide={activeSlide}
-        activeFlow={activeFlow}
-        flowPlaying={flowPlaying}
-        flowPlaybackKey={flowPlaybackKey}
-        activeChapterFlows={activeChapterFlows}
-        chapterFlowPlaybackKey={chapterFlowPlaybackKey}
-        activeSlideFlows={activeSlideFlows}
-        slideFlowPlaybackKey={slideFlowPlaybackKey}
-        onSlideFlowComplete={onSlideFlowComplete}
-        onChapterFlowComplete={onChapterFlowComplete}
-        onFlowComplete={onFlowComplete}
-        showAnnotations={showAnnotations}
-        selectedAnnotationId={selectedAnnotationId}
-        onAnnotationClick={onAnnotationClick}
-        onAnnotationClose={onAnnotationClose}
-        onAnnotationOpenDetail={onAnnotationOpenDetail}
-        onAnnotationHierarchyBack={onAnnotationHierarchyBack}
-        preserveSelectionOnPointerMiss={preserveSelectionOnPointerMiss}
-        clearPlayerSelection={clearPlayerSelection}
-        onRendererReady={onRendererReady}
-      />
-    );
-  }
-
   return (
     <Canvas
       shadows={stageBackgroundEnabled ? 'soft' : false}
       camera={{ position: [0, 0, 5] }}
-      dpr={isTrackedARSession ? 1 : [1, 1.5]}
-      colorManagement={isTrackedARSession ? false : undefined}
+      dpr={[1, 1.5]}
       style={canvasStyle}
       gl={{
         alpha: true,
@@ -341,7 +288,7 @@ export default function PlayerSceneCanvas({
       }}
     >
       <WebGLRendererLifecycle registryKey="__PLAYER_RENDERER__" onRendererReady={onRendererReady} />
-      {!isImmersiveWebXR && !isTrackedARSession && (
+      {!isImmersiveWebXR && (
         <ViewerProjectionCameraController
           mode={effectiveProjectionMode}
           cameraRef={cameraRef}
@@ -363,7 +310,7 @@ export default function PlayerSceneCanvas({
         player
       />
 
-      {!isImmersiveWebXR && !isTrackedARSession && (
+      {!isImmersiveWebXR && (
         <EffectComposer autoClear={false} multisampling={0}>
           {shaderOutlineObjects.length > 0 && (
             <Outline
@@ -474,11 +421,13 @@ export default function PlayerSceneCanvas({
       <>
       <group ref={xrRootRef}>
         <Suspense fallback={<LoadingModel />}>
-          <PlayerModelFit trackedAR={false}>
+          <PlayerModelFit>
               <group ref={turntableRootRef}>
               <group ref={modelRootRef}>
               <Model
                 modelUrl={material.modelUrl}
+                modelAssetId="primary"
+                modelAssetName={material.modelFileName || "Primary GLB"}
                 markerMode={false}
                 onSelectObject={handleObjectSelect}
                 onDoubleClickObject={handleObjectDoubleClick}
@@ -487,11 +436,7 @@ export default function PlayerSceneCanvas({
                   const runtimeDimension = getXRModelMaxDimension(loadedScene);
                   if (runtimeDimension > 0) {
                     // Capture the authored/runtime model size only once. When
-                    // Zappar remounts the cached model under InstantTracker,
-                    // setFromObject() sees the AR parent scale as part of the
-                    // world matrix. Replacing this value at that point makes
-                    // normalized scale jump back toward 1 and the model becomes
-                    // enormous. Preserve the pre-AR measurement instead.
+                    // Preserve the first valid runtime model measurement for XR scaling.
                     setXrRuntimeMaxDimension((current) =>
                       current > 0 ? current : runtimeDimension,
                     );
@@ -505,6 +450,41 @@ export default function PlayerSceneCanvas({
                 }}
               />
 
+              {additionalModelsEnabled &&
+                additionalModels
+                  .filter((model) => model?.url)
+                  .map((model) => (
+                    <group
+                      key={model.id}
+                      name={model.name || model.fileName || "Additional GLB"}
+                      userData={{
+                        __vxAdditionalModelRoot: true,
+                        __vxModelAssetId: model.id,
+                        __vxModelAssetName: model.fileName || model.name || "",
+                      }}
+                    >
+                      <Model
+                        modelUrl={model.url}
+                        modelAssetId={model.id}
+                        modelAssetName={model.fileName || model.name || "Additional GLB"}
+                        markerMode={false}
+                        onSelectObject={handleObjectSelect}
+                        onDoubleClickObject={handleObjectDoubleClick}
+                        onModelLoaded={() => {
+                          const loadedScene = modelRootRef.current;
+                          const runtimeDimension = getXRModelMaxDimension(loadedScene);
+                          if (runtimeDimension > 0) {
+                            setXrRuntimeMaxDimension((current) =>
+                              current > 0 ? current : runtimeDimension,
+                            );
+                          }
+                          handleModelLoaded(loadedScene);
+                        }}
+                        selectedAnimations={{}}
+                        animationCommand={null}
+                      />
+                    </group>
+                  ))}
 
               {activeFlow?.points?.length >= 2 && (
                 <FlowRuntimeRenderer
@@ -548,11 +528,12 @@ export default function PlayerSceneCanvas({
                 <TransformControls
                   object={selectedObject}
                   mode={transformMode}
+                  space="local"
                   onMouseDown={() => {
-                    controlsRef.current.enabled = false;
+                    if (controlsRef.current) controlsRef.current.enabled = false;
                   }}
                   onMouseUp={() => {
-                    controlsRef.current.enabled = true;
+                    if (controlsRef.current) controlsRef.current.enabled = true;
                   }}
                 />
               )}
@@ -631,7 +612,7 @@ export default function PlayerSceneCanvas({
         sceneKey={`${material?.projectId || "project"}:${modelScene?.uuid || "scene"}`}
       />
 
-      {!isTrackedARSession && (
+      {(
         <CameraAnimator
           cameraRef={cameraRef}
           controlsRef={controlsRef}
@@ -639,7 +620,7 @@ export default function PlayerSceneCanvas({
         />
       )}
 
-      {!isTrackedARSession && (
+      {(
         <InitialPlayerCameraSnapshot
           modelScene={modelScene}
           controlsRef={controlsRef}
@@ -656,7 +637,7 @@ export default function PlayerSceneCanvas({
       />
 
       <AssemblyDragController
-        enabled={assemblyDragEnabled && !isImmersiveWebXR && !isTrackedARSession}
+        enabled={assemblyDragEnabled && !isImmersiveWebXR}
         object={assemblyDragObject}
         startTransform={assemblyStartTransform}
         targetTransform={assemblyTargetTransform}
@@ -669,7 +650,7 @@ export default function PlayerSceneCanvas({
 
       <OrbitControls
         ref={controlsRef}
-        enabled={!assemblyCameraLocked && !isImmersiveWebXR && !isTrackedARSession}
+        enabled={!assemblyCameraLocked && !isImmersiveWebXR}
         enableRotate={
           !assemblyCameraLocked && effectiveProjectionMode !== "orthographic"
         }

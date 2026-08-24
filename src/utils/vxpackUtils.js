@@ -115,6 +115,19 @@ const createSourceModelMetadata = ({ modelFile, modelFileName, material }) => ({
   size: Number(modelFile?.size || 0),
 });
 
+const normalizeAdditionalModelDescriptors = (models = []) =>
+  (Array.isArray(models) ? models : [])
+    .filter((model) => model?.id)
+    .map((model) => ({
+      id: String(model.id),
+      name: model.name || model.fileName || "Additional GLB",
+      fileName: sanitizeAssetFileName(
+        model.fileName || model.file?.name || model.name || "model.glb",
+      ),
+      fileType: model.fileType || model.file?.type || "model/gltf-binary",
+      fileSize: Number(model.fileSize || model.file?.size || 0),
+    }));
+
 const createModelFile = (blob, fileName, mimeType) => {
   const normalizedType =
     mimeType || blob?.type || "model/gltf-binary";
@@ -136,6 +149,7 @@ export const exportVXPack = async ({
   material,
   modelFile,
   modelFileName,
+  additionalModels = [],
   viewerSettings,
   scene,
   shaderMode,
@@ -162,6 +176,25 @@ export const exportVXPack = async ({
 
   onProgress?.(5);
   zip.file(modelPath, modelFile);
+
+  const additionalModelDescriptors = normalizeAdditionalModelDescriptors(
+    additionalModels,
+  );
+  const additionalModelManifest = [];
+
+  additionalModelDescriptors.forEach((descriptor, index) => {
+    const runtimeModel = additionalModels.find((model) => model?.id === descriptor.id);
+    const runtimeFile = runtimeModel?.file;
+    if (!(runtimeFile instanceof Blob)) return;
+
+    const path = `models/additional/${String(index + 1).padStart(2, "0")}_${descriptor.fileName}`;
+    zip.file(path, runtimeFile);
+    additionalModelManifest.push({
+      ...descriptor,
+      uri: path,
+    });
+  });
+
   onProgress?.(20);
 
   const normalizedViewer = createNormalizedViewerSettings({
@@ -170,7 +203,13 @@ export const exportVXPack = async ({
     metalness,
     roughness,
   });
-  const normalizedMaterial = normalizeMaterialForPackage(material, modelPath);
+  const normalizedMaterial = {
+    ...normalizeMaterialForPackage(material, modelPath),
+    additionalModels: additionalModelManifest.map(({ uri, ...descriptor }) => ({
+      ...descriptor,
+      uri,
+    })),
+  };
 
   const manifest = {
     packageType: "vxpack",
@@ -183,6 +222,7 @@ export const exportVXPack = async ({
       type: modelFile?.type || "model/gltf-binary",
       size: Number(modelFile?.size || 0),
     },
+    additionalModels: additionalModelManifest,
     material: normalizedMaterial,
     viewer: normalizedViewer,
     scene: scene || {},
@@ -406,6 +446,33 @@ export const importVXPack = async (file, { createObjectUrl = true } = {}) => {
   );
   const modelUrl = createObjectUrl ? URL.createObjectURL(modelFile) : null;
 
+  const packagedAdditionalModels = Array.isArray(rawManifest?.additionalModels)
+    ? rawManifest.additionalModels
+    : Array.isArray(packageMaterial?.additionalModels)
+      ? packageMaterial.additionalModels
+      : [];
+  const additionalModels = [];
+
+  for (const descriptor of packagedAdditionalModels) {
+    const additionalPath = descriptor?.uri;
+    if (!descriptor?.id || !additionalPath) continue;
+    const entry = zip.file(additionalPath);
+    if (!entry) continue;
+
+    const blob = await entry.async("blob");
+    const fileName = descriptor.fileName || descriptor.name || getPathFileName(additionalPath);
+    const file = createModelFile(blob, fileName, descriptor.fileType);
+    additionalModels.push({
+      ...descriptor,
+      id: String(descriptor.id),
+      fileName,
+      fileType: descriptor.fileType || file.type || "model/gltf-binary",
+      fileSize: Number(descriptor.fileSize || file.size || 0),
+      file,
+      url: createObjectUrl ? URL.createObjectURL(file) : null,
+    });
+  }
+
   const runtimeMaterial = {
     ...packageMaterial,
     modelUrl: modelUrl || modelPath,
@@ -427,6 +494,7 @@ export const importVXPack = async (file, { createObjectUrl = true } = {}) => {
     modelFile,
     modelUrl,
     modelPath,
+    additionalModels,
   };
 };
 

@@ -250,6 +250,13 @@ export default function usePlayerQuiz({
   };
 
   const stopQuiz = () => {
+    // Slide/Chapter navigation calls stopQuiz defensively. When no assessment
+    // is active, resetting the whole presentation here also resets the camera
+    // to the project overview and interrupts the saved-view transition. Only
+    // restore the assessment baseline when a quiz session actually exists.
+    const hadActiveAssessment =
+      status !== "idle" || Boolean(activeQuizId) || Boolean(activeQuizSnapshot);
+
     playerProcedure.stopProcedure?.();
     playerAnimation.stopCurrentAnimations?.();
     stopSpeech?.();
@@ -262,7 +269,10 @@ export default function usePlayerQuiz({
     setFeedback(null);
     setSelectedObject(null);
     setOutlineObjects([]);
-    resetAssessmentPresentation?.();
+
+    if (hadActiveAssessment) {
+      resetAssessmentPresentation?.();
+    }
   };
 
   const setAnswerValue = (value) => {

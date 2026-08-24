@@ -455,23 +455,36 @@ export default function usePlayerFreePlay({
     return Boolean(session)
   }
 
-  const applySavedCuts = (savedCuts = [], preferredTarget = null) => {
+  const applySavedCuts = (
+    savedCuts = [],
+    preferredTarget = null,
+    options = {},
+  ) => {
     const cutEngine = cutEngineRef.current
+    const hasExplicitEnabled = typeof options?.enabled === "boolean"
 
     cutEngine.clear(modelScene)
 
+    // Keep authored slider values staged even when this material stores Cut
+    // as OFF. Opening the Cut panel then shows the active Slide/Chapter's own
+    // values instead of values left behind by the previous context.
     const validCuts = savedCuts.filter(
-      (entry) => entry?.cutState?.enabled && entry?.targetObject,
+      (entry) => entry?.cutState && entry?.targetObject,
     )
 
     if (!modelScene || validCuts.length === 0) {
       setCutAllObjectsState(true)
       setCutEnabled(false)
+
+      if (modelScene) {
+        syncCutState(cutEngine.setTarget(modelScene))
+      }
+
       return false
     }
 
     validCuts.forEach(({ cutState, targetObject }) => {
-      let state = cutEngine.setTarget(targetObject)
+      const state = cutEngine.setTarget(targetObject)
       const nextValues = createCutValuesFromPercentages(
         cutState.percentages,
         state.bounds,
@@ -481,22 +494,33 @@ export default function usePlayerFreePlay({
       cutEngine.setValues(nextValues)
     })
 
-    cutEngine.setEnabled(true)
-    cutEngine.apply(modelScene)
-    setCutEnabled(true)
+    const preferredSavedTarget = validCuts.some(
+      (entry) => entry.targetObject === preferredTarget,
+    )
+      ? preferredTarget
+      : null
+    const activeTarget = preferredSavedTarget || validCuts[0]?.targetObject || modelScene
+    const nextEnabled = hasExplicitEnabled
+      ? Boolean(options.enabled)
+      : validCuts.some((entry) => entry?.cutState?.enabled)
 
-    const activeTarget =
-      preferredTarget || selectedObject || validCuts[0]?.targetObject || modelScene
+    cutEngine.setEnabled(nextEnabled)
+    cutEngine.apply(modelScene)
+    setCutEnabled(nextEnabled)
+
     const activeState = cutEngine.setTarget(activeTarget)
 
     setCutAllObjectsState(activeTarget === modelScene)
     syncCutState(activeState)
 
-    return true
+    return nextEnabled
   }
 
   const applySavedCut = (cutState, targetObject) =>
     applySavedCuts([{ cutState, targetObject }])
+
+  const applySavedObjectTransforms = (transforms = []) =>
+    getModelEngine().applyTransformOverrides?.(transforms) || 0
 
   return {
     applyCutBoundsForAxis,
@@ -520,6 +544,7 @@ export default function usePlayerFreePlay({
     resetVisualState,
     resetAllTransforms,
     applySavedPullApart,
+    applySavedObjectTransforms,
     applySavedCut,
     applySavedCuts,
   }

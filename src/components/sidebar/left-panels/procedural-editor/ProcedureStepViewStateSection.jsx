@@ -21,37 +21,47 @@ export default function ProcedureStepViewStateSection({
         : "Optional";
 
   return (
-    <div className="space-y-3 rounded-lg border border-secondary-default/50 bg-primary/40 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold text-white">
-            Camera &amp; Visual State
-          </p>
-          <p className="mt-1 text-[10px] leading-4 text-contrast-grayout">
-            Saves the current camera together with highlight, X-Ray,
-            visibility, pull-apart, and Cut state for this step.
+    <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {isAssembly && (
+              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
+                3
+              </span>
+            )}
+            <p className="text-xs font-semibold text-white">
+              {isAssembly ? "Save Step View" : "Camera & Visual State"}
+            </p>
+          </div>
+          <p className="mt-1.5 text-[10px] leading-4 text-contrast-grayout">
+            {isAssembly
+              ? "Save the camera and current visual state together. Player restores this view while the learner installs the component."
+              : "Saves the current camera together with highlight, X-Ray, visibility, pull-apart, and Cut state for this step."}
           </p>
         </div>
         <StatusBadge ready={hasCompleteSavedView}>{statusLabel}</StatusBadge>
       </div>
 
-      <div className="space-y-2">
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <Button
           type="button"
           size="xs"
-          className="w-full"
           variant={hasCompleteSavedView ? "default" : "cyanOutline"}
           onClick={procedural?.saveActiveStepViewState}
         >
           <MaterialIcon name="save" className="size-4" />
-          {hasCompleteSavedView
-            ? "Update Camera + State"
-            : "Save Camera + State"}
+          {isAssembly
+            ? hasCompleteSavedView
+              ? "Update View"
+              : "Save Step View"
+            : hasCompleteSavedView
+              ? "Update Camera + State"
+              : "Save Camera + State"}
         </Button>
         <Button
           type="button"
           size="xs"
-          className="w-full"
           variant="darkOutline"
           disabled={!hasAnySavedView}
           onClick={procedural?.showActiveStepViewState}
@@ -65,11 +75,11 @@ export default function ProcedureStepViewStateSection({
         <button
           type="button"
           onClick={procedural?.deleteActiveStepViewState}
-          className="text-[10px] text-red-300 transition hover:text-red-200"
+          className="mt-2 text-[10px] text-red-300 transition hover:text-red-200"
         >
           Remove saved camera and state
         </button>
       )}
-    </div>
+    </section>
   );
 }

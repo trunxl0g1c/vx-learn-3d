@@ -4,6 +4,7 @@ export const DEFAULT_PRO_TOOLS_SETTINGS = Object.freeze({
   animationCreation: true,
   quiz: false,
   xrImmersive: false,
+  addMoreGlb: false,
 });
 
 function readBoolean(source, keys, fallback) {
@@ -43,6 +44,11 @@ export function normalizeProToolsSettings(settings = {}) {
       ["xrImmersive", "xr", "immersive", "xrEnabled"],
       DEFAULT_PRO_TOOLS_SETTINGS.xrImmersive,
     ),
+    addMoreGlb: readBoolean(
+      source,
+      ["addMoreGlb", "multiGlb", "additionalGlb", "addMoreGlbEnabled"],
+      DEFAULT_PRO_TOOLS_SETTINGS.addMoreGlb,
+    ),
   };
 }
 
@@ -54,6 +60,7 @@ export function isProToolEnabled(settings, toolId) {
   if (toolId === "animation-creation") return normalized.animationCreation;
   if (toolId === "quiz") return normalized.quiz;
   if (toolId === "xr") return normalized.xrImmersive;
+  if (toolId === "add-more-glb") return normalized.addMoreGlb;
 
   return false;
 }

@@ -6,6 +6,8 @@ export const createDefaultMaterial = () => ({
   id: createId(),
   title: "Materi 3D Baru",
   modelUrl: "",
+  additionalModels: [],
+  modelLicenses: [],
   chapters: [],
   flows: [],
   procedures: [],

@@ -9,6 +9,7 @@ export default function InfoTab({
   selectedObjectName,
   activeChapterId,
   setActiveChapterId,
+  previewChapterInEditor,
   setRightTab,
   deselectObject,
   createChapterFromSelectedObject,
@@ -48,8 +49,12 @@ export default function InfoTab({
     if (contentAuthoringLocked) return;
 
     if (hasContent) {
-      setActiveChapterId(objectChapter.id);
-      setRightTab("chapter");
+      if (previewChapterInEditor) {
+        previewChapterInEditor(objectChapter.id);
+      } else {
+        setActiveChapterId(objectChapter.id);
+        setRightTab("chapter");
+      }
       return;
     }
 

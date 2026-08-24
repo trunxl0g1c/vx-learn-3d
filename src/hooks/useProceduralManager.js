@@ -13,6 +13,7 @@ import {
 import { createViewerCameraView } from "../engine/viewer";
 import { applyStoredModelRotation } from "../engine/model";
 import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
+import { usePerspectiveCameraSaveGuard } from "./viewer/usePerspectiveCameraSaveGuard";
 
 export function useProceduralManager({
   material,
@@ -21,6 +22,7 @@ export function useProceduralManager({
   selectedObject,
   cameraRef = null,
   controlsRef = null,
+  cameraProjectionMode = null,
   setCameraProjectionMode = null,
   proceduralEngine = null,
   modelEngine = null,
@@ -33,6 +35,11 @@ export function useProceduralManager({
     () => createProceduralManagerAdapter(proceduralEngine),
     [proceduralEngine],
   );
+  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
+    cameraRef,
+    cameraProjectionMode,
+    onSwitchToPerspective: setCameraProjectionMode,
+  });
   const procedures = useMemo(
     () => manager.normalizeDefinitions(material?.procedures),
     [manager, material?.procedures],
@@ -754,6 +761,8 @@ export function useProceduralManager({
   const captureStepCameraView = useCallback(() => {
     if (!activeStep?.id) return false;
 
+    if (!requirePerspectiveCameraForSave()) return false;
+
     const cameraView = createViewerCameraView({
       camera: cameraRef?.current,
       controls: controlsRef?.current,
@@ -766,7 +775,14 @@ export function useProceduralManager({
       cameraView,
     });
     return true;
-  }, [activeStep?.id, cameraRef, controlsRef, modelScene, updateStep]);
+  }, [
+    activeStep?.id,
+    cameraRef,
+    controlsRef,
+    modelScene,
+    requirePerspectiveCameraForSave,
+    updateStep,
+  ]);
 
   const showActiveStepCameraView = useCallback(
     () => applyStoredStepCameraView(activeStep?.cameraView),

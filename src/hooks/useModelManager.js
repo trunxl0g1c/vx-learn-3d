@@ -169,11 +169,11 @@ export function useModelManager({
     setCutEnabled((prev) => !prev)
   }
 
-  const soloSelectedObject = (selectedObject) => {
-    const success = getModelEngine().soloObject(selectedObject)
+  const soloSelectedObject = (selectedObjectOrObjects) => {
+    const success = getModelEngine().soloObject(selectedObjectOrObjects)
 
     if (!success) {
-      alert('Select an object first')
+      alert('Select one or more objects first')
     }
   }
 
@@ -229,6 +229,14 @@ export function useModelManager({
     showAllObjects()
   }
 
+  const captureObjectTransformState = () => {
+    return getModelEngine().captureTransformOverrides?.() || []
+  }
+
+  const applySavedObjectTransforms = (transforms = []) => {
+    return getModelEngine().applyTransformOverrides?.(transforms) || 0
+  }
+
   const applySavedPullApart = (savedState, targetObject = null) => {
     if (!savedState?.enabled || !modelScene) return false
 
@@ -265,6 +273,8 @@ export function useModelManager({
     hideAllObjects,
     resetAllTransforms,
     resetVisualState,
+    captureObjectTransformState,
+    applySavedObjectTransforms,
     applySavedPullApart,
     pullApartState,
   }

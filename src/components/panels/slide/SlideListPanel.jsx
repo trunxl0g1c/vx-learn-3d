@@ -48,7 +48,7 @@ export default function SlideListPanel({ slideAuthoring }) {
               >
                 <button
                   type="button"
-                  onClick={() => slideAuthoring?.selectSlide?.(slide.id)}
+                  onClick={() => slideAuthoring?.previewSlide?.(slide.id)}
                   className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
                   title={`Edit ${slide.title || `Slide ${index + 1}`}`}
                 >

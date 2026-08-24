@@ -1,3 +1,5 @@
+import { createModelLicenseCatalog } from "../../../engine/project/ModelLicenseSettings";
+
 export function createPlayerControllerApi({
   playerProject,
   material,
@@ -16,6 +18,7 @@ export function createPlayerControllerApi({
   freePlay,
   selectedObject,
   transformMode,
+  setTransformMode,
   objectList,
   focusObject,
   makePlayerXrayExcept,
@@ -86,6 +89,14 @@ export function createPlayerControllerApi({
   setCutEnabled,
   showInfoPanel,
 }) {
+  const modelLicenseModels = createModelLicenseCatalog({
+    entries: material?.modelLicenses,
+    primaryFileName:
+      material?.modelFileName || material?.model?.fileName || "model.glb",
+    additionalModels: material?.additionalModels || [],
+    additionalEnabled: material?.proToolsSettings?.addMoreGlb === true,
+  });
+
   return {
     status: {
       isLoadingProject: playerProject.isLoadingProject,
@@ -110,6 +121,7 @@ export function createPlayerControllerApi({
       freePlay,
       selectedObject,
       transformMode,
+      setTransformMode,
       objectList,
       focusObject,
       makeXrayExcept: makePlayerXrayExcept,
@@ -163,8 +175,6 @@ export function createPlayerControllerApi({
       onAssemblyDragEnd: playerProcedure.handleAssemblyDragEnd,
       xrMode: playerXR.activeMode,
       xrSettings: playerXR.settings,
-      iosWebARState: playerXR.iosWebAR,
-      iosWebARController: playerXR.iosWebARController,
       onRendererReady: playerXR.setRenderer,
     },
 
@@ -309,6 +319,10 @@ export function createPlayerControllerApi({
       visibleChapters,
       handleSelectChapter,
       clearActiveChapter,
+    },
+
+    licensePanel: {
+      models: Array.isArray(modelLicenseModels) ? modelLicenseModels : [],
     },
 
     environmentPanel: {

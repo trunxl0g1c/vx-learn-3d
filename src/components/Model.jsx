@@ -74,6 +74,8 @@ function createAnimationSummaries(clips = []) {
 
 function Model({
   modelUrl,
+  modelAssetId = "primary",
+  modelAssetName = "",
   onAddMarker,
   onModelLoaded,
   markerMode,
@@ -102,6 +104,13 @@ function Model({
   useEffect(() => {
     sanitizeLoadedModelScene(scene);
     annotateGltfLogicalObjects(scene, parser);
+
+    scene.userData.__vxModelAssetId = modelAssetId;
+    scene.userData.__vxModelAssetName = modelAssetName || modelUrl || "";
+    scene.traverse((child) => {
+      child.userData.__vxModelAssetId = modelAssetId;
+      child.userData.__vxModelAssetName = modelAssetName || modelUrl || "";
+    });
 
     if (!scene.userData.__vxCentered) {
       const box = new THREE.Box3().setFromObject(scene);
@@ -156,7 +165,7 @@ function Model({
 
       actionsRef.current = {};
     };
-  }, [scene, animations, parser]);
+  }, [scene, animations, parser, modelAssetId, modelAssetName, modelUrl]);
 
   useEffect(() => {
     if (!animationCommand) return;

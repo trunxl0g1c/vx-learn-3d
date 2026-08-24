@@ -80,7 +80,7 @@ export default function usePlayerController() {
   const [cutMax, setCutMax] = useState(3)
   const cutBoundsRef = useRef(null)
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
-  const [showAnnotations, setShowAnnotations] = useState(true)
+  const [showAnnotations, setShowAnnotations] = useState(false)
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const focusTargetRef = useRef(null)
@@ -926,6 +926,7 @@ export default function usePlayerController() {
     freePlay,
     selectedObject,
     transformMode,
+    setTransformMode,
     objectList,
     focusObject,
     makePlayerXrayExcept,

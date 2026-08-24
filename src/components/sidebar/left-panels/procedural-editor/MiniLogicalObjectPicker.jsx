@@ -35,7 +35,12 @@ export default function MiniLogicalObjectPicker({
   );
 
   const currentName = getObjectLabel(currentObject);
-  const roleLabel = role === "animated" ? "Animated Object" : "Click Target";
+  const roleLabel =
+    role === "assembly"
+      ? "Assembly Object"
+      : role === "animated"
+        ? "Animated Object"
+        : "Click Target";
   const assigned =
     role === "target"
       ? assignedCount > 0 || Boolean(assignedReference)
@@ -105,7 +110,11 @@ export default function MiniLogicalObjectPicker({
           onClick={assignCurrentObject}
         >
           <MaterialIcon name={role === "animated" ? "add" : icon} className="size-4" />
-          {role === "target" ? "Add as Click Target" : "Add Animation Action"}
+          {role === "target"
+            ? "Add as Click Target"
+            : role === "assembly"
+              ? "Use as Assembly Object"
+              : "Add Animation Action"}
         </Button>
       </div>
     );
@@ -192,7 +201,9 @@ export default function MiniLogicalObjectPicker({
         {currentObject
           ? role === "target"
             ? `Add ${currentName} as Click Target`
-            : `Use ${currentName} as ${roleLabel}`
+            : role === "assembly"
+              ? `Use ${currentName} as Assembly Object`
+              : `Use ${currentName} as ${roleLabel}`
           : `Select ${roleLabel.toLowerCase()}`}
       </Button>
     </>

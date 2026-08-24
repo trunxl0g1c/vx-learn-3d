@@ -74,6 +74,12 @@ export default function usePlayerSlide({
   };
 
   const applySlideCamera = (slide, index = 0) => {
+    // Cancel an unfinished camera target from the previous Slide before the
+    // next saved view is installed. This keeps rapid Next/Previous navigation
+    // deterministic while still allowing CameraAnimator to interpolate from
+    // the camera's current position directly into the new authored view.
+    if (focusTargetRef) focusTargetRef.current = null;
+
     const views = getChapterCameraViews(slide);
     if (views.length === 0) {
       setActiveCameraViewIndex(0);

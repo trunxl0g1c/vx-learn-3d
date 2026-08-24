@@ -18,8 +18,10 @@ import {
   syncChapterCameraViews,
 } from "../engine/chapter";
 import {
+  PERSPECTIVE_CAMERA_SAVE_WARNING,
   createViewerCameraView,
   createViewerVisualState,
+  isOrthographicViewerCamera,
 } from "../engine/viewer";
 import {
   applyChapterModelRotation,
@@ -27,6 +29,7 @@ import {
 } from "../engine/model";
 import { applySavedViewerVisualState } from "./viewer/applySavedViewerVisualState";
 import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
+import { usePerspectiveCameraSaveGuard } from "./viewer/usePerspectiveCameraSaveGuard";
 
 export function useSlideAuthoring({
   enabled = false,
@@ -39,6 +42,8 @@ export function useSlideAuthoring({
   modelScene,
   cameraRef,
   controlsRef,
+  cameraProjectionMode = null,
+  setCameraProjectionMode = null,
   selectedObject,
   selectedObjects = [],
   blinkSelectedObjectsEnabled = false,
@@ -51,7 +56,10 @@ export function useSlideAuthoring({
   xrayTargetObjects = [],
   xrayNormalObjects = [],
   selectionVisualMode = "none",
+  selectionEngine = null,
   pullApartState,
+  captureObjectTransformState,
+  applySavedObjectTransforms,
   getCutStates,
   cutEnabled,
   cutValues,
@@ -76,6 +84,11 @@ export function useSlideAuthoring({
 }) {
   const [activeSlideId, setActiveSlideId] = useState(null);
   const [feedback, setFeedback] = useState(null);
+  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
+    cameraRef,
+    cameraProjectionMode,
+    onSwitchToPerspective: setCameraProjectionMode,
+  });
 
   const slides = Array.isArray(material?.slides) ? material.slides : [];
   const activeSlide = useMemo(
@@ -113,8 +126,68 @@ export function useSlideAuthoring({
 
   const clearFeedback = useCallback(() => setFeedback(null), []);
 
+  const captureVisualState = useCallback(() => {
+    if (!modelScene) return null;
+    return createViewerVisualState({
+      scene: modelScene,
+      primaryObject: selectedObject,
+      selectedObject,
+      selectedObjects,
+      xrayTargetObject,
+      xrayTargetObjects,
+      xrayNormalObjects,
+      selectionVisualMode:
+        selectionEngine?.getMaterialOverrideMode?.() || selectionVisualMode,
+      blinkSelectedObjectsEnabled,
+      blinkTargetObjects,
+      blinkAssignments,
+      pullApartState,
+      objectTransforms: captureObjectTransformState?.() || [],
+      cutStates: getCutStates?.() || [],
+      cutEnabled,
+      cutValues,
+      cutRanges,
+    });
+  }, [
+    blinkSelectedObjectsEnabled,
+    blinkTargetObjects,
+    blinkAssignments,
+    cutEnabled,
+    cutRanges,
+    cutValues,
+    getCutStates,
+    modelScene,
+    pullApartState,
+    captureObjectTransformState,
+    selectedObject,
+    selectedObjects,
+    selectionVisualMode,
+    selectionEngine,
+    xrayTargetObject,
+    xrayTargetObjects,
+    xrayNormalObjects,
+  ]);
+
   const createSlide = useCallback(() => {
-    const slide = createSlideDefinition(slides.length);
+    const cameraView = createViewerCameraView({
+      camera: cameraRef.current,
+      controls: controlsRef.current,
+      modelScene,
+    });
+    const visualState = captureVisualState();
+    const baseSlide = createSlideDefinition(slides.length);
+    const slide =
+      cameraView && visualState
+        ? syncChapterCameraViews(baseSlide, [
+            {
+              ...cameraView,
+              visualState,
+              id: createId("slide-camera"),
+              caption: "Camera 1",
+            },
+          ])
+        : baseSlide;
+
     setMaterial((previous) => ({
       ...previous,
       slides: [...(previous.slides || []), slide],
@@ -122,9 +195,26 @@ export function useSlideAuthoring({
     setActiveSlideId(slide.id);
     setMarkerMode?.(false);
     setRightTab?.("slide");
-    showFeedback("success", "Slide created successfully.");
+    showFeedback(
+      "success",
+      cameraView && visualState
+        ? "Slide created with Camera 1 and current state."
+        : isOrthographicViewerCamera(cameraRef.current)
+          ? "Slide created without Camera 1. Switch View to Perspective before saving Camera & State."
+          : "Slide created successfully.",
+    );
     return slide;
-  }, [setMarkerMode, setMaterial, setRightTab, showFeedback, slides.length]);
+  }, [
+    cameraRef,
+    captureVisualState,
+    controlsRef,
+    modelScene,
+    setMarkerMode,
+    setMaterial,
+    setRightTab,
+    showFeedback,
+    slides.length,
+  ]);
 
   const selectSlide = useCallback(
     async (slideId) => {
@@ -277,48 +367,15 @@ export function useSlideAuthoring({
     [activeSlideId, setMaterial],
   );
 
-  const captureVisualState = useCallback(() => {
-    if (!modelScene) return null;
-    return createViewerVisualState({
-      scene: modelScene,
-      primaryObject: selectedObject,
-      selectedObject,
-      selectedObjects,
-      xrayTargetObject,
-      xrayTargetObjects,
-      xrayNormalObjects,
-      selectionVisualMode,
-      blinkSelectedObjectsEnabled,
-      blinkTargetObjects,
-      blinkAssignments,
-      pullApartState,
-      cutStates: getCutStates?.() || [],
-      cutEnabled,
-      cutValues,
-      cutRanges,
-    });
-  }, [
-    blinkSelectedObjectsEnabled,
-    blinkTargetObjects,
-    blinkAssignments,
-    cutEnabled,
-    cutRanges,
-    cutValues,
-    getCutStates,
-    modelScene,
-    pullApartState,
-    selectedObject,
-    selectedObjects,
-    selectionVisualMode,
-    xrayTargetObject,
-    xrayTargetObjects,
-    xrayNormalObjects,
-  ]);
-
   const saveCameraView = useCallback(
     ({ cameraViewId = null, caption = "" } = {}) => {
       if (!activeSlideId || !activeSlide) {
         showFeedback("error", "Choose a slide before saving camera view.");
+        return false;
+      }
+
+      if (!requirePerspectiveCameraForSave()) {
+        showFeedback("error", PERSPECTIVE_CAMERA_SAVE_WARNING);
         return false;
       }
 
@@ -364,7 +421,7 @@ export function useSlideAuthoring({
             : slide,
         ),
       }));
-      showFeedback("success", cameraViewId ? "Camera updated." : "Camera added.");
+      showFeedback("success", cameraViewId ? "Camera and state updated." : "Camera and state added.");
       return true;
     }, [
       activeSlide,
@@ -375,6 +432,7 @@ export function useSlideAuthoring({
       modelScene,
       setMaterial,
       showFeedback,
+      requirePerspectiveCameraForSave,
     ],
   );
 
@@ -406,6 +464,7 @@ export function useSlideAuthoring({
       if (!slide || !modelScene) return false;
 
       setActiveSlideId(slideId);
+      setMarkerMode?.(false);
       setRightTab?.("slide");
       resetXray?.({ closeInfo: false });
       setBlinkSelectedObjectsEnabled?.(false);
@@ -430,6 +489,7 @@ export function useSlideAuthoring({
           chapterObject: null,
           visualState,
           applySavedPullApart,
+          applySavedObjectTransforms,
           makeOthersXray,
           makeTargetObjectsXray,
           highlightObject,
@@ -445,6 +505,7 @@ export function useSlideAuthoring({
     },
     [
       applySavedCuts,
+      applySavedObjectTransforms,
       applySavedPullApart,
       applyStoredCameraFocusTarget,
       clearCutSession,
@@ -460,6 +521,7 @@ export function useSlideAuthoring({
       setBlinkTargetObjects,
       setBlinkAssignments,
       setOutlineObjects,
+      setMarkerMode,
       setRightTab,
       setSelectedObject,
       setSelectedObjectName,

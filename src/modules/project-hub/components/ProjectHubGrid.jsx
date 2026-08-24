@@ -10,6 +10,7 @@ export default function ProjectHubGrid({
   isImporting,
   onOpenProject,
   onPreloadProject,
+  onDeleteProject,
   getAccessLabel,
   formatLastOpened,
 }) {
@@ -25,6 +26,7 @@ export default function ProjectHubGrid({
           priority={index < 2}
           onClick={() => onOpenProject(project)}
           onIntent={() => onPreloadProject?.(project)}
+          onDelete={() => onDeleteProject?.(project)}
           getAccessLabel={getAccessLabel}
           formatLastOpened={formatLastOpened}
         />

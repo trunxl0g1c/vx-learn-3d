@@ -117,7 +117,12 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
         const loop = entry.assignment.loop === true;
         const time = loop ? elapsed % duration : Math.min(elapsed, duration);
 
-        applyAuthoredAnimationAtTime(modelScene, entry.definition, time);
+        applyAuthoredAnimationAtTime(
+          modelScene,
+          entry.definition,
+          time,
+          entry.baseline,
+        );
         if (loop || elapsed < duration) keepPlaying = true;
       });
 

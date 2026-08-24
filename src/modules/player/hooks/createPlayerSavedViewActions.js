@@ -136,6 +136,7 @@ export function createPlayerSavedViewActions({
     { fallbackObject = null } = {},
   ) => {
     if (!visualState || !modelScene) {
+      if (modelScene) makePlayerTargetsXray([])
       setBlinkSelectionEnabled?.(false)
       setBlinkRenderGroups?.([])
       return {
@@ -151,6 +152,14 @@ export function createPlayerSavedViewActions({
       visualState.pullApart,
       pullApartTarget,
     )
+
+    const savedObjectTransforms = Array.isArray(visualState?.transforms?.objects)
+      ? visualState.transforms.objects
+      : Array.isArray(visualState?.objectTransforms)
+        ? visualState.objectTransforms
+        : []
+    const transformedObjectCount =
+      playerFreePlay.applySavedObjectTransforms?.(savedObjectTransforms) || 0
 
     const hiddenCount = applyHiddenObjects(visualState)
     const savedSelectedObject =
@@ -217,6 +226,14 @@ export function createPlayerSavedViewActions({
       }
 
       activeSelection = activeXrayTarget
+    } else {
+      // A saved visual state is authoritative. If the new material/camera view
+      // explicitly has X-Ray disabled (or has no valid X-Ray targets), restore
+      // the normal render mode instead of leaving the previous material's
+      // generated X-Ray material attached to scene meshes. The X-Ray action
+      // already treats an empty target list as a reset, so this stays inside
+      // the existing Player -> X-Ray action -> Engine/model-material flow.
+      makePlayerTargetsXray([])
     }
 
     if (savedHighlightObjects.length > 0) {
@@ -254,8 +271,14 @@ export function createPlayerSavedViewActions({
     )
       ? activeSelection
       : resolvedCuts[0]?.targetObject || null
+    const savedCutEnabled =
+      typeof visualState.cutEnabled === "boolean"
+        ? visualState.cutEnabled
+        : resolvedCuts.some((entry) => entry?.cutState?.enabled)
     const cutsApplied = Boolean(
-      playerFreePlay.applySavedCuts?.(resolvedCuts, preferredCutTarget),
+      playerFreePlay.applySavedCuts?.(resolvedCuts, preferredCutTarget, {
+        enabled: savedCutEnabled,
+      }),
     )
 
     modelScene.updateMatrixWorld?.(true)
@@ -272,6 +295,7 @@ export function createPlayerSavedViewActions({
       xrayMode,
       xrayTargets,
       hiddenCount,
+      transformedObjectCount,
       cutsApplied,
     }
   }
