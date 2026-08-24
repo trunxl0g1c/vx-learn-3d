@@ -1,29 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAnimationAuthoringManagerAdapter } from "../managers/AnimationAuthoringManager";
 import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
-
-function wouldCreateRigParentCycle(tracks, childTrackId, parentTrackId) {
-  if (!parentTrackId) return false;
-  if (childTrackId === parentTrackId) return true;
-  const byId = new Map((tracks || []).map((track) => [track.id, track]));
-  const visited = new Set([childTrackId]);
-  let currentId = parentTrackId;
-
-  while (currentId) {
-    if (visited.has(currentId)) return true;
-    visited.add(currentId);
-    currentId = byId.get(currentId)?.rig?.parentTrackId || null;
-  }
-
-  return false;
-}
-
-function getReferenceIdentity(reference) {
-  if (!reference) return "";
-  if (reference.uuid) return `uuid:${reference.uuid}`;
-  if (Array.isArray(reference.path)) return `path:${reference.path.join(".")}`;
-  return `name:${String(reference.name || "").trim()}`;
-}
+import {
+  getAnimationReferenceIdentity,
+  normalizeAnimationRigPoint,
+  wouldCreateRigParentCycle,
+} from "./animationAuthoringUtils";
 
 export function useAnimationAuthoring({
   material,
@@ -47,6 +29,7 @@ export function useAnimationAuthoring({
   const [transformMode, setTransformMode] = useState("translate");
   const [isAuthoringActive, setIsAuthoringActive] = useState(false);
   const [isPivotEditing, setIsPivotEditing] = useState(false);
+  const [rigPointEditTarget, setRigPointEditTarget] = useState("pivot");
   const [pivotSnapMode, setPivotSnapMode] = useState("surface");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -127,11 +110,57 @@ export function useAnimationAuthoring({
         : null,
     [activeTrack, manager, modelScene],
   );
+  const activeMorphTargetObject = useMemo(
+    () =>
+      activeTrack?.rig?.type === "morph" &&
+      activeTrack?.rig?.morph?.targetObject &&
+      modelScene
+        ? manager.findObject(modelScene, activeTrack.rig.morph.targetObject)
+        : null,
+    [activeTrack, manager, modelScene],
+  );
+  const activeMorphCompatibility = useMemo(
+    () =>
+      activeTrack?.rig?.type === "morph"
+        ? manager.getMorphCompatibility(
+            activeTrackObject,
+            activeMorphTargetObject,
+          )
+        : null,
+    [
+      activeMorphTargetObject,
+      activeTrack?.rig?.type,
+      activeTrackObject,
+      manager,
+    ],
+  );
+
+  const activeRigPointObject = useMemo(() => {
+    if (!modelScene || !activeTrack) return null;
+    if (rigPointEditTarget === "baseAnchor") {
+      return manager.findObject(modelScene, activeTrack.rig?.hydraulic?.baseObject);
+    }
+    if (rigPointEditTarget === "targetAnchor") {
+      return manager.findObject(modelScene, activeTrack.rig?.hydraulic?.targetObject);
+    }
+    return activeTrackObject;
+  }, [activeTrack, activeTrackObject, manager, modelScene, rigPointEditTarget]);
+
+  const activeRigPointValue = useMemo(() => {
+    if (rigPointEditTarget === "baseAnchor") {
+      return activeTrack?.rig?.hydraulic?.baseAnchor || [0, 0, 0];
+    }
+    if (rigPointEditTarget === "targetAnchor") {
+      return activeTrack?.rig?.hydraulic?.targetAnchor || [0, 0, 0];
+    }
+    return activeTrack?.rig?.pivot || [0, 0, 0];
+  }, [activeTrack, rigPointEditTarget]);
 
   useEffect(() => {
-    if (activeTrack?.rig?.type === "revolute" && activeTrackObject) return;
+    if (!isPivotEditing) return;
+    if (activeRigPointObject) return;
     setIsPivotEditing(false);
-  }, [activeTrack?.rig?.type, activeTrackObject]);
+  }, [activeRigPointObject, isPivotEditing]);
 
   useEffect(() => {
     const keyframes = activeTrack?.keyframes || [];
@@ -322,19 +351,19 @@ export function useAnimationAuthoring({
     if (!activeAnimationId || !selectedObject || !modelScene) return false;
     const track = manager.createTrack(selectedObject, modelScene);
     if (!track?.object) return false;
-    const identity = getReferenceIdentity(track.object);
+    const identity = getAnimationReferenceIdentity(track.object);
     if (
       activeAnimation?.tracks?.some(
-        (item) => getReferenceIdentity(item.object) === identity,
+        (item) => getAnimationReferenceIdentity(item.object) === identity,
       )
     ) {
       return false;
     }
 
     const object = manager.findObject(modelScene, track.object);
-    const transform = manager.createTransform(object);
-    if (object && transform) {
-      baselineRef.current.push({ object, transform });
+    const baselineEntry = manager.captureTrackBaseline(object, track.id);
+    if (baselineEntry) {
+      baselineRef.current.push(baselineEntry);
     }
 
     updateAnimation(activeAnimationId, (animation) => ({
@@ -437,6 +466,10 @@ export function useAnimationAuthoring({
             ...(activeTrack.rig?.hydraulic || {}),
             ...(resolved?.hydraulic || {}),
           },
+          morph: {
+            ...(activeTrack.rig?.morph || {}),
+            ...(resolved?.morph || {}),
+          },
           baseTransform,
         },
         baseTransform,
@@ -452,7 +485,19 @@ export function useAnimationAuthoring({
             track.id === nextTrack.id ? nextTrack : track,
           ),
         };
-        manager.applyAtTime(modelScene, previewAnimation, currentTime);
+        if (activeTrack.rig?.type === "morph" || nextRig.type === "morph") {
+          restoreBaseline();
+          baselineRef.current = manager.captureBaseline(
+            modelScene,
+            previewAnimation,
+          );
+        }
+        manager.applyAtTime(
+          modelScene,
+          previewAnimation,
+          currentTime,
+          baselineRef.current,
+        );
       }
 
       return true;
@@ -464,6 +509,7 @@ export function useAnimationAuthoring({
       currentTime,
       manager,
       modelScene,
+      restoreBaseline,
       updateActiveTrack,
     ],
   );
@@ -488,8 +534,9 @@ export function useAnimationAuthoring({
   const setActiveTrackRigType = useCallback(
     (type) => {
       setIsPivotEditing(false);
+      setRigPointEditTarget("pivot");
       if (type === "revolute") setTransformMode("rotate");
-      if (type === "linear") setTransformMode("translate");
+      if (type === "linear" || type === "morph") setTransformMode("translate");
       return updateActiveTrackRig({ type });
     },
     [updateActiveTrackRig],
@@ -505,15 +552,21 @@ export function useAnimationAuthoring({
     );
     if (baselineIndex >= 0) {
       baselineRef.current[baselineIndex] = {
+        ...baselineRef.current[baselineIndex],
+        trackId: activeTrack?.id || baselineRef.current[baselineIndex]?.trackId || null,
         object: activeTrackObject,
         transform: baseTransform,
       };
     } else {
-      baselineRef.current.push({ object: activeTrackObject, transform: baseTransform });
+      const baselineEntry = manager.captureTrackBaseline(
+        activeTrackObject,
+        activeTrack?.id || null,
+      );
+      if (baselineEntry) baselineRef.current.push(baselineEntry);
     }
 
     return updateActiveTrackRig({ baseTransform });
-  }, [activeTrackObject, manager, updateActiveTrackRig]);
+  }, [activeTrack?.id, activeTrackObject, manager, updateActiveTrackRig]);
 
   const assignRigPivotFromSelectedObject = useCallback(() => {
     if (!activeTrackObject || !selectedObject) return false;
@@ -522,41 +575,89 @@ export function useAnimationAuthoring({
     return updateActiveTrackRig({ pivot });
   }, [activeTrackObject, manager, selectedObject, updateActiveTrackRig]);
 
+  const setActiveTrackRigPoint = useCallback(
+    (point) => {
+      const normalized = normalizeAnimationRigPoint(point);
+      if (!normalized) return false;
+
+      if (rigPointEditTarget === "baseAnchor" || rigPointEditTarget === "targetAnchor") {
+        return updateActiveTrackRig((rig) => ({
+          hydraulic: {
+            ...(rig?.hydraulic || {}),
+            [rigPointEditTarget]: normalized,
+          },
+        }));
+      }
+
+      return updateActiveTrackRig({ pivot: normalized });
+    },
+    [rigPointEditTarget, updateActiveTrackRig],
+  );
+
   const setActiveTrackRigPivot = useCallback(
     (pivot) => {
-      if (!Array.isArray(pivot) || pivot.length < 3) return false;
-      return updateActiveTrackRig({
-        pivot: [
-          Number(pivot[0]) || 0,
-          Number(pivot[1]) || 0,
-          Number(pivot[2]) || 0,
-        ],
-      });
+      const normalized = normalizeAnimationRigPoint(pivot);
+      return normalized ? updateActiveTrackRig({ pivot: normalized }) : false;
     },
     [updateActiveTrackRig],
   );
 
   const snapActiveTrackRigPivotFromHit = useCallback(
     (hit) => {
-      if (!activeTrackObject || !hit?.point) return false;
-      const pivot = manager.createLocalPivotFromHit(
-        activeTrackObject,
+      if (!activeRigPointObject || !hit?.point) return false;
+      const point = manager.createLocalPivotFromHit(
+        activeRigPointObject,
         hit,
         pivotSnapMode,
       );
-      if (!pivot) return false;
-      return updateActiveTrackRig({ pivot });
+      return point ? setActiveTrackRigPoint(point) : false;
     },
-    [activeTrackObject, manager, pivotSnapMode, updateActiveTrackRig],
+    [
+      activeRigPointObject,
+      manager,
+      pivotSnapMode,
+      setActiveTrackRigPoint,
+    ],
   );
 
   const togglePivotEditing = useCallback((forceValue) => {
-    if (activeTrack?.rig?.type !== "revolute" || !activeTrackObject) return false;
+    if (!["free", "revolute", "linear"].includes(activeTrack?.rig?.type)) {
+      return false;
+    }
+    if (!activeTrackObject) return false;
     const nextValue =
       typeof forceValue === "boolean" ? forceValue : !isPivotEditing;
+    setRigPointEditTarget("pivot");
     setIsPivotEditing(nextValue);
     return nextValue;
   }, [activeTrack?.rig?.type, activeTrackObject, isPivotEditing]);
+
+  const toggleHydraulicAnchorEditing = useCallback(
+    (field) => {
+      if (activeTrack?.rig?.type !== "hydraulic") return false;
+      const target = field === "targetAnchor" ? "targetAnchor" : "baseAnchor";
+      const reference =
+        target === "targetAnchor"
+          ? activeTrack.rig?.hydraulic?.targetObject
+          : activeTrack.rig?.hydraulic?.baseObject;
+      const anchorObject = reference && modelScene
+        ? manager.findObject(modelScene, reference)
+        : null;
+      if (!anchorObject) return false;
+      const nextValue =
+        rigPointEditTarget === target && isPivotEditing ? false : true;
+      setRigPointEditTarget(target);
+      setIsPivotEditing(nextValue);
+      return nextValue;
+    },
+    [
+      activeTrack,
+      isPivotEditing,
+      manager,
+      modelScene,
+      rigPointEditTarget,
+    ],
+  );
 
   const assignRigReferenceFromSelectedObject = useCallback(
     (field) => {
@@ -575,6 +676,33 @@ export function useAnimationAuthoring({
     [manager, modelScene, selectedObject, updateActiveTrackRig],
   );
 
+  const assignMorphTargetFromSelectedObject = useCallback(() => {
+    if (activeTrack?.rig?.type !== "morph" || !selectedObject || !modelScene) {
+      return false;
+    }
+    const reference = manager.createReference(selectedObject, modelScene);
+    if (
+      !reference ||
+      getAnimationReferenceIdentity(reference) ===
+        getAnimationReferenceIdentity(activeTrack.object)
+    ) {
+      return false;
+    }
+    return updateActiveTrackRig((rig) => ({
+      morph: {
+        ...(rig?.morph || {}),
+        targetObject: reference,
+      },
+    }));
+  }, [
+    activeTrack?.object,
+    activeTrack?.rig?.type,
+    manager,
+    modelScene,
+    selectedObject,
+    updateActiveTrackRig,
+  ]);
+
   const previewActiveTrackTransform = useCallback(() => {
     if (!activeAnimation || !activeTrack || !activeTrackObject || !modelScene) {
       return false;
@@ -583,12 +711,17 @@ export function useAnimationAuthoring({
     ensureBaseline();
     const transform = manager.createTransform(activeTrackObject);
     if (!transform) return false;
+    const currentState = manager.evaluateTrackState(activeTrack, currentTime);
+    const currentOpacity = currentState?.opacity ?? 1;
+    const currentMorphProgress = currentState?.morphProgress ?? 0;
     const previewTrack = manager.upsertKeyframe(
       activeTrack,
       currentTime,
       transform,
       activeAnimation.duration,
       activeAnimation.settings?.defaultEasing,
+      currentOpacity,
+      currentMorphProgress,
     );
     const previewAnimation = {
       ...activeAnimation,
@@ -597,7 +730,7 @@ export function useAnimationAuthoring({
       ),
     };
 
-    return manager.applyAtTime(modelScene, previewAnimation, currentTime);
+    return manager.applyAtTime(modelScene, previewAnimation, currentTime, baselineRef.current);
   }, [
     activeAnimation,
     activeTrack,
@@ -613,12 +746,17 @@ export function useAnimationAuthoring({
     const transform = manager.createTransform(activeTrackObject);
     if (!transform) return false;
 
+    const currentState = manager.evaluateTrackState(activeTrack, currentTime);
+    const currentOpacity = currentState?.opacity ?? 1;
+    const currentMorphProgress = currentState?.morphProgress ?? 0;
     const nextTrack = manager.upsertKeyframe(
       activeTrack,
       currentTime,
       transform,
       activeAnimation.duration,
       activeAnimation.settings?.defaultEasing,
+      currentOpacity,
+      currentMorphProgress,
     );
     const savedKeyframe = nextTrack.keyframes.find(
       (keyframe) => Math.abs(keyframe.time - currentTime) < 0.0001,
@@ -632,7 +770,7 @@ export function useAnimationAuthoring({
     };
 
     updateActiveTrack(nextTrack);
-    manager.applyAtTime(modelScene, previewAnimation, currentTime);
+    manager.applyAtTime(modelScene, previewAnimation, currentTime, baselineRef.current);
     setSelectedKeyframeId(savedKeyframe?.id || null);
     return true;
   }, [
@@ -657,15 +795,43 @@ export function useAnimationAuthoring({
 
   const updateKeyframe = useCallback(
     (keyframeId, patch) => {
-      if (!keyframeId) return false;
-      return updateActiveTrack((track) => ({
-        ...track,
-        keyframes: (track.keyframes || []).map((keyframe) =>
+      if (!keyframeId || !activeTrack) return false;
+      const nextTrack = {
+        ...activeTrack,
+        opacityAnimated:
+          patch && Object.prototype.hasOwnProperty.call(patch, "opacity")
+            ? true
+            : activeTrack.opacityAnimated === true,
+        keyframes: (activeTrack.keyframes || []).map((keyframe) =>
           keyframe.id === keyframeId ? { ...keyframe, ...patch } : keyframe,
         ),
-      }));
+      };
+      updateActiveTrack(nextTrack);
+
+      if (activeAnimation && modelScene) {
+        const previewAnimation = {
+          ...activeAnimation,
+          tracks: (activeAnimation.tracks || []).map((track) =>
+            track.id === nextTrack.id ? nextTrack : track,
+          ),
+        };
+        manager.applyAtTime(
+          modelScene,
+          previewAnimation,
+          currentTime,
+          baselineRef.current,
+        );
+      }
+      return true;
     },
-    [updateActiveTrack],
+    [
+      activeAnimation,
+      activeTrack,
+      currentTime,
+      manager,
+      modelScene,
+      updateActiveTrack,
+    ],
   );
 
   const scrubTo = useCallback(
@@ -680,7 +846,7 @@ export function useAnimationAuthoring({
       setIsPaused(true);
       setCurrentTime(nextTime);
       previewTimeRef.current = nextTime;
-      return manager.applyAtTime(modelScene, activeAnimation, nextTime);
+      return manager.applyAtTime(modelScene, activeAnimation, nextTime, baselineRef.current);
     },
     [activeAnimation, ensureBaseline, manager, modelScene],
   );
@@ -737,7 +903,7 @@ export function useAnimationAuthoring({
       const nextTime = loop ? elapsed % duration : Math.min(elapsed, duration);
       previewTimeRef.current = nextTime;
       setCurrentTime(nextTime);
-      manager.applyAtTime(modelScene, activeAnimation, nextTime);
+      manager.applyAtTime(modelScene, activeAnimation, nextTime, baselineRef.current);
 
       if (!loop && elapsed >= duration) {
         setIsPreviewing(false);
@@ -777,12 +943,17 @@ export function useAnimationAuthoring({
     activeTrackId,
     activeTrack,
     activeTrackObject,
+    activeMorphTargetObject,
+    activeMorphCompatibility,
     selectedKeyframeId,
     selectedKeyframe,
     currentTime,
     transformMode,
     isAuthoringActive,
     isPivotEditing,
+    rigPointEditTarget,
+    activeRigPointObject,
+    activeRigPointValue,
     pivotSnapMode,
     isPreviewing,
     isPaused,
@@ -807,9 +978,12 @@ export function useAnimationAuthoring({
     captureActiveTrackRigBase,
     assignRigPivotFromSelectedObject,
     setActiveTrackRigPivot,
+    setActiveTrackRigPoint,
     snapActiveTrackRigPivotFromHit,
     togglePivotEditing,
+    toggleHydraulicAnchorEditing,
     assignRigReferenceFromSelectedObject,
+    assignMorphTargetFromSelectedObject,
     previewActiveTrackTransform,
     addOrUpdateKeyframe,
     deleteKeyframe,

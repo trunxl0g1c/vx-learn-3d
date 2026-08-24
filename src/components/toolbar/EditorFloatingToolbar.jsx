@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Eye,
   MousePointer2,
   RotateCcw,
   Scissors,
@@ -65,9 +64,10 @@ export default function EditorFloatingToolbar({
   selectedObjectCount = 0,
   resetXray,
   pullApart,
-  resetAllTransforms,
+  resetAllObjectState,
   soloSelectedObject,
   showAllObjects,
+  animationWorkspaceOpen = false,
 }) {
   const [blinkPresetMenuOpen, setBlinkPresetMenuOpen] = useState(false);
 
@@ -116,7 +116,10 @@ export default function EditorFloatingToolbar({
 
       <div
         onClick={(e) => e.stopPropagation()}
-        className="vx-editor-toolbar-dock pointer-events-none fixed left-0 right-0 z-[120] flex justify-center"
+        className={[
+          "vx-editor-toolbar-dock pointer-events-none absolute left-0 right-0 z-[120] flex justify-center",
+          animationWorkspaceOpen ? "vx-editor-toolbar-dock--animation-open" : "",
+        ].join(" ")}
       >
         <div className="vx-editor-toolbar-inner pointer-events-auto flex gap-2 rounded-2xl bg-[#182223B8] p-2">
           <ToolbarIconButton
@@ -130,10 +133,30 @@ export default function EditorFloatingToolbar({
 
           <div className="relative">
             {activeMenu === "objectActions" && (
-              <div className="absolute bottom-full left-1/2 mb-3 flex w-64 -translate-x-1/2 flex-col gap-2 rounded-xl border border-contrast-main/40 bg-[#182223F2] p-3 shadow-xl backdrop-blur-md">
+              <div className="absolute bottom-full left-1/2 mb-3 flex max-h-[70vh] w-64 -translate-x-1/2 flex-col gap-2 overflow-y-auto rounded-xl border border-contrast-main/40 bg-[#182223F2] p-3 shadow-xl backdrop-blur-md">
                 <div className="px-1 text-[11px] font-medium text-contrast-grayout">
                   {actionSelectionLabel}
                 </div>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedObjectCount === 0}
+                  className="w-full border-contrast-main! text-xs"
+                  onClick={pullApart}
+                >
+                  Exploded View
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={selectedObjectCount === 0}
+                  className="w-full border-contrast-main! text-xs"
+                  onClick={soloSelectedObject}
+                >
+                  Solo Selected Object
+                </Button>
 
                 <Button
                   size="sm"
@@ -223,7 +246,7 @@ export default function EditorFloatingToolbar({
 
             <ToolbarIconButton
               label="Action to Object"
-              description="Apply Hide, X-Ray, Highlight, or Blink to the active selection."
+              description="Apply Exploded View, Solo, Hide, X-Ray, Highlight, or Blink to the active selection."
               active={activeMenu === "objectActions"}
               showTooltip={activeMenu !== "objectActions"}
               onClick={toggleObjectActions}
@@ -246,22 +269,13 @@ export default function EditorFloatingToolbar({
           </ToolbarIconButton>
 
           <div className="relative">
-            {activeMenu === "view" && (
-              <div className="absolute bottom-full left-1/2 mb-3 flex w-44 -translate-x-1/2 flex-col gap-2 rounded-xl border border-contrast-main/40 bg-[#182223F2] p-3 shadow-xl backdrop-blur-md">
+            {activeMenu === "reset" && (
+              <div className="absolute bottom-full left-1/2 mb-3 flex w-48 -translate-x-1/2 flex-col gap-2 rounded-xl border border-contrast-main/40 bg-[#182223F2] p-3 shadow-xl backdrop-blur-md">
                 <Button
                   size="sm"
                   variant="outline"
                   className="border-contrast-main! text-sm"
-                  onClick={pullApart}
-                >
-                  Pull Apart
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-contrast-main! text-sm"
-                  onClick={resetAllTransforms}
+                  onClick={resetAllObjectState}
                 >
                   Reset All
                 </Button>
@@ -270,9 +284,9 @@ export default function EditorFloatingToolbar({
                   size="sm"
                   variant="outline"
                   className="border-contrast-main! text-sm"
-                  onClick={soloSelectedObject}
+                  onClick={resetXray}
                 >
-                  Solo
+                  Reset X-Ray
                 </Button>
 
                 <Button
@@ -287,23 +301,15 @@ export default function EditorFloatingToolbar({
             )}
 
             <ToolbarIconButton
-              label="View"
-              description="Open view and transform controls."
-              active={activeMenu === "view"}
-              showTooltip={activeMenu !== "view"}
-              onClick={() => toggleMenu("view")}
+              label="Reset"
+              description="Reset object position/state, X-Ray, or hidden objects."
+              active={activeMenu === "reset"}
+              showTooltip={activeMenu !== "reset"}
+              onClick={() => toggleMenu("reset")}
             >
-              <Eye size={18} strokeWidth={1.9} />
+              <RotateCcw size={18} strokeWidth={1.9} />
             </ToolbarIconButton>
           </div>
-
-          <ToolbarIconButton
-            label="Reset X-Ray"
-            description="Remove the current X-Ray assignment from the model."
-            onClick={resetXray}
-          >
-            <RotateCcw size={18} strokeWidth={1.9} />
-          </ToolbarIconButton>
         </div>
       </div>
     </>

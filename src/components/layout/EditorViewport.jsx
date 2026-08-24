@@ -7,6 +7,7 @@ import QuizWorkspaceDock from "../quiz/QuizWorkspaceDock";
 import XRWorkspaceDock from "../xr/XRWorkspaceDock";
 import SelectedObjectBadge from "./SelectedObjectBadge";
 import EditorSceneViewGizmo from "../viewer/EditorSceneViewGizmo";
+import TransformModeToolbar from "../viewer/TransformModeToolbar";
 import { viewportStyle } from "../../constants/viewerStyles";
 
 export default function EditorViewport({ controller }) {
@@ -27,6 +28,12 @@ export default function EditorViewport({ controller }) {
     shaderOutlineObjects,
     shaderOutlineStyle,
     modelUrl,
+    additionalModels,
+    modelLicenseModels,
+    handleUpdateModelLicense,
+    handleReadModelLicenseMetadata,
+    handleAddAdditionalGlbFiles,
+    handleRemoveAdditionalGlb,
     handleModelLoaded,
     markerMode,
     setMarkerMode,
@@ -62,6 +69,8 @@ export default function EditorViewport({ controller }) {
     selectObjectFromList,
     isTransforming,
     setIsTransforming,
+    objectTransformMode,
+    setObjectTransformMode,
     orbitEnabled,
     setOrbitEnabled,
     setSelectedObject,
@@ -87,7 +96,7 @@ export default function EditorViewport({ controller }) {
     highlightSelectedObjectsAgainstXray,
     resetXray,
     pullApart,
-    resetAllTransforms,
+    resetAllObjectState,
     soloSelectedObject,
     showAllObjects,
 
@@ -165,6 +174,9 @@ export default function EditorViewport({ controller }) {
       quizAuthoring?.isAuthoringActive ||
       xrAuthoring?.isAuthoringActive,
   );
+  const floatingToolbarVisible = Boolean(
+    !quizAuthoring?.isAuthoringActive && !xrAuthoring?.isAuthoringActive,
+  );
   const rightPanelVisible =
     !workspaceAuthoringActive &&
     Boolean(
@@ -177,6 +189,42 @@ export default function EditorViewport({ controller }) {
       ? "orthographic"
       : "perspective";
 
+  const proceduralGizmoActive = Boolean(
+    procedural?.isAuthoringActive && procedural?.activeAnimatedObject,
+  );
+  const animationGizmoActive = Boolean(
+    animationAuthoring?.isAuthoringActive &&
+      animationAuthoring?.activeTrackObject &&
+      animationAuthoring?.activeTrack?.rig?.type !== "hydraulic" &&
+      animationAuthoring?.isPivotEditing !== true,
+  );
+  const regularGizmoActive = Boolean(
+    selectedObject && !flow?.isAuthoringActive && !animationAuthoring?.isPivotEditing,
+  );
+  const transformToolbarVisible =
+    proceduralGizmoActive || animationGizmoActive || regularGizmoActive;
+  const activeGizmoMode = proceduralGizmoActive
+    ? procedural?.transformMode || "translate"
+    : animationGizmoActive
+      ? animationAuthoring?.transformMode || "translate"
+      : objectTransformMode || "translate";
+  const setActiveGizmoMode = (mode) => {
+    if (proceduralGizmoActive) {
+      procedural?.setTransformMode?.(mode);
+      return;
+    }
+
+    if (animationGizmoActive) {
+      animationAuthoring?.setTransformMode?.(mode);
+      return;
+    }
+
+    setObjectTransformMode?.(mode);
+  };
+  const handleViewportObjectSelect = (object) => {
+    selectObjectFromMesh?.(object);
+    if (animationAuthoring?.isAuthoringActive) setActiveSidebar("hierarchy");
+  };
 
   return (
     <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
@@ -189,7 +237,16 @@ export default function EditorViewport({ controller }) {
         rightPanelVisible={rightPanelVisible}
       />
 
-      <SelectedObjectBadge selectedObjectName={selectedObjectName} />
+      <SelectedObjectBadge
+        selectedObjectName={selectedObjectName}
+        transformToolbarVisible={transformToolbarVisible}
+      />
+
+      {transformToolbarVisible && (
+        <div className="vx-editor-transform-toolbar-dock pointer-events-none absolute left-1/2 top-16 z-[100] max-w-[calc(100vw-24px)] -translate-x-1/2">
+          <TransformModeToolbar mode={activeGizmoMode} onChange={setActiveGizmoMode} />
+        </div>
+      )}
 
       <div
         className={
@@ -215,11 +272,13 @@ export default function EditorViewport({ controller }) {
         shaderOutlineObjects={shaderOutlineObjects}
         shaderOutlineStyle={shaderOutlineStyle}
         modelUrl={modelUrl}
+        additionalModels={additionalModels}
+        additionalModelsEnabled={material?.proToolsSettings?.addMoreGlb === true}
         // addMarker={addMarker}
         addMarker={handleMarkerPointPicked}
         handleModelLoaded={handleModelLoaded}
         markerMode={markerMode}
-        selectObjectFromMesh={selectObjectFromMesh}
+        selectObjectFromMesh={handleViewportObjectSelect}
         focusObjectFromMesh={focusObjectFromMesh}
         selectedAnimations={selectedAnimations}
         animationCommand={animationCommand}
@@ -233,6 +292,7 @@ export default function EditorViewport({ controller }) {
         isAutoRotating={isAutoRotating}
         setIsAutoRotating={setIsAutoRotating}
         selectedObject={selectedObject}
+        objectTransformMode={objectTransformMode}
         isTransforming={isTransforming}
         setIsTransforming={setIsTransforming}
         orbitEnabled={orbitEnabled}
@@ -294,6 +354,16 @@ export default function EditorViewport({ controller }) {
             ? animationAuthoring?.isPivotEditing === true
             : false
         }
+        animationPivotObject={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.activeRigPointObject || null
+            : null
+        }
+        animationPivotValue={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.activeRigPointValue || [0, 0, 0]
+            : [0, 0, 0]
+        }
         onAnimationTransformChange={
           animationAuthoring?.isAuthoringActive
             ? animationAuthoring?.previewActiveTrackTransform
@@ -301,7 +371,7 @@ export default function EditorViewport({ controller }) {
         }
         onAnimationPivotChange={
           animationAuthoring?.isAuthoringActive
-            ? animationAuthoring?.setActiveTrackRigPivot
+            ? animationAuthoring?.setActiveTrackRigPoint
             : null
         }
         onAnimationPivotPick={
@@ -313,7 +383,7 @@ export default function EditorViewport({ controller }) {
 
       </div>
 
-      {!workspaceAuthoringActive && (
+      {floatingToolbarVisible && (
         <EditorFloatingToolbar
         activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
@@ -342,9 +412,10 @@ export default function EditorViewport({ controller }) {
         }
         resetXray={resetXray}
         pullApart={pullApart}
-        resetAllTransforms={resetAllTransforms}
+        resetAllObjectState={resetAllObjectState}
         soloSelectedObject={soloSelectedObject}
         showAllObjects={showAllObjects}
+        animationWorkspaceOpen={animationAuthoring?.isAuthoringActive === true}
         />
       )}
 
@@ -404,6 +475,8 @@ export default function EditorViewport({ controller }) {
         material={material}
         setMaterial={setMaterial}
         saveDefaultPlayerCameraViewAndState={saveDefaultPlayerCameraViewAndState}
+        cameraProjectionMode={activeCameraProjectionMode}
+        setCameraProjectionMode={setEditorCameraProjectionMode}
         selectedObjectName={selectedObjectName}
         applyShaderMode={applyShaderMode}
         shaderMode={shaderMode}
@@ -451,6 +524,12 @@ export default function EditorViewport({ controller }) {
         quizAuthoring={quizAuthoring}
         xrAuthoring={xrAuthoring}
         slideAuthoring={slideAuthoring}
+        additionalModels={additionalModels}
+        modelLicenseModels={modelLicenseModels}
+        onUpdateModelLicense={handleUpdateModelLicense}
+        onReadModelLicenseMetadata={handleReadModelLicenseMetadata}
+        onAddAdditionalGlbFiles={handleAddAdditionalGlbFiles}
+        onRemoveAdditionalGlb={handleRemoveAdditionalGlb}
       />
     </div>
   );

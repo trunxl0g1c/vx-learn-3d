@@ -12,6 +12,25 @@ import {
 } from "../engine/marker";
 
 const MARKER_SIZE = 24;
+const MARKER_TEXT_MAX_LENGTH = 50;
+const MIN_LABEL_WIDTH = 96;
+const MAX_LABEL_WIDTH = 360;
+
+function clampLabelWidth(value) {
+  const width = Number(value);
+  if (!Number.isFinite(width)) return MIN_LABEL_WIDTH;
+  return Math.min(MAX_LABEL_WIDTH, Math.max(MIN_LABEL_WIDTH, Math.round(width)));
+}
+
+function getDefaultLabelWidth(marker, label) {
+  if (Number.isFinite(Number(marker?.labelWidth))) {
+    return clampLabelWidth(marker.labelWidth);
+  }
+
+  return clampLabelWidth(
+    Math.min(240, Math.max(96, String(label || "").length * 7.5 + 28)),
+  );
+}
 
 function Marker({
   marker,
@@ -25,11 +44,20 @@ function Marker({
   const htmlRootRef = useRef(null);
   const legacyAttachmentLocalRef = useRef(null);
   const dragRef = useRef(null);
+  const resizeRef = useRef(null);
+  const editInputRef = useRef(null);
+  const skipNextBlurRef = useRef(false);
   const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editText, setEditText] = useState("");
   const [labelOffset, setLabelOffset] = useState(() =>
     normalizeMarkerLabelOffset(marker),
   );
   const label = marker?.text || marker?.label || "Marker";
+  const [labelWidth, setLabelWidth] = useState(() =>
+    getDefaultLabelWidth(marker, label),
+  );
   const legacyPosition = useMemo(
     () => new THREE.Vector3(...getMarkerLegacyPosition(marker)),
     [marker?.position],
@@ -48,6 +76,22 @@ function Marker({
     if (dragging) return;
     setLabelOffset(normalizeMarkerLabelOffset(marker));
   }, [dragging, marker?.labelOffset]);
+
+  useEffect(() => {
+    if (resizing) return;
+    setLabelWidth(getDefaultLabelWidth(marker, label));
+  }, [label, marker?.labelWidth, resizing]);
+
+  useEffect(() => {
+    if (editing) return;
+    setEditText(label);
+  }, [editing, label]);
+
+  useEffect(() => {
+    if (!editing) return;
+    editInputRef.current?.focus?.();
+    editInputRef.current?.select?.();
+  }, [editing]);
 
   useEffect(() => {
     legacyAttachmentLocalRef.current = null;
@@ -100,19 +144,49 @@ function Marker({
 
   const connector = createMarkerConnector(labelOffset);
 
+  const stopViewportInteraction = (active) => {
+    onDraggingChange?.(active);
+  };
+
+  const beginEditing = () => {
+    if (!editable || !marker?.id) return;
+    skipNextBlurRef.current = false;
+    setEditText(label);
+    setEditing(true);
+  };
+
+  const saveEditedText = () => {
+    if (!editing || skipNextBlurRef.current) {
+      skipNextBlurRef.current = false;
+      return;
+    }
+    const nextText =
+      String(editText || "").trim().slice(0, MARKER_TEXT_MAX_LENGTH) ||
+      "Marker";
+    setEditing(false);
+    setEditText(nextText);
+    if (nextText !== label) {
+      onUpdateMarker?.(marker?.id, { text: nextText });
+    }
+  };
+
+  const cancelEditing = () => {
+    skipNextBlurRef.current = true;
+    setEditing(false);
+    setEditText(label);
+  };
+
   const finishDrag = (event, nextOffset = labelOffset) => {
     const activeDrag = dragRef.current;
-    if (!activeDrag) return;
+    if (!activeDrag) return false;
 
-    if (
-      event?.currentTarget?.hasPointerCapture?.(activeDrag.pointerId)
-    ) {
+    if (event?.currentTarget?.hasPointerCapture?.(activeDrag.pointerId)) {
       event.currentTarget.releasePointerCapture(activeDrag.pointerId);
     }
 
     dragRef.current = null;
     setDragging(false);
-    onDraggingChange?.(false);
+    stopViewportInteraction(false);
 
     const finalOffset = activeDrag.currentOffset || nextOffset;
     const normalizedOffset = [
@@ -120,14 +194,18 @@ function Marker({
       Math.round(Number(finalOffset[1]) * 10) / 10,
     ];
 
-    onUpdateMarker?.(marker?.id, {
-      labelOffset: normalizedOffset,
-      connector: createMarkerConnector(normalizedOffset),
-    });
+    if (activeDrag.moved) {
+      onUpdateMarker?.(marker?.id, {
+        labelOffset: normalizedOffset,
+        connector: createMarkerConnector(normalizedOffset),
+      });
+    }
+
+    return activeDrag.moved === true;
   };
 
   const handlePointerDown = (event) => {
-    if (!editable || !marker?.id) return;
+    if (!editable || !marker?.id || editing || resizing) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -138,10 +216,11 @@ function Marker({
       clientX: event.clientX,
       clientY: event.clientY,
       labelOffset: [...labelOffset],
+      moved: false,
     };
 
     setDragging(true);
-    onDraggingChange?.(true);
+    stopViewportInteraction(true);
   };
 
   const handlePointerMove = (event) => {
@@ -154,9 +233,15 @@ function Marker({
     event.preventDefault();
     event.stopPropagation();
 
+    const deltaX = event.clientX - activeDrag.clientX;
+    const deltaY = event.clientY - activeDrag.clientY;
+    if (Math.abs(deltaX) + Math.abs(deltaY) > 4) {
+      activeDrag.moved = true;
+    }
+
     const nextOffset = [
-      activeDrag.labelOffset[0] + event.clientX - activeDrag.clientX,
-      activeDrag.labelOffset[1] + event.clientY - activeDrag.clientY,
+      activeDrag.labelOffset[0] + deltaX,
+      activeDrag.labelOffset[1] + deltaY,
     ];
 
     activeDrag.currentOffset = nextOffset;
@@ -168,7 +253,59 @@ function Marker({
 
     event.preventDefault();
     event.stopPropagation();
-    finishDrag(event, dragRef.current?.currentOffset || labelOffset);
+    const moved = finishDrag(
+      event,
+      dragRef.current?.currentOffset || labelOffset,
+    );
+
+    if (!moved && editable) {
+      beginEditing();
+    }
+  };
+
+  const handleResizePointerDown = (event) => {
+    if (!editable || !marker?.id || editing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      startWidth: labelWidth,
+      currentWidth: labelWidth,
+    };
+    setResizing(true);
+    stopViewportInteraction(true);
+  };
+
+  const handleResizePointerMove = (event) => {
+    const activeResize = resizeRef.current;
+    if (!activeResize || activeResize.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const nextWidth = clampLabelWidth(
+      activeResize.startWidth + event.clientX - activeResize.clientX,
+    );
+    activeResize.currentWidth = nextWidth;
+    setLabelWidth(nextWidth);
+  };
+
+  const finishResize = (event) => {
+    const activeResize = resizeRef.current;
+    if (!activeResize) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (event?.currentTarget?.hasPointerCapture?.(activeResize.pointerId)) {
+      event.currentTarget.releasePointerCapture(activeResize.pointerId);
+    }
+    const finalWidth = clampLabelWidth(
+      activeResize.currentWidth ?? labelWidth,
+    );
+    resizeRef.current = null;
+    setResizing(false);
+    setLabelWidth(finalWidth);
+    stopViewportInteraction(false);
+    onUpdateMarker?.(marker?.id, { labelWidth: finalWidth });
   };
 
   return (
@@ -179,7 +316,7 @@ function Marker({
         zIndexRange={[40, 0]}
         style={{
           pointerEvents: editable ? "auto" : "none",
-          userSelect: "none",
+          userSelect: editing ? "text" : "none",
         }}
       >
         <div
@@ -208,9 +345,13 @@ function Marker({
           />
 
           <div
-            role={editable ? "button" : undefined}
-            tabIndex={editable ? 0 : undefined}
-            title={editable ? "Drag to reposition marker label" : label}
+            role={editable ? "group" : undefined}
+            tabIndex={editable && !editing ? 0 : undefined}
+            title={
+              editable
+                ? "Click to edit. Drag to move. Drag right edge to resize."
+                : label
+            }
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -221,31 +362,143 @@ function Marker({
               left: `${labelOffset[0]}px`,
               top: `${labelOffset[1]}px`,
               transform: "translate(-50%, -50%)",
-              minWidth: "max-content",
+              width: `${labelWidth}px`,
+              minHeight: "34px",
               padding: "7px 12px",
-              border: dragging
-                ? "1px solid rgba(103, 232, 249, 0.95)"
-                : "1px solid rgba(74, 78, 84, 0.9)",
+              border:
+                dragging || resizing || editing
+                  ? "1px solid rgba(103, 232, 249, 0.95)"
+                  : "1px solid rgba(74, 78, 84, 0.9)",
               borderRadius: "7px",
               background: "rgba(29, 30, 31, 0.96)",
-              boxShadow: dragging
-                ? "0 8px 24px rgba(14, 165, 216, 0.28)"
-                : "0 6px 18px rgba(0, 0, 0, 0.24)",
+              boxShadow:
+                dragging || resizing || editing
+                  ? "0 8px 24px rgba(14, 165, 216, 0.28)"
+                  : "0 6px 18px rgba(0, 0, 0, 0.24)",
               color: "#ffffff",
               fontSize: "13px",
               fontWeight: 600,
-              lineHeight: 1.2,
-              whiteSpace: "nowrap",
-              cursor: editable ? (dragging ? "grabbing" : "grab") : "default",
+              lineHeight: 1.3,
+              whiteSpace: "pre-wrap",
+              overflowWrap: "anywhere",
+              cursor: editable
+                ? dragging
+                  ? "grabbing"
+                  : editing
+                    ? "text"
+                    : "grab"
+                : "default",
               touchAction: "none",
               pointerEvents: editable ? "auto" : "none",
             }}
           >
-            {label}
+            {editing ? (
+              <textarea
+                ref={editInputRef}
+                value={editText}
+                maxLength={MARKER_TEXT_MAX_LENGTH}
+                rows={Math.max(1, Math.min(4, Math.ceil(editText.length / 22)))}
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerMove={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
+                onClick={(event) => event.stopPropagation()}
+                onChange={(event) => setEditText(event.target.value)}
+                onBlur={saveEditedText}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    cancelEditing();
+                  }
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    saveEditedText();
+                  }
+                }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  minHeight: "20px",
+                  resize: "none",
+                  overflow: "hidden",
+                  border: 0,
+                  outline: 0,
+                  padding: 0,
+                  margin: 0,
+                  background: "transparent",
+                  color: "inherit",
+                  font: "inherit",
+                  lineHeight: "inherit",
+                  whiteSpace: "pre-wrap",
+                  overflowWrap: "anywhere",
+                }}
+              />
+            ) : (
+              label
+            )}
+
+            {editable && !editing && (
+              <div
+                role="separator"
+                aria-label="Resize marker label"
+                title="Drag to change marker label width"
+                onPointerDown={handleResizePointerDown}
+                onPointerMove={handleResizePointerMove}
+                onPointerUp={finishResize}
+                onPointerCancel={finishResize}
+                onClick={(event) => event.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  right: "-5px",
+                  top: "4px",
+                  bottom: "4px",
+                  width: "10px",
+                  borderRadius: "5px",
+                  cursor: "ew-resize",
+                  touchAction: "none",
+                  pointerEvents: "auto",
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute",
+                    left: "4px",
+                    top: "20%",
+                    bottom: "20%",
+                    width: "2px",
+                    borderRadius: "999px",
+                    background: "rgba(103, 232, 249, 0.8)",
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div
-            aria-hidden="true"
+            role={editable ? "button" : undefined}
+            tabIndex={editable ? 0 : undefined}
+            aria-label={editable ? `Edit ${label}` : undefined}
+            title={editable ? "Click to edit marker text" : undefined}
+            onPointerDown={(event) => {
+              if (!editable) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onClick={(event) => {
+              if (!editable) return;
+              event.preventDefault();
+              event.stopPropagation();
+              beginEditing();
+            }}
+            onKeyDown={(event) => {
+              if (!editable || (event.key !== "Enter" && event.key !== " ")) {
+                return;
+              }
+              event.preventDefault();
+              event.stopPropagation();
+              beginEditing();
+            }}
             style={{
               position: "absolute",
               left: `${-MARKER_SIZE / 2}px`,
@@ -257,7 +510,8 @@ function Marker({
               borderRadius: "50%",
               background: "#ffffff",
               boxShadow: "0 2px 7px rgba(0, 0, 0, 0.34)",
-              pointerEvents: "none",
+              cursor: editable ? "text" : "default",
+              pointerEvents: editable ? "auto" : "none",
             }}
           />
         </div>

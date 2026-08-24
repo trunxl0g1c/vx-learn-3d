@@ -51,8 +51,8 @@ export default function ChapterCameraSection({
       </div>
 
       <p className="text-xs leading-5 text-contrast-grayout">
-        Setiap camera view menyimpan camera, highlight, blink, visibility,
-        X-Ray, Pull Apart, dan Cut Off sesuai kondisi viewport saat disimpan.
+        Setiap camera view menyimpan camera, transform object, highlight, blink,
+        visibility, X-Ray, Exploded View, dan Cut Off sesuai kondisi viewport saat disimpan.
       </p>
 
       {cameraViews.length === 0 ? (

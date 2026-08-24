@@ -1,29 +1,7 @@
-function readJsonChunkFromGlb(arrayBuffer) {
-  const dataView = new DataView(arrayBuffer);
-
-  const magic = dataView.getUint32(0, true);
-  const version = dataView.getUint32(4, true);
-
-  if (magic !== 0x46546c67) {
-    throw new Error("File bukan GLB valid.");
-  }
-
-  if (version !== 2) {
-    throw new Error("Hanya GLB versi 2.0 yang didukung.");
-  }
-
-  const jsonChunkLength = dataView.getUint32(12, true);
-  const jsonChunkType = dataView.getUint32(16, true);
-
-  if (jsonChunkType !== 0x4e4f534a) {
-    throw new Error("GLB tidak memiliki JSON chunk valid.");
-  }
-
-  const jsonBytes = new Uint8Array(arrayBuffer, 20, jsonChunkLength);
-  const jsonText = new TextDecoder().decode(jsonBytes);
-
-  return JSON.parse(jsonText);
-}
+import {
+  extractGlbLicenseMetadataFromJson,
+  readGlbJsonFromBlob,
+} from "../engine/model/GlbLicenseMetadata";
 
 function validateTextures(gltf) {
   const errors = [];
@@ -69,8 +47,7 @@ export async function validateGlbFile(file) {
   }
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const gltf = readJsonChunkFromGlb(arrayBuffer);
+    const gltf = await readGlbJsonFromBlob(file);
 
     const textureResult = validateTextures(gltf);
 
@@ -87,6 +64,9 @@ export async function validateGlbFile(file) {
       extensionsUsed: gltf.extensionsUsed || [],
       extensionsRequired: gltf.extensionsRequired || [],
       fileSize: file.size,
+      licenseMetadata: extractGlbLicenseMetadataFromJson(gltf, {
+        fileName: file.name,
+      }),
     };
 
     return {

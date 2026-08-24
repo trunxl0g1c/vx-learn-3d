@@ -1,6 +1,17 @@
 import { createStoredCameraView } from "../camera";
 import { createObjectIndexPath } from "../model";
 
+export const PERSPECTIVE_CAMERA_SAVE_WARNING =
+  "Camera & State hanya dapat disimpan dalam mode Perspective. Ubah View ke Perspective terlebih dahulu.";
+
+export function isOrthographicViewerCamera(camera) {
+  return Boolean(camera?.isOrthographicCamera);
+}
+
+export function canSaveViewerCameraView(camera) {
+  return Boolean(camera) && !isOrthographicViewerCamera(camera);
+}
+
 function normalizeObjectList(objects = []) {
   return Array.from(
     new Set((Array.isArray(objects) ? objects : [objects]).filter(Boolean)),
@@ -89,11 +100,12 @@ export function createViewerVisualState({
   xrayTargetObject = null,
   xrayTargetObjects = [],
   xrayNormalObjects = [],
-  selectionVisualMode = "none",
+  selectionVisualMode = null,
   blinkSelectedObjectsEnabled = false,
   blinkTargetObjects = [],
   blinkAssignments = [],
   pullApartState = null,
+  objectTransforms = [],
   cutStates = [],
   cutEnabled = false,
   cutValues = {},
@@ -157,14 +169,19 @@ export function createViewerVisualState({
       objects: createUniqueViewerObjectReferences(assignment?.objects || [], scene),
     }))
     .filter((assignment) => assignment.objects.length > 0);
-  const xrayMode =
-    selectionVisualMode === "non-targets"
-      ? "non-targets"
-      : normalizedXrayTargets.length > 0
-        ? "targets"
+  const hasExplicitXrayMode =
+    selectionVisualMode === "none" ||
+    selectionVisualMode === "targets" ||
+    selectionVisualMode === "non-targets";
+  const requestedXrayMode = hasExplicitXrayMode
+    ? selectionVisualMode
+    : normalizedXrayTargets.length > 0
+      ? "targets"
+      : normalizedXrayNormalObjects.length > 0
+        ? "non-targets"
         : "none";
   const xrayStateObjects =
-    xrayMode === "non-targets"
+    requestedXrayMode === "non-targets"
       ? normalizedXrayNormalObjects.length > 0
         ? normalizedXrayNormalObjects
         : normalizedSelectedObjects
@@ -183,10 +200,54 @@ export function createViewerVisualState({
     xrayStateObjects,
     scene,
   );
+  const xrayMode =
+    requestedXrayMode !== "none" && xrayStateReferences.length > 0
+      ? requestedXrayMode
+      : "none";
   const pullApartReference = createViewerObjectReference(
     pullApartState?.targetObject,
     scene,
   );
+  const storedObjectTransforms = (Array.isArray(objectTransforms)
+    ? objectTransforms
+    : []
+  )
+    .map((transform) => {
+      const reference = transform?.object || transform?.reference || null;
+      const position = Array.isArray(transform?.position)
+        ? transform.position.slice(0, 3).map(Number)
+        : null;
+      const quaternion = Array.isArray(transform?.quaternion)
+        ? transform.quaternion.slice(0, 4).map(Number)
+        : null;
+      const scale = Array.isArray(transform?.scale)
+        ? transform.scale.slice(0, 3).map(Number)
+        : null;
+
+      if (
+        !reference ||
+        position?.length !== 3 ||
+        !position.every(Number.isFinite) ||
+        quaternion?.length !== 4 ||
+        !quaternion.every(Number.isFinite) ||
+        scale?.length !== 3 ||
+        !scale.every(Number.isFinite)
+      ) {
+        return null;
+      }
+
+      return {
+        object: {
+          uuid: reference.uuid || null,
+          name: reference.name || null,
+          path: Array.isArray(reference.path) ? [...reference.path] : null,
+        },
+        position,
+        quaternion,
+        scale,
+      };
+    })
+    .filter(Boolean);
 
   const cuts = (Array.isArray(cutStates) ? cutStates : [])
     .map((cutState) => {
@@ -225,7 +286,7 @@ export function createViewerVisualState({
   };
 
   return {
-    version: 8,
+    version: 9,
     selectedObject: selectedReference,
     selectedObjects: selectedReferences,
     highlight: {
@@ -246,7 +307,7 @@ export function createViewerVisualState({
     xray: {
       enabled: xrayMode !== "none" && xrayStateReferences.length > 0,
       mode: xrayMode,
-      activeObject: xrayActiveReference,
+      activeObject: xrayMode === "none" ? null : xrayActiveReference,
       targetObject: xrayMode === "targets" ? xrayActiveReference : null,
       targetObjects: xrayMode === "targets" ? xrayStateReferences : [],
       normalObjects: xrayMode === "non-targets" ? xrayStateReferences : [],
@@ -255,6 +316,14 @@ export function createViewerVisualState({
       enabled: Boolean(pullApartState?.enabled),
       targetObject: pullApartReference,
     },
+    transforms: {
+      objects: storedObjectTransforms,
+    },
+    // Keep the global Cut switch separate from the staged per-target values.
+    // This lets a Slide/Chapter remember its own Cut values even when Cut is
+    // currently OFF, so reopening Cut restores that material's values instead
+    // of inheriting the previous viewport/material session.
+    cutEnabled: Boolean(cutEnabled),
     cuts,
     cut: legacyCut,
     savedAt,
@@ -267,6 +336,11 @@ export function createViewerCameraView({
   modelScene = null,
   savedAt = new Date().toISOString(),
 } = {}) {
+  // Saved Camera & State is intentionally Perspective-only. Orthographic is
+  // still available as an authoring/navigation mode, but must never be
+  // persisted as a content/default camera view.
+  if (!canSaveViewerCameraView(camera)) return null;
+
   const cameraView = createStoredCameraView(camera, controls);
 
   if (!cameraView) return null;

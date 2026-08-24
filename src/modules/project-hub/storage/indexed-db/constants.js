@@ -2,12 +2,13 @@ export const DB_NAME = "viqubed-db";
 export const PREVIOUS_BRAND_DB_NAME = ["vi", "cubed-db"].join("");
 export const LEGACY_DB_NAME = ["vx", "plore-db"].join("");
 export const LEGACY_DB_NAMES = [PREVIOUS_BRAND_DB_NAME, LEGACY_DB_NAME];
-export const DB_VERSION = 7;
+export const DB_VERSION = 8;
 export const MIGRATION_KEY = "viqubed-indexeddb-migrated-v2";
 export const PROJECT_CATALOG_CACHE_KEY = "viqubed-project-catalog-v1";
 
 export const PROJECT_STORE = "projects";
 export const FILE_STORE = "files";
+export const ADDITIONAL_MODEL_FILE_STORE = "additionalModelFiles";
 export const DRAFT_STORE = "drafts";
 export const CHAPTER_STORE = "chapters";
 export const FLOW_STORE = "flows";
@@ -58,6 +59,7 @@ export const NORMALIZED_STORE_NAMES = [
 export const ALL_STORE_NAMES = [
   PROJECT_STORE,
   FILE_STORE,
+  ADDITIONAL_MODEL_FILE_STORE,
   DRAFT_STORE,
   ...NORMALIZED_STORE_NAMES,
 ];

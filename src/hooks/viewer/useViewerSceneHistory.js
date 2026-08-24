@@ -88,13 +88,24 @@ export function useViewerSceneHistory({
     pullApart(selectedObject);
   }, [pullApart, selectedObject]);
 
-  const soloSelectedObject = useCallback(
-    () =>
-      runVisibilityHistoryAction("Solo object", () =>
-        soloSelectedObjectBase(selectedObject),
-      ),
-    [runVisibilityHistoryAction, selectedObject, soloSelectedObjectBase],
-  );
+  const soloSelectedObject = useCallback(() => {
+    const targets = multipleSelectEnabled
+      ? selectedObjects
+      : selectedObject
+        ? [selectedObject]
+        : [];
+
+    return runVisibilityHistoryAction(
+      targets.length > 1 ? "Solo objects" : "Solo object",
+      () => soloSelectedObjectBase(targets),
+    );
+  }, [
+    multipleSelectEnabled,
+    runVisibilityHistoryAction,
+    selectedObject,
+    selectedObjects,
+    soloSelectedObjectBase,
+  ]);
 
   const hideSelectedObject = useCallback(
     () =>

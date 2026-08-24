@@ -37,6 +37,8 @@ export default function EditorLeftSidebar({
   material,
   setMaterial,
   saveDefaultPlayerCameraViewAndState,
+  cameraProjectionMode = "perspective",
+  setCameraProjectionMode = null,
   selectedObjectName,
 
   applyShaderMode,
@@ -87,6 +89,12 @@ export default function EditorLeftSidebar({
   quizAuthoring,
   xrAuthoring,
   slideAuthoring,
+  additionalModels = [],
+  modelLicenseModels = [],
+  onUpdateModelLicense,
+  onReadModelLicenseMetadata,
+  onAddAdditionalGlbFiles,
+  onRemoveAdditionalGlb,
 }) {
   if (!activeSidebar) return null;
 
@@ -102,7 +110,10 @@ export default function EditorLeftSidebar({
   return (
     <aside
       className={[
-        "vx-editor-left-panel absolute left-15 top-14 bottom-5 z-[110] w-[400px] overflow-hidden",
+        "vx-editor-left-panel absolute left-15 top-14 z-[110] w-[400px] overflow-hidden",
+        activeSidebar === "hierarchy" && animationAuthoring?.isAuthoringActive
+          ? "bottom-[360px]"
+          : "bottom-5",
         "border border-divider-main/80 text-white transition-all duration-200",
         "bg-primary/45 backdrop-blur-2xl backdrop-saturate-200",
       ].join(" ")}
@@ -163,8 +174,13 @@ export default function EditorLeftSidebar({
             material={material}
             setMaterial={setMaterial}
             saveDefaultPlayerCameraViewAndState={saveDefaultPlayerCameraViewAndState}
+            cameraProjectionMode={cameraProjectionMode}
+            setCameraProjectionMode={setCameraProjectionMode}
             viewerSettings={viewerSettings}
             setViewerSettings={setViewerSettings}
+            modelLicenseModels={modelLicenseModels}
+            onUpdateModelLicense={onUpdateModelLicense}
+            onReadModelLicenseMetadata={onReadModelLicenseMetadata}
           />
         )}
 
@@ -232,6 +248,9 @@ export default function EditorLeftSidebar({
             xrAuthoring={xrAuthoring}
             selectedObjectName={selectedObjectName}
             animations={animations}
+            additionalModels={additionalModels}
+            onAddAdditionalGlbFiles={onAddAdditionalGlbFiles}
+            onRemoveAdditionalGlb={onRemoveAdditionalGlb}
           />
         )}
       </div>

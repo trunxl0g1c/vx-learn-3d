@@ -234,6 +234,7 @@ export default function AnimationWorkspaceDock({
             {TRANSFORM_MODES.map((mode) => {
               const disabled =
                 rigType === "hydraulic" ||
+                rigType === "morph" ||
                 (rigType === "revolute" && mode.id !== "rotate") ||
                 (rigType === "linear" && mode.id !== "translate");
 
@@ -279,7 +280,7 @@ export default function AnimationWorkspaceDock({
           <Button
             type="button"
             size="xs"
-            disabled={!activeTrack || !animationAuthoring?.activeTrackObject || rigType === "hydraulic"}
+            disabled={!activeTrack || !animationAuthoring?.activeTrackObject}
             onClick={animationAuthoring?.addOrUpdateKeyframe}
             className="h-8 shrink-0"
           >
@@ -306,6 +307,79 @@ export default function AnimationWorkspaceDock({
                 className="w-14 bg-transparent text-right font-mono text-[10px] text-white outline-none"
               />
               <span className="text-[9px] text-contrast-grayout">s</span>
+              {rigType === "morph" && (
+                <label
+                  className="ml-1 flex items-center gap-1 rounded-md border border-secondary-default/50 bg-secondary-default/5 px-1.5"
+                  title="Morph progress is interpolated smoothly between keyframes"
+                >
+                  <span className="text-[8px] uppercase tracking-wide text-secondary-default">Morph</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={Math.round((Number(selectedKeyframe.morphProgress) || 0) * 100)}
+                    onChange={(event) =>
+                      animationAuthoring?.updateKeyframe?.(selectedKeyframe.id, {
+                        morphProgress: Number(event.target.value) / 100,
+                      })
+                    }
+                    className="w-20 accent-accent-main"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={Math.round((Number(selectedKeyframe.morphProgress) || 0) * 100)}
+                    onChange={(event) =>
+                      animationAuthoring?.updateKeyframe?.(selectedKeyframe.id, {
+                        morphProgress:
+                          Math.max(0, Math.min(100, Number(event.target.value) || 0)) /
+                          100,
+                      })
+                    }
+                    className="w-10 bg-transparent text-right font-mono text-[9px] text-white outline-none"
+                  />
+                  <span className="text-[8px] text-contrast-grayout">%</span>
+                </label>
+              )}
+              <label
+                className="ml-1 flex items-center gap-1 rounded-md border border-divider-main/70 px-1.5"
+                title="Opacity is interpolated smoothly to the next keyframe"
+              >
+                <span className="text-[8px] uppercase tracking-wide text-contrast-grayout">Opacity</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round((Number(selectedKeyframe.opacity) || 0) * 100)}
+                  onChange={(event) =>
+                    animationAuthoring?.updateKeyframe?.(selectedKeyframe.id, {
+                      opacity: Number(event.target.value) / 100,
+                    })
+                  }
+                  className="w-16 accent-accent-main"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="1"
+                  value={Math.round((Number(selectedKeyframe.opacity) || 0) * 100)}
+                  onChange={(event) =>
+                    animationAuthoring?.updateKeyframe?.(selectedKeyframe.id, {
+                      opacity: Math.max(
+                        0,
+                        Math.min(100, Number(event.target.value) || 0),
+                      ) / 100,
+                    })
+                  }
+                  className="w-10 bg-transparent text-right font-mono text-[9px] text-white outline-none"
+                />
+                <span className="text-[8px] text-contrast-grayout">%</span>
+              </label>
               <select
                 value={selectedKeyframe.easing || "easeInOut"}
                 onChange={(event) =>

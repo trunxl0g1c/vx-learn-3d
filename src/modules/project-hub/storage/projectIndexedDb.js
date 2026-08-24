@@ -3,6 +3,7 @@ import { normalizePlayerSettings } from "../../material/playerSettings";
 import { normalizeProToolsSettings } from "../../../engine/project/ProToolsSettings";
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
 import {
+  ADDITIONAL_MODEL_FILE_STORE,
   ALL_STORE_NAMES,
   ANIMATION_STORE,
   ARRAY_MATERIAL_STORES,
@@ -13,6 +14,7 @@ import {
   NORMALIZED_STORE_NAMES,
   PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
+  PROJECT_ID_INDEX,
   QUIZ_STORE,
   SLIDE_STORE,
   PROJECT_ID_INDEX,
@@ -22,7 +24,8 @@ import { isPlainObject } from "./indexed-db/common";
 import {
   clearProjectCatalogCache,
   createProjectSummary,
-  removeProjectFromCatalogCache,
+  getCachedProjectSummaries,
+  removeProjectCatalogCache,
   sortProjectsByRecent,
   upsertProjectCatalogCache,
   writeProjectCatalogCache,
@@ -30,6 +33,7 @@ import {
 import {
   getAllStoreRecords,
   getStoreRecord,
+  getStoreRecordsByProject,
   openViqubedDb,
 } from "./indexed-db/database";
 import {
@@ -109,6 +113,8 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
       thumbnail: "",
       availableOnMarketplace: false,
       modelUrl: "",
+      additionalModels: [],
+      modelLicenses: [],
       chapters: [],
       flows: [],
       authoredAnimations: [],
@@ -350,44 +356,64 @@ export async function getProjectFileFromIndexedDb(projectId) {
   return getStoreRecord(db, FILE_STORE, projectId);
 }
 
-function deleteArrayRowsByProject(transaction, projectId, storeName) {
-  const store = transaction.objectStore(storeName);
-  const index = store.index(PROJECT_ID_INDEX);
-  const cursorRequest = index.openKeyCursor(IDBKeyRange.only(projectId));
+function deleteProjectScopedRecords(store, projectId) {
+  if (!store || !projectId) return;
 
-  cursorRequest.onsuccess = () => {
-    const cursor = cursorRequest.result;
+  if (store.keyPath === PROJECT_ID_INDEX) {
+    store.delete(projectId);
+    return;
+  }
 
-    if (cursor) {
+  if (store.indexNames.contains(PROJECT_ID_INDEX)) {
+    const request = store.index(PROJECT_ID_INDEX).openKeyCursor(projectId);
+
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) return;
+
       store.delete(cursor.primaryKey);
       cursor.continue();
+    };
+    return;
+  }
+
+  const request = store.openCursor();
+  request.onsuccess = () => {
+    const cursor = request.result;
+    if (!cursor) return;
+
+    if (cursor.value?.projectId === projectId) {
+      cursor.delete();
     }
+    cursor.continue();
   };
 }
 
 export async function deleteProjectFromIndexedDb(projectId) {
-  if (!projectId) return;
+  if (!projectId) {
+    throw new Error("Project ID is required to delete IndexedDB data.");
+  }
 
   const db = await openViqubedDb();
 
-  await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const tx = db.transaction(ALL_STORE_NAMES, "readwrite");
 
     tx.objectStore(PROJECT_STORE).delete(projectId);
-    tx.objectStore(FILE_STORE).delete(projectId);
-    tx.objectStore(DRAFT_STORE).delete(projectId);
-    tx.objectStore(PLAYER_SETTINGS_STORE).delete(projectId);
 
-    ARRAY_MATERIAL_STORES.forEach(({ storeName }) => {
-      deleteArrayRowsByProject(tx, projectId, storeName);
+    ALL_STORE_NAMES.forEach((storeName) => {
+      if (storeName === PROJECT_STORE) return;
+      deleteProjectScopedRecords(tx.objectStore(storeName), projectId);
     });
 
-    tx.oncomplete = () => resolve(true);
+    tx.oncomplete = () => {
+      removeProjectCatalogCache(projectId);
+      resolve(true);
+    };
     tx.onerror = () => reject(tx.error);
-    tx.onabort = () => reject(tx.error || new Error("Project delete aborted"));
+    tx.onabort = () =>
+      reject(tx.error || new Error("Project delete aborted"));
   });
-
-  removeProjectFromCatalogCache(projectId);
 }
 
 export async function clearViqubedIndexedDb() {
@@ -408,3 +434,52 @@ export async function clearViqubedIndexedDb() {
     tx.onabort = () => reject(tx.error || new Error("Database clear aborted"));
   });
 }
+
+export async function saveAdditionalProjectModelFile(projectId, modelId, file) {
+  if (!projectId || !modelId || !(file instanceof Blob)) {
+    throw new Error("Project ID, model ID, and GLB file are required.");
+  }
+
+  const db = await openViqubedDb();
+  const storageId = `${projectId}::additional-model::${modelId}`;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ADDITIONAL_MODEL_FILE_STORE, "readwrite");
+    const record = {
+      storageId,
+      projectId,
+      modelId,
+      fileName: file.name || `${modelId}.glb`,
+      fileType: file.type || "model/gltf-binary",
+      fileSize: Number(file.size || 0),
+      blob: file,
+      savedAt: new Date().toISOString(),
+    };
+
+    tx.objectStore(ADDITIONAL_MODEL_FILE_STORE).put(record);
+    tx.oncomplete = () => resolve(record);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("Additional GLB save aborted"));
+  });
+}
+
+export async function getAdditionalProjectModelFilesFromIndexedDb(projectId) {
+  if (!projectId) return [];
+  const db = await openViqubedDb();
+  return getStoreRecordsByProject(db, ADDITIONAL_MODEL_FILE_STORE, projectId);
+}
+
+export async function deleteAdditionalProjectModelFile(projectId, modelId) {
+  if (!projectId || !modelId) return false;
+  const db = await openViqubedDb();
+  const storageId = `${projectId}::additional-model::${modelId}`;
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ADDITIONAL_MODEL_FILE_STORE, "readwrite");
+    tx.objectStore(ADDITIONAL_MODEL_FILE_STORE).delete(storageId);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error("Additional GLB delete aborted"));
+  });
+}
+

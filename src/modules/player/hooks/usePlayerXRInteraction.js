@@ -181,10 +181,10 @@ export default function usePlayerXRInteraction({
         });
         setActionStatus(
           changed
-            ? "Pull Apart applied to the XR presentation."
+            ? "Exploded View applied to the XR presentation."
             : player?.toolsMenu?.isPullApartActive
-              ? "Pull Apart reset."
-              : "Pull Apart did not find a movable target.",
+              ? "Exploded View reset."
+              : "Exploded View did not find a movable target.",
         );
         return;
       }
@@ -301,9 +301,8 @@ export default function usePlayerXRInteraction({
 
     const projectName = getProjectName(player?.scene?.material);
     const touchXR =
-      player?.xrPanel?.activeMode === "ios-tracked-ar" ||
-      (player?.xrPanel?.activeMode === "ar" &&
-        player?.xrPanel?.platform?.isAndroid);
+      player?.xrPanel?.activeMode === "ar" &&
+      player?.xrPanel?.platform?.isAndroid;
     const inputHint = touchXR
       ? "Tap the learning controls on screen."
       : "Point at a button and press the controller trigger.";
@@ -387,8 +386,8 @@ export default function usePlayerXRInteraction({
         eyebrow: `${projectName} · XR TOOLS`,
         title: "Interaction Tools",
         body:
-          "Free Play enables direct object selection. Pull Apart uses the Player model engine and Reset restores the initial presentation.",
-        progress: `Free Play ${player?.toolsMenu?.freePlay ? "ON" : "OFF"} · Pull Apart ${player?.toolsMenu?.isPullApartActive ? "ON" : "OFF"}`,
+          "Free Play enables direct object selection. Exploded View uses the Player model engine and Reset restores the initial presentation.",
+        progress: `Free Play ${player?.toolsMenu?.freePlay ? "ON" : "OFF"} · Exploded View ${player?.toolsMenu?.isPullApartActive ? "ON" : "OFF"}`,
         status:
           actionStatus ||
           (player?.procedurePanel?.activeProcedureId

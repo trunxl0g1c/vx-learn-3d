@@ -7,7 +7,7 @@ export default function MarkerDialog({
   onChange,
   onClose,
   onSubmit,
-  maxLength = 48,
+  maxLength = 50,
 }) {
   if (!open) return null;
 
@@ -16,7 +16,7 @@ export default function MarkerDialog({
       <div className="vx-responsive-dialog w-[450px] overflow-hidden rounded-[22px] bg-[#1d1e1f] text-white shadow-[0_22px_45px_rgba(0,0,0,0.55)]">
         <div className="flex h-[70px] items-center justify-between bg-dark-alpha px-5">
           <h3 className="text-[21px] font-normal tracking-[-0.2px]">
-            Marker Dialog
+            Marker Text
           </h3>
 
           <button
@@ -30,20 +30,21 @@ export default function MarkerDialog({
 
         <div className="px-8 pb-8 pt-7">
           <label className="mb-4 block text-sm font-normal tracking-[0.2px] text-[#9697a8]">
-            Instance Name
+            Marker Text
           </label>
 
           <div className="relative">
-            <input
+            <textarea
               value={value}
               maxLength={maxLength}
               onChange={(e) => onChange?.(e.target.value)}
-              placeholder="Type instance name here"
+              placeholder="Type marker text here"
               autoFocus
-              className="h-[53px] w-full rounded-[10px] border border-[#63c7e5] bg-transparent px-4 pr-16 text-[16px] italic text-white outline-none placeholder:text-[#2d5260] focus:ring-1 focus:ring-[#63c7e5]"
+              rows={3}
+              className="min-h-[88px] w-full resize-y rounded-[10px] border border-[#63c7e5] bg-transparent px-4 py-3 pr-16 text-[16px] italic leading-6 text-white outline-none placeholder:text-[#2d5260] focus:ring-1 focus:ring-[#63c7e5]"
             />
 
-            <span className="pointer-events-none absolute right-[21px] top-1/2 -translate-y-1/2 text-xs font-normal text-[#8f90a1]">
+            <span className="pointer-events-none absolute bottom-3 right-[21px] text-xs font-normal text-[#8f90a1]">
               {value?.length || 0}/{maxLength}
             </span>
           </div>

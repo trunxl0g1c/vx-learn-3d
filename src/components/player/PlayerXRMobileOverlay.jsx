@@ -10,7 +10,7 @@ export default function PlayerXRMobileOverlay({ interaction = null, xr = null })
           title: "Learning controls are loading",
           body:
             "The interactive XR session is active. Material and Procedure controls will appear here as soon as the Player interaction state is ready.",
-          progress: xr?.activeMode === "ios-tracked-ar" ? "iPhone Tracked AR" : "Mobile AR",
+          progress: "Mobile AR",
           status: "Viqubed UI is active in the browser.",
           buttons: [{ label: "EXIT", action: "xr_exit" }],
         }

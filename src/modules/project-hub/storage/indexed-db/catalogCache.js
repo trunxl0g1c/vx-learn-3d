@@ -114,6 +114,13 @@ export function upsertProjectCatalogCache(project) {
   ]);
 }
 
+export function removeProjectCatalogCache(projectId) {
+  if (!projectId) return;
+
+  const cached = getCachedProjectSummaries();
+  writeProjectCatalogCache(cached.filter((project) => project.id !== projectId));
+}
+
 export function clearProjectCatalogCache() {
   try {
     localStorage.removeItem(PROJECT_CATALOG_CACHE_KEY);

@@ -3,7 +3,7 @@ import { normalizeTurntableAnimationSettings } from "../../../modules/material/p
 import Slider from "../../ui/slider";
 import Switch from "../../ui/switch";
 
-export default function TurntableAnimationSettings({ settings, onChange }) {
+export default function TurntableAnimationSettings({ settings, onChange, embedded = false }) {
   const turntable = normalizeTurntableAnimationSettings(settings);
 
   const updateSettings = (patch) => {
@@ -16,16 +16,20 @@ export default function TurntableAnimationSettings({ settings, onChange }) {
   };
 
   return (
-    <div className="rounded-xl border border-secondary-default bg-primary p-4">
+    <div className={embedded ? "" : "rounded-xl border border-secondary-default bg-primary p-4"}>
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
-          <RotateCw className="size-4 shrink-0 text-secondary-default" />
+          {!embedded && (
+            <RotateCw className="size-4 shrink-0 text-secondary-default" />
+          )}
 
           <div>
-            <div className="text-sm font-normal text-white">
-              Turntable Animation
-            </div>
-            <p className="mt-1 text-xs leading-5 text-contrast-grayout">
+            {!embedded && (
+              <div className="text-sm font-normal text-white">
+                Turntable Animation
+              </div>
+            )}
+            <p className={embedded ? "text-xs leading-5 text-contrast-grayout" : "mt-1 text-xs leading-5 text-contrast-grayout"}>
               Memutar model hanya pada tampilan awal Player. Animasi berhenti
               saat Chapter, Flow, Procedure, Free Play, atau panel lain dibuka.
             </p>

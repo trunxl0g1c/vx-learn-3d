@@ -1,6 +1,7 @@
 import {
   applyAuthoredAnimationAtTime,
   captureAuthoredAnimationBaseline,
+  captureAuthoredAnimationTrackBaseline,
   createAuthoredAnimationDefinition,
   createAuthoredAnimationTrack,
   createAuthoredAnimationTransform,
@@ -9,7 +10,9 @@ import {
   createAuthoredAnimationLocalPivotFromHit,
   createMechanicalRigDefinition,
   duplicateAuthoredAnimationDefinition,
+  evaluateAuthoredAnimationTrackState,
   findAuthoredAnimationObject,
+  getMorphAnimationCompatibility,
   normalizeAuthoredAnimationDefinition,
   normalizeAuthoredAnimationDefinitions,
   normalizeMechanicalRig,
@@ -110,13 +113,33 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
         createAuthoredAnimationLocalPivotFromHit(object, hit, snapMode)
       );
     },
+    getMorphCompatibility(sourceObject, targetObject) {
+      return (
+        engine?.getMorphCompatibility?.(sourceObject, targetObject) ||
+        getMorphAnimationCompatibility(sourceObject, targetObject)
+      );
+    },
     createTransform(object) {
       return (
         engine?.createAuthoredTransform?.(object) ||
         createAuthoredAnimationTransform(object)
       );
     },
-    upsertKeyframe(track, time, transform, duration, easing) {
+    evaluateTrackState(track, time) {
+      return (
+        engine?.evaluateAuthoredTrackState?.(track, time) ||
+        evaluateAuthoredAnimationTrackState(track, time)
+      );
+    },
+    upsertKeyframe(
+      track,
+      time,
+      transform,
+      duration,
+      easing,
+      opacity = null,
+      morphProgress = null,
+    ) {
       return (
         engine?.upsertAuthoredKeyframe?.(
           track,
@@ -124,6 +147,8 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
           transform,
           duration,
           easing,
+          opacity,
+          morphProgress,
         ) ||
         upsertAuthoredAnimationKeyframe(
           track,
@@ -131,6 +156,8 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
           transform,
           duration,
           easing,
+          opacity,
+          morphProgress,
         )
       );
     },
@@ -140,10 +167,26 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
         removeAuthoredAnimationKeyframe(track, keyframeId)
       );
     },
-    applyAtTime(scene, animation, time) {
+    applyAtTime(scene, animation, time, baselineEntries = null) {
       return (
-        engine?.applyAuthoredAtTime?.(scene, animation, time) ||
-        applyAuthoredAnimationAtTime(scene, animation, time)
+        engine?.applyAuthoredAtTime?.(
+          scene,
+          animation,
+          time,
+          baselineEntries,
+        ) ||
+        applyAuthoredAnimationAtTime(
+          scene,
+          animation,
+          time,
+          baselineEntries,
+        )
+      );
+    },
+    captureTrackBaseline(object, trackId = null) {
+      return (
+        engine?.captureAuthoredTrackBaseline?.(object, trackId) ||
+        captureAuthoredAnimationTrackBaseline(object, trackId)
       );
     },
     captureBaseline(scene, animation) {

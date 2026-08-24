@@ -5,6 +5,10 @@ import {
   cloneModelMaterial,
   syncSketchEdgeVisibility,
 } from "./ModelSceneUtils"
+import {
+  applyModelTransformOverrides,
+  captureModelTransformOverrides,
+} from "./ModelTransformState"
 
 export function computeModelBounds(scene) {
   if (!scene) return null
@@ -78,6 +82,12 @@ export function createModelEngine(options = {}) {
 
   const getOriginalPositions = () => originalPositions
   const getOriginalGroupPositions = () => originalGroupPositions
+
+  const captureTransformOverrides = (options = {}) =>
+    captureModelTransformOverrides(scene, originalGroupPositions, options)
+
+  const applyTransformOverrides = (overrides = []) =>
+    applyModelTransformOverrides(scene, overrides)
 
   const setOriginalTransforms = ({
     positions = [],
@@ -872,15 +882,35 @@ export function createModelEngine(options = {}) {
     return true
   }
 
-  const soloObject = (object) => {
-    if (!object || !scene) return false
+  const soloObject = (objectOrObjects) => {
+    if (!scene) return false
+
+    const targets = Array.from(
+      new Set(
+        (Array.isArray(objectOrObjects) ? objectOrObjects : [objectOrObjects])
+          .filter(Boolean),
+      ),
+    )
+
+    if (targets.length === 0) return false
 
     scene.traverse((child) => {
       if (child.isMesh) child.visible = false
     })
 
-    object.traverse?.((child) => {
-      if (child.isMesh) child.visible = true
+    targets.forEach((targetObject) => {
+      // A selected branch must remain renderable even when it (or one of its
+      // parents) had previously been hidden. Sibling meshes stay hidden.
+      let ancestor = targetObject
+      while (ancestor) {
+        ancestor.visible = true
+        if (ancestor === scene) break
+        ancestor = ancestor.parent
+      }
+
+      targetObject.traverse?.((child) => {
+        child.visible = true
+      })
     })
 
     return true
@@ -935,6 +965,8 @@ export function createModelEngine(options = {}) {
     computeMarkerScale: () => computeMarkerScale(scene),
     getOriginalPositions,
     getOriginalGroupPositions,
+    captureTransformOverrides,
+    applyTransformOverrides,
     setOriginalTransforms,
     getState: () => lastState,
     registerIntegrations,

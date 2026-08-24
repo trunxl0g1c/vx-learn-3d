@@ -24,7 +24,7 @@ export default function PlayerToolsMenu({
       </Button>
 
       <Button size="sm" onClick={pullApart}>
-        Pull Apart
+        Exploded View
       </Button>
 
       <Button size="sm" onClick={resetAllTransforms}>

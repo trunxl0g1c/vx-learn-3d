@@ -21,6 +21,8 @@ const MODEL_BOUND_MATERIAL_FIELDS = Object.freeze([
   "originalModelUrl",
   "modelFile",
   "modelBlob",
+  "additionalModels",
+  "modelLicenses",
 ]);
 
 function normalizeImportedChapter(chapter, index, projectId) {

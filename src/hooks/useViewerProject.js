@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createId } from "../utils/createId";
 import useProjectLoader from "../core/project/useProjectLoader";
 import { importVXPack, isVXPackFile } from "../utils/vxpackUtils";
@@ -28,6 +28,7 @@ import {
   getProcedureFromIndexedDb,
   getQuizFromIndexedDb,
   getSlideFromIndexedDb,
+  saveAdditionalProjectModelFile,
 } from "../modules/project-hub/storage/projectIndexedDb";
 import {
   isLazyMaterialRecord,
@@ -35,6 +36,16 @@ import {
 } from "../engine/project/LazyMaterialRecords";
 import { normalizeLoadedViewerSettings } from "./viewer/normalizeViewerSettings";
 import { cloneHistoryValue } from "../engine/history";
+import { validateGlbFile } from "../utils/glbValidator";
+import { normalizeProToolsSettings } from "../engine/project/ProToolsSettings";
+import { readGlbLicenseMetadata } from "../engine/model/GlbLicenseMetadata";
+import {
+  createModelLicenseCatalog,
+  normalizeModelLicenseEntry,
+  PRIMARY_MODEL_ASSET_ID,
+  removeModelLicenseEntry,
+  upsertModelLicenseEntry,
+} from "../engine/project/ModelLicenseSettings";
 
 function getChangedTopLevelKeys(previousValue = {}, nextValue = {}) {
   return Array.from(
@@ -59,6 +70,8 @@ function createInitialMaterial() {
     thumbnail: "",
     availableOnMarketplace: false,
     modelUrl: "",
+    additionalModels: [],
+    modelLicenses: [],
     chapters: [],
     flows: [],
     authoredAnimations: [],
@@ -67,6 +80,7 @@ function createInitialMaterial() {
     slides: [],
     objectNameOverrides: [],
     playerSettings: normalizePlayerSettings(),
+    proToolsSettings: normalizeProToolsSettings(),
   };
 }
 
@@ -85,7 +99,11 @@ export function useViewerProject({
   hideLoading,
   historyEngine,
 }) {
-  const { loadProject } = useProjectLoader();
+  const {
+    loadProject,
+    addAdditionalModelFile,
+    removeAdditionalModelFile,
+  } = useProjectLoader();
 
   const materialRef = useRef(null);
   const [material, setMaterialState] = useState(() => {
@@ -95,6 +113,7 @@ export function useViewerProject({
   });
   const [modelUrl, setModelUrl] = useState(null);
   const [modelFile, setModelFile] = useState(null);
+  const [additionalModels, setAdditionalModels] = useState([]);
   const [materialModelUrl, setMaterialModelUrl] = useState("");
   const [availableModels, setAvailableModels] = useState([]);
   const pendingMaterialRecordLoadsRef = useRef(new Map());
@@ -369,6 +388,7 @@ export function useViewerProject({
           projectDraft,
           glbUrl,
           glbFileName,
+          additionalModels: loadedAdditionalModels = [],
           material,
           viewer,
           scene,
@@ -384,6 +404,7 @@ export function useViewerProject({
         setModelUrl(glbUrl);
         setModelFile(projectFile);
         setMaterialModelUrl(glbFileName || project.fileName || "");
+        setAdditionalModels(loadedAdditionalModels);
 
         rawSetMaterial((prev) => {
           const loadedMaterial = material || {};
@@ -394,6 +415,12 @@ export function useViewerProject({
             playerSettings: normalizePlayerSettings(
               loadedMaterial.playerSettings || prev.playerSettings,
             ),
+            proToolsSettings: normalizeProToolsSettings(
+              loadedMaterial.proToolsSettings || prev.proToolsSettings,
+            ),
+            additionalModels: Array.isArray(loadedMaterial.additionalModels)
+              ? loadedMaterial.additionalModels
+              : [],
             flows: normalizeFlowDefinitions(loadedMaterial.flows),
             authoredAnimations: normalizeAuthoredAnimationDefinitions(loadedMaterial.authoredAnimations),
             procedures: normalizeProceduralDefinitions(loadedMaterial.procedures),
@@ -477,6 +504,7 @@ export function useViewerProject({
           material: importedMaterial,
           viewer: importedViewer,
           modelFile: importedModelFile,
+          additionalModels: importedAdditionalModels = [],
           scene: importedScene,
         } = await importVXPack(file);
 
@@ -484,6 +512,10 @@ export function useViewerProject({
           ...importedMaterial,
           modelUrl: manifest.modelUrl,
           playerSettings: normalizePlayerSettings(importedMaterial.playerSettings),
+          proToolsSettings: normalizeProToolsSettings(importedMaterial.proToolsSettings),
+          additionalModels: Array.isArray(importedMaterial.additionalModels)
+            ? importedMaterial.additionalModels
+            : [],
           flows: normalizeFlowDefinitions(importedMaterial.flows),
           authoredAnimations: normalizeAuthoredAnimationDefinitions(importedMaterial.authoredAnimations),
           procedures: normalizeProceduralDefinitions(importedMaterial.procedures),
@@ -495,6 +527,17 @@ export function useViewerProject({
           importedModelFile?.name || manifest.originalModelUrl || "",
         );
         setModelFile(importedModelFile);
+        setAdditionalModels(importedAdditionalModels);
+        if (projectId && projectId !== "demo") {
+          for (const additionalModel of importedAdditionalModels) {
+            if (!additionalModel?.id || !(additionalModel.file instanceof Blob)) continue;
+            await saveAdditionalProjectModelFile(
+              projectId,
+              additionalModel.id,
+              additionalModel.file,
+            );
+          }
+        }
         setMarkers(importedScene?.markers || manifest.scene?.markers || []);
 
         if (importedViewer) {
@@ -534,13 +577,214 @@ export function useViewerProject({
     }
   };
 
+  const handleAddAdditionalGlbFiles = useCallback(
+    async (files = []) => {
+      if (!projectId || projectId === "demo") {
+        throw new Error("Save/open a Viqubed project before adding another GLB.");
+      }
+
+      const incomingFiles = Array.from(files || []).filter(Boolean);
+      if (incomingFiles.length === 0) return [];
+
+      const validations = await Promise.all(
+        incomingFiles.map(async (file) => ({
+          file,
+          validation: await validateGlbFile(file),
+        })),
+      );
+      const invalidEntry = validations.find(({ validation }) => !validation.valid);
+
+      if (invalidEntry) {
+        throw new Error(
+          `${invalidEntry.file.name}: ${
+            invalidEntry.validation.errors?.[0] || "GLB is not valid."
+          }`,
+        );
+      }
+
+      const addedModels = [];
+      const detectedLicenseEntries = [];
+
+      try {
+        for (let index = 0; index < incomingFiles.length; index += 1) {
+          const file = incomingFiles[index];
+          const runtimeModel = await addAdditionalModelFile(projectId, file);
+          addedModels.push(runtimeModel);
+
+          const detected = validations[index]?.validation?.info?.licenseMetadata;
+          if (detected) {
+            detectedLicenseEntries.push(
+              normalizeModelLicenseEntry({
+                ...detected,
+                modelAssetId: runtimeModel.id,
+                modelName:
+                  detected.modelName || runtimeModel.name || runtimeModel.fileName,
+              }),
+            );
+          }
+        }
+      } catch (error) {
+        await Promise.allSettled(
+          addedModels.map((model) =>
+            removeAdditionalModelFile(projectId, model.id),
+          ),
+        );
+        throw error;
+      }
+
+      setAdditionalModels((current) => {
+        const byId = new Map(current.map((model) => [model.id, model]));
+        addedModels.forEach((model) => byId.set(model.id, model));
+        return Array.from(byId.values());
+      });
+
+      updateMaterialState((current) => {
+        let modelLicenses = current?.modelLicenses || [];
+        detectedLicenseEntries.forEach((entry) => {
+          modelLicenses = upsertModelLicenseEntry(modelLicenses, entry);
+        });
+
+        return {
+          ...current,
+          additionalModels: [
+            ...(Array.isArray(current?.additionalModels)
+              ? current.additionalModels
+              : []),
+            ...addedModels.map((model) => ({
+              id: model.id,
+              name: model.name || model.fileName,
+              fileName: model.fileName,
+              fileType: model.fileType,
+              fileSize: model.fileSize,
+            })),
+          ],
+          modelLicenses,
+        };
+      });
+
+      return addedModels;
+    },
+    [
+      addAdditionalModelFile,
+      projectId,
+      removeAdditionalModelFile,
+      updateMaterialState,
+    ],
+  );
+
+  const handleRemoveAdditionalGlb = useCallback(
+    async (modelId) => {
+      if (!projectId || !modelId) return false;
+      await removeAdditionalModelFile(projectId, modelId);
+      setAdditionalModels((current) =>
+        current.filter((model) => model.id !== modelId),
+      );
+      updateMaterialState((current) => ({
+        ...current,
+        additionalModels: (current?.additionalModels || []).filter(
+          (model) => model?.id !== modelId,
+        ),
+        modelLicenses: removeModelLicenseEntry(
+          current?.modelLicenses,
+          modelId,
+        ),
+      }));
+      return true;
+    },
+    [projectId, removeAdditionalModelFile, updateMaterialState],
+  );
+
+  const modelLicenseModels = useMemo(
+    () =>
+      createModelLicenseCatalog({
+        entries: material?.modelLicenses,
+        primaryFileName: modelFile?.name || materialModelUrl || "model.glb",
+        additionalModels,
+        additionalEnabled: true,
+      }),
+    [additionalModels, material?.modelLicenses, materialModelUrl, modelFile?.name],
+  );
+
+  const handleUpdateModelLicense = useCallback(
+    (modelAssetId, patch = {}) => {
+      if (!modelAssetId) return null;
+
+      return updateMaterialState((current) => ({
+        ...current,
+        modelLicenses: upsertModelLicenseEntry(current?.modelLicenses, {
+          ...(current?.modelLicenses || []).find(
+            (entry) => entry?.modelAssetId === modelAssetId,
+          ),
+          ...patch,
+          modelAssetId,
+        }),
+      }));
+    },
+    [updateMaterialState],
+  );
+
+  const handleReadModelLicenseMetadata = useCallback(
+    async (modelAssetId) => {
+      if (!modelAssetId) {
+        throw new Error("Model license target is missing.");
+      }
+
+      const runtimeModel =
+        modelAssetId === PRIMARY_MODEL_ASSET_ID
+          ? {
+              id: PRIMARY_MODEL_ASSET_ID,
+              file: modelFile,
+              fileName: modelFile?.name || materialModelUrl || "model.glb",
+            }
+          : additionalModels.find((model) => model?.id === modelAssetId);
+
+      if (!(runtimeModel?.file instanceof Blob)) {
+        throw new Error("GLB file is not available for metadata reading.");
+      }
+
+      const detected = await readGlbLicenseMetadata(runtimeModel.file, {
+        modelAssetId,
+        fileName: runtimeModel.fileName || runtimeModel.name || "model.glb",
+      });
+
+      if (detected.metadataDetected) {
+        const patch = {
+          metadataDetected: true,
+          metadataCopyright: detected.metadataCopyright,
+          metadataGenerator: detected.metadataGenerator,
+          metadataReadAt: detected.metadataReadAt,
+        };
+
+        if (detected.metadataModelNameDetected && detected.modelName) {
+          patch.modelName = detected.modelName;
+        }
+        if (detected.creatorName) patch.creatorName = detected.creatorName;
+        if (detected.license) patch.license = detected.license;
+        if (detected.sourceUrl) patch.sourceUrl = detected.sourceUrl;
+
+        handleUpdateModelLicense(modelAssetId, patch);
+      }
+      return detected;
+    },
+    [
+      additionalModels,
+      handleUpdateModelLicense,
+      materialModelUrl,
+      modelFile,
+    ],
+  );
+
   return {
     material,
     setMaterial: updateMaterialState,
     rawSetMaterial,
     modelUrl,
     modelFile,
+    additionalModels,
     materialModelUrl,
+    modelLicenseModels,
+    handleUpdateModelLicense,
+    handleReadModelLicenseMetadata,
     availableModels,
     loadChapterRecord,
     loadFlowRecord,
@@ -549,5 +793,7 @@ export function useViewerProject({
     loadQuizRecord,
     loadSlideRecord,
     handleFile,
+    handleAddAdditionalGlbFiles,
+    handleRemoveAdditionalGlb,
   };
 }

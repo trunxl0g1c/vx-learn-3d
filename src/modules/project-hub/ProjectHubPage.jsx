@@ -16,6 +16,8 @@ import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
   clearViqubedIndexedDb,
+  deleteProjectFromIndexedDb,
+  saveAdditionalProjectModelFile,
 } from "./storage/projectIndexedDb";
 import { validateGlbFile } from "../../utils/glbValidator";
 import ProjectHubLayout from "./layouts/ProjectHubLayout";
@@ -136,6 +138,8 @@ export default function ProjectHubPage() {
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearingProjects, setIsClearingProjects] = useState(false);
+  const [projectPendingDelete, setProjectPendingDelete] = useState(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
   const [isImportingProject, setIsImportingProject] = useState(false);
   const [importProjectError, setImportProjectError] = useState("");
 
@@ -761,7 +765,8 @@ export default function ProjectHubPage() {
         viewer: packagedViewer,
         scene: packagedScene,
         modelFile,
-      } = await importVXPack(packageSource, { createObjectUrl: false });
+        additionalModels: packagedAdditionalModels = [],
+      } = await importVXPack(packageFile, { createObjectUrl: false });
 
       if (!modelFile) {
         throw new Error("GLB model was not found in the package.");
@@ -809,6 +814,13 @@ export default function ProjectHubPage() {
         quizzes: Array.isArray(packagedMaterial?.quizzes)
           ? packagedMaterial.quizzes
           : [],
+        additionalModels: packagedAdditionalModels.map((model) => ({
+          id: model.id,
+          name: model.name || model.fileName,
+          fileName: model.fileName,
+          fileType: model.fileType,
+          fileSize: model.fileSize,
+        })),
       };
       const viewer = {
         ...baseProject.viewer,
@@ -855,6 +867,14 @@ export default function ProjectHubPage() {
       };
 
       await saveProjectToIndexedDb(importedProject, modelFile);
+      for (const additionalModel of packagedAdditionalModels) {
+        if (!additionalModel?.id || !(additionalModel.file instanceof Blob)) continue;
+        await saveAdditionalProjectModelFile(
+          importedProject.id,
+          additionalModel.id,
+          additionalModel.file,
+        );
+      }
       await saveProjectDraftToIndexedDb(importedProject.id, draft);
 
       setProjects((current) => [
@@ -982,6 +1002,26 @@ export default function ProjectHubPage() {
     return matchSearch && matchAccess;
   });
 
+  const handleDeleteProject = async () => {
+    if (isDeletingProject || !projectPendingDelete?.id) return;
+
+    const projectId = projectPendingDelete.id;
+
+    try {
+      setIsDeletingProject(true);
+      await deleteProjectFromIndexedDb(projectId);
+
+      setProjects((current) =>
+        current.filter((project) => project.id !== projectId),
+      );
+      setProjectPendingDelete(null);
+    } catch (error) {
+      console.error(`Failed to delete project ${projectId}:`, error);
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
   const handleClearLocalProjects = async () => {
     if (isClearingProjects) return;
 
@@ -1024,6 +1064,9 @@ export default function ProjectHubPage() {
         onOpenProject={handleOpenProject}
         onPreloadProject={(project) => {
           preloadProjectRoute(project.role).catch(() => {});
+        }}
+        onDeleteProject={(project) => {
+          setProjectPendingDelete(project);
         }}
         getAccessLabel={getAccessLabel}
         formatLastOpened={formatLastOpened}
@@ -1072,21 +1115,28 @@ export default function ProjectHubPage() {
         </Suspense>
       )}
 
-      {pendingImportFile && (
+      {projectPendingDelete && (
         <Suspense fallback={<DialogLoadingFallback />}>
-          <ImportProjectDialog
+          <ConfirmationDialog
             open
-            fileName={pendingImportFile.name}
-            isEncrypted={isEncryptedPackageFile(pendingImportFile)}
-            workspaceId={importWorkspaceId}
-            setWorkspaceId={setImportWorkspaceId}
-            password={importPasswordValue}
-            setPassword={setImportPasswordValue}
-            isSubmitting={isPreparingImport}
-            error={importPasswordError}
-            onClearError={() => setImportPasswordError("")}
-            onCancel={handleCancelImportDialog}
-            onSubmit={handleSubmitImportDialog}
+            title="Delete Project?"
+            message={
+              <>
+                Project <strong>{projectPendingDelete.name}</strong> will be
+                permanently deleted from this browser.
+              </>
+            }
+            description="The project model files, additional GLBs, editor data, chapters, slides, procedures, quizzes, settings, and local draft will also be removed. This action cannot be undone."
+            confirmText="Delete Project"
+            cancelText="Cancel"
+            confirmVariant="destructive"
+            isLoading={isDeletingProject}
+            onClose={() => {
+              if (!isDeletingProject) {
+                setProjectPendingDelete(null);
+              }
+            }}
+            onConfirm={handleDeleteProject}
           />
         </Suspense>
       )}

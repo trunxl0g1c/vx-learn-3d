@@ -7,8 +7,10 @@ import {
 import { hydrateMaterialFromIndexedDb } from "../modules/project-hub/storage/projectIndexedDb";
 import { createAnimationEngine } from "../engine/animation";
 import {
+  PERSPECTIVE_CAMERA_SAVE_WARNING,
   createViewerCameraView,
   createViewerVisualState,
+  isOrthographicViewerCamera,
 } from "../engine/viewer";
 import {
   addChapterAnimationAssignment,
@@ -21,6 +23,7 @@ import {
   updateChapterAnimationAssignment,
   updateChapterFlowAssignment,
 } from "../engine/chapter";
+import { usePerspectiveCameraSaveGuard } from "./viewer/usePerspectiveCameraSaveGuard";
 
 function createObjectIndexPath(object, root) {
   if (!object || !root) return null;
@@ -56,11 +59,14 @@ export function useChapterManager({
   authoringObject,
   cameraRef,
   controlsRef,
+  cameraProjectionMode = null,
+  setCameraProjectionMode = null,
   modelScene,
   material,
   setMaterial,
   materialModelUrl,
   modelFile,
+  additionalModels = [],
   packageProject,
   packageScene,
   viewerSettings,
@@ -76,6 +82,7 @@ export function useChapterManager({
   xrayNormalObjects = [],
   selectionVisualMode = "none",
   pullApartState,
+  captureObjectTransformState,
   activeChapterId,
   setActiveChapterId,
   setRightTab,
@@ -87,6 +94,11 @@ export function useChapterManager({
   contentAuthoringLockReason = "",
 }) {
   const animationEngine = vxEngine?.animation || createAnimationEngine();
+  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
+    cameraRef,
+    cameraProjectionMode,
+    onSwitchToPerspective: setCameraProjectionMode,
+  });
 
   const activeChapter = material.chapters.find(
     (chapter) => chapter.id === activeChapterId,
@@ -118,6 +130,31 @@ export function useChapterManager({
 
   const clearChapterFeedback = () => {
     setChapterFeedback(null);
+  };
+
+  const captureChapterVisualState = (primaryObject = null) => {
+    if (!modelScene) return null;
+
+    return createViewerVisualState({
+      scene: modelScene,
+      primaryObject: primaryObject || selectedObject,
+      selectedObject,
+      selectedObjects,
+      xrayTargetObject,
+      xrayTargetObjects,
+      xrayNormalObjects,
+      selectionVisualMode:
+        vxEngine?.selection?.getMaterialOverrideMode?.() || selectionVisualMode,
+      blinkSelectedObjectsEnabled,
+      blinkTargetObjects,
+      blinkAssignments,
+      pullApartState,
+      objectTransforms: captureObjectTransformState?.() || [],
+      cutStates: getCutStates?.() || [],
+      cutEnabled,
+      cutValues,
+      cutRanges,
+    });
   };
 
   const progressRef = useRef(0);
@@ -172,7 +209,13 @@ export function useChapterManager({
       return;
     }
 
-    const newChapter = {
+    const initialCameraView = createViewerCameraView({
+      camera: cameraRef.current,
+      controls: controlsRef.current,
+      modelScene,
+    });
+    const initialVisualState = captureChapterVisualState(selectedObject);
+    const baseChapter = {
       id: createId(),
       title: selectedObjectName,
       objectName: selectedObjectName,
@@ -187,29 +230,29 @@ export function useChapterManager({
       cameraViewSaved: false,
       cameraView: null,
       cameraViews: [],
-
-      cameraPosition: cameraRef.current
-        ? [
-            cameraRef.current.position.x,
-            cameraRef.current.position.y,
-            cameraRef.current.position.z,
-          ]
-        : [0, 0, 5],
-
-      cameraTarget: controlsRef.current
-        ? [
-            controlsRef.current.target.x,
-            controlsRef.current.target.y,
-            controlsRef.current.target.z,
-          ]
-        : [0, 0, 0],
-
+      cameraPosition: null,
+      cameraTarget: null,
+      cameraQuaternion: null,
+      cameraUp: null,
+      cameraZoom: null,
+      cameraType: null,
+      cameraFov: null,
       modelRotation: modelScene
         ? [modelScene.rotation.x, modelScene.rotation.y, modelScene.rotation.z]
         : [0, 0, 0],
-
       callouts: [],
     };
+    const newChapter =
+      initialCameraView && initialVisualState
+        ? syncChapterCameraViews(baseChapter, [
+            {
+              ...initialCameraView,
+              visualState: initialVisualState,
+              id: createId("chapter-camera"),
+              caption: "Camera 1",
+            },
+          ])
+        : baseChapter;
 
     setMaterial((prev) => ({
       ...prev,
@@ -219,7 +262,13 @@ export function useChapterManager({
     setActiveChapterId(newChapter.id);
     setRightTab("chapter");
 
-    showChapterSuccess("Chapter berhasil dibuat.");
+    showChapterSuccess(
+      initialCameraView && initialVisualState
+        ? "Chapter berhasil dibuat dengan Camera 1 dan state saat ini."
+        : isOrthographicViewerCamera(cameraRef.current)
+          ? "Chapter berhasil dibuat tanpa Camera 1. Ubah View ke Perspective untuk menyimpan Camera & State."
+          : "Chapter berhasil dibuat.",
+    );
     return true;
   };
 
@@ -264,6 +313,7 @@ export function useChapterManager({
         },
         modelFile,
         modelFileName: materialModelUrl,
+        additionalModels,
         viewerSettings,
         scene: packageScene,
         shaderMode,
@@ -351,31 +401,11 @@ export function useChapterManager({
   };
 
   const captureActiveChapterVisualState = () => {
-    if (!modelScene) return null;
-
     // The Chapter keeps its stable authoring object as selectedObject, while
     // current viewport selection remains the source for highlight, blink,
     // X-Ray, visibility, Pull Apart, and Cut state.
     const visualStateObject = activeChapter ? authoringObject : selectedObject;
-
-    return createViewerVisualState({
-      scene: modelScene,
-      primaryObject: visualStateObject,
-      selectedObject,
-      selectedObjects,
-      xrayTargetObject,
-      xrayTargetObjects,
-      xrayNormalObjects,
-      selectionVisualMode,
-      blinkSelectedObjectsEnabled,
-      blinkTargetObjects,
-      blinkAssignments,
-      pullApartState,
-      cutStates: getCutStates?.() || [],
-      cutEnabled,
-      cutValues,
-      cutRanges,
-    });
+    return captureChapterVisualState(visualStateObject);
   };
 
   const saveCameraViewToActiveChapter = ({
@@ -386,6 +416,11 @@ export function useChapterManager({
 
     if (!activeChapterId) {
       showChapterError("Choose a chapter before saving camera view.");
+      return false;
+    }
+
+    if (!requirePerspectiveCameraForSave()) {
+      showChapterError(PERSPECTIVE_CAMERA_SAVE_WARNING);
       return false;
     }
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createIOSARKitBridgeEngine,
-  createIOSWebARTrackingEngine,
   createXRQuickLookEngine,
   createXRSessionEngine,
   detectXRPlatform,
@@ -12,11 +11,9 @@ import { prepareARKitMaterial } from "../prepareARKitMaterial";
 export default function usePlayerXR(viewerSettings, modelScene, modelFileName, material) {
   const engineRef = useRef(null);
   const quickLookRef = useRef(null);
-  const iosWebARRef = useRef(null);
   const arKitBridgeRef = useRef(null);
   if (!engineRef.current) engineRef.current = createXRSessionEngine();
   if (!quickLookRef.current) quickLookRef.current = createXRQuickLookEngine();
-  if (!iosWebARRef.current) iosWebARRef.current = createIOSWebARTrackingEngine();
   if (!arKitBridgeRef.current) arKitBridgeRef.current = createIOSARKitBridgeEngine();
 
   const platform = useMemo(() => detectXRPlatform(), []);
@@ -37,43 +34,22 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     fileName: "",
     handoffMethod: "",
   });
-  const [iosWebAR, setIOSWebAR] = useState({
-    available: iosWebARRef.current.isAvailable(),
-    active: false,
-    ready: false,
-    loading: false,
-    placed: false,
-    placementMode: false,
-    incompatible: false,
-    failed: false,
-  });
 
   const settings = useMemo(
     () => normalizeXRSettings(viewerSettings?.xr),
     [viewerSettings?.xr],
   );
 
-  const activeMode = iosWebAR.active ? "ios-tracked-ar" : webXRMode;
+  const activeMode = webXRMode;
 
   useEffect(() => {
     const engine = engineRef.current;
     return engine.subscribe(({ mode }) => {
       setWebXRMode(mode || null);
-      if (!mode && !iosWebARRef.current?.getState?.().active) setError("");
+      if (!mode) setError("");
     });
   }, []);
 
-  useEffect(() => {
-    const engine = iosWebARRef.current;
-    return engine.subscribe((state) => {
-      setIOSWebAR((current) => ({
-        ...current,
-        ...state,
-        failed: state?.ready ? false : current.failed,
-      }));
-      if (!state?.active && !engineRef.current?.getState?.().mode) setError("");
-    });
-  }, []);
 
   useEffect(() => {
     arKitBridgeRef.current?.dispose?.();
@@ -90,7 +66,6 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     () => () => {
       engineRef.current?.dispose?.();
       quickLookRef.current?.dispose?.();
-      iosWebARRef.current?.dispose?.();
       arKitBridgeRef.current?.dispose?.();
     },
     [],
@@ -98,40 +73,9 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
 
   const setRenderer = useCallback((renderer) => {
     engineRef.current?.setRenderer(renderer);
-    iosWebARRef.current?.setRenderer?.(renderer);
     setRendererReady(Boolean(renderer));
   }, []);
 
-  useEffect(() => {
-    if (
-      !platform.isIOS ||
-      !platform.isSecureContext ||
-      !settings.ar.enabled ||
-      !rendererReady ||
-      !iosWebAR.available
-    ) {
-      return;
-    }
-
-    let cancelled = false;
-    void iosWebARRef.current
-      ?.preload?.()
-      .catch((preloadError) => {
-        if (cancelled) return;
-        setIOSWebAR((current) => ({ ...current, failed: true }));
-        setError(preloadError?.message || "Unable to prepare iPhone world tracking.");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    iosWebAR.available,
-    platform.isIOS,
-    platform.isSecureContext,
-    rendererReady,
-    settings.ar.enabled,
-  ]);
 
   const refreshSupport = useCallback(async () => {
     setChecking(true);
@@ -179,9 +123,8 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     }
   }, [modelFileName, modelScene, platform.isIOS, quickLook.available]);
 
-  // Quick Look is intentionally prepared only after the user presses
-  // Basic AR (No UI). The tracked iPhone path must not spend memory converting
-  // large GLB scenes to USDZ in the background.
+  // Quick Look is prepared only after the user presses the iPhone/iPad AR button.
+  // Large GLB scenes are converted to USDZ on demand so normal Player loading stays light.
 
   const prepareARKit = useCallback(async () => {
     if (!platform.isIOS || !arKit.available || !modelScene || !material) {
@@ -284,7 +227,6 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
       }
 
       try {
-        iosWebARRef.current?.stop?.();
         const sessionSettings =
           mode === "ar" && platform.isAndroid
             ? { ...modeSettings, requireDomOverlay: true }
@@ -306,7 +248,7 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
       const prepared = await prepareQuickLook();
       if (!prepared) return false;
       setError(
-        "Basic Apple AR is ready. Tap Basic AR (No UI) once more to open it.",
+        "Apple AR is ready. Tap View in Apple AR once more to open Quick Look.",
       );
       return false;
     }
@@ -333,35 +275,12 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     // any future browser that exposes immersive-ar stays on the WebXR engine.
     if (webXRSupported) return enter("ar");
 
-    // iPhone/iPad interactive XR must stay inside the Player. Never silently
-    // fall through to Quick Look here, because Quick Look leaves the web page
-    // and therefore cannot render Viqubed Material/Procedure UI.
+    // Safari/iOS does not expose the immersive-ar WebXR path used by Quest
+    // and Android. Use Apple AR Quick Look as the explicit iPhone/iPad AR
+    // backend. Quick Look is native anchored AR, but does not render the web
+    // Player UI inside the AR viewer.
     if (platform.isIOS) {
-      if (!platform.isSecureContext) {
-        setError(
-          "Interactive iPhone XR with Viqubed UI requires HTTPS. This page is running over HTTP, so camera WebAR cannot start. Use HTTPS for full UI, or choose Basic AR (No UI) explicitly.",
-        );
-        return false;
-      }
-
-      if (!iosWebAR.available) {
-        setError(
-          "World-tracked iPhone WebAR is not available in this browser. Use current Safari over trusted HTTPS, or choose Basic AR (No UI) explicitly.",
-        );
-        return false;
-      }
-
-      try {
-        await iosWebARRef.current.start();
-        setIOSWebAR((current) => ({ ...current, failed: false }));
-        return true;
-      } catch (trackingError) {
-        setIOSWebAR((current) => ({ ...current, failed: true }));
-        setError(
-          `${trackingError?.message || "Unable to start iPhone world tracking."} Viqubed stayed in the web Player so Material/Procedure UI was not lost.`,
-        );
-        return false;
-      }
+      return openQuickLookFallback();
     }
 
     if ((platform.isAndroid || platform.isQuest) && !platform.isSecureContext) {
@@ -380,8 +299,7 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     return false;
   }, [
     enter,
-    iosWebAR.available,
-    iosWebAR.failed,
+    openQuickLookFallback,
     platform.hasWebXR,
     platform.isAndroid,
     platform.isIOS,
@@ -395,10 +313,6 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
   const exit = useCallback(async () => {
     setError("");
     try {
-      if (iosWebARRef.current?.getState?.().active) {
-        iosWebARRef.current.stop();
-        return true;
-      }
       return await engineRef.current.exit();
     } catch (sessionError) {
       setError(sessionError?.message || "Unable to close XR session.");
@@ -409,8 +323,8 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
   const arStrategy =
     support.ar === true
       ? "webxr"
-      : platform.isIOS
-        ? "ios-tracked-ar"
+      : platform.isIOS && quickLook.available
+        ? "quick-look"
         : support.ar === false
           ? "unsupported"
           : "checking";
@@ -419,22 +333,10 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     settings.ar.enabled &&
     (arStrategy === "webxr"
       ? rendererReady
-      : arStrategy === "ios-tracked-ar"
-        ? rendererReady &&
-          Boolean(modelScene) &&
-          iosWebAR.available &&
-          !iosWebAR.incompatible
-        : arStrategy === "quick-look"
-          ? Boolean(modelScene) && !quickLook.preparing
-          : false);
+      : arStrategy === "quick-look"
+        ? Boolean(modelScene) && !quickLook.preparing
+        : false);
 
-  const confirmIOSPlacement = useCallback(() => {
-    return iosWebARRef.current?.confirmPlacement?.() || false;
-  }, []);
-
-  const resetIOSPlacement = useCallback(() => {
-    return iosWebARRef.current?.resetPlacement?.() || false;
-  }, []);
 
   return {
     settings,
@@ -444,10 +346,6 @@ export default function usePlayerXR(viewerSettings, modelScene, modelFileName, m
     canEnterAR,
     quickLook,
     arKit,
-    iosWebAR,
-    iosWebARController: iosWebARRef.current,
-    confirmIOSPlacement,
-    resetIOSPlacement,
     activeMode,
     error,
     checking,

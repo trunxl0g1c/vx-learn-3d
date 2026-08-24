@@ -3,6 +3,7 @@ import {
   navigateReservedPlayerWindow,
   releaseReservedPlayerWindow,
   reservePlayerPreviewWindow,
+  isCurrentDocumentFullscreen,
 } from "../../utils/playerWindowNavigation";
 
 export async function launchPlayerPreview({
@@ -14,7 +15,10 @@ export async function launchPlayerPreview({
   navigate,
   markSaveError,
 }) {
-  const reservedWindow = reservePlayerPreviewWindow(projectId);
+  const preserveFullscreen = isCurrentDocumentFullscreen();
+  const reservedWindow = preserveFullscreen
+    ? null
+    : reservePlayerPreviewWindow(projectId);
 
   try {
     setSaveStatus("saving");
@@ -27,14 +31,16 @@ export async function launchPlayerPreview({
     await savePreviewDraft();
 
     updateLoading({
-      text: reservedWindow
-        ? "Opening Player in a new tab..."
-        : "Popup was blocked. Opening Player in this tab...",
+      text: preserveFullscreen
+        ? "Opening Player while keeping full screen..."
+        : reservedWindow
+          ? "Opening Player in a new tab..."
+          : "Popup was blocked. Opening Player in this tab...",
     });
 
     const playerPath = createEditorPlayerPath(projectId);
 
-    if (navigateReservedPlayerWindow(reservedWindow, playerPath)) {
+    if (!preserveFullscreen && navigateReservedPlayerWindow(reservedWindow, playerPath)) {
       hideLoading();
       return;
     }

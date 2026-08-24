@@ -6,6 +6,7 @@ import PlayerQuizPanel from "../../components/player/PlayerQuizPanel";
 import PlayerMaterialObjectListPanel from "../../components/player/PlayerMaterialObjectListPanel";
 import PlayerXRControls from "../../components/player/PlayerXRControls";
 import PlayerXRMobileOverlay from "../../components/player/PlayerXRMobileOverlay";
+import Player3DLicense from "../../components/player/Player3DLicense";
 import { buildPlayerMaterialObjectTree } from "../../engine/chapter";
 import {
   Box,
@@ -32,6 +33,8 @@ import { normalizePlayerSettings } from "../material/playerSettings";
 import {
   focusEditorAndClosePlayer,
   isPlayerOpenedFromEditor,
+  prepareEditorOpenerForFullscreenHandoff,
+  releaseCurrentPlayerPreviewWindowName,
 } from "../../utils/playerWindowNavigation";
 import {
   PlayerAnimationFloatingPanel,
@@ -104,6 +107,18 @@ export default function PlayerPage() {
   );
 
   const handleBackToEditor = () => {
+    if (isFullscreen && projectId) {
+      // Fullscreen belongs to the current browser document and cannot be
+      // transferred reliably to the opener tab. Keep this same document
+      // fullscreen and turn it back into the Editor instead. If this Player
+      // came from an Editor popup, retire the old Editor route first so only
+      // one live editor can write to the project.
+      prepareEditorOpenerForFullscreenHandoff(projectId);
+      releaseCurrentPlayerPreviewWindowName();
+      navigate(`/viqubed/editor/${projectId}`, { replace: true });
+      return;
+    }
+
     if (focusEditorAndClosePlayer()) return;
 
     if (location.state?.fromEditorPath) {
@@ -365,7 +380,7 @@ export default function PlayerPage() {
   if (playerMenuVisibility.pullApart) {
     playerToolItems.push({
       key: "pull-apart",
-      label: "Pull Apart",
+      label: "Exploded View",
       icon: Scan,
       active: Boolean(player.toolsMenu.isPullApartActive),
       onClick: () => {
@@ -410,9 +425,7 @@ export default function PlayerPage() {
     ? sidebarItems.filter((item) => item?.key === "quiz")
     : sidebarItems;
 
-  const isIOSTrackedARActive = player.xrPanel?.activeMode === "ios-tracked-ar";
-  const showBrowserPlayerUI =
-    !player.xrPanel?.activeMode || isIOSTrackedARActive;
+  const showBrowserPlayerUI = !player.xrPanel?.activeMode;
 
   if (isLoadingProject) {
     return <div style={{ padding: 24 }}>Loading project...</div>;
@@ -496,6 +509,12 @@ export default function PlayerPage() {
           )}
         </div>
       )}
+
+      <Player3DLicense
+        models={player.licensePanel?.models || []}
+        hidden={Boolean(activeMedia) || Boolean(player.quizPanel?.isAssessmentActive)}
+        avoidBottomPanel={Boolean(selectedAnnotation)}
+      />
 
       {activePanel === "project" && (
         <PlayerProjectInfoFloatingPanel

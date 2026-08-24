@@ -578,7 +578,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                     : "cyanOutline"
                 }
                 onClick={flow.saveViewState}
-                title="Save the current camera together with visibility, X-Ray, Pull Apart, Cut, and selection"
+                title="Save the current camera together with visibility, X-Ray, Exploded View, Cut, and selection"
               >
                 <MaterialIcon name="save" className="size-5" />
                 {activeFlow.visualState && activeFlow.cameraView

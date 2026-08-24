@@ -64,6 +64,11 @@ export default function usePlayerChapter({
   const applyChapterCameraView = (chapter, index = 0) => {
     if (!chapter) return null
 
+    // Replace any unfinished saved-camera transition before installing the
+    // next Chapter view. The current camera position is preserved as the new
+    // interpolation start, so navigation remains smooth without stale targets.
+    focusTargetRef.current = null
+
     const chapterCameraViews = getChapterCameraViews(chapter)
     const normalizedIndex = clampCameraIndex(index, chapterCameraViews.length)
     const cameraView = chapterCameraViews[normalizedIndex] || null

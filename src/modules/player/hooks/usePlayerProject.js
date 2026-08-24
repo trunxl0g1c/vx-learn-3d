@@ -7,6 +7,7 @@ import { DEFAULT_VIEWER_BACKGROUND } from "../../../utils/viewerBackground"
 import { DEFAULT_VIEWER_GRID } from "../../../engine/viewer"
 import { DEFAULT_XR_SETTINGS, normalizeXRSettings } from "../../../engine/xr"
 import { normalizePlayerSettings } from "../../material/playerSettings"
+import { normalizeProToolsSettings } from "../../../engine/project/ProToolsSettings"
 import {
   normalizeFlowDefinition,
   normalizeFlowDefinitions,
@@ -395,6 +396,8 @@ export default function usePlayerProject({
             projectId: loaded.projectId || projectId,
             projectName: loaded.projectName || loaded.project?.name || "",
             playerSettings: normalizePlayerSettings(nextMaterial.playerSettings),
+            proToolsSettings: normalizeProToolsSettings(nextMaterial.proToolsSettings),
+            additionalModels: loaded.additionalModels || [],
             flows: normalizeFlowDefinitions(nextMaterial.flows),
             authoredAnimations: normalizeAuthoredAnimationDefinitions(nextMaterial.authoredAnimations),
             procedures: normalizeProceduralDefinitions(nextMaterial.procedures),

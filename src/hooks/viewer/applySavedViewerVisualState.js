@@ -95,6 +95,7 @@ export function applySavedViewerVisualState({
   chapterObject,
   visualState,
   applySavedPullApart,
+  applySavedObjectTransforms,
   makeOthersXray,
   makeTargetObjectsXray,
   highlightObject,
@@ -114,6 +115,14 @@ export function applySavedViewerVisualState({
   )
 
   applySavedPullApart(visualState.pullApart, pullApartTarget)
+
+  const savedObjectTransforms = Array.isArray(visualState?.transforms?.objects)
+    ? visualState.transforms.objects
+    : Array.isArray(visualState?.objectTransforms)
+      ? visualState.objectTransforms
+      : []
+  const transformedObjectCount =
+    applySavedObjectTransforms?.(savedObjectTransforms) || 0
 
   const hiddenReferences = Array.isArray(
     visualState.visibility?.hiddenObjects,
@@ -200,6 +209,7 @@ export function applySavedViewerVisualState({
   if (savedBlinkAssignments.length > 0 && setBlinkAssignments) {
     setBlinkAssignments(savedBlinkAssignments)
   } else {
+    setBlinkAssignments?.([])
     setBlinkTargetObjects?.(savedBlinkObjects)
   }
   setBlinkSelectedObjectsEnabled?.(
@@ -219,7 +229,14 @@ export function applySavedViewerVisualState({
     }))
     .filter((entry) => entry.targetObject)
 
-  applySavedCuts(resolvedCuts, preferredSelection || scene)
+  const savedCutEnabled =
+    typeof visualState.cutEnabled === "boolean"
+      ? visualState.cutEnabled
+      : resolvedCuts.some((entry) => entry?.cutState?.enabled)
+
+  applySavedCuts(resolvedCuts, preferredSelection || scene, {
+    enabled: savedCutEnabled,
+  })
 
   return {
     selectedObject: preferredSelection,
@@ -232,6 +249,7 @@ export function applySavedViewerVisualState({
     xrayMode,
     xrayTargets,
     hiddenCount: hiddenReferences.length,
+    transformedObjectCount,
     cutsApplied: resolvedCuts.length,
   }
 }

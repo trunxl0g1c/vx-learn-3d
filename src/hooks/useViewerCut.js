@@ -445,7 +445,12 @@ export function useViewerCut({
 
   const clearCutSession = useCallback(() => {
     const cutEngine = cutEngineRef.current
-    const state = cutEngine.clear(modelScene)
+    cutEngine.__vxCutAllObjects = true
+    let state = cutEngine.clear(modelScene)
+
+    if (modelScene) {
+      state = cutEngine.setTarget(modelScene)
+    }
 
     setCutEnabled(false)
     syncStateToReact(state)
@@ -454,22 +459,25 @@ export function useViewerCut({
   }, [modelScene, setCutEnabled, syncStateToReact])
 
   const applySavedCuts = useCallback(
-    (savedCuts = [], preferredTarget = null) => {
+    (savedCuts = [], preferredTarget = null, options = {}) => {
       const cutEngine = cutEngineRef.current
+      const hasExplicitEnabled = typeof options?.enabled === "boolean"
 
       cutEngine.clear(modelScene)
 
+      // Saved values are staged independently from the global Cut switch.
+      // A material can therefore keep its own slider values while Cut is OFF,
+      // and those values become active again when the user reopens/enables Cut.
       const validCuts = savedCuts.filter(
-        (entry) => entry?.cutState?.enabled && entry?.targetObject,
+        (entry) => entry?.cutState && entry?.targetObject,
       )
 
       if (!modelScene || validCuts.length === 0) {
+        cutEngine.__vxCutAllObjects = true
         setCutEnabled(false)
 
-        const fallbackTarget = preferredTarget || cutTarget || modelScene
-
-        if (fallbackTarget) {
-          syncStateToReact(cutEngine.setTarget(fallbackTarget))
+        if (modelScene) {
+          syncStateToReact(cutEngine.setTarget(modelScene))
         }
 
         return false
@@ -486,25 +494,28 @@ export function useViewerCut({
         cutEngine.setValues(nextValues)
       })
 
-      cutEngine.setEnabled(true)
-      cutEngine.apply(modelScene)
-      setCutEnabled(true)
+      const preferredSavedTarget = validCuts.some(
+        (entry) => entry.targetObject === preferredTarget,
+      )
+        ? preferredTarget
+        : null
+      const activeTarget = preferredSavedTarget || validCuts[0]?.targetObject || modelScene
+      const nextEnabled = hasExplicitEnabled
+        ? Boolean(options.enabled)
+        : validCuts.some((entry) => entry?.cutState?.enabled)
 
-      const activeTarget =
-        preferredTarget || validCuts[0]?.targetObject || cutTarget || modelScene
+      cutEngine.__vxCutAllObjects = activeTarget === modelScene
+      cutEngine.setEnabled(nextEnabled)
+      cutEngine.apply(modelScene)
+      setCutEnabled(nextEnabled)
 
       if (activeTarget) {
         syncStateToReact(cutEngine.setTarget(activeTarget))
       }
 
-      return true
+      return nextEnabled
     },
-    [
-      cutTarget,
-      modelScene,
-      setCutEnabled,
-      syncStateToReact,
-    ],
+    [modelScene, setCutEnabled, syncStateToReact],
   )
 
   return {

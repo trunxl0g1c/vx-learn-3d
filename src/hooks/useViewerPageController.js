@@ -33,9 +33,11 @@ import { createDefaultViewerSettings } from "./viewer/createDefaultViewerSetting
 import { usePersistedViewerSettings } from "./viewer/usePersistedViewerSettings";
 import { launchPlayerPreview } from "./viewer/launchPlayerPreview";
 import { useViewerDataImport } from "./viewer/useViewerDataImport";
+import { useProjectRouteScope } from "./viewer/useProjectRouteScope";
 import { createChapterHighlightPayload } from "../engine/selection";
 import { useViewerSceneHistory } from "./viewer/useViewerSceneHistory";
 import { useDefaultViewerPresentation } from "./viewer/useDefaultViewerPresentation";
+import { useViewerObjectActions } from "./viewer/useViewerObjectActions";
 import { useFocusSelectedObjectShortcut } from "./useFocusSelectedObjectShortcut";
 import {
   getChapterCameraView,
@@ -56,6 +58,7 @@ export function useViewerPageController() {
   const vxEngine = useVXEngine();
   const navigate = useNavigate();
   const { projectId } = useParams();
+  useProjectRouteScope(projectId);
   const editorHistory = useEditorHistory({
     historyEngine: vxEngine?.history,
     projectId,
@@ -102,6 +105,7 @@ export function useViewerPageController() {
   const [activeMenu, setActiveMenu] = useState(null);
   const [outlineObjects, setOutlineObjects] = useState([]);
   const [isTransforming, setIsTransforming] = useState(false);
+  const [objectTransformMode, setObjectTransformMode] = useState("translate");
   const [orbitEnabled, setOrbitEnabled] = useState(true);
   const [selectedObjectName, setSelectedObjectName] = useState("");
   const [activeChapterId, setActiveChapterId] = useState(null);
@@ -137,8 +141,12 @@ export function useViewerPageController() {
     loadSlideRecord,
     modelUrl,
     modelFile,
+    additionalModels,
     materialModelUrl,
+    modelLicenseModels, handleUpdateModelLicense, handleReadModelLicenseMetadata,
     handleFile,
+    handleAddAdditionalGlbFiles,
+    handleRemoveAdditionalGlb,
   } = useViewerProject({
     projectId,
     markDirty,
@@ -197,9 +205,7 @@ export function useViewerPageController() {
     setMaterial: updateMaterialState,
     modelScene,
     selectedObject,
-    cameraRef,
-    controlsRef,
-    setCameraProjectionMode,
+    cameraRef, controlsRef, cameraProjectionMode, setCameraProjectionMode,
     proceduralEngine: vxEngine?.procedural,
     modelEngine: vxEngine?.model,
     setOutlineObjects,
@@ -217,13 +223,10 @@ export function useViewerPageController() {
     xrEngine: vxEngine?.xr,
   });
   useEffect(() => {
-    if (activeSidebar !== "pro") {
-      flow.stopAuthoring();
-      procedural.stopAuthoring();
-      animationAuthoring.stopAuthoring();
-      quiz.stopAuthoring();
-      xrAuthoring.stopAuthoring();
-    }
+    const proSidebarOpen = activeSidebar === "pro";
+    const animationSidebarCompatible = proSidebarOpen || activeSidebar === "hierarchy" || activeSidebar === null;
+    if (!proSidebarOpen) { flow.stopAuthoring(); procedural.stopAuthoring(); quiz.stopAuthoring(); xrAuthoring.stopAuthoring(); }
+    if (!animationSidebarCompatible) animationAuthoring.stopAuthoring();
   }, [activeSidebar, flow.stopAuthoring, procedural.stopAuthoring, animationAuthoring.stopAuthoring, quiz.stopAuthoring, xrAuthoring.stopAuthoring]);
   const slideModeActive = activeSidebar === "slides";
   const { contentAuthoringLocked, contentAuthoringLockReason } =
@@ -512,6 +515,8 @@ export function useViewerPageController() {
     hideAllObjects: hideAllObjectsBase,
     resetAllTransforms,
     resetVisualState,
+    captureObjectTransformState,
+    applySavedObjectTransforms,
     applySavedPullApart,
     pullApartState,
   } = useModelManager({
@@ -588,15 +593,17 @@ export function useViewerPageController() {
     selectedObjects, blinkSelectedObjectsEnabled, blinkTargetObjects, blinkAssignments,
     setBlinkSelectedObjectsEnabled, setBlinkTargetObjects, setBlinkAssignments,
     xrayTargetObject, xrayTargetObjects, xrayNormalObjects,
-    selectionVisualMode,
+    selectionVisualMode, selectionEngine,
     pullApartState,
+    captureObjectTransformState,
+    applySavedObjectTransforms,
     getCutStates,
     cutEnabled,
     cutValues,
     cutRanges: engineCutRanges || cutRanges,
-    cameraRef,
-    controlsRef,
+    cameraRef, controlsRef, cameraProjectionMode, setCameraProjectionMode,
     resetXray,
+    resetVisualState,
     showAllObjects: showAllObjectsBase,
     clearCutSession,
     applySavedPullApart,
@@ -607,18 +614,23 @@ export function useViewerPageController() {
     setSelectedObjectName,
     applySavedCuts,
   });
-  const { saveDefaultPlayerCameraViewAndState } =
-    useDefaultViewerPresentation({
-      material, updateMaterialState, modelScene, cameraRef, controlsRef,
-      captureCameraView, captureVisualState, resetVisualState, applyVisualState,
-      applyStoredCameraFocusTarget,
-    });
+  const {
+    saveDefaultPlayerCameraViewAndState,
+    resetToDefaultCameraView,
+  } = useDefaultViewerPresentation({
+    material, updateMaterialState, rawSetMaterial, markDirty,
+    modelScene, cameraRef, controlsRef,
+    captureCameraView, captureVisualState, resetVisualState, applyVisualState,
+    applyStoredCameraFocusTarget,
+  });
   const slideAuthoring = useSlideAuthoring({
     enabled: slideModeActive, material, setMaterial: updateMaterialState, hydrateSlideRecord: loadSlideRecord,
-    setRightTab, setActiveChapterId, setMarkerMode, modelScene, cameraRef, controlsRef, selectedObject, selectedObjects,
+    setRightTab, setActiveChapterId, setMarkerMode, modelScene, cameraRef, controlsRef, cameraProjectionMode, setCameraProjectionMode, selectedObject, selectedObjects,
     blinkSelectedObjectsEnabled, blinkTargetObjects, blinkAssignments, setBlinkSelectedObjectsEnabled, setBlinkTargetObjects, setBlinkAssignments,
     xrayTargetObject, xrayTargetObjects, xrayNormalObjects,
-    selectionVisualMode, pullApartState, getCutStates, cutEnabled, cutValues, cutRanges: engineCutRanges || cutRanges,
+    selectionVisualMode, selectionEngine, pullApartState,
+    captureObjectTransformState, applySavedObjectTransforms,
+    getCutStates, cutEnabled, cutValues, cutRanges: engineCutRanges || cutRanges,
     applyStoredCameraFocusTarget, resetXray, resetVisualState, clearCutSession, applySavedPullApart, makeOthersXray,
     makeTargetObjectsXray, highlightObject, highlightSelectedObjectsPreservingVisualState, setSelectedObject,
     setSelectedObjectName, setOutlineObjects, applySavedCuts, animationEngine: vxEngine?.animation, animations,
@@ -648,31 +660,17 @@ export function useViewerPageController() {
     clearSelection,
   });
 
-  const isSelectedObjectXray = Boolean(
-    selectedObject && xrayTargetObjects.includes(selectedObject),
-  );
-
-  const toggleSelectedObjectXray = () => {
-    if (!selectedObject) return;
-
-    const targetObject = selectedObject;
-    const targetName = String(targetObject.name || selectedObjectName || "")
-      .replaceAll("_", " ");
-
-    if (xrayTargetObjects.includes(targetObject)) {
-      removeTargetObjectsXray([targetObject]);
-      setSelectedObjectName(targetName);
-      return;
-    }
-
-    makeXrayExcept(targetObject);
-    setSelectedObjectName(targetName);
-  };
-
-  const resetAllWithCamera = () => {
-    resetAllTransforms();
-    resetCameraToInitialView();
-  };
+  const {
+    isSelectedObjectXray,
+    toggleSelectedObjectXray,
+    resetAllObjectState,
+  } = useViewerObjectActions({
+    selectedObject, selectedObjectName, xrayTargetObjects,
+    removeTargetObjectsXray, makeXrayExcept, setSelectedObjectName,
+    resetVisualState, resetXray, setBlinkSelectedObjectsEnabled,
+    setBlinkTargetObjects, setBlinkAssignments, clearSelection,
+    resetToDefaultCameraView, resetCameraToInitialView,
+  });
 
   const { addMarker, updateMarker } = useMarkerManager({
     activeChapterId,
@@ -729,13 +727,14 @@ export function useViewerPageController() {
     blinkTargetObjects,
     blinkAssignments,
     authoringObject,
-    cameraRef,
-    controlsRef,
+    cameraRef, controlsRef, cameraProjectionMode, setCameraProjectionMode,
     modelScene,
     material,
     setMaterial: updateMaterialState,
     materialModelUrl,
     modelFile,
+    additionalModels,
+    modelLicenseModels, handleUpdateModelLicense, handleReadModelLicenseMetadata,
     packageProject: currentProject,
     packageScene: {
       ...(currentProject?.scene || {}),
@@ -762,6 +761,7 @@ export function useViewerPageController() {
     xrayNormalObjects,
     selectionVisualMode,
     pullApartState,
+    captureObjectTransformState,
     activeChapterId,
     setActiveChapterId,
     setRightTab,
@@ -804,6 +804,7 @@ export function useViewerPageController() {
       resetXray({ closeInfo: false });
       setBlinkSelectedObjectsEnabled(false);
       setBlinkTargetObjects([]);
+      setBlinkAssignments([]);
       resetVisualState();
       clearCutSession();
 
@@ -868,6 +869,7 @@ export function useViewerPageController() {
           selectedCameraView,
         ),
         applySavedPullApart,
+        applySavedObjectTransforms,
         ...previewSelection,
         setSelectedObjectName,
         setBlinkSelectedObjectsEnabled,
@@ -1034,7 +1036,10 @@ export function useViewerPageController() {
     controlsRef,
     focusTargetRef,
     outlineObjects,
-    modelUrl,
+    modelUrl, additionalModels, modelLicenseModels,
+    handleUpdateModelLicense, handleReadModelLicenseMetadata,
+    handleAddAdditionalGlbFiles,
+    handleRemoveAdditionalGlb,
     addMarker,
     updateMarker,
     handleModelLoaded: handleModelLoadedWithCutBounds,
@@ -1064,6 +1069,8 @@ export function useViewerPageController() {
     selectObjectFromList,
     isTransforming,
     setIsTransforming,
+    objectTransformMode,
+    setObjectTransformMode,
     orbitEnabled,
     setOrbitEnabled,
     setSelectedObject,
@@ -1095,7 +1102,8 @@ export function useViewerPageController() {
     isSelectedObjectXray,
     resetXray,
     pullApart: pullApartSelectedScope,
-    resetAllTransforms: resetAllWithCamera,
+    resetAllObjectState,
+    resetAllTransforms: resetAllObjectState,
     soloSelectedObject,
     showAllObjects,
     objectList,

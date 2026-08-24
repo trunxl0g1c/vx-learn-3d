@@ -449,74 +449,50 @@ function createParticlesEffect({
   curve,
   group,
   color,
+  radius,
   settings,
   depthLayer,
   opacityScale = 1,
 }) {
   const count = Math.max(1, Math.round(settings.particleCount));
-  const positions = new Float32Array(count * 3);
 
-  const geometry = new THREE.BufferGeometry();
-  const positionAttribute = new THREE.BufferAttribute(positions, 3);
-  positionAttribute.setUsage(THREE.DynamicDrawUsage);
-  geometry.setAttribute("position", positionAttribute);
-  geometry.setDrawRange(0, 0);
-
-  const cssPixelDiameter = THREE.MathUtils.clamp(
-    10 + (settings.thickness - 1) * 2,
-    8,
-    16,
-  );
-  const material = createFixedPixelPointMaterial(
+  // Particles are model-space actors, not fixed-pixel points. Keeping their
+  // geometry radius in world/model units makes the configured Thickness stay
+  // proportional to the 3D model while the camera dollies or zooms. The old
+  // screen-space PointsMaterial stayed the same number of pixels, which made
+  // particles look progressively smaller relative to the model when zooming in.
+  const particleRadius = Math.max(Number(radius) * 0.72, 0.0005);
+  const geometry = new THREE.IcosahedronGeometry(particleRadius, 1);
+  const material = createBasicMaterial(
     color,
-    (settings.opacity * opacityScale),
-    cssPixelDiameter,
+    settings.opacity * opacityScale,
     {
       additive: true,
       depthLayer,
     },
   );
-  const points = markFlowHelper(
-    new THREE.Points(geometry, material),
-    getFlowRenderOrder(63, depthLayer),
+  const particles = createInstancedActor(
+    geometry,
+    material,
+    count,
+    63,
+    depthLayer,
   );
-  points.frustumCulled = false;
-  group.add(points);
-
-  const point = new THREE.Vector3();
+  const updater = createInstancedUpdater(curve);
+  group.add(particles);
 
   return {
     update(progress, playing, repeat) {
-      let visibleCount = 0;
+      for (let index = 0; index < count; index += 1) {
+        const rawProgress = repeat
+          ? getLoopProgress(progress, index, count)
+          : getTrailProgress(progress, index, count, 0.35);
+        const visible = playing && rawProgress >= 0 && rawProgress <= 1;
 
-      if (playing) {
-        for (let index = 0; index < count; index += 1) {
-          const rawProgress = repeat
-            ? getLoopProgress(progress, index, count)
-            : getTrailProgress(progress, index, count, 0.35);
-
-          if (rawProgress < 0 || rawProgress > 1) continue;
-
-          curve.getPointAt(THREE.MathUtils.clamp(rawProgress, 0, 1), point);
-          if (
-            !Number.isFinite(point.x) ||
-            !Number.isFinite(point.y) ||
-            !Number.isFinite(point.z)
-          ) {
-            continue;
-          }
-
-          const offset = visibleCount * 3;
-          positions[offset] = point.x;
-          positions[offset + 1] = point.y;
-          positions[offset + 2] = point.z;
-          visibleCount += 1;
-        }
+        updater.setInstance(particles, index, rawProgress, { visible });
       }
 
-      geometry.setDrawRange(0, visibleCount);
-      positionAttribute.needsUpdate = visibleCount > 0;
-      points.visible = visibleCount > 0;
+      particles.instanceMatrix.needsUpdate = true;
     },
   };
 }

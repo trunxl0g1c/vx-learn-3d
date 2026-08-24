@@ -17,6 +17,9 @@ import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
 import { createId } from "../../../utils/createId";
 import BlinkPresetSettings from "./BlinkPresetSettings";
+import ModelLicenseSettingsControls from "./ModelLicenseSettingsControls";
+import SettingsAccordionSection from "./SettingsAccordionSection";
+import { usePerspectiveCameraSaveGuard } from "../../../hooks/viewer/usePerspectiveCameraSaveGuard";
 import { normalizeBlinkSelectionSettings } from "../../../engine/selection";
 import { useCategories } from "../../../modules/category/api/categories";
 import {
@@ -163,6 +166,11 @@ export default function ProjectSettingsPanel({
   viewerSettings,
   setViewerSettings,
   saveDefaultPlayerCameraViewAndState,
+  cameraProjectionMode = "perspective",
+  setCameraProjectionMode = null,
+  modelLicenseModels = [],
+  onUpdateModelLicense,
+  onReadModelLicenseMetadata,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
@@ -185,6 +193,10 @@ export default function ProjectSettingsPanel({
   else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
 
   const [panelError, setPanelError] = useState("");
+  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
+    cameraProjectionMode,
+    onSwitchToPerspective: setCameraProjectionMode,
+  });
 
   const showPanelError = (message) => {
     setPanelError(message);
@@ -335,6 +347,8 @@ export default function ProjectSettingsPanel({
   const handleSaveDefaultPlayerCameraViewAndState = () => {
     clearPanelError();
 
+    if (!requirePerspectiveCameraForSave()) return;
+
     const didSave = saveDefaultPlayerCameraViewAndState?.();
 
     if (!didSave) {
@@ -366,7 +380,7 @@ export default function ProjectSettingsPanel({
           <div className="relative">
             <input
               value={material.title || ""}
-              maxLength={48}
+              maxLength={100}
               placeholder="Project title"
               onChange={(event) => {
                 clearPanelError();
@@ -382,7 +396,7 @@ export default function ProjectSettingsPanel({
             />
 
             <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
-              {titleLength}/48
+              {titleLength}/100
             </span>
           </div>
         </div>
@@ -670,21 +684,29 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <ProToolsSettingsControls
-          settings={material.proToolsSettings}
-          onChange={(nextSettings) =>
-            setMaterial((prev) => ({
-              ...prev,
-              proToolsSettings: nextSettings,
-            }))
-          }
-        />
+        <SettingsAccordionSection title="Pro Tools">
+          <ProToolsSettingsControls
+            embedded
+            settings={material.proToolsSettings}
+            onChange={(nextSettings) =>
+              setMaterial((prev) => ({
+                ...prev,
+                proToolsSettings: nextSettings,
+              }))
+            }
+          />
+        </SettingsAccordionSection>
 
-        <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-4 text-sm font-normal text-white">
-            Player Settings
-          </div>
+        <SettingsAccordionSection title="3D License">
+          <ModelLicenseSettingsControls
+            embedded
+            models={modelLicenseModels}
+            onUpdateModelLicense={onUpdateModelLicense}
+            onReadModelLicenseMetadata={onReadModelLicenseMetadata}
+          />
+        </SettingsAccordionSection>
 
+        <SettingsAccordionSection title="Player Settings">
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <span className="text-sm font-normal text-contrast-grayout">
@@ -714,10 +736,9 @@ export default function ProjectSettingsPanel({
               </button>
 
               <p className="mt-2 text-xs leading-5 text-contrast-grayout">
-                Posisi kamera dan state visual Editor saat ini akan menjadi
-                tampilan awal saat project dibuka di Editor maupun Player.
-                Kamera menjadi target Reset View, sedangkan kamera + state
-                menjadi target Reset All di Player.
+                Default camera dan state otomatis disimpan saat project pertama
+                kali dibuka. Tombol ini memperbaruinya dengan kondisi viewport
+                Editor saat ini untuk tampilan awal Editor maupun Player.
               </p>
             </div>
 
@@ -731,7 +752,7 @@ export default function ProjectSettingsPanel({
                   ["environmentSettings", "Environment Settings"],
                   ["objectList", "Object List"],
                   ["freePlay", "Free Play"],
-                  ["pullApart", "Pull Apart"],
+                  ["pullApart", "Exploded View"],
                   ["cut", "Cut"],
                 ].map(([key, label], index) => (
                   <div
@@ -756,23 +777,27 @@ export default function ProjectSettingsPanel({
               </div>
             </div>
           </div>
-        </div>
+        </SettingsAccordionSection>
 
-        <TurntableAnimationSettings
-          settings={turntableAnimation}
-          onChange={(nextSettings) =>
-            updatePlayerSettings({ turntableAnimation: nextSettings })
-          }
-        />
+        <SettingsAccordionSection title="Turntable Animation">
+          <TurntableAnimationSettings
+            embedded
+            settings={turntableAnimation}
+            onChange={(nextSettings) =>
+              updatePlayerSettings({ turntableAnimation: nextSettings })
+            }
+          />
+        </SettingsAccordionSection>
 
-        <BlinkPresetSettings
-          viewerSettings={viewerSettings}
-          setViewerSettings={setViewerSettings}
-        />
+        <SettingsAccordionSection title="Blink Setting">
+          <BlinkPresetSettings
+            embedded
+            viewerSettings={viewerSettings}
+            setViewerSettings={setViewerSettings}
+          />
+        </SettingsAccordionSection>
 
-        <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-2 text-sm font-normal text-white">Background</div>
-
+        <SettingsAccordionSection title="Background">
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Background Type
           </label>
@@ -1005,7 +1030,7 @@ export default function ProjectSettingsPanel({
               />
             </div>
           </div>
-        </div>
+        </SettingsAccordionSection>
         <div className="flex items-center justify-between">
           <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace

@@ -38,6 +38,55 @@ function renderPreparingScreen(targetWindow) {
   }
 }
 
+
+export function isCurrentDocumentFullscreen() {
+  if (typeof document === "undefined") return false;
+
+  return Boolean(
+    document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement,
+  );
+}
+
+export function releaseCurrentPlayerPreviewWindowName() {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (String(window.name || "").startsWith(`${PLAYER_WINDOW_NAME_PREFIX}-`)) {
+      window.name = "";
+    }
+  } catch {
+    // Window naming is only used to reuse non-fullscreen Player previews.
+  }
+}
+
+export function prepareEditorOpenerForFullscreenHandoff(projectId) {
+  if (typeof window === "undefined") return false;
+
+  const opener = window.opener;
+  if (!opener || opener.closed) return false;
+
+  try {
+    if (opener.location.origin !== window.location.origin) return false;
+
+    const encodedProjectId = encodeURIComponent(String(projectId || ""));
+    const expectedEditorPath = `/viqubed/editor/${encodedProjectId}`;
+
+    if (opener.location.pathname !== expectedEditorPath) return false;
+
+    // The fullscreen document cannot be transferred to another browser tab.
+    // Move the old Editor tab out of the project before this fullscreen Player
+    // tab becomes the active Editor, preventing two live editors from writing
+    // to the same project at the same time.
+    opener.location.replace("/viqubed");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createEditorPlayerPath(projectId) {
   const encodedProjectId = encodeURIComponent(String(projectId || ""));
   const params = new URLSearchParams({
@@ -60,6 +109,38 @@ export function reservePlayerPreviewWindow(projectId) {
 
   if (isBlankWindow) {
     renderPreparingScreen(targetWindow);
+  } else {
+    // This path is used only when the Editor itself is not fullscreen. A
+    // previously opened named Player window may still be fullscreen, so make
+    // sure reusing that window does not leak the old fullscreen state into a
+    // new non-fullscreen preview. Exiting fullscreen does not require a new
+    // user gesture.
+    try {
+      const targetDocument = targetWindow.document;
+      const hasFullscreenElement = Boolean(
+        targetDocument?.fullscreenElement ||
+          targetDocument?.webkitFullscreenElement ||
+          targetDocument?.mozFullScreenElement ||
+          targetDocument?.msFullscreenElement,
+      );
+
+      if (hasFullscreenElement) {
+        const exitResult = targetDocument.exitFullscreen
+          ? targetDocument.exitFullscreen()
+          : targetDocument.webkitExitFullscreen
+            ? targetDocument.webkitExitFullscreen()
+            : targetDocument.mozCancelFullScreen
+              ? targetDocument.mozCancelFullScreen()
+              : targetDocument.msExitFullscreen
+                ? targetDocument.msExitFullscreen()
+                : null;
+
+        exitResult?.catch?.(() => {});
+      }
+    } catch {
+      // Reusing the preview window remains best effort. Navigation itself will
+      // still replace the old document.
+    }
   }
 
   try {

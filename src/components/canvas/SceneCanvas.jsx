@@ -164,6 +164,8 @@ export default function SceneCanvas({
   shaderOutlineObjects = [],
   shaderOutlineStyle = null,
   modelUrl,
+  additionalModels = [],
+  additionalModelsEnabled = false,
   addMarker,
   handleModelLoaded,
   markerMode,
@@ -181,6 +183,7 @@ export default function SceneCanvas({
   isAutoRotating,
   setIsAutoRotating,
   selectedObject,
+  objectTransformMode = "translate",
   isTransforming,
   setIsTransforming,
   orbitEnabled,
@@ -207,11 +210,15 @@ export default function SceneCanvas({
   animationTransformObject = null,
   animationTransformRig = null,
   animationPivotEditEnabled = false,
+  animationPivotObject = null,
+  animationPivotValue = [0, 0, 0],
   onAnimationTransformChange = null,
   onAnimationPivotChange = null,
   onAnimationPivotPick = null,
 }) {
   const modelRootRef = useRef(null)
+  const additionalSceneStateRef = useRef(null)
+  const handleModelLoadedRef = useRef(handleModelLoaded)
   const [isFlowWaypointTransforming, setIsFlowWaypointTransforming] =
     useState(false)
   const shaderOutlineConfig = getShaderOutlineConfig(shaderOutlineStyle)
@@ -228,7 +235,7 @@ export default function SceneCanvas({
     ? proceduralTransformMode
     : animationTransformObject
       ? animationTransformMode
-      : proceduralTransformMode
+      : objectTransformMode
   const animationRigAxis = animationTransformRig?.axis || null
   const animationRigLocksAxis =
     animationTransformObject &&
@@ -275,6 +282,34 @@ export default function SceneCanvas({
     },
     [controlsRef, focusTargetRef, setIsAutoRotating, setIsTransforming, setOrbitEnabled],
   )
+
+  useEffect(() => {
+    handleModelLoadedRef.current = handleModelLoaded
+  }, [handleModelLoaded])
+
+  const additionalSceneStateKey = `${additionalModelsEnabled ? "on" : "off"}:${
+    additionalModels.map((model) => model?.id).filter(Boolean).join("|")
+  }`
+
+  useEffect(() => {
+    const previousKey = additionalSceneStateRef.current
+    additionalSceneStateRef.current = additionalSceneStateKey
+
+    // The Model callbacks initialize the first render. This effect is only for
+    // later enable/disable/remove changes where an additional child disappears
+    // and therefore cannot fire its own onModelLoaded callback.
+    if (previousKey === null || previousKey === additionalSceneStateKey) return
+
+    const frame = window.requestAnimationFrame?.(() => {
+      const root = modelRootRef.current
+      if (!root || root.children.length === 0) return
+      handleModelLoadedRef.current?.(root)
+    })
+
+    return () => {
+      if (frame !== undefined) window.cancelAnimationFrame?.(frame)
+    }
+  }, [additionalSceneStateKey])
 
   return (
     <Canvas
@@ -429,6 +464,8 @@ export default function SceneCanvas({
               <Model
                 key={modelUrl}
                 modelUrl={modelUrl}
+                modelAssetId="primary"
+                modelAssetName="Primary GLB"
                 onAddMarker={addMarker}
                 onModelLoaded={() => {
                   handleModelLoaded(modelRootRef.current)
@@ -436,7 +473,7 @@ export default function SceneCanvas({
                 markerMode={markerMode}
                 flowPointMode={flowPointMode}
                 onAddFlowPoint={onAddFlowPoint}
-                animationPivotPickMode={Boolean(animationPivotEditEnabled && animationTransformRig?.type === "revolute")}
+                animationPivotPickMode={Boolean(animationPivotEditEnabled)}
                 onAnimationPivotPick={onAnimationPivotPick}
                 onSelectObject={selectObjectFromMesh}
                 onDoubleClickObject={focusObjectFromMesh}
@@ -458,6 +495,40 @@ export default function SceneCanvas({
                   setSelectedAnimations(initial)
                 }}
               />
+
+              {additionalModelsEnabled &&
+                additionalModels
+                  .filter((model) => model?.url)
+                  .map((model) => (
+                    <group
+                      key={model.id}
+                      name={model.name || model.fileName || "Additional GLB"}
+                      userData={{
+                        __vxAdditionalModelRoot: true,
+                        __vxModelAssetId: model.id,
+                        __vxModelAssetName: model.fileName || model.name || "",
+                      }}
+                    >
+                      <Model
+                        modelUrl={model.url}
+                        modelAssetId={model.id}
+                        modelAssetName={model.fileName || model.name || "Additional GLB"}
+                        onAddMarker={addMarker}
+                        onModelLoaded={() => {
+                          handleModelLoaded(modelRootRef.current)
+                        }}
+                        markerMode={markerMode}
+                        flowPointMode={flowPointMode}
+                        onAddFlowPoint={onAddFlowPoint}
+                        animationPivotPickMode={Boolean(animationPivotEditEnabled)}
+                        onAnimationPivotPick={onAnimationPivotPick}
+                        onSelectObject={selectObjectFromMesh}
+                        onDoubleClickObject={focusObjectFromMesh}
+                        selectedAnimations={{}}
+                        animationCommand={null}
+                      />
+                    </group>
+                  ))}
 
               {activeMarkers.map((marker) => (
                 <Marker
@@ -526,9 +597,12 @@ export default function SceneCanvas({
       />
 
       <AnimationPivotEditor
-        object={animationTransformObject}
-        pivot={animationTransformRig?.pivot || [0, 0, 0]}
-        enabled={Boolean(animationPivotEditEnabled && animationTransformObject && animationTransformRig?.type === "revolute")}
+        object={animationPivotObject || animationTransformObject}
+        pivot={animationPivotValue}
+        enabled={Boolean(
+          animationPivotEditEnabled &&
+            (animationPivotObject || animationTransformObject)
+        )}
         controlsRef={controlsRef}
         onTransformingChange={handleViewportTransformingChange}
         onPivotChange={onAnimationPivotChange}
