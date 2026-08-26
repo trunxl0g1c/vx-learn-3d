@@ -159,6 +159,7 @@ export default function EditorTopBar({
             className="mr-1"
           />
           <span className="vx-editor-action-label">Publish</span>
+        </Button>
 
         <BulkUpdateButton
           syncStatus={syncStatus}
