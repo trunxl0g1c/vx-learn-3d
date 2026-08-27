@@ -6,6 +6,7 @@ export default function ProjectHubCard({
   onClick,
   onIntent,
   onDelete,
+  canDelete = true,
   priority = false,
   formatLastOpened,
 }) {
@@ -73,15 +74,17 @@ export default function ProjectHubCard({
         </div>
       </button>
 
-      <button
-        type="button"
-        onClick={() => onDelete?.(project)}
-        className="absolute right-2 top-2 z-10 grid size-8 cursor-pointer place-items-center rounded-lg border border-red-400/30 bg-black/70 text-red-300 shadow-lg backdrop-blur-sm transition hover:border-red-400/60 hover:bg-red-950/90 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-        aria-label={`Delete ${project.name || "project"}`}
-        title="Delete project"
-      >
-        <MaterialIcon name="delete" size={19} />
-      </button>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete?.(project)}
+          className="absolute right-2 top-2 z-10 grid size-8 cursor-pointer place-items-center rounded-lg border border-red-400/30 bg-black/70 text-red-300 shadow-lg backdrop-blur-sm transition hover:border-red-400/60 hover:bg-red-950/90 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          aria-label={`Delete ${project.name || "project"}`}
+          title="Delete project"
+        >
+          <MaterialIcon name="delete" size={19} />
+        </button>
+      )}
     </div>
   );
 }

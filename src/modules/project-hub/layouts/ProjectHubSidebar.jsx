@@ -38,6 +38,12 @@ function buildMenus(isAdmin) {
             match: "/admin/categories",
             icon: "category",
           },
+          {
+            title: "Environment & Storage",
+            href: "/admin/storage-settings",
+            match: "/admin/storage-settings",
+            icon: "dns",
+          },
         ]
       : []),
 

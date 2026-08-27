@@ -17,7 +17,6 @@ import {
   PROJECT_ID_INDEX,
   QUIZ_STORE,
   SLIDE_STORE,
-  PROJECT_ID_INDEX,
   PROJECT_STORE,
 } from "./indexed-db/constants";
 import { isPlainObject } from "./indexed-db/common";

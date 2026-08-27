@@ -113,7 +113,6 @@ export default function ProjectHubPage() {
   const [projectName, setProjectName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [file, setFile] = useState(null);
-  const [createRole, setCreateRole] = useState("EDITOR");
 
   const [progress, setProgress] = useState(0);
   const [progressLabel, setProgressLabel] = useState("");
@@ -283,6 +282,11 @@ export default function ProjectHubPage() {
     return canEditViaWorkspaceRole || hasPermission(user, "content", "update");
   }
 
+  // Same permission WorkspaceContentTab.jsx gates its row-menu Delete option
+  // on, applied here too so a user who can't delete content doesn't see a
+  // delete button that would just 403 on click.
+  const canDeleteContent = hasPermission(user, "content", "delete");
+
   const isProjectCatalogReady =
     !isWorkspacesLoading && contentQueries.every((query) => !query.isLoading);
 
@@ -338,7 +342,6 @@ export default function ProjectHubPage() {
     setProjectName("");
     setCategoryId("");
     setFile(null);
-    setCreateRole("EDITOR");
     setGlbValidation(null);
     setIsValidatingGlb(false);
     setProgress(0);
@@ -540,7 +543,7 @@ export default function ProjectHubPage() {
       const project = createProjectRecord({
         name: sanitizedProjectName,
         file,
-        role: createRole,
+        role: "EDITOR",
       });
       project.material.categoryId = categoryId || null;
 
@@ -1002,21 +1005,39 @@ export default function ProjectHubPage() {
     return matchSearch && matchAccess;
   });
 
+  // Was IndexedDB-only (a leftover from before the catalogue was refactored
+  // to read from the backend, below) — it deleted the local cache entry but
+  // never called DELETE /contents, so the card just came right back on the
+  // next fetch since the backend never knew anything happened. Now mirrors
+  // WorkspaceContentTab.jsx's handleConfirmDelete exactly: soft-delete on
+  // the backend first (via contentId, the one id that's always the real
+  // backend id — `.id` here is either a local IndexedDB id or a synthetic
+  // `cloud-*` string, never a valid content id to send), then clean up the
+  // local copy only if this browser actually has one.
   const handleDeleteProject = async () => {
-    if (isDeletingProject || !projectPendingDelete?.id) return;
+    if (isDeletingProject || !projectPendingDelete?.contentId) return;
 
-    const projectId = projectPendingDelete.id;
+    const { id: localId, contentId, isCloudOnly } = projectPendingDelete;
 
     try {
       setIsDeletingProject(true);
-      await deleteProjectFromIndexedDb(projectId);
+      await deleteContent.mutateAsync({ id: contentId });
 
-      setProjects((current) =>
-        current.filter((project) => project.id !== projectId),
-      );
+      if (!isCloudOnly) {
+        await deleteProjectFromIndexedDb(localId);
+      }
+
       setProjectPendingDelete(null);
     } catch (error) {
-      console.error(`Failed to delete project ${projectId}:`, error);
+      console.error(`Failed to delete content ${contentId}:`, error);
+      showAlert({
+        title: "Failed to delete project",
+        message:
+          error?.response?.data?.message ||
+          error?.message ||
+          "Could not delete this project.",
+        type: "error",
+      });
     } finally {
       setIsDeletingProject(false);
     }
@@ -1068,6 +1089,7 @@ export default function ProjectHubPage() {
         onDeleteProject={(project) => {
           setProjectPendingDelete(project);
         }}
+        canDeleteProject={canDeleteContent}
         getAccessLabel={getAccessLabel}
         formatLastOpened={formatLastOpened}
       />
@@ -1087,8 +1109,6 @@ export default function ProjectHubPage() {
             setFile={handleSelectGlbFile}
             glbValidation={glbValidation}
             isValidatingGlb={isValidatingGlb}
-            createRole={createRole}
-            setCreateRole={setCreateRole}
             onSubmit={handleSubmitCreateProject}
             progress={progress}
             progressLabel={progressLabel}
@@ -1123,10 +1143,10 @@ export default function ProjectHubPage() {
             message={
               <>
                 Project <strong>{projectPendingDelete.name}</strong> will be
-                permanently deleted from this browser.
+                permanently deleted.
               </>
             }
-            description="The project model files, additional GLBs, editor data, chapters, slides, procedures, quizzes, settings, and local draft will also be removed. This action cannot be undone."
+            description="This also removes any local copy of this project's model, editor data, chapters, slides, procedures, quizzes, and settings cached in this browser."
             confirmText="Delete Project"
             cancelText="Cancel"
             confirmVariant="destructive"

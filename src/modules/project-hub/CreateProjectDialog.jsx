@@ -1,4 +1,4 @@
-import { ImageIcon, Play, SquarePen, X } from "lucide-react";
+import { ImageIcon, X } from "lucide-react";
 import Button from "../../components/ui/button";
 import Input from "../../components/ui/input";
 import InlineAlert from "../../components/ui/inline-alert";
@@ -18,8 +18,6 @@ export default function CreateProjectDialog({
   setCategoryId,
   file,
   setFile,
-  createRole,
-  setCreateRole,
   onSubmit,
   progress,
   progressLabel,
@@ -232,57 +230,6 @@ export default function CreateProjectDialog({
                 </div>
               )}
 
-              <div className="mb-4">
-                <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-                  Access Mode
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* <button
-                type="button"
-                onClick={() => setCreateRole("EDITOR")}
-                disabled={isSubmitting}
-                className={[
-                  "cursor-pointer h-10 rounded-lg border text-sm transition disabled:pointer-events-none disabled:opacity-50",
-                  createRole === "EDITOR"
-                    ? "border-[#63c7e5] bg-[#63c7e5]/15 text-white"
-                    : "border-[#315263] bg-transparent text-secondary-default hover:bg-white/5",
-                ].join(" ")}
-              >
-                <SquarePen className="size-6" /> Editor
-              </button> */}
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "EDITOR" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("EDITOR");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <SquarePen className="size-4" />
-                    Editor
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "PLAYER" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("PLAYER");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <Play className="size-4" />
-                    Player
-                  </Button>
-                </div>
-              </div>
             </div>
 
             <div className="flex gap-4 border-t border-[#315263] px-6 py-6">

@@ -4,6 +4,7 @@ import FlowEditorPanel from "./FlowEditorPanel";
 import ProceduralEditorPanel from "./ProceduralEditorPanel";
 import AddMoreGlbPanel from "./AddMoreGlbPanel";
 import { isProToolEnabled } from "../../../engine/project/ProToolsSettings";
+import { useLicenseInfo } from "../../../modules/license/api/license";
 
 const PRO_TOOLS = [
   {
@@ -58,13 +59,15 @@ export default function ProToolsPanel({
   onRemoveAdditionalGlb,
 }) {
   const [activeTool, setActiveTool] = useState(null);
+  const { data: licenseInfo } = useLicenseInfo();
+  const licenseFlowEnabled = licenseInfo?.features?.feature_flow === true;
   const visibleTools = PRO_TOOLS.filter((tool) =>
-    isProToolEnabled(proToolsSettings, tool.id),
+    isProToolEnabled(proToolsSettings, tool.id, licenseFlowEnabled),
   );
 
   if (
     activeTool === "add-more-glb" &&
-    isProToolEnabled(proToolsSettings, "add-more-glb")
+    isProToolEnabled(proToolsSettings, "add-more-glb", licenseFlowEnabled)
   ) {
     return (
       <AddMoreGlbPanel
@@ -76,7 +79,10 @@ export default function ProToolsPanel({
     );
   }
 
-  if (activeTool === "flow" && isProToolEnabled(proToolsSettings, "flow")) {
+  if (
+    activeTool === "flow" &&
+    isProToolEnabled(proToolsSettings, "flow", licenseFlowEnabled)
+  ) {
     return (
       <FlowEditorPanel
         flow={flow}
@@ -88,7 +94,7 @@ export default function ProToolsPanel({
 
   if (
     activeTool === "procedural" &&
-    isProToolEnabled(proToolsSettings, "procedural")
+    isProToolEnabled(proToolsSettings, "procedural", licenseFlowEnabled)
   ) {
     return (
       <ProceduralEditorPanel

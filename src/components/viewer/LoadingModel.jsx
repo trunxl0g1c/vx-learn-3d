@@ -1,10 +1,20 @@
 import { Html, useProgress } from "@react-three/drei";
+import { useGlobalLoading } from "../../modules/loading/LoadingContext";
 
 export default function LoadingModel() {
   const { progress, active } = useProgress();
+  const { loading } = useGlobalLoading();
 
   const rawPercent = Math.round(progress || 0);
   const percent = active ? Math.min(rawPercent, 95) : 100;
+
+  // The app-wide loading overlay (LoadingContext) already covers the whole
+  // "opening a project" flow, including the 3D model load — when it's up,
+  // rendering this Suspense fallback too just stacks a second identical
+  // branded card on top of it. Only show this one when nothing else is
+  // already telling the user something is loading (e.g. a Canvas-only
+  // Suspense trigger with no surrounding showLoading() call).
+  if (loading.show) return null;
 
   return (
     <Html center>

@@ -5,6 +5,7 @@ import UserMenu from "../../modules/auth/components/UserMenu";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 import EditorDataMenu from "./EditorDataMenu";
 import useFullscreen from "../../hooks/useFullscreen";
+import { getCurrentUserName } from "../../utils/authUser";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -150,17 +151,6 @@ export default function EditorTopBar({
           />
         </Button>
 
-        <Button variant="cyanOutline" size="sm" className="uppercase" title="Publish project">
-          {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
-          <MaterialIcon
-            name="published_with_changes"
-            fill={1}
-            size={20}
-            className="mr-1"
-          />
-          <span className="vx-editor-action-label">Publish</span>
-        </Button>
-
         <BulkUpdateButton
           syncStatus={syncStatus}
           pendingSync={pendingSync}
@@ -193,7 +183,7 @@ export default function EditorTopBar({
           <span className="vx-editor-action-label">{publishLabel}</span>
         </Button>
 
-        <Button
+        {/* <Button
           variant="cyanOutline"
           size="sm"
           className="uppercase"
@@ -220,9 +210,9 @@ export default function EditorTopBar({
               ? `Export ${Math.max(0, Math.min(100, Math.round(exportProgress)))}%`
               : "Export"}
           </span>
-        </Button>
+        </Button> */}
 
-        <EditorDataMenu
+        {/* <EditorDataMenu
           onExportData={onExportData}
           onImportData={onImportData}
           isExporting={isExporting}
@@ -231,7 +221,7 @@ export default function EditorTopBar({
           exportStatus={exportStatus}
           isImporting={isImportingData}
           importStatus={importDataStatus}
-        />
+        /> */}
 
         <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
           {/* <Share2 className="size-4.5 mr-1" /> */}

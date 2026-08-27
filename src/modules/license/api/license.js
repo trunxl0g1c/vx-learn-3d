@@ -2,11 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import apiClient from "../../../lib/apiClient";
 
 const FEATURE_LABELS = {
-  max_workspaces: "Max Workspaces",
-  max_content_per_workspace: "Max Content per Workspace",
-  max_storage_mb: "Max Storage (MB)",
+  max_user_viewer: "Max Viewer Users",
+  max_user_editor: "Max Editor Users",
+  max_workspace: "Max Workspaces",
+  max_content: "Max Content per Workspace",
+  type_storage: "Storage Type",
+  max_storage: "Max Storage (GB)",
+  feature_flow: "Flow & Procedure",
+  application_mode: "Application Mode",
   standalone_export_enabled: "Standalone Export",
-  nested_object_descriptions_enabled: "Nested Object Descriptions",
 };
 
 function humanizeFeatureKey(key) {
@@ -32,17 +36,17 @@ function normalizeLicenseInfo(data) {
   const usage = data.usage || {};
 
   const quotas = [];
-  if (features.max_workspaces != null) {
+  if (features.max_workspace != null) {
     quotas.push({
-      key: "max_workspaces",
-      label: FEATURE_LABELS.max_workspaces,
+      key: "max_workspace",
+      label: FEATURE_LABELS.max_workspace,
       used: usage.workspaces,
-      max: features.max_workspaces,
+      max: features.max_workspace,
     });
   }
 
   const otherFeatures = Object.entries(features)
-    .filter(([key]) => key !== "max_workspaces")
+    .filter(([key]) => key !== "max_workspace")
     .map(([key, value]) => ({
       key,
       label: FEATURE_LABELS[key] || humanizeFeatureKey(key),
@@ -55,6 +59,7 @@ function normalizeLicenseInfo(data) {
     publicKeyFingerprint: data.publicKeyFingerprint || null,
     quotas,
     otherFeatures,
+    features,
   };
 }
 
