@@ -23,21 +23,9 @@ export default function ProcedureStepViewStateSection({
   return (
     <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {isAssembly && (
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
-                3
-              </span>
-            )}
-            <p className="text-xs font-semibold text-white">
-              {isAssembly ? "Save Step View" : "Camera & Visual State"}
-            </p>
-          </div>
-          <p className="mt-1.5 text-[10px] leading-4 text-contrast-grayout">
-            {isAssembly
-              ? "Save the camera and current visual state together. Player restores this view while the learner installs the component."
-              : "Saves the current camera together with highlight, X-Ray, visibility, pull-apart, and Cut state for this step."}
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="text-xs font-semibold text-white">
+            {isAssembly ? "Save Step View" : "Camera & Visual State"}
           </p>
         </div>
         <StatusBadge ready={hasCompleteSavedView}>{statusLabel}</StatusBadge>

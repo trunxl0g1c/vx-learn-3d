@@ -4,7 +4,11 @@ import {
   exportViqubedDataOnly,
   exportVXPack,
 } from "../utils/vxpackUtils";
-import { hydrateMaterialFromIndexedDb } from "../modules/project-hub/storage/projectIndexedDb";
+import {
+  getAdditionalProjectModelFileFromIndexedDb,
+  getProjectFileFromIndexedDb,
+  hydrateMaterialFromIndexedDb,
+} from "../modules/project-hub/storage/projectIndexedDb";
 import { createAnimationEngine } from "../engine/animation";
 import {
   PERSPECTIVE_CAMERA_SAVE_WARNING,
@@ -197,25 +201,24 @@ export function useChapterManager({
     if (contentAuthoringLocked) {
       showChapterError(
         contentAuthoringLockReason ||
-          "Create Content is disabled while a Pro authoring tool is active.",
+          "Create Description Object is disabled while a Pro authoring tool is active.",
       );
       return false;
     }
 
     if (!selectedObjectName) {
       showChapterError(
-        "Pilih object 3D terlebih dahulu sebelum membuat chapter.",
+        "Pilih object 3D terlebih dahulu sebelum membuat description object.",
       );
-      return;
+      return false;
     }
 
-    const initialCameraView = createViewerCameraView({
-      camera: cameraRef.current,
-      controls: controlsRef.current,
-      modelScene,
-    });
-    const initialVisualState = captureChapterVisualState(selectedObject);
-    const baseChapter = {
+    // Keep the existing `chapters` storage shape for backward compatibility,
+    // but new object descriptions intentionally contain only identity,
+    // description, and parameter authoring data. Slide authoring remains
+    // independent and continues to own camera, marker, media, flow, and
+    // animation authoring.
+    const newChapter = {
       id: createId(),
       title: selectedObjectName,
       objectName: selectedObjectName,
@@ -237,22 +240,9 @@ export function useChapterManager({
       cameraZoom: null,
       cameraType: null,
       cameraFov: null,
-      modelRotation: modelScene
-        ? [modelScene.rotation.x, modelScene.rotation.y, modelScene.rotation.z]
-        : [0, 0, 0],
+      modelRotation: null,
       callouts: [],
     };
-    const newChapter =
-      initialCameraView && initialVisualState
-        ? syncChapterCameraViews(baseChapter, [
-            {
-              ...initialCameraView,
-              visualState: initialVisualState,
-              id: createId("chapter-camera"),
-              caption: "Camera 1",
-            },
-          ])
-        : baseChapter;
 
     setMaterial((prev) => ({
       ...prev,
@@ -261,14 +251,7 @@ export function useChapterManager({
 
     setActiveChapterId(newChapter.id);
     setRightTab("chapter");
-
-    showChapterSuccess(
-      initialCameraView && initialVisualState
-        ? "Chapter berhasil dibuat dengan Camera 1 dan state saat ini."
-        : isOrthographicViewerCamera(cameraRef.current)
-          ? "Chapter berhasil dibuat tanpa Camera 1. Ubah View ke Perspective untuk menyimpan Camera & State."
-          : "Chapter berhasil dibuat.",
-    );
+    showChapterSuccess("Description object berhasil dibuat.");
     return true;
   };
 
@@ -301,19 +284,50 @@ export function useChapterManager({
       // Chapters, Flow, and Procedure may still be lazy IndexedDB summaries.
       // Hydrate all records before either export so the package never loses
       // unopened material content.
+      const exportProjectId = packageProject?.id || material?.projectId;
       const hydratedMaterial = await hydrateMaterialFromIndexedDb(
-        packageProject?.id || material?.projectId,
+        exportProjectId,
         material,
       );
+
+      let exportModelFile = modelFile;
+      let exportAdditionalModels = additionalModels;
+
+      // Normal editor runtime deliberately keeps IndexedDB GLB files out of
+      // React state. Hydrate those large Blobs only for a full package export.
+      if (!isDataOnly && exportProjectId && exportProjectId !== "demo") {
+        if (!(exportModelFile instanceof Blob)) {
+          const storedPrimary = await getProjectFileFromIndexedDb(exportProjectId);
+          exportModelFile = storedPrimary?.blob || null;
+        }
+
+        exportAdditionalModels = await Promise.all(
+          (additionalModels || []).map(async (model) => {
+            if (model?.file instanceof Blob) return model;
+            if (!model?.id) return model;
+
+            const storedModel = await getAdditionalProjectModelFileFromIndexedDb(
+              exportProjectId,
+              model.id,
+            );
+
+            return {
+              ...model,
+              file: storedModel?.blob || null,
+            };
+          }),
+        );
+      }
+
       const exportPayload = {
         project: packageProject,
         material: {
           ...hydratedMaterial,
           modelUrl: materialModelUrl,
         },
-        modelFile,
+        modelFile: exportModelFile,
         modelFileName: materialModelUrl,
-        additionalModels,
+        additionalModels: exportAdditionalModels,
         viewerSettings,
         scene: packageScene,
         shaderMode,

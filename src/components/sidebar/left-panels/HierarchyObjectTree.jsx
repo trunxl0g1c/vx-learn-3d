@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import HierarchyTreeItem from "./HierarchyTreeItem";
 import {
   collectOpenMap,
@@ -10,6 +10,7 @@ import {
 import Input from "../../ui/input";
 import { Search } from "lucide-react";
 import Button from "../../ui/button";
+import { createObjectIndexPath } from "../../../engine/model";
 
 export default function HierarchyObjectTree({
   objectList,
@@ -33,6 +34,9 @@ export default function HierarchyObjectTree({
   hideAllObjects,
   setRightTab,
   renameObject,
+  chapters = [],
+  modelScene = null,
+  onOpenObjectDescription,
 }) {
   const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
@@ -47,6 +51,57 @@ export default function HierarchyObjectTree({
   const [, setVisibilityVersion] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const [treeViewMode, setTreeViewMode] = useState("expand");
+
+  const descriptionLookup = useMemo(() => {
+    const byUuid = new Map();
+    const byPath = new Map();
+    const byName = new Map();
+
+    const normalizeName = (value) =>
+      String(value || "")
+        .replaceAll("_", " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+    (Array.isArray(chapters) ? chapters : []).forEach((chapter) => {
+      const uuid = String(chapter?.objectUuid || chapter?.objectUUID || "").trim();
+      const path = Array.isArray(chapter?.objectPath)
+        ? chapter.objectPath.join(".")
+        : "";
+      const name = normalizeName(chapter?.objectName);
+
+      if (uuid && !byUuid.has(uuid)) byUuid.set(uuid, chapter);
+      if (path && !byPath.has(path)) byPath.set(path, chapter);
+      if (name && !byName.has(name)) byName.set(name, chapter);
+    });
+
+    return { byUuid, byPath, byName, normalizeName };
+  }, [chapters]);
+
+  const getObjectDescription = useCallback(
+    (object, fallbackName = "") => {
+      if (!object) return null;
+
+      const uuid = String(object.uuid || "").trim();
+      if (uuid && descriptionLookup.byUuid.has(uuid)) {
+        return descriptionLookup.byUuid.get(uuid);
+      }
+
+      if (modelScene) {
+        const path = createObjectIndexPath(object, modelScene);
+        const pathKey = Array.isArray(path) && path.length > 0 ? path.join(".") : "";
+
+        if (pathKey && descriptionLookup.byPath.has(pathKey)) {
+          return descriptionLookup.byPath.get(pathKey);
+        }
+      }
+
+      const name = descriptionLookup.normalizeName(object.name || fallbackName);
+      return name ? descriptionLookup.byName.get(name) || null : null;
+    },
+    [descriptionLookup, modelScene],
+  );
 
   const refreshVisibility = () => {
     setVisibilityVersion((prev) => prev + 1);
@@ -311,6 +366,8 @@ export default function HierarchyObjectTree({
               registerNodeRef={registerNodeRef}
               setRightTab={setRightTab}
               renameObject={renameObject}
+              getObjectDescription={getObjectDescription}
+              onOpenObjectDescription={onOpenObjectDescription}
             />
           ))}
         </div>

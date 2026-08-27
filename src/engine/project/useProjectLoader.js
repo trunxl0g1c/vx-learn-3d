@@ -68,6 +68,16 @@ function withDetectedModelLicenses(material, detectedLicenses = []) {
   };
 }
 
+function createRuntimeFileDescriptor({ projectId, fileName, fileType, fileSize } = {}) {
+  return {
+    __viqubedIndexedDbBacked: true,
+    projectId: projectId || null,
+    name: fileName || "model.glb",
+    type: fileType || "model/gltf-binary",
+    size: Number(fileSize || 0),
+  };
+}
+
 function createLoadedProjectSnapshot({ storedProject, fileData, initialDraft, objectUrl, additionalModels = [] }) {
   const normalizedProjectId = storedProject.id;
   const normalizedProjectName = storedProject.name || "Untitled Project";
@@ -76,7 +86,15 @@ function createLoadedProjectSnapshot({ storedProject, fileData, initialDraft, ob
 
   return {
     project: storedProject,
-    projectFile: fileData.blob,
+    // Do not retain the full IndexedDB Blob in React state/snapshots. The Blob
+    // can be 100+ MB and is already owned by the object URL while the model is
+    // mounted. Export/license actions hydrate it lazily from IndexedDB.
+    projectFile: createRuntimeFileDescriptor({
+      projectId: normalizedProjectId,
+      fileName: normalizedFileName,
+      fileType: fileData.fileType,
+      fileSize: fileData.fileSize || fileData.blob?.size,
+    }),
     projectDraft: initialDraft,
 
     projectId: normalizedProjectId,
@@ -97,7 +115,7 @@ export default function useProjectLoader() {
   const loadedSnapshotRef = useRef(null);
   const activeLoadRef = useRef({ projectId: null, promise: null });
   const loadSequenceRef = useRef(0);
-  const revokeTimersRef = useRef(new Set());
+  const revokeTimersRef = useRef(new Map());
 
   const [project, setProject] = useState(null);
   const [projectFile, setProjectFile] = useState(null);
@@ -111,35 +129,69 @@ export default function useProjectLoader() {
   const [isLoadingProject, setIsLoadingProject] = useState(false);
   const [loadError, setLoadError] = useState(null);
 
+  const revokeObjectUrlNow = useCallback((url) => {
+    if (!url) return;
+
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // Revoking an already-released object URL is harmless.
+    }
+  }, []);
+
   const scheduleObjectUrlRevocation = useCallback((url) => {
     if (!url) return;
 
     const timer = globalThis.setTimeout(() => {
-      URL.revokeObjectURL(url);
+      revokeObjectUrlNow(url);
       revokeTimersRef.current.delete(timer);
     }, OBJECT_URL_RELEASE_DELAY_MS);
 
-    revokeTimersRef.current.add(timer);
-  }, []);
+    // Keep the URL paired with its timer so a definitive route unmount can
+    // cancel the delay and revoke every pending URL immediately.
+    revokeTimersRef.current.set(timer, url);
+  }, [revokeObjectUrlNow]);
 
-  const releaseCurrentObjectUrl = useCallback(() => {
-    const currentUrl = objectUrlRef.current;
-    objectUrlRef.current = null;
+  const releaseCurrentObjectUrl = useCallback(
+    ({ immediate = false } = {}) => {
+      const currentUrl = objectUrlRef.current;
+      objectUrlRef.current = null;
 
-    if (currentUrl) {
-      // GLTFLoader can still be decoding embedded images when React starts a
-      // replacement load or unmounts the scene. Delayed release prevents the
-      // active blob resource from disappearing during that final decode phase.
+      if (!currentUrl) return;
+
+      if (immediate) {
+        revokeObjectUrlNow(currentUrl);
+        return;
+      }
+
+      // During an in-place project/model replacement GLTFLoader can still be
+      // finishing embedded image work. Keep the delayed path for that case.
       scheduleObjectUrlRevocation(currentUrl);
-    }
-  }, [scheduleObjectUrlRevocation]);
+    },
+    [revokeObjectUrlNow, scheduleObjectUrlRevocation],
+  );
 
-  const releaseAdditionalObjectUrls = useCallback(() => {
-    additionalObjectUrlsRef.current.forEach((url) => {
-      scheduleObjectUrlRevocation(url);
+  const releaseAdditionalObjectUrls = useCallback(
+    ({ immediate = false } = {}) => {
+      additionalObjectUrlsRef.current.forEach((url) => {
+        if (immediate) {
+          revokeObjectUrlNow(url);
+        } else {
+          scheduleObjectUrlRevocation(url);
+        }
+      });
+      additionalObjectUrlsRef.current.clear();
+    },
+    [revokeObjectUrlNow, scheduleObjectUrlRevocation],
+  );
+
+  const flushPendingObjectUrlRevocations = useCallback(() => {
+    revokeTimersRef.current.forEach((url, timer) => {
+      globalThis.clearTimeout(timer);
+      revokeObjectUrlNow(url);
     });
-    additionalObjectUrlsRef.current.clear();
-  }, [scheduleObjectUrlRevocation]);
+    revokeTimersRef.current.clear();
+  }, [revokeObjectUrlNow]);
 
   const applySnapshotToState = useCallback((snapshot) => {
     setProject(snapshot.project);
@@ -269,7 +321,10 @@ export default function useProjectLoader() {
                 fileType: record.fileType || "model/gltf-binary",
                 fileSize: Number(record.fileSize || record.blob.size || 0),
                 url,
-                file: record.blob,
+                // Keep only metadata in runtime state. The IndexedDB Blob is
+                // hydrated only for export/license operations.
+                file: null,
+                __viqubedIndexedDbBacked: true,
               };
             })
             .sort((a, b) => {
@@ -281,18 +336,18 @@ export default function useProjectLoader() {
               return ai - bi;
             });
 
-          for (const model of additionalModels) {
-            if (!(model?.file instanceof Blob) || !model?.id) continue;
+          for (const record of additionalModelFiles) {
+            if (!(record?.blob instanceof Blob) || !record?.modelId) continue;
             try {
               detectedLicenses.push(
-                await readGlbLicenseMetadata(model.file, {
-                  modelAssetId: model.id,
-                  fileName: model.fileName || model.name || "model.glb",
+                await readGlbLicenseMetadata(record.blob, {
+                  modelAssetId: record.modelId,
+                  fileName: record.fileName || `${record.modelId}.glb`,
                 }),
               );
             } catch (metadataError) {
               console.warn(
-                `Unable to read GLB license metadata for ${model.fileName || model.id}`,
+                `Unable to read GLB license metadata for ${record.fileName || record.modelId}`,
                 metadataError,
               );
             }
@@ -372,7 +427,8 @@ export default function useProjectLoader() {
         fileType: record.fileType || file.type || "model/gltf-binary",
         fileSize: Number(record.fileSize || file.size || 0),
         url,
-        file: record.blob,
+        file: null,
+        __viqubedIndexedDbBacked: true,
       };
 
       if (loadedSnapshotRef.current?.projectId === id) {
@@ -427,7 +483,15 @@ export default function useProjectLoader() {
       loadedSnapshotRef.current = {
         ...loadedSnapshotRef.current,
         project: updatedProject,
-        projectFile: file || loadedSnapshotRef.current.projectFile,
+        projectFile:
+          file instanceof Blob
+            ? createRuntimeFileDescriptor({
+                projectId: updatedProject.id,
+                fileName: file.name || updatedProject.fileName,
+                fileType: file.type,
+                fileSize: file.size,
+              })
+            : loadedSnapshotRef.current.projectFile,
       };
     }
 
@@ -454,11 +518,22 @@ export default function useProjectLoader() {
 
   useEffect(() => {
     return () => {
+      // This hook is being destroyed because the Editor/Player route is gone,
+      // not merely replacing one model while staying mounted. Drop all runtime
+      // references and revoke Blob URLs now so Dashboard cannot retain the GLB.
       loadSequenceRef.current += 1;
-      releaseCurrentObjectUrl();
-      releaseAdditionalObjectUrls();
+      activeLoadRef.current = { projectId: null, promise: null };
+      loadedSnapshotRef.current = null;
+
+      releaseCurrentObjectUrl({ immediate: true });
+      releaseAdditionalObjectUrls({ immediate: true });
+      flushPendingObjectUrlRevocations();
     };
-  }, [releaseAdditionalObjectUrls, releaseCurrentObjectUrl]);
+  }, [
+    flushPendingObjectUrlRevocations,
+    releaseAdditionalObjectUrls,
+    releaseCurrentObjectUrl,
+  ]);
 
   return {
     project,

@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from "react";
-import { cloneHistoryValue } from "../../engine/history";
+import {
+  applyTopLevelHistorySnapshot,
+  createTopLevelHistorySnapshot,
+} from "../../engine/history";
 
 function getChangedTopLevelKeys(previousValue = {}, nextValue = {}) {
   return Array.from(
@@ -40,7 +43,10 @@ export function usePersistedViewerSettings({
 
   const applySettingsHistorySnapshot = useCallback(
     (snapshot) => {
-      const nextSettings = cloneHistoryValue(snapshot);
+      const nextSettings = applyTopLevelHistorySnapshot(
+        settingsRef.current,
+        snapshot,
+      );
       settingsRef.current = nextSettings;
       setSettingsState(nextSettings);
       markDirty();
@@ -60,16 +66,16 @@ export function usePersistedViewerSettings({
 
       const changedKeys = getChangedTopLevelKeys(previousSettings, nextSettings);
 
-      historyEngine?.recordSnapshot?.({
-        label: "Edit viewer settings",
-        before: cloneHistoryValue(previousSettings),
-        after: cloneHistoryValue(nextSettings),
-        apply: applySettingsHistorySnapshot,
-        mergeKey: changedKeys.length > 0
-          ? `viewer-settings:${changedKeys.join(",")}`
-          : null,
-        mergeWindowMs: 500,
-      });
+      if (changedKeys.length > 0) {
+        historyEngine?.recordSnapshot?.({
+          label: "Edit viewer settings",
+          before: createTopLevelHistorySnapshot(previousSettings, changedKeys),
+          after: createTopLevelHistorySnapshot(nextSettings, changedKeys),
+          apply: applySettingsHistorySnapshot,
+          mergeKey: `viewer-settings:${changedKeys.join(",")}`,
+          mergeWindowMs: 500,
+        });
+      }
 
       settingsRef.current = nextSettings;
       setSettingsState(nextSettings);

@@ -11,7 +11,6 @@ import ColorFieldInput from "./attributes/ColorFieldInput";
 import TurntableAnimationSettings from "./TurntableAnimationSettings";
 import StageBackgroundControls from "./StageBackgroundControls";
 import GridSettingsControls from "./GridSettingsControls";
-import ProToolsSettingsControls from "./ProToolsSettingsControls";
 import InlineAlert from "../../ui/inline-alert";
 import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
@@ -138,6 +137,7 @@ export default function ProjectSettingsPanel({
   modelLicenseModels = [],
   onUpdateModelLicense,
   onReadModelLicenseMetadata,
+  onRemoveAdditionalGlb,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
@@ -292,7 +292,7 @@ export default function ProjectSettingsPanel({
   };
 
   return (
-    <div className="flex h-full flex-col text-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
       <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
         Project Settings
       </div>
@@ -549,25 +549,13 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <SettingsAccordionSection title="Pro Tools">
-          <ProToolsSettingsControls
-            embedded
-            settings={material.proToolsSettings}
-            onChange={(nextSettings) =>
-              setMaterial((prev) => ({
-                ...prev,
-                proToolsSettings: nextSettings,
-              }))
-            }
-          />
-        </SettingsAccordionSection>
-
         <SettingsAccordionSection title="3D License">
           <ModelLicenseSettingsControls
             embedded
             models={modelLicenseModels}
             onUpdateModelLicense={onUpdateModelLicense}
             onReadModelLicenseMetadata={onReadModelLicenseMetadata}
+            onRemoveAdditionalGlb={onRemoveAdditionalGlb}
           />
         </SettingsAccordionSection>
 

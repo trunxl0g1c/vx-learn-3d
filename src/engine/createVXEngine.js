@@ -115,7 +115,11 @@ export function createVXEngine(options = {}) {
       quiz.dispose?.()
       xr.dispose?.()
       history.dispose?.()
-      speech.stop?.()
+      if (speech.dispose) {
+        speech.dispose()
+      } else {
+        speech.stop?.()
+      }
       return this.getState()
     },
   }

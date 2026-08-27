@@ -314,6 +314,7 @@ function GeneratedAnnotationPopup({
   target,
   rootRef,
   chapters,
+  sceneRoot,
   canGoBack,
   onBack,
   onClose,
@@ -324,8 +325,8 @@ function GeneratedAnnotationPopup({
     rootRef,
   );
   const assignedChapter = useMemo(
-    () => findExactChapterForObject(target?.object, chapters || []),
-    [chapters, target?.object],
+    () => findExactChapterForObject(target?.object, chapters || [], sceneRoot),
+    [chapters, sceneRoot, target?.object],
   );
   const chapterParameters = useMemo(
     () =>
@@ -336,6 +337,8 @@ function GeneratedAnnotationPopup({
       ),
     [assignedChapter],
   );
+  const chapterDescription = String(assignedChapter?.description || "").trim();
+  const openedFromObjectList = target?.source === "object-list";
   const popupTitle =
     assignedChapter?.title ||
     target?.title ||
@@ -503,6 +506,12 @@ function GeneratedAnnotationPopup({
               </button>
             </div>
 
+            {chapterDescription && (
+              <p className="mb-3 whitespace-pre-wrap text-xs leading-5 text-white/80">
+                {chapterDescription}
+              </p>
+            )}
+
             {chapterParameters.length > 0 && (
               <div
                 style={{
@@ -572,10 +581,11 @@ function GeneratedAnnotationPopup({
               </div>
             )}
 
-            <button
-              type="button"
-              disabled={!canOpenDetail}
-              onClick={(event) => {
+            {!openedFromObjectList && (
+              <button
+                type="button"
+                disabled={!canOpenDetail}
+                onClick={(event) => {
                 event.stopPropagation();
 
                 if (!canOpenDetail) return;
@@ -629,7 +639,8 @@ function GeneratedAnnotationPopup({
                 ▯
               </span>
               Detail
-            </button>
+              </button>
+            )}
           </div>
         </div>
       </Html>
@@ -643,7 +654,9 @@ export function GeneratedObjectAnnotations({
   rootRef,
   chapters,
   enabled,
+  showMarkers = true,
   selectedAnnotationId,
+  externalSelectedTarget = null,
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
@@ -707,8 +720,36 @@ export function GeneratedObjectAnnotations({
     if (!selectedAnnotationId) {
       setSelectedTarget(null);
       setHoveredTarget(null);
+      return;
     }
-  }, [selectedAnnotationId]);
+
+    const externalObject = resolveLogicalObject(externalSelectedTarget?.object);
+    const externalId = externalSelectedTarget?.id || externalObject?.uuid || null;
+
+    if (externalObject && externalId === selectedAnnotationId) {
+      setHoveredTarget(null);
+      setSelectedTarget({
+        ...externalSelectedTarget,
+        id: externalObject.uuid || selectedAnnotationId,
+        title:
+          externalSelectedTarget?.title ||
+          getAnnotationDisplayName(externalObject, "Selected Object"),
+        number: externalSelectedTarget?.number || 1,
+        objectName: externalObject.name || externalSelectedTarget?.objectName || "",
+        object: externalObject,
+      });
+      return;
+    }
+
+    const matchingTarget = targets.find(
+      (target) => target.object?.uuid === selectedAnnotationId,
+    );
+
+    if (matchingTarget) {
+      setHoveredTarget(null);
+      setSelectedTarget(matchingTarget);
+    }
+  }, [externalSelectedTarget, selectedAnnotationId, targets]);
 
   useEffect(() => {
     onAnnotationHighlight?.(
@@ -799,10 +840,11 @@ export function GeneratedObjectAnnotations({
 
   return (
     <>
-      {targets
-        .filter((target) => target.object?.uuid !== selectedTarget?.object?.uuid)
-        .map((target, index) => (
-          <GeneratedAnnotationMarker
+      {showMarkers &&
+        targets
+          .filter((target) => target.object?.uuid !== selectedTarget?.object?.uuid)
+          .map((target, index) => (
+            <GeneratedAnnotationMarker
             key={target.object.uuid || `${target.label}-${index}`}
             index={index}
             label={target.label}
@@ -819,6 +861,7 @@ export function GeneratedObjectAnnotations({
           target={selectedTarget}
           rootRef={rootRef}
           chapters={chapters}
+          sceneRoot={modelScene}
           canGoBack={annotationPath.length > 0}
           onBack={handleHierarchyBack}
           onClose={handleClose}

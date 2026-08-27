@@ -6,8 +6,8 @@ import {
   createMultiSelectionPayload,
   createSelectionFromMeshPayload,
   createSelectionPayload,
-  resetSceneMaterialState,
   resetXrayObjects,
+  restoreXrayMaterialAssignments,
 } from "./SelectionSceneUtils"
 
 export function createSelectionEngine(options = {}) {
@@ -34,7 +34,10 @@ export function createSelectionEngine(options = {}) {
   const restoreMaterialOverrideIfNeeded = (targetScene = scene) => {
     if (!materialOverrideActive) return false
 
-    resetSceneMaterialState(targetScene, materialRestorer)
+    // X-Ray stores the exact pre-X-Ray material reference per mesh. Restore
+    // those references directly instead of re-running the shader manager for
+    // the whole scene (which used to clone thousands of materials at once).
+    restoreXrayMaterialAssignments(targetScene)
     materialOverrideActive = false
     materialOverrideMode = "none"
     return true

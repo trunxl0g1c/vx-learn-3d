@@ -6,6 +6,8 @@ import {
   armExpectedWebGLContextLoss,
   installExpectedWebGLContextLossGuard,
   isExpectedWebGLContextLoss,
+  cancelScheduledWebGLRendererDisposal,
+  scheduleFinalWebGLRendererDisposal,
 } from "../../utils/webglContextLifecycle";
 
 export function WebGLRendererLifecycle({ registryKey, onRendererReady }) {
@@ -13,6 +15,7 @@ export function WebGLRendererLifecycle({ registryKey, onRendererReady }) {
 
   useEffect(() => {
     const canvas = gl.domElement;
+    cancelScheduledWebGLRendererDisposal(gl);
     const removeExpectedLossGuard =
       installExpectedWebGLContextLossGuard(canvas);
 
@@ -57,6 +60,7 @@ export function WebGLRendererLifecycle({ registryKey, onRendererReady }) {
 
       armExpectedWebGLContextLoss(canvas);
       removeExpectedLossGuard({ delayed: true });
+      scheduleFinalWebGLRendererDisposal(gl, canvas);
 
       canvas.removeEventListener("webglcontextlost", handleContextLost, false);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored, false);

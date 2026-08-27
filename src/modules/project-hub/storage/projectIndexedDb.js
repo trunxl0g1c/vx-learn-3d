@@ -466,6 +466,13 @@ export async function getAdditionalProjectModelFilesFromIndexedDb(projectId) {
   return getStoreRecordsByProject(db, ADDITIONAL_MODEL_FILE_STORE, projectId);
 }
 
+export async function getAdditionalProjectModelFileFromIndexedDb(projectId, modelId) {
+  if (!projectId || !modelId) return null;
+  const db = await openViqubedDb();
+  const storageId = `${projectId}::additional-model::${modelId}`;
+  return getStoreRecord(db, ADDITIONAL_MODEL_FILE_STORE, storageId);
+}
+
 export async function deleteAdditionalProjectModelFile(projectId, modelId) {
   if (!projectId || !modelId) return false;
   const db = await openViqubedDb();

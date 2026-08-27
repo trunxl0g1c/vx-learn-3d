@@ -32,6 +32,7 @@ import BlinkSelectionOutline from "../viewer/BlinkSelectionOutline";
 import PlayerTurntableController from "./PlayerTurntableController";
 import PlayerXRSceneController from "./PlayerXRSceneController";
 import PlayerXRInteractionPanel from "./PlayerXRInteractionPanel";
+import { useCameraKeyboardPan } from "../../hooks/useCameraKeyboardPan";
 import {
   GENERATED_ANNOTATION_COLOR,
   GeneratedObjectAnnotations,
@@ -106,6 +107,7 @@ export default function PlayerSceneCanvas({
   setAnimations,
   showAnnotations = false,
   selectedAnnotationId = null,
+  selectedAnnotationTarget = null,
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
@@ -233,6 +235,12 @@ export default function PlayerSceneCanvas({
   const isSketchMode = shaderOutlineStyle === "sketch";
   const background = getViewerBackground(viewerSettings);
   const isImmersiveWebXR = xrMode === "vr" || xrMode === "ar";
+  useCameraKeyboardPan({
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    enabled: !assemblyCameraLocked && !isImmersiveWebXR,
+  });
   const isARSession = xrMode === "ar";
   const stageBackgroundEnabled =
     background.type === "stage" && !isSketchMode && !isARSession;
@@ -558,14 +566,16 @@ export default function PlayerSceneCanvas({
                   />
                 ))}
 
-              {showAnnotations && (
+              {(showAnnotations || selectedAnnotationId) && (
                 <GeneratedObjectAnnotations
                   modelScene={modelScene}
                   selectedObject={selectedObject}
                   rootRef={modelRootRef}
                   chapters={material?.chapters || []}
-                  enabled={showAnnotations}
+                  enabled={showAnnotations || Boolean(selectedAnnotationId)}
+                  showMarkers={showAnnotations}
                   selectedAnnotationId={selectedAnnotationId}
+                  externalSelectedTarget={selectedAnnotationTarget}
                   onAnnotationClick={onAnnotationClick}
                   onAnnotationClose={onAnnotationClose}
                   onAnnotationOpenDetail={onAnnotationOpenDetail}

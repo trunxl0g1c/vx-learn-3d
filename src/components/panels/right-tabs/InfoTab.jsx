@@ -7,9 +7,7 @@ export default function InfoTab({
   modelScene,
   selectedObject,
   selectedObjectName,
-  activeChapterId,
   setActiveChapterId,
-  previewChapterInEditor,
   setRightTab,
   deselectObject,
   createChapterFromSelectedObject,
@@ -49,17 +47,12 @@ export default function InfoTab({
     if (contentAuthoringLocked) return;
 
     if (hasContent) {
-      if (previewChapterInEditor) {
-        previewChapterInEditor(objectChapter.id);
-      } else {
-        setActiveChapterId(objectChapter.id);
-        setRightTab("chapter");
-      }
+      setActiveChapterId(objectChapter.id);
+      setRightTab("chapter");
       return;
     }
 
     createChapterFromSelectedObject?.();
-    setRightTab("chapter");
   };
 
   return (
@@ -99,14 +92,14 @@ export default function InfoTab({
             title={contentAuthoringLockReason || undefined}
             aria-disabled={contentAuthoringLocked}
           >
-            {hasContent ? "EDIT CONTENT" : "CREATE CONTENT"}
+            {hasContent ? "EDIT DESCRIPTION OBJECT" : "CREATE DESCRIPTION OBJECT"}
           </Button>
         </div>
 
         {contentAuthoringLocked && (
           <div className="mt-3 rounded-lg border border-warning-main/40 bg-warning-main/10 px-3 py-2 text-xs leading-5 text-secondary-default">
             {contentAuthoringLockReason ||
-              "Content authoring is unavailable while a Pro authoring tool is active."}
+              "Object description authoring is unavailable while a Pro authoring tool is active."}
           </div>
         )}
       </div>

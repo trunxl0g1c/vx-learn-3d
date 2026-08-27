@@ -1,12 +1,7 @@
-export function Section({ title, step, children }) {
+export function Section({ title, children }) {
   return (
     <section className="rounded-xl border border-secondary-default/60 bg-[#171b1b] p-4">
       <div className="mb-4 flex items-center gap-3">
-        {step && (
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-bold text-white">
-            {step}
-          </span>
-        )}
         <h3 className="text-sm font-semibold text-white">{title}</h3>
       </div>
       {children}

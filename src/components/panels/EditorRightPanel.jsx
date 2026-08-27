@@ -175,7 +175,7 @@ export default function EditorRightPanel({
           {isSlideTab
             ? slideAuthoring?.activeSlide?.title || "Slide"
             : activeChapterId
-              ? authoringObjectName || "Active Chapter Object"
+              ? authoringObjectName || "Object Description"
               : selectedObjectName || "Object Settings"}
         </span>
 
@@ -313,7 +313,7 @@ export default function EditorRightPanel({
           {rightTab === "visual" && <VisualTab {...tabProps} />}
           {rightTab === "animation" && <AnimationTab {...tabProps} />}
           {rightTab === "chapter" && (
-            <ChapterTab {...tabProps} variant="detail" />
+            <ChapterTab {...tabProps} />
           )}
           {rightTab === "slide" && (
             <SlideTab

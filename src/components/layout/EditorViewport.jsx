@@ -1,3 +1,4 @@
+import { useState } from "react";
 import SceneCanvas from "../canvas/SceneCanvas";
 import EditorFloatingToolbar from "../toolbar/EditorFloatingToolbar";
 import CutSectionSlider from "../toolbar/CutSectionSlider";
@@ -11,6 +12,8 @@ import TransformModeToolbar from "../viewer/TransformModeToolbar";
 import { viewportStyle } from "../../constants/viewerStyles";
 
 export default function EditorViewport({ controller }) {
+  const [procedureStepPanelVisible, setProcedureStepPanelVisible] = useState(false);
+
   const {
     activeSidebar,
     setActiveSidebar,
@@ -143,30 +146,6 @@ export default function EditorViewport({ controller }) {
 
     activeChapterId,
     setActiveChapterId,
-    previewChapterInEditor,
-    createChapterFromSelectedObject,
-    contentAuthoringLocked,
-    contentAuthoringLockReason,
-    saveCameraViewToActiveChapter,
-    panelSectionStyle,
-    inputStyle,
-    mediaButtonStyle,
-    updateChapterField,
-    addChapterParameter,
-    updateChapterParameter,
-    deleteChapterParameter,
-    deleteMarkerFromActiveChapter,
-    isChapterAnimationSelected,
-    getChapterAnimationConfig,
-    toggleChapterAnimation,
-    updateChapterAnimationField,
-    playAnimationPreview,
-    stopAnimationPreview,
-    addChapterMedia,
-    deleteChapterMedia,
-    moveChapter,
-    requestAddMarker,
-    cancelAddMarker,
   } = controller;
 
   const workspaceAuthoringActive = Boolean(
@@ -234,7 +213,8 @@ export default function EditorViewport({ controller }) {
         onChangeView={setEditorCameraView}
         projectionMode={activeCameraProjectionMode}
         onChangeProjectionMode={setEditorCameraProjectionMode}
-        rightPanelVisible={rightPanelVisible}
+        rightPanelVisible={rightPanelVisible || procedureStepPanelVisible}
+        rightPanelWidth={procedureStepPanelVisible && !rightPanelVisible ? 400 : null}
       />
 
       <SelectedObjectBadge
@@ -473,6 +453,7 @@ export default function EditorViewport({ controller }) {
         setRightTab={setRightTab}
         renameObject={renameObject}
         material={material}
+        modelScene={modelScene}
         setMaterial={setMaterial}
         saveDefaultPlayerCameraViewAndState={saveDefaultPlayerCameraViewAndState}
         cameraProjectionMode={activeCameraProjectionMode}
@@ -489,32 +470,7 @@ export default function EditorViewport({ controller }) {
         updateEnvIntensity={updateEnvIntensity}
         activeChapterId={activeChapterId}
         setActiveChapterId={setActiveChapterId}
-        previewChapterInEditor={previewChapterInEditor}
-        createChapterFromSelectedObject={createChapterFromSelectedObject}
-        contentAuthoringLocked={contentAuthoringLocked}
-        contentAuthoringLockReason={contentAuthoringLockReason}
-        saveCameraViewToActiveChapter={saveCameraViewToActiveChapter}
-        panelSectionStyle={panelSectionStyle}
-        inputStyle={inputStyle}
-        mediaButtonStyle={mediaButtonStyle}
-        updateChapterField={updateChapterField}
-        addChapterParameter={addChapterParameter}
-        updateChapterParameter={updateChapterParameter}
-        deleteChapterParameter={deleteChapterParameter}
-        deleteMarkerFromActiveChapter={deleteMarkerFromActiveChapter}
         animations={animations}
-        isChapterAnimationSelected={isChapterAnimationSelected}
-        getChapterAnimationConfig={getChapterAnimationConfig}
-        toggleChapterAnimation={toggleChapterAnimation}
-        updateChapterAnimationField={updateChapterAnimationField}
-        playAnimationPreview={playAnimationPreview}
-        stopAnimationPreview={stopAnimationPreview}
-        addChapterMedia={addChapterMedia}
-        deleteChapterMedia={deleteChapterMedia}
-        moveChapter={moveChapter}
-        requestAddMarker={requestAddMarker}
-        cancelAddMarker={cancelAddMarker}
-        markerMode={markerMode}
         selectedAnimations={selectedAnimations}
         setSelectedAnimations={setSelectedAnimations}
         setAnimationCommand={setAnimationCommand}
@@ -530,6 +486,7 @@ export default function EditorViewport({ controller }) {
         onReadModelLicenseMetadata={handleReadModelLicenseMetadata}
         onAddAdditionalGlbFiles={handleAddAdditionalGlbFiles}
         onRemoveAdditionalGlb={handleRemoveAdditionalGlb}
+        onProcedureStepPanelVisibilityChange={setProcedureStepPanelVisible}
       />
     </div>
   );

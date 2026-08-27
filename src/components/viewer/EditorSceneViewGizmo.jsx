@@ -160,6 +160,7 @@ export default function EditorSceneViewGizmo({
   projectionMode = "perspective",
   onChangeProjectionMode,
   rightPanelVisible = false,
+  rightPanelWidth = null,
 }) {
   const [activeView, setActiveView] = useState("perspective");
   const { isMobile, isTablet, isCompact } = useResponsiveViewport();
@@ -193,7 +194,11 @@ export default function EditorSceneViewGizmo({
   const responsiveTop = isMobile
     ? EDITOR_TOP_BAR_HEIGHT + 8
     : EDITOR_TOP_BAR_HEIGHT + EDITOR_VIEW_CUBE_GAP;
-  const desktopPanelWidth = isCompact ? 420 : EDITOR_RIGHT_PANEL_WIDTH;
+  const desktopPanelWidth = Number.isFinite(rightPanelWidth)
+    ? rightPanelWidth
+    : isCompact
+      ? 420
+      : EDITOR_RIGHT_PANEL_WIDTH;
   const responsiveRight =
     isMobile || isTablet
       ? 8

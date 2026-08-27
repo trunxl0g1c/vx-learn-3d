@@ -177,6 +177,38 @@ export function removeSlideFlowAssignment(material, slideId, assignmentId) {
   }));
 }
 
+export function reorderSlideInMaterial(
+  material,
+  slideId,
+  targetSlideId,
+  placement = "before",
+) {
+  if (!material || !slideId || !targetSlideId || slideId === targetSlideId) {
+    return material;
+  }
+
+  const slides = Array.isArray(material.slides) ? material.slides : [];
+  const sourceIndex = slides.findIndex((slide) => slide.id === slideId);
+  const targetIndex = slides.findIndex((slide) => slide.id === targetSlideId);
+
+  if (sourceIndex < 0 || targetIndex < 0) return material;
+
+  const nextSlides = [...slides];
+  const [movedSlide] = nextSlides.splice(sourceIndex, 1);
+  const adjustedTargetIndex = nextSlides.findIndex(
+    (slide) => slide.id === targetSlideId,
+  );
+
+  if (adjustedTargetIndex < 0) return material;
+
+  const insertionIndex =
+    placement === "after" ? adjustedTargetIndex + 1 : adjustedTargetIndex;
+  nextSlides.splice(insertionIndex, 0, movedSlide);
+
+  const unchanged = nextSlides.every((slide, index) => slide === slides[index]);
+  return unchanged ? material : { ...material, slides: nextSlides };
+}
+
 export function moveSlideInMaterial(material, slideId, direction) {
   if (!material || !slideId) return material;
   const slides = Array.isArray(material.slides) ? material.slides : [];

@@ -3,8 +3,15 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { annotateGltfLogicalObjects } from "../utils/objectTreeUtils";
-import { configureViqubedGltfLoader } from "../engine/model/GltfResourceLoader";
+import {
+  configureViqubedGltfLoader,
+  disposeViqubedGltfParserResources,
+} from "../engine/model/GltfResourceLoader";
 import { sanitizeLoadedModelScene } from "../engine/model/ModelSceneSafety";
+import {
+  disposeModelSceneResources,
+  retainGltfResource,
+} from "../engine/model";
 import {
   createMarkerAttachment,
   createMarkerConnector,
@@ -100,6 +107,23 @@ function Model({
 
   const mixerRef = useRef(null);
   const actionsRef = useRef({});
+
+  useEffect(() => {
+    const release = (releasedScene) => {
+      // Remove the cached GLTF result first, then release the GPU/CPU resources
+      // owned by this model. Register this callback immediately so Dashboard can
+      // force-release a stale registry entry even if passive cleanup is delayed.
+      useLoader.clear(GLTFLoader, modelUrl);
+      disposeModelSceneResources(releasedScene || scene);
+      disposeViqubedGltfParserResources(parser);
+    };
+
+    const releaseResource = retainGltfResource(modelUrl, scene, { release });
+
+    return () => {
+      releaseResource({ release });
+    };
+  }, [modelUrl, parser, scene]);
 
   useEffect(() => {
     sanitizeLoadedModelScene(scene);
@@ -465,12 +489,11 @@ function Model({
   };
 
   const handleClick = (e) => {
-    e.stopPropagation();
-
     if (animationPivotPickMode) {
       const hit = getVisibleHit(e);
       if (!hit?.object || !hit?.point) return;
 
+      e.stopPropagation();
       onAnimationPivotPick?.(hit);
       return;
     }
@@ -478,6 +501,8 @@ function Model({
     if (flowPointMode) {
       const hit = getVisibleHit(e);
       const worldPoint = (hit?.point || e.point).clone();
+
+      e.stopPropagation();
 
       if (hit?.face?.normal && hit.object?.matrixWorld) {
         const worldNormal = hit.face.normal
@@ -508,6 +533,7 @@ function Model({
       // in front of the intended inner part.
       if (!hit?.object || !hit?.point) return;
 
+      e.stopPropagation();
       const worldPoint = hit.point.clone();
       const localPoint = scene.parent
         ? scene.parent.worldToLocal(worldPoint.clone())
@@ -535,12 +561,11 @@ function Model({
 
     if (!object) return;
 
+    e.stopPropagation();
     onSelectObject?.(object);
   };
 
   const handleDoubleClick = (e) => {
-    e.stopPropagation();
-
     if (animationPivotPickMode) return;
 
     const hit = getVisibleHit(e);
@@ -548,6 +573,7 @@ function Model({
 
     if (!object) return;
 
+    e.stopPropagation();
     onDoubleClickObject?.(object);
   };
 

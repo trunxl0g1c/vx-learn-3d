@@ -44,6 +44,12 @@ import {
   normalizeBlinkSelectionSettings,
 } from "../../../engine/selection"
 
+const TRANSIENT_OBJECT_URL_RELEASE_DELAY_MS = 15000
+
+function isBlobObjectUrl(url) {
+  return typeof url === "string" && url.startsWith("blob:")
+}
+
 export const DEFAULT_VIEWER_SETTINGS = {
   exposure: 0.75,
   ambientLight: 0.5,
@@ -81,6 +87,30 @@ export default function usePlayerProject({
   const loadingSessionRef = useRef(0)
   const expectedSceneIdRef = useRef(null)
   const readyTimerRef = useRef(null)
+  const transientObjectUrlsRef = useRef(new Set())
+  const transientObjectUrlTimersRef = useRef(new Set())
+
+  const releaseTransientObjectUrls = useCallback((keepUrls = []) => {
+    const keep = new Set((Array.isArray(keepUrls) ? keepUrls : [keepUrls]).filter(Boolean))
+
+    transientObjectUrlsRef.current.forEach((url) => {
+      if (keep.has(url)) return
+      transientObjectUrlsRef.current.delete(url)
+
+      const timer = globalThis.setTimeout(() => {
+        URL.revokeObjectURL(url)
+        transientObjectUrlTimersRef.current.delete(timer)
+      }, TRANSIENT_OBJECT_URL_RELEASE_DELAY_MS)
+
+      transientObjectUrlTimersRef.current.add(timer)
+    })
+  }, [])
+
+  const registerTransientObjectUrls = useCallback((urls = []) => {
+    ;(Array.isArray(urls) ? urls : [urls]).forEach((url) => {
+      if (isBlobObjectUrl(url)) transientObjectUrlsRef.current.add(url)
+    })
+  }, [])
   const [isSceneReady, setIsSceneReady] = useState(
     !projectId || projectId === "demo",
   )
@@ -96,6 +126,10 @@ export default function usePlayerProject({
   useEffect(() => {
     pendingMaterialRecordLoadsRef.current.clear()
   }, [projectId])
+
+  useEffect(() => () => {
+    releaseTransientObjectUrls()
+  }, [releaseTransientObjectUrls])
 
   const hydrateMaterialRecord = useCallback(
     async (field, recordId, getter, normalizeRecord = null) => {
@@ -337,6 +371,8 @@ export default function usePlayerProject({
           progress: 62,
         })
 
+        releaseTransientObjectUrls()
+
         if (nextMaterial) {
           setMaterial({
             ...nextMaterial,
@@ -435,6 +471,7 @@ export default function usePlayerProject({
     clearReadyTimer,
     hideLoading,
     notifySceneReady,
+    releaseTransientObjectUrls,
     updateLoading,
   ])
 
@@ -449,8 +486,18 @@ export default function usePlayerProject({
       let json = null
 
       if (isVXPackFile(file)) {
-        const { manifest } = await importVXPack(file)
-        json = manifest
+        const imported = await importVXPack(file)
+        const importedObjectUrls = [
+          imported?.manifest?.modelUrl,
+          ...(imported?.additionalModels || []).map((model) => model?.url),
+        ].filter(isBlobObjectUrl)
+
+        releaseTransientObjectUrls(importedObjectUrls)
+        registerTransientObjectUrls(importedObjectUrls)
+        json = {
+          ...imported.manifest,
+          additionalModels: imported.additionalModels || imported.manifest?.additionalModels || [],
+        }
       } else {
         const text = await file.text()
         json = JSON.parse(text)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
 import SelectField from "../../ui/select";
+import ConfirmationDialog from "../../dialog/ConfirmationDialog";
 
 function LicenseInput({ label, value, placeholder, onChange, type = "text" }) {
   return (
@@ -24,6 +25,7 @@ export default function ModelLicenseSettingsControls({
   models = [],
   onUpdateModelLicense,
   onReadModelLicenseMetadata,
+  onRemoveAdditionalGlb,
   embedded = false,
 }) {
   const normalizedModels = Array.isArray(models) ? models : [];
@@ -31,6 +33,8 @@ export default function ModelLicenseSettingsControls({
     normalizedModels[0]?.modelAssetId || "",
   );
   const [reading, setReading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
@@ -76,6 +80,26 @@ export default function ModelLicenseSettingsControls({
       setStatus(error?.message || "Gagal membaca metadata GLB.");
     } finally {
       setReading(false);
+    }
+  };
+
+  const canRemoveActiveModel =
+    !activeModel.isPrimary && typeof onRemoveAdditionalGlb === "function";
+
+  const removeActiveModel = async () => {
+    if (!canRemoveActiveModel || removing) return;
+
+    setRemoving(true);
+    setStatus("");
+
+    try {
+      await onRemoveAdditionalGlb(activeModel.modelAssetId);
+      setRemoveDialogOpen(false);
+      setStatus("GLB berhasil dihapus dari project.");
+    } catch (error) {
+      setStatus(error?.message || "Gagal menghapus GLB dari project.");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -163,7 +187,7 @@ export default function ModelLicenseSettingsControls({
           type="button"
           size="sm"
           variant="cyanOutline"
-          disabled={reading || !onReadModelLicenseMetadata}
+          disabled={reading || removing || !onReadModelLicenseMetadata}
           onClick={readMetadata}
           className="min-w-0"
         >
@@ -173,6 +197,25 @@ export default function ModelLicenseSettingsControls({
           />
           {reading ? "Reading..." : "Read GLB Metadata"}
         </Button>
+
+        {typeof onRemoveAdditionalGlb === "function" && (
+          <Button
+            type="button"
+            size="sm"
+            variant="destructive"
+            disabled={!canRemoveActiveModel || removing || reading}
+            onClick={() => setRemoveDialogOpen(true)}
+            title={
+              activeModel.isPrimary
+                ? "Primary GLB tidak dapat dihapus dari project."
+                : `Remove ${activeModel.fileName || activeModel.modelName || "GLB"}`
+            }
+            className="min-w-0"
+          >
+            <MaterialIcon name="delete" className="size-4" />
+            Remove GLB
+          </Button>
+        )}
 
         {activeModel.metadataDetected && (
           <span className="inline-flex min-h-8 items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-[11px] text-emerald-200">
@@ -197,6 +240,19 @@ export default function ModelLicenseSettingsControls({
           {status}
         </div>
       )}
+
+      <ConfirmationDialog
+        open={removeDialogOpen}
+        title="Remove GLB from Project?"
+        message={`Hapus ${activeModel.fileName || activeModel.modelName || "GLB"} dari project?`}
+        description="File GLB tambahan dan data 3D License-nya akan dihapus dari project. Primary GLB tidak akan terpengaruh. Tindakan ini tidak dapat dibatalkan."
+        confirmText="Remove GLB"
+        isLoading={removing}
+        onClose={() => {
+          if (!removing) setRemoveDialogOpen(false);
+        }}
+        onConfirm={removeActiveModel}
+      />
     </section>
   );
 }

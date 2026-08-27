@@ -26,6 +26,65 @@ export function cloneHistoryValue(value) {
   }
 }
 
+
+function cloneHistoryStructure(value, seen = new WeakMap()) {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return value
+  }
+
+  if (seen.has(value)) return seen.get(value)
+
+  if (Array.isArray(value)) {
+    const next = []
+    seen.set(value, next)
+    value.forEach((entry) => next.push(cloneHistoryStructure(entry, seen)))
+    return next
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) {
+    // Blob/File/Date/typed arrays and other runtime objects are retained by
+    // reference. Large immutable payloads (including base64 strings) are never
+    // duplicated by this lightweight history path.
+    return value
+  }
+
+  const next = {}
+  seen.set(value, next)
+  Object.entries(value).forEach(([key, entry]) => {
+    next[key] = cloneHistoryStructure(entry, seen)
+  })
+  return next
+}
+
+export function createTopLevelHistorySnapshot(value, keys = []) {
+  const source = value && typeof value === "object" ? value : {}
+
+  return (Array.isArray(keys) ? keys : []).map((key) => ({
+    key,
+    hasValue: Object.prototype.hasOwnProperty.call(source, key),
+    value: cloneHistoryStructure(source[key]),
+  }))
+}
+
+export function applyTopLevelHistorySnapshot(currentValue, snapshot = []) {
+  const nextValue = {
+    ...(currentValue && typeof currentValue === "object" ? currentValue : {}),
+  }
+
+  ;(Array.isArray(snapshot) ? snapshot : []).forEach((entry) => {
+    if (!entry || typeof entry.key !== "string") return
+
+    if (entry.hasValue) {
+      nextValue[entry.key] = cloneHistoryStructure(entry.value)
+    } else {
+      delete nextValue[entry.key]
+    }
+  })
+
+  return nextValue
+}
+
 export function createHistoryEngine(options = {}) {
   let limit = normalizeHistoryLimit(options.limit)
   let undoStack = []

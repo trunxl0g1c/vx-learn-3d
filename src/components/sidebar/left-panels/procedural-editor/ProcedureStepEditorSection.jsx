@@ -1,4 +1,5 @@
-import { Section } from "./PanelPrimitives";
+import { useEffect, useRef } from "react";
+import MaterialIcon from "../../../ui/material-icon";
 import ProcedureStepObjectSection from "./ProcedureStepObjectSection";
 import ProcedureStepTransformSection from "./ProcedureStepTransformSection";
 import ProcedureStepViewStateSection from "./ProcedureStepViewStateSection";
@@ -7,18 +8,45 @@ import ProcedureStepActions from "./ProcedureStepActions";
 
 export default function ProcedureStepEditorSection({
   procedural,
-  procedure,
   step,
-  stepIndex,
   stepReady,
   isAssembly,
+  scrollResetKey = 0,
+  onClose,
 }) {
+  const scrollContainerRef = useRef(null);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    scrollContainer.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [scrollResetKey, step?.id]);
+
   return (
-    <Section
-      title={`${isAssembly ? "Configure Assembly Step" : "Configure Step"} ${stepIndex + 1}`}
-      step="4"
-    >
-      <div className="space-y-4">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border border-secondary-default/60 bg-[#151b1b]/95 shadow-2xl backdrop-blur-xl">
+      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-divider-main bg-[#14201f] px-4">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-white">
+            {isAssembly ? "Configure Assembly Step" : "Configure Step"}
+          </p>
+          <p className="truncate text-[10px] text-contrast-grayout">{step.name}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10 hover:text-white"
+          title="Close Configure Step"
+          aria-label="Close Configure Step"
+        >
+          <MaterialIcon name="close" className="size-5" />
+        </button>
+      </div>
+
+      <div
+        ref={scrollContainerRef}
+        className="sidebar-scroll min-h-0 flex-1 space-y-4 overflow-y-auto p-4"
+      >
         <label className="block">
           <span className="mb-1.5 block text-xs text-contrast-grayout">
             Step Name
@@ -70,13 +98,11 @@ export default function ProcedureStepEditorSection({
         />
         <ProcedureStepActions
           procedural={procedural}
-          procedure={procedure}
           step={step}
-          stepIndex={stepIndex}
           stepReady={stepReady}
           isAssembly={isAssembly}
         />
       </div>
-    </Section>
+    </div>
   );
 }

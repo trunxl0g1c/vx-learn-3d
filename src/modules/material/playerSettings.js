@@ -7,7 +7,7 @@ const DEFAULT_PLAYER_MENU_VISIBILITY = Object.freeze({
 });
 
 export const DEFAULT_TURNTABLE_ANIMATION_SETTINGS = Object.freeze({
-  enabled: false,
+  enabled: true,
   speed: 3,
   direction: "clockwise",
 });
@@ -44,7 +44,12 @@ export function normalizeTurntableAnimationSettings(settings = {}) {
   ).toLowerCase();
 
   return {
-    enabled: Boolean(source.enabled ?? source.active ?? source.isEnabled ?? false),
+    enabled: Boolean(
+      source.enabled ??
+        source.active ??
+        source.isEnabled ??
+        DEFAULT_TURNTABLE_ANIMATION_SETTINGS.enabled,
+    ),
     speed: clampNumber(
       source.speed ?? source.rpm ?? source.rotationSpeed,
       0.5,

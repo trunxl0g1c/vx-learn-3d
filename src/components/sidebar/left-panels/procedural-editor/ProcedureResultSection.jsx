@@ -1,43 +1,21 @@
 import MaterialIcon from "../../../ui/material-icon";
 import { Section } from "./PanelPrimitives";
+import AuthoringInfoNote from "./AuthoringInfoNote";
 
 export default function ProcedureResultSection({
   procedural,
   procedure,
   isAssembly,
 }) {
+  const resultInfo = isAssembly
+    ? "Assembly steps run sequentially in Player. The active component is highlighted and can be dragged. A transparent ghost shows the correct installation target. Each step restores the saved authoring POV and locks the camera. Correct placement snaps into position and unlocks the next step."
+    : "Steps run sequentially in Player. Every click target assigned to the active step is highlighted. Animation actions follow the Together or Sequential playback mode saved on each step. Objects with Hide after this action enabled disappear when that action finishes. After the animation finishes, the next step's click targets become active.";
+
   return (
     <Section title="Player Result" step="5">
-      <div className="space-y-2 text-xs leading-5 text-contrast-grayout">
-        {isAssembly ? (
-          <>
-            <p>Assembly steps run sequentially in Player.</p>
-            <p>The active component is highlighted and can be dragged.</p>
-            <p>A transparent ghost shows the correct installation target.</p>
-            <p>Each step restores the saved authoring POV and locks the camera.</p>
-            <p>Correct placement snaps into position and unlocks the next step.</p>
-          </>
-        ) : (
-          <>
-            <p>Steps run sequentially in Player.</p>
-            <p>
-              Every click target assigned to the active step is highlighted.
-              Clicking any one of them satisfies the step condition.
-            </p>
-            <p>
-              Animation actions follow the Together or Sequential playback mode
-              saved on each step. Repeated actions on the same object always run
-              as one continuous chain.
-            </p>
-            <p>
-              Objects with Hide after this action enabled disappear when that
-              action finishes.
-            </p>
-            <p>
-              After the animation finishes, the next step&apos;s click targets become active.
-            </p>
-          </>
-        )}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-secondary-default/35 bg-primary/35 px-3 py-2.5">
+        <span className="text-xs text-contrast-grayout">Player behavior</span>
+        <AuthoringInfoNote text={resultInfo} />
       </div>
 
       <button

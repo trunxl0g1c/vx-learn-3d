@@ -5,6 +5,7 @@ import {
   addSlideFlowAssignment,
   createSlideDefinition,
   moveSlideInMaterial,
+  reorderSlideInMaterial,
   removeSlideAnimationAssignment,
   removeSlideFlowAssignment,
   updateSlideAnimationAssignment,
@@ -615,6 +616,19 @@ export function useSlideAuthoring({
     [setMaterial],
   );
 
+  const reorderSlide = useCallback(
+    (slideId, targetSlideId, placement = "before") =>
+      setMaterial((previous) =>
+        reorderSlideInMaterial(
+          previous,
+          slideId,
+          targetSlideId,
+          placement,
+        ),
+      ),
+    [setMaterial],
+  );
+
   const deleteSlide = useCallback(
     (slideId = activeSlideId) => {
       if (!slideId) return false;
@@ -660,6 +674,7 @@ export function useSlideAuthoring({
     playAnimationPreview,
     stopAnimationPreview,
     moveSlide,
+    reorderSlide,
     deleteSlide,
   };
 }

@@ -3,7 +3,7 @@ import Button from "../ui/button";
 import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
-import EditorDataMenu from "./EditorDataMenu";
+import EditorUserMenu from "./EditorUserMenu";
 import useFullscreen from "../../hooks/useFullscreen";
 
 function SaveStatusBadge({ status }) {
@@ -114,36 +114,9 @@ export default function EditorTopBar({
           <span className="vx-editor-action-label">Publish</span>
         </Button>
 
-        <Button
-          variant="cyanOutline"
-          size="sm"
-          className="uppercase"
-          onClick={onExport}
-          disabled={!onExport || isExporting || isImportingData}
-          title={
-            exportMode === "full" && exportStatus
-              ? exportStatus
-              : "Export full project package with GLB"
-          }
-        >
-          {isExporting && exportMode === "full" ? (
-            <Loader2 className="mr-1 size-4.5 animate-spin" />
-          ) : (
-            <MaterialIcon
-              name="download_2"
-              fill={1}
-              size={20}
-              className="mr-1"
-            />
-          )}
-          <span className="vx-editor-action-label">
-            {isExporting && exportMode === "full"
-              ? `Export ${Math.max(0, Math.min(100, Math.round(exportProgress)))}%`
-              : "Export"}
-          </span>
-        </Button>
-
-        <EditorDataMenu
+        <EditorUserMenu
+          currentUserName={currentUserName}
+          onExport={onExport}
           onExportData={onExportData}
           onImportData={onImportData}
           isExporting={isExporting}
@@ -153,35 +126,6 @@ export default function EditorTopBar({
           isImporting={isImportingData}
           importStatus={importDataStatus}
         />
-
-        <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
-          {/* <Share2 className="size-4.5 mr-1" /> */}
-          <MaterialIcon name="share" fill={1} size={20} className="mr-1" />
-          <span className="vx-editor-action-label">Share</span>
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex border-none items-center"
-          title={currentUserName || "Guest"}
-        >
-          <span className="vx-editor-topbar__user-name text-base">{currentUserName || "Guest"}</span>
-          {/* <ChevronDown className="size-4.5" /> */}
-          <MaterialIcon
-            name="arrow_back_2"
-            fill={1}
-            size={20}
-            className="vx-editor-user-chevron -rotate-90"
-          />
-          <MaterialIcon
-            name="account_circle"
-            fill
-            size={30}
-            className="text-accent-main"
-          />
-          {/* <CircleUser className="size-7" color="#03699D" /> */}
-        </Button>
       </div>
     </div>
   );

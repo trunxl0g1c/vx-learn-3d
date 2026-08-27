@@ -56,6 +56,7 @@ export default function ProToolsPanel({
   additionalModels = [],
   onAddAdditionalGlbFiles,
   onRemoveAdditionalGlb,
+  onProcedureStepPanelVisibilityChange,
 }) {
   const [activeTool, setActiveTool] = useState(null);
   const visibleTools = PRO_TOOLS.filter((tool) =>
@@ -97,6 +98,7 @@ export default function ProToolsPanel({
         animations={animations}
         authoredAnimations={animationAuthoring?.animations || []}
         onBack={() => setActiveTool(null)}
+        onStepPanelVisibilityChange={onProcedureStepPanelVisibilityChange}
       />
     );
   }

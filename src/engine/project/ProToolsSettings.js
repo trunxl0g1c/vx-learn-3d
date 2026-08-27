@@ -1,55 +1,18 @@
+// Pro Tools remain part of the persisted project shape for backward compatibility,
+// but their Project Settings controls are intentionally hidden. All Pro tools are
+// enabled by default and normalized to ON so older projects cannot stay disabled
+// after the controls are no longer exposed in the UI.
 export const DEFAULT_PRO_TOOLS_SETTINGS = Object.freeze({
   flow: true,
   procedure: true,
   animationCreation: true,
-  quiz: false,
-  xrImmersive: false,
-  addMoreGlb: false,
+  quiz: true,
+  xrImmersive: true,
+  addMoreGlb: true,
 });
 
-function readBoolean(source, keys, fallback) {
-  for (const key of keys) {
-    if (source[key] !== undefined) return Boolean(source[key]);
-  }
-
-  return fallback;
-}
-
-export function normalizeProToolsSettings(settings = {}) {
-  const source = settings && typeof settings === "object" ? settings : {};
-
-  return {
-    flow: readBoolean(
-      source,
-      ["flow", "flowEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.flow,
-    ),
-    procedure: readBoolean(
-      source,
-      ["procedure", "procedural", "procedureEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.procedure,
-    ),
-    animationCreation: readBoolean(
-      source,
-      ["animationCreation", "animation", "animationEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.animationCreation,
-    ),
-    quiz: readBoolean(
-      source,
-      ["quiz", "quizEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.quiz,
-    ),
-    xrImmersive: readBoolean(
-      source,
-      ["xrImmersive", "xr", "immersive", "xrEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.xrImmersive,
-    ),
-    addMoreGlb: readBoolean(
-      source,
-      ["addMoreGlb", "multiGlb", "additionalGlb", "addMoreGlbEnabled"],
-      DEFAULT_PRO_TOOLS_SETTINGS.addMoreGlb,
-    ),
-  };
+export function normalizeProToolsSettings() {
+  return { ...DEFAULT_PRO_TOOLS_SETTINGS };
 }
 
 export function isProToolEnabled(settings, toolId) {

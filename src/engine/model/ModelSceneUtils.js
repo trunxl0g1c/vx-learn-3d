@@ -16,6 +16,7 @@ const SUPPORTED_SHADER_MODES = new Set([
 const SKETCH_EDGE_OBJECT_NAME = "__VX_SKETCH_EDGE__"
 const SKETCH_EDGE_CACHE_KEY = "__vxSketchEdgeOverlay"
 const SKETCH_MATERIAL_CACHE_KEY = "__vxSketchMaterialCache"
+const GLOBAL_XRAY_MATERIAL_CACHE_KEY = "__vxGlobalXrayMaterial"
 const DEFAULT_SKETCH_EDGE_THRESHOLD = 12
 const DEFAULT_SKETCH_LINE_COLOR = "#181818"
 const DEFAULT_SKETCH_SURFACE_COLOR = "#f4f2eb"
@@ -86,6 +87,9 @@ export function captureOriginalModelMaterial(mesh) {
   if (!mesh?.material) return null
 
   if (!mesh.userData.originalMaterial) {
+    // Keep the GLTF-owned source material reachable so final model teardown can
+    // explicitly dispose it even after Viqubed swaps in working clones.
+    mesh.userData.__vxSourceMaterial = mesh.material
     mesh.userData.originalMaterial = cloneModelMaterial(mesh.material)
   }
 
@@ -175,6 +179,18 @@ function createToonMaterial(source) {
 
 function createXrayMaterial() {
   return createViqubedXrayMaterial()
+}
+
+function getOrCreateGlobalXrayMaterial(scene) {
+  if (!scene) return null
+
+  const cached = scene.userData?.[GLOBAL_XRAY_MATERIAL_CACHE_KEY]
+  if (cached) return cached
+
+  const material = markMaterialAsCached(createXrayMaterial())
+  scene.userData = scene.userData || {}
+  scene.userData[GLOBAL_XRAY_MATERIAL_CACHE_KEY] = material
+  return material
 }
 
 function createClayMaterial(source) {
@@ -461,6 +477,203 @@ function createShaderMaterial(originalMaterial, mode, settings = {}) {
   return material
 }
 
+function detachMaterialTextureReferences(material) {
+  getMaterialList(material).forEach((item) => {
+    if (!item) return
+
+    Object.keys(item).forEach((key) => {
+      if (item[key]?.isTexture) {
+        try {
+          item[key] = null
+        } catch {
+          // Best-effort final teardown.
+        }
+      }
+    })
+
+    if (item.uniforms && typeof item.uniforms === "object") {
+      Object.values(item.uniforms).forEach((uniform) => {
+        const value = uniform?.value
+        if (value?.isTexture) {
+          uniform.value = null
+        } else if (Array.isArray(value)) {
+          uniform.value = value.map((entry) =>
+            entry?.isTexture ? null : entry,
+          )
+        }
+      })
+    }
+  })
+}
+
+function releaseTextureImageData(texture, images) {
+  if (!texture) return
+
+  const source = texture.source
+  const image = source?.data ?? texture.image
+
+  const collectImage = (value) => {
+    if (!value) return
+    if (Array.isArray(value)) {
+      value.forEach(collectImage)
+      return
+    }
+    images.add(value)
+  }
+
+  collectImage(image)
+  if (Array.isArray(texture.mipmaps)) {
+    texture.mipmaps.forEach(collectImage)
+    texture.mipmaps.length = 0
+  }
+
+  // Dispose() releases WebGL state but does not guarantee that a decoded
+  // ImageBitmap is dereferenced. Null Source.data so a lingering Texture object
+  // cannot retain hundreds of MB after the model route has been destroyed.
+  if (source && "data" in source) {
+    try {
+      source.data = null
+    } catch {
+      // Ignore custom read-only source implementations.
+    }
+  }
+}
+
+function collectOwnedMaterialResources(material, materials, textures) {
+  getMaterialList(material).forEach((item) => {
+    if (!item || materials.has(item)) return
+    materials.add(item)
+
+    Object.values(item).forEach((value) => {
+      if (value?.isTexture) textures.add(value)
+    })
+
+    const uniforms = item.uniforms && typeof item.uniforms === "object"
+      ? Object.values(item.uniforms)
+      : []
+
+    uniforms.forEach((uniform) => {
+      const value = uniform?.value
+      if (value?.isTexture) textures.add(value)
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          if (entry?.isTexture) textures.add(entry)
+        })
+      }
+    })
+  })
+}
+
+export function disposeModelSceneResources(scene) {
+  if (!scene) return { geometries: 0, materials: 0, textures: 0 }
+
+  const geometries = new Set()
+  const materials = new Set()
+  const textures = new Set()
+  const images = new Set()
+
+  scene.traverse((child) => {
+    if (child?.geometry) geometries.add(child.geometry)
+
+    const sourceMaterial = child?.userData?.__vxSourceMaterial
+    const originalMaterial = child?.userData?.originalMaterial
+    const xrayPreviousMaterial = child?.userData?.__vxXrayPreviousMaterial
+    const sketchMaterial = child?.userData?.[SKETCH_MATERIAL_CACHE_KEY]?.material
+    const currentMaterialIsOwned = Boolean(
+      child?.userData?.__vxGeneratedShaderMaterial ||
+      (!sourceMaterial && !originalMaterial),
+    )
+
+    collectOwnedMaterialResources(sourceMaterial, materials, textures)
+    collectOwnedMaterialResources(originalMaterial, materials, textures)
+    collectOwnedMaterialResources(xrayPreviousMaterial, materials, textures)
+    collectOwnedMaterialResources(sketchMaterial, materials, textures)
+
+    if (currentMaterialIsOwned) {
+      collectOwnedMaterialResources(child?.material, materials, textures)
+    }
+
+    const boneTexture = child?.skeleton?.boneTexture
+    if (boneTexture?.isTexture) textures.add(boneTexture)
+
+    if (child?.userData) {
+      delete child.userData.__vxSourceMaterial
+      delete child.userData.originalMaterial
+      delete child.userData.__vxGeneratedShaderMaterial
+      delete child.userData.__vxXrayPreviousMaterial
+      delete child.userData.__vxXrayPreviousGeneratedMaterial
+      delete child.userData[SKETCH_MATERIAL_CACHE_KEY]
+      delete child.userData[SKETCH_EDGE_CACHE_KEY]
+      delete child.userData.targetPosition
+      delete child.userData.targetPositionAnimation
+      delete child.userData.moveTargetPosition
+      delete child.userData.moveTargetRotation
+      delete child.userData.moveTargetTransformAnimation
+    }
+
+    child.onBeforeRender = null
+    child.onAfterRender = null
+  })
+
+  const globalXrayMaterial = scene?.userData?.[GLOBAL_XRAY_MATERIAL_CACHE_KEY]
+  collectOwnedMaterialResources(globalXrayMaterial, materials, textures)
+  if (scene?.userData) {
+    delete scene.userData[GLOBAL_XRAY_MATERIAL_CACHE_KEY]
+  }
+
+  materials.forEach((material) => {
+    detachMaterialTextureReferences(material)
+  })
+
+  textures.forEach((texture) => {
+    releaseTextureImageData(texture, images)
+    texture?.dispose?.()
+  })
+
+  images.forEach((image) => {
+    if (typeof image?.close === "function") {
+      try {
+        image.close()
+      } catch {
+        // ImageBitmap may already be closed by a loader/runtime cleanup path.
+      }
+      return
+    }
+
+    if (typeof image?.removeAttribute === "function") {
+      try {
+        image.removeAttribute("src")
+      } catch {
+        // Best-effort release for HTMLImageElement fallback decoding.
+      }
+    }
+  })
+
+  materials.forEach((material) => material?.dispose?.())
+  geometries.forEach((geometry) => geometry?.dispose?.())
+
+  // Break the final scene graph references after all owned resources were
+  // collected. The resource registry calls this only when refs === 0, so no
+  // mounted Editor/Player can observe the cleared scene.
+  scene.traverse((child) => {
+    if (child?.isMesh || child?.isLine || child?.isPoints) {
+      if ("material" in child) child.material = null
+      if ("geometry" in child) child.geometry = null
+    }
+
+    if (child?.skeleton?.boneTexture) {
+      child.skeleton.boneTexture = null
+    }
+  })
+  scene.clear?.()
+
+  return {
+    geometries: geometries.size,
+    materials: materials.size,
+    textures: textures.size,
+  }
+}
+
 export function createSceneBounds(scene) {
   if (!scene) return null
 
@@ -510,6 +723,7 @@ export function initializeModelScene(scene, viewerSettings = {}) {
 
       if (originalMaterial) {
         child.material = cloneModelMaterial(originalMaterial)
+        child.userData.__vxGeneratedShaderMaterial = true
         applyPbrSettings(child.material, viewerSettings)
       }
 
@@ -551,6 +765,8 @@ export function applyModelShaderMode(scene, settings = {}) {
   setSketchEdgeOverlaysVisible(scene, shaderMode === "sketch")
 
   const meshes = []
+  const sharedXrayMaterial =
+    shaderMode === "xray" ? getOrCreateGlobalXrayMaterial(scene) : null
 
   scene.traverse((child) => {
     if (
@@ -567,9 +783,11 @@ export function applyModelShaderMode(scene, settings = {}) {
     if (!originalMaterial) return
 
     const nextMaterial =
-      shaderMode === "sketch"
-        ? getOrCreateSketchMaterial(child, originalMaterial)
-        : createShaderMaterial(originalMaterial, shaderMode, settings)
+      shaderMode === "xray"
+        ? sharedXrayMaterial
+        : shaderMode === "sketch"
+          ? getOrCreateSketchMaterial(child, originalMaterial)
+          : createShaderMaterial(originalMaterial, shaderMode, settings)
 
     if (child.material !== nextMaterial) {
       releaseGeneratedModelMaterial(child)

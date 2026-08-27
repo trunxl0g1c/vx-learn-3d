@@ -1,9 +1,9 @@
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { createVXEngine } from "../engine"
 import { buildObjectTree, buildObjectTreeList } from "../utils/objectTreeUtils"
 
 export function useVXEngine(options = {}) {
-  return useMemo(
+  const engine = useMemo(
     () =>
       createVXEngine({
         ...options,
@@ -15,6 +15,12 @@ export function useVXEngine(options = {}) {
       }),
     []
   )
+
+  useEffect(() => () => {
+    engine?.dispose?.()
+  }, [engine])
+
+  return engine
 }
 
 export default useVXEngine

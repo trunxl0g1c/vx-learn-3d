@@ -8,7 +8,7 @@ export default function ProcedureSelectionSection({
   setNewProcedureType,
 }) {
   return (
-    <Section title="Create or Select Procedure" step="1">
+    <Section title="Create or Select Procedure">
       <div className="space-y-2">
         <select
           value={procedural?.activeProcedureId || ""}
@@ -78,20 +78,7 @@ export default function ProcedureSelectionSection({
             Duplicate Reverse
           </Button>
         </div>
-
-        <p className="text-[10px] leading-4 text-contrast-grayout">
-          Duplicate Reverse creates editable reversed steps. Start/Target,
-          Guided animations, and Sequential order are reversed directly in the
-          new procedure.
-        </p>
       </div>
-
-      {(procedural?.procedures || []).length === 0 && (
-        <p className="mt-3 text-xs leading-5 text-contrast-grayout">
-          Create a procedure first. It will appear as one playable material in
-          Player.
-        </p>
-      )}
     </Section>
   );
 }

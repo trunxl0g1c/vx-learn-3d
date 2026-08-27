@@ -1,4 +1,6 @@
 import { createModelLicenseCatalog } from "../../../engine/project/ModelLicenseSettings";
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
+import { findExactChapterForObject } from "../../../engine/selection";
 
 export function createPlayerControllerApi({
   playerProject,
@@ -89,6 +91,25 @@ export function createPlayerControllerApi({
   setCutEnabled,
   showInfoPanel,
 }) {
+  const loadObjectDescription = async (object) => {
+    let description = findExactChapterForObject(
+      object,
+      material?.chapters || [],
+      modelScene,
+    );
+
+    if (
+      description?.id &&
+      isLazyMaterialRecord(description, "chapters") &&
+      playerProject.loadChapterRecord
+    ) {
+      description =
+        (await playerProject.loadChapterRecord(description.id)) || description;
+    }
+
+    return description || null;
+  };
+
   const modelLicenseModels = createModelLicenseCatalog({
     entries: material?.modelLicenses,
     primaryFileName:
@@ -127,6 +148,7 @@ export function createPlayerControllerApi({
       makeXrayExcept: makePlayerXrayExcept,
       resetXray: resetPlayerObjectXray,
       setObjectListSelectedObject,
+      loadObjectDescription,
       activeChapter: playerChapter.activeChapter,
       activeSlide: playerSlide.activeSlide,
       activeProcedure: playerProcedure.activeProcedure,

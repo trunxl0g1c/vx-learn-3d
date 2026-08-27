@@ -434,6 +434,31 @@ export function useProceduralManager({
     [activeProcedureId, updateProcedure],
   );
 
+  const reorderStep = useCallback(
+    (stepId, targetStepId, placement = "before") => {
+      if (!activeProcedureId || !stepId || !targetStepId || stepId === targetStepId) {
+        return;
+      }
+
+      updateProcedure(activeProcedureId, (procedure) => {
+        const steps = [...(procedure.steps || [])];
+        const sourceIndex = steps.findIndex((step) => step.id === stepId);
+        const targetIndex = steps.findIndex((step) => step.id === targetStepId);
+
+        if (sourceIndex < 0 || targetIndex < 0) return {};
+
+        const [draggedStep] = steps.splice(sourceIndex, 1);
+        const adjustedTargetIndex = steps.findIndex((step) => step.id === targetStepId);
+        const insertIndex =
+          placement === "after" ? adjustedTargetIndex + 1 : adjustedTargetIndex;
+
+        steps.splice(Math.max(0, insertIndex), 0, draggedStep);
+        return { steps };
+      });
+    },
+    [activeProcedureId, updateProcedure],
+  );
+
   const syncLegacyAnimatedFields = (entries) => {
     const primary = entries[0] || null;
     return {
@@ -918,6 +943,7 @@ export function useProceduralManager({
     updateStep,
     deleteStep,
     moveStep,
+    reorderStep,
     setActiveStepId: selectStep,
     useSelectedObject,
     useSelectedTriggerObject,

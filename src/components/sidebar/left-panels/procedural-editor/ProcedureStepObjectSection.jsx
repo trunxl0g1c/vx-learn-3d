@@ -5,45 +5,15 @@ import MiniLogicalObjectPicker from "./MiniLogicalObjectPicker";
 import { StatusBadge } from "./PanelPrimitives";
 
 const ANIMATION_MODES = [
-  {
-    value: "together",
-    label: "Together",
-    icon: "animation",
-    description:
-      "Different objects can start together. Repeated actions on the same object stay chained.",
-  },
-  {
-    value: "sequential",
-    label: "Sequential",
-    icon: "format_list_numbered",
-    description: "Run every animation action one-by-one in the listed order.",
-  },
+  { value: "together", label: "Together", icon: "animation" },
+  { value: "sequential", label: "Sequential", icon: "format_list_numbered" },
 ];
 
-function AssignmentGroup({
-  stepNumber,
-  title,
-  description,
-  ready,
-  count = 0,
-  children,
-}) {
+function AssignmentGroup({ title, ready, count = 0, children }) {
   return (
     <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            {stepNumber && (
-              <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
-                {stepNumber}
-              </span>
-            )}
-            <p className="text-xs font-semibold text-white">{title}</p>
-          </div>
-          <p className="mt-1.5 text-[10px] leading-4 text-contrast-grayout">
-            {description}
-          </p>
-        </div>
+        <p className="text-xs font-semibold text-white">{title}</p>
         <div className="flex shrink-0 items-center gap-2">
           {count > 0 && (
             <span className="rounded-full border border-secondary-default/40 px-2 py-1 text-[9px] text-secondary-default">
@@ -67,12 +37,7 @@ function AnimatedObjectMode({ procedural, step, entryCount }) {
 
   return (
     <div className="rounded-lg border border-secondary-default/35 bg-black/10 p-2.5">
-      <div className="mb-2">
-        <p className="text-[10px] font-semibold text-white">Playback Order</p>
-        <p className="mt-0.5 text-[9px] leading-4 text-contrast-grayout">
-          Only matters when there is more than one animation action.
-        </p>
-      </div>
+      <p className="mb-2 text-[10px] font-semibold text-white">Playback Order</p>
 
       <div className="grid grid-cols-2 gap-2">
         {ANIMATION_MODES.map((mode) => {
@@ -89,18 +54,15 @@ function AnimatedObjectMode({ procedural, step, entryCount }) {
                 })
               }
               className={[
-                "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center transition",
+                "flex min-h-12 w-full items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-center transition",
                 "disabled:cursor-not-allowed disabled:opacity-45",
                 active
                   ? "border-accent-main bg-accent-main/15 text-white"
                   : "border-secondary-default/35 bg-primary/40 text-contrast-grayout hover:border-secondary-default/70",
               ].join(" ")}
             >
-              <span className="flex items-center gap-1.5 text-[10px] font-semibold">
-                <MaterialIcon name={mode.icon} className="size-4" />
-                {mode.label}
-              </span>
-              <span className="text-[8px] leading-3">{mode.description}</span>
+              <MaterialIcon name={mode.icon} className="size-4" />
+              <span className="text-[10px] font-semibold">{mode.label}</span>
             </button>
           );
         })}
@@ -122,9 +84,7 @@ export default function ProcedureStepObjectSection({
   if (isAssembly) {
     return (
       <AssignmentGroup
-        stepNumber="1"
         title="Choose Assembly Object"
-        description="Select the component the learner will drag, then use it as the Assembly Object."
         ready={Boolean(assemblyReference)}
       >
         <MiniLogicalObjectPicker
@@ -154,11 +114,6 @@ export default function ProcedureStepObjectSection({
             </span>
           </div>
         )}
-
-        <p className="text-[9px] leading-4 text-contrast-grayout">
-          Start and Target are created automatically when the object is assigned.
-          Use Parent only when the draggable part should be a higher logical object.
-        </p>
       </AssignmentGroup>
     );
   }
@@ -166,9 +121,7 @@ export default function ProcedureStepObjectSection({
   return (
     <div className="space-y-3">
       <AssignmentGroup
-        stepNumber="1"
         title="Choose Click Target"
-        description="Select an object in the viewport, then add it as a target. Clicking any one target will trigger this step."
         ready={clickTargets.length > 0}
         count={clickTargets.length}
       >
@@ -193,9 +146,7 @@ export default function ProcedureStepObjectSection({
       </AssignmentGroup>
 
       <AssignmentGroup
-        stepNumber="2"
         title="Add Animation Actions"
-        description="Add one action for every movement. The same object can be added again for a second action, such as Move first, then Rotate."
         ready={animatedEntries.length > 0}
         count={animatedEntries.length}
       >
@@ -224,11 +175,6 @@ export default function ProcedureStepObjectSection({
           entryCount={animatedEntries.length}
         />
       </AssignmentGroup>
-
-      <p className="text-[10px] leading-4 text-contrast-grayout">
-        Tip: for Move → Rotate on one object, save the first action End, then add
-        the same object again. The new action automatically starts from the previous End.
-      </p>
     </div>
   );
 }

@@ -28,6 +28,8 @@ import {
   getProcedureFromIndexedDb,
   getQuizFromIndexedDb,
   getSlideFromIndexedDb,
+  getProjectFileFromIndexedDb,
+  getAdditionalProjectModelFileFromIndexedDb,
   saveAdditionalProjectModelFile,
 } from "../modules/project-hub/storage/projectIndexedDb";
 import {
@@ -35,7 +37,10 @@ import {
   replaceMaterialRecord,
 } from "../engine/project/LazyMaterialRecords";
 import { normalizeLoadedViewerSettings } from "./viewer/normalizeViewerSettings";
-import { cloneHistoryValue } from "../engine/history";
+import {
+  applyTopLevelHistorySnapshot,
+  createTopLevelHistorySnapshot,
+} from "../engine/history";
 import { validateGlbFile } from "../utils/glbValidator";
 import { normalizeProToolsSettings } from "../engine/project/ProToolsSettings";
 import { readGlbLicenseMetadata } from "../engine/model/GlbLicenseMetadata";
@@ -56,6 +61,12 @@ function getChangedTopLevelKeys(previousValue = {}, nextValue = {}) {
   )
     .filter((key) => !Object.is(previousValue?.[key], nextValue?.[key]))
     .sort();
+}
+
+const TRANSIENT_OBJECT_URL_RELEASE_DELAY_MS = 15000;
+
+function isBlobObjectUrl(url) {
+  return typeof url === "string" && url.startsWith("blob:");
 }
 
 function createInitialMaterial() {
@@ -117,10 +128,43 @@ export function useViewerProject({
   const [materialModelUrl, setMaterialModelUrl] = useState("");
   const [availableModels, setAvailableModels] = useState([]);
   const pendingMaterialRecordLoadsRef = useRef(new Map());
+  const transientObjectUrlsRef = useRef(new Set());
+  const transientObjectUrlTimersRef = useRef(new Set());
+
+  const scheduleTransientObjectUrlRelease = useCallback((url) => {
+    if (!isBlobObjectUrl(url)) return;
+
+    const timer = globalThis.setTimeout(() => {
+      URL.revokeObjectURL(url);
+      transientObjectUrlTimersRef.current.delete(timer);
+    }, TRANSIENT_OBJECT_URL_RELEASE_DELAY_MS);
+
+    transientObjectUrlTimersRef.current.add(timer);
+  }, []);
+
+  const releaseTransientObjectUrls = useCallback((keepUrls = []) => {
+    const keep = new Set((Array.isArray(keepUrls) ? keepUrls : [keepUrls]).filter(Boolean));
+
+    transientObjectUrlsRef.current.forEach((url) => {
+      if (keep.has(url)) return;
+      scheduleTransientObjectUrlRelease(url);
+      transientObjectUrlsRef.current.delete(url);
+    });
+  }, [scheduleTransientObjectUrlRelease]);
+
+  const registerTransientObjectUrls = useCallback((urls = []) => {
+    (Array.isArray(urls) ? urls : [urls]).forEach((url) => {
+      if (isBlobObjectUrl(url)) transientObjectUrlsRef.current.add(url);
+    });
+  }, []);
 
   useEffect(() => {
     pendingMaterialRecordLoadsRef.current.clear();
   }, [projectId]);
+
+  useEffect(() => () => {
+    releaseTransientObjectUrls();
+  }, [releaseTransientObjectUrls]);
 
   const rawSetMaterial = useCallback((updater) => {
     const previousMaterial = materialRef.current;
@@ -136,7 +180,10 @@ export function useViewerProject({
 
   const applyMaterialHistorySnapshot = useCallback(
     (snapshot) => {
-      const nextMaterial = cloneHistoryValue(snapshot);
+      const nextMaterial = applyTopLevelHistorySnapshot(
+        materialRef.current,
+        snapshot,
+      );
       materialRef.current = nextMaterial;
       setMaterialState(nextMaterial);
       markDirty();
@@ -271,16 +318,16 @@ export function useViewerProject({
 
       const changedKeys = getChangedTopLevelKeys(previousMaterial, nextMaterial);
 
-      historyEngine?.recordSnapshot?.({
-        label: "Edit project content",
-        before: cloneHistoryValue(previousMaterial),
-        after: cloneHistoryValue(nextMaterial),
-        apply: applyMaterialHistorySnapshot,
-        mergeKey: changedKeys.length > 0
-          ? `project-material:${changedKeys.join(",")}`
-          : null,
-        mergeWindowMs: 500,
-      });
+      if (changedKeys.length > 0) {
+        historyEngine?.recordSnapshot?.({
+          label: "Edit project content",
+          before: createTopLevelHistorySnapshot(previousMaterial, changedKeys),
+          after: createTopLevelHistorySnapshot(nextMaterial, changedKeys),
+          apply: applyMaterialHistorySnapshot,
+          mergeKey: `project-material:${changedKeys.join(",")}`,
+          mergeWindowMs: 500,
+        });
+      }
 
       materialRef.current = nextMaterial;
       setMaterialState(nextMaterial);
@@ -386,6 +433,7 @@ export function useViewerProject({
           text: "Loading 3D model...",
         });
 
+        releaseTransientObjectUrls();
         setModelUrl(glbUrl);
         setModelFile(projectFile);
         setMaterialModelUrl(glbFileName || project.fileName || "");
@@ -467,6 +515,7 @@ export function useViewerProject({
     setCameraProjectionMode,
     setMarkers,
     rawSetMaterial,
+    releaseTransientObjectUrls,
   ]);
 
   useEffect(() => {
@@ -492,6 +541,13 @@ export function useViewerProject({
           additionalModels: importedAdditionalModels = [],
           scene: importedScene,
         } = await importVXPack(file);
+
+        const importedObjectUrls = [
+          manifest.modelUrl,
+          ...importedAdditionalModels.map((model) => model?.url),
+        ].filter(isBlobObjectUrl);
+        releaseTransientObjectUrls(importedObjectUrls);
+        registerTransientObjectUrls(importedObjectUrls);
 
         rawSetMaterial({
           ...importedMaterial,
@@ -549,6 +605,8 @@ export function useViewerProject({
       }
 
       const url = URL.createObjectURL(file);
+      releaseTransientObjectUrls([url]);
+      registerTransientObjectUrls([url]);
 
       setModelUrl(url);
       setModelFile(file);
@@ -723,13 +781,28 @@ export function useViewerProject({
             }
           : additionalModels.find((model) => model?.id === modelAssetId);
 
-      if (!(runtimeModel?.file instanceof Blob)) {
+      let modelBlob = runtimeModel?.file instanceof Blob ? runtimeModel.file : null;
+
+      // Saved projects keep only lightweight file metadata in React state.
+      // Hydrate the large GLB Blob only for the duration of this explicit read.
+      if (!modelBlob && projectId && projectId !== "demo") {
+        const storedFile =
+          modelAssetId === PRIMARY_MODEL_ASSET_ID
+            ? await getProjectFileFromIndexedDb(projectId)
+            : await getAdditionalProjectModelFileFromIndexedDb(
+                projectId,
+                modelAssetId,
+              );
+        modelBlob = storedFile?.blob instanceof Blob ? storedFile.blob : null;
+      }
+
+      if (!(modelBlob instanceof Blob)) {
         throw new Error("GLB file is not available for metadata reading.");
       }
 
-      const detected = await readGlbLicenseMetadata(runtimeModel.file, {
+      const detected = await readGlbLicenseMetadata(modelBlob, {
         modelAssetId,
-        fileName: runtimeModel.fileName || runtimeModel.name || "model.glb",
+        fileName: runtimeModel?.fileName || runtimeModel?.name || "model.glb",
       });
 
       if (detected.metadataDetected) {
@@ -756,6 +829,7 @@ export function useViewerProject({
       handleUpdateModelLicense,
       materialModelUrl,
       modelFile,
+      projectId,
     ],
   );
 
