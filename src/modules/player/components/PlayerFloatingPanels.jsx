@@ -93,15 +93,35 @@ function getMediaKind(asset) {
   return "DOCUMENT";
 }
 
+const SAFE_MEDIA_URL_SCHEMES = new Set(["http:", "https:", "data:", "blob:"]);
+
+// Rendered into <a href>, <img src>, <video src>, and an unsandboxed
+// <iframe src> (for PDFs) below — mirrors the scheme allowlist
+// GlbLicenseMetadata.js's normalizeModelSourceUrl and Player3DLicense.jsx's
+// safeExternalUrl already apply to comparable fields, so a project media
+// entry can't smuggle a `javascript:` URL in through import/sync and have it
+// execute here.
+function isSafeMediaUrl(value) {
+  const source = String(value || "").trim();
+  if (!source) return false;
+
+  try {
+    return SAFE_MEDIA_URL_SCHEMES.has(new URL(source, window.location.href).protocol);
+  } catch {
+    return false;
+  }
+}
+
 function getMediaSource(asset) {
-  return (
+  const source =
     asset?.url ||
     asset?.dataUrl ||
     asset?.data ||
     asset?.src ||
     asset?.href ||
-    ""
-  );
+    "";
+
+  return isSafeMediaUrl(source) ? source : "";
 }
 
 function getMediaMimeType(asset) {

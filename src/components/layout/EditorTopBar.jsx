@@ -64,7 +64,10 @@ function BulkUpdateButton({ syncStatus, pendingSync, hasRemote, onClick }) {
       )}
       <span className="vx-editor-action-label">{label}</span>
       {!isSyncing && pendingSync && !isError && (
-        <span className="ml-1 size-1.5 rounded-full bg-amber-400" title="Unsynced local changes" />
+        <span
+          className="ml-1 size-1.5 rounded-full bg-amber-400"
+          title="Unsynced local changes"
+        />
       )}
     </Button>
   );
@@ -93,7 +96,7 @@ export default function EditorTopBar({
 }) {
   const currentUserName = getCurrentUserName();
   const { isFullscreen, isSupported, toggleFullscreen } = useFullscreen();
-  
+
   let publishLabel = "Publish";
   if (isPublishing) publishLabel = "Publishing...";
   else if (publishStatus === "PUBLISHED") publishLabel = "Published";
@@ -114,9 +117,13 @@ export default function EditorTopBar({
           className="vx-editor-topbar__logo size-8"
         />
 
-        <span className="vx-editor-topbar__title max-w-[34vw] truncate font-normal text-xl">{title || "VX Learn 3D"}</span>
+        <span className="vx-editor-topbar__title max-w-[34vw] truncate font-normal text-xl">
+          {title || "VX Learn 3D"}
+        </span>
 
-        <div className="vx-editor-topbar__save"><SaveStatusBadge status={saveStatus} /></div>
+        <div className="vx-editor-topbar__save">
+          <SaveStatusBadge status={saveStatus} />
+        </div>
       </div>
 
       <div className="vx-editor-topbar__actions flex items-center gap-3.5">
@@ -138,7 +145,11 @@ export default function EditorTopBar({
         <Button
           variant={isFullscreen ? "default" : "cyanOutline"}
           size="sm"
-          className={isFullscreen ? "border-accent-main shadow-[0_0_14px_rgba(3,105,157,0.55)]" : ""}
+          className={
+            isFullscreen
+              ? "border-accent-main shadow-[0_0_14px_rgba(3,105,157,0.55)]"
+              : ""
+          }
           onClick={toggleFullscreen}
           disabled={!isSupported}
           aria-pressed={isFullscreen}
@@ -158,9 +169,6 @@ export default function EditorTopBar({
           onClick={onBulkUpdate}
         />
 
-        <EditorUserMenu
-          currentUserName={currentUserName}
-          onExport={onExport}
         <Button
           variant={publishStatus === "PUBLISHED" ? "cyanSolid" : "cyanOutline"}
           size="sm"
@@ -226,13 +234,32 @@ export default function EditorTopBar({
           importStatus={importDataStatus}
         /> */}
 
-        <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
-          {/* <Share2 className="size-4.5 mr-1" /> */}
+        {/* <Button
+          disabled
+          variant="cyanOutline"
+          size="sm"
+          className="uppercase"
+          title="Share is not available yet"
+        >
+          <Share2 className="size-4.5 mr-1" />
           <MaterialIcon name="share" fill={1} size={20} className="mr-1" />
           <span className="vx-editor-action-label">Share</span>
-        </Button>
+        </Button> */}
 
-        <UserMenu />
+        {/* <UserMenu /> */}
+
+        <EditorUserMenu
+          currentUserName={currentUserName}
+          onExport={onExport}
+          onExportData={onExportData}
+          onImportData={onImportData}
+          isExporting={isExporting}
+          exportMode={exportMode}
+          exportProgress={exportProgress}
+          exportStatus={exportStatus}
+          isImporting={isImportingData}
+          importStatus={importDataStatus}
+        />
       </div>
     </div>
   );

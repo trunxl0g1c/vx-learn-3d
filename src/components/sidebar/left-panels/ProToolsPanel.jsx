@@ -61,10 +61,7 @@ export default function ProToolsPanel({
 }) {
   const [activeTool, setActiveTool] = useState(null);
   const { data: licenseInfo } = useLicenseInfo();
-  const licenseFlowEnabled = licenseInfo?.features?.feature_flow === true;
-  const visibleTools = PRO_TOOLS.filter((tool) =>
-    isProToolEnabled(proToolsSettings, tool.id, licenseFlowEnabled),
-  );
+  const licenseFlowEnabled = licenseInfo?.features?.pro_tools === true;
 
   if (
     activeTool === "add-more-glb" &&
@@ -130,13 +127,24 @@ export default function ProToolsPanel({
           </div>
 
           <div className="space-y-3">
-            {visibleTools.map((tool) => {
+            {PRO_TOOLS.map((tool) => {
               const active = activeTool === tool.id;
+              const enabled = isProToolEnabled(
+                proToolsSettings,
+                tool.id,
+                licenseFlowEnabled,
+              );
 
               return (
                 <button
                   key={tool.id}
                   type="button"
+                  disabled={!enabled}
+                  title={
+                    enabled
+                      ? undefined
+                      : "Requires Pro Tools on your license — contact your administrator"
+                  }
                   onClick={() => {
                     flow?.stopAuthoring?.();
                     procedural?.stopAuthoring?.();
@@ -160,6 +168,7 @@ export default function ProToolsPanel({
                   }}
                   className={[
                     "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
+                    "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-accent-main/50 disabled:hover:bg-primary/40",
                     active
                       ? "border-accent-main bg-accent-main/15"
                       : "border-accent-main/50 bg-primary/40 hover:border-accent-main hover:bg-white/5",

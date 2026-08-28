@@ -442,7 +442,7 @@ export default function ProjectSettingsPanel({
             <span className="block text-base font-normal text-contrast-grayout">
               Public
             </span>
-            <span className="block text-xs text-contrast-grayout/70">
+            <span className="block text-xs text-contrast-grayout/70 max-w-62.5">
               Required before this content can be shared to another workspace
               or assigned to a classroom (it also needs to be Published).
             </span>
@@ -1019,7 +1019,7 @@ export default function ProjectSettingsPanel({
             </div>
           </div>
         </SettingsAccordionSection>
-        <div className="flex items-center justify-between">
+        {/* <div className="flex items-center justify-between">
           <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
@@ -1033,7 +1033,7 @@ export default function ProjectSettingsPanel({
               }))
             }
           />
-        </div>
+        </div> */}
       </div>
     </div>
   );

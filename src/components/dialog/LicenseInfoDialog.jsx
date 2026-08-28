@@ -157,6 +157,19 @@ export default function LicenseInfoDialog({ open, onClose }) {
                 </div>
               )}
 
+              {license.contentByWorkspace.length > 0 && (
+                <div className="space-y-3 border-t border-divider-main pt-4">
+                  <p className="text-sm font-medium text-white">
+                    Max Content per Workspace
+                  </p>
+                  <div className="space-y-4">
+                    {license.contentByWorkspace.map((quota) => (
+                      <QuotaBar key={quota.key} {...quota} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {license.otherFeatures.length > 0 && (
                 <div className="space-y-2 border-t border-divider-main pt-4">
                   {license.otherFeatures.map((feature) => (
@@ -174,6 +187,7 @@ export default function LicenseInfoDialog({ open, onClose }) {
               )}
 
               {license.quotas.length === 0 &&
+                license.contentByWorkspace.length === 0 &&
                 license.otherFeatures.length === 0 && (
                   <p className="text-sm text-white/60">
                     No usage limits reported for this license.
@@ -186,7 +200,7 @@ export default function LicenseInfoDialog({ open, onClose }) {
         <div className="border-t border-divider-main px-6 py-5">
           <Button
             type="button"
-            variant="outline"
+            variant="default"
             onClick={onClose}
             className="w-full rounded-xl"
           >
