@@ -23,11 +23,11 @@ export default function SelectedObjectBadge({
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 10,
-        background: 'rgba(17, 24, 39, 0.9)',
+        background: '#4362AD',
         color: 'white',
         padding: '10px 18px',
         borderRadius: 999,
-        fontWeight: 'bold',
+        fontWeight: 'normal',
         fontSize: 14,
       }}
     >

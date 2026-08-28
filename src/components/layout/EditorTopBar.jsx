@@ -1,10 +1,11 @@
 import { CircleCheckBig, Loader2, CloudOff } from "lucide-react";
 import Button from "../ui/button";
-import { getCurrentUserName } from "../../utils/authUser";
 import MaterialIcon from "../ui/material-icon";
+import UserMenu from "../../modules/auth/components/UserMenu";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
 import EditorUserMenu from "./EditorUserMenu";
 import useFullscreen from "../../hooks/useFullscreen";
+import { getCurrentUserName } from "../../utils/authUser";
 
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
@@ -33,6 +34,42 @@ function SaveStatusBadge({ status }) {
   );
 }
 
+function BulkUpdateButton({ syncStatus, pendingSync, hasRemote, onClick }) {
+  if (!hasRemote) return null;
+
+  const isSyncing = syncStatus === "syncing";
+  const isError = syncStatus === "error";
+
+  let variant = "cyanOutline";
+  if (isError) variant = "destructive";
+  else if (pendingSync) variant = "cyanSolid";
+
+  let label = "Bulk Update";
+  if (isSyncing) label = "Updating...";
+  else if (isError) label = "Retry Update";
+
+  return (
+    <Button
+      variant={variant}
+      size="sm"
+      className="uppercase"
+      onClick={onClick}
+      disabled={isSyncing}
+      title="Push local changes (chapters, flows, settings) to the database"
+    >
+      {isSyncing ? (
+        <Loader2 className="mr-1 size-4.5 animate-spin" />
+      ) : (
+        <MaterialIcon name="cloud_upload" fill={1} size={20} className="mr-1" />
+      )}
+      <span className="vx-editor-action-label">{label}</span>
+      {!isSyncing && pendingSync && !isError && (
+        <span className="ml-1 size-1.5 rounded-full bg-amber-400" title="Unsynced local changes" />
+      )}
+    </Button>
+  );
+}
+
 export default function EditorTopBar({
   title,
   saveStatus = "saved",
@@ -46,9 +83,20 @@ export default function EditorTopBar({
   exportMode = null,
   exportProgress = 0,
   exportStatus = "",
+  onBulkUpdate,
+  syncStatus = "idle",
+  pendingSync = false,
+  hasRemote = false,
+  onPublish,
+  isPublishing = false,
+  publishStatus = "DRAFT",
 }) {
   const currentUserName = getCurrentUserName();
   const { isFullscreen, isSupported, toggleFullscreen } = useFullscreen();
+  
+  let publishLabel = "Publish";
+  if (isPublishing) publishLabel = "Publishing...";
+  else if (publishStatus === "PUBLISHED") publishLabel = "Published";
 
   return (
     <div
@@ -103,20 +151,71 @@ export default function EditorTopBar({
           />
         </Button>
 
-        <Button variant="cyanOutline" size="sm" className="uppercase" title="Publish project">
-          {/* <CircleCheckBig className="size-4.5 mr-1" /> */}
-          <MaterialIcon
-            name="published_with_changes"
-            fill={1}
-            size={20}
-            className="mr-1"
-          />
-          <span className="vx-editor-action-label">Publish</span>
-        </Button>
+        <BulkUpdateButton
+          syncStatus={syncStatus}
+          pendingSync={pendingSync}
+          hasRemote={hasRemote}
+          onClick={onBulkUpdate}
+        />
 
         <EditorUserMenu
           currentUserName={currentUserName}
           onExport={onExport}
+        <Button
+          variant={publishStatus === "PUBLISHED" ? "cyanSolid" : "cyanOutline"}
+          size="sm"
+          className="uppercase"
+          onClick={onPublish}
+          disabled={!onPublish || !hasRemote || isPublishing}
+          title={
+            publishStatus === "PUBLISHED"
+              ? "Republish with the latest changes"
+              : "Publish this content — required before it can be shared or assigned to a classroom"
+          }
+        >
+          {isPublishing ? (
+            <Loader2 className="mr-1 size-4.5 animate-spin" />
+          ) : (
+            <MaterialIcon
+              name="published_with_changes"
+              fill={1}
+              size={20}
+              className="mr-1"
+            />
+          )}
+          <span className="vx-editor-action-label">{publishLabel}</span>
+        </Button>
+
+        {/* <Button
+          variant="cyanOutline"
+          size="sm"
+          className="uppercase"
+          onClick={onExport}
+          disabled={!onExport || isExporting || isImportingData}
+          title={
+            exportMode === "full" && exportStatus
+              ? exportStatus
+              : "Export full project package with GLB"
+          }
+        >
+          {isExporting && exportMode === "full" ? (
+            <Loader2 className="mr-1 size-4.5 animate-spin" />
+          ) : (
+            <MaterialIcon
+              name="download_2"
+              fill={1}
+              size={20}
+              className="mr-1"
+            />
+          )}
+          <span className="vx-editor-action-label">
+            {isExporting && exportMode === "full"
+              ? `Export ${Math.max(0, Math.min(100, Math.round(exportProgress)))}%`
+              : "Export"}
+          </span>
+        </Button> */}
+
+        {/* <EditorDataMenu
           onExportData={onExportData}
           onImportData={onImportData}
           isExporting={isExporting}
@@ -125,7 +224,15 @@ export default function EditorTopBar({
           exportStatus={exportStatus}
           isImporting={isImportingData}
           importStatus={importDataStatus}
-        />
+        /> */}
+
+        <Button disabled variant="cyanOutline" size="sm" className="uppercase" title="Share is not available yet">
+          {/* <Share2 className="size-4.5 mr-1" /> */}
+          <MaterialIcon name="share" fill={1} size={20} className="mr-1" />
+          <span className="vx-editor-action-label">Share</span>
+        </Button>
+
+        <UserMenu />
       </div>
     </div>
   );

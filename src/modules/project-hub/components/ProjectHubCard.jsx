@@ -1,3 +1,4 @@
+import { useState } from "react";
 import MaterialIcon from "../../../components/ui/material-icon";
 
 export default function ProjectHubCard({
@@ -5,13 +6,28 @@ export default function ProjectHubCard({
   onClick,
   onIntent,
   onDelete,
+  canDelete = true,
   priority = false,
   formatLastOpened,
 }) {
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
   const thumbnail =
     project.thumbnail ||
     project.metadata?.thumbnail ||
     project.metadata?.thumbnailUrl;
+  // Cloud-only cards get a URL back regardless of whether the content
+  // actually has a thumbnail uploaded (see getContentThumbnailUrl) — a
+  // content with none 404s, so this falls back the same way the blank
+  // placeholder below always has.
+  const showThumbnail = Boolean(thumbnail) && !thumbnailFailed;
+
+  let accessIcon = <MaterialIcon name="play_arrow" size={25} />;
+  if (project.isCloudOnly) {
+    accessIcon = <MaterialIcon name="cloud" size={20} />;
+  } else if (project.role === "EDITOR") {
+    accessIcon = <MaterialIcon name="edit_square" size={20} />;
+  }
 
   return (
     <div className="viqubed-project-card group relative min-h-[190px] w-full overflow-hidden rounded-lg border border-secondary-dark bg-dark transition hover:border-accent-main hover:bg-white/5 sm:min-h-[200px] xl:min-h-[210px]">
@@ -58,15 +74,17 @@ export default function ProjectHubCard({
         </div>
       </button>
 
-      <button
-        type="button"
-        onClick={() => onDelete?.(project)}
-        className="absolute right-2 top-2 z-10 grid size-8 cursor-pointer place-items-center rounded-lg border border-red-400/30 bg-black/70 text-red-300 shadow-lg backdrop-blur-sm transition hover:border-red-400/60 hover:bg-red-950/90 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-        aria-label={`Delete ${project.name || "project"}`}
-        title="Delete project"
-      >
-        <MaterialIcon name="delete" size={19} />
-      </button>
+      {canDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete?.(project)}
+          className="absolute right-2 top-2 z-10 grid size-8 cursor-pointer place-items-center rounded-lg border border-red-400/30 bg-black/70 text-red-300 shadow-lg backdrop-blur-sm transition hover:border-red-400/60 hover:bg-red-950/90 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          aria-label={`Delete ${project.name || "project"}`}
+          title="Delete project"
+        >
+          <MaterialIcon name="delete" size={19} />
+        </button>
+      )}
     </div>
   );
 }

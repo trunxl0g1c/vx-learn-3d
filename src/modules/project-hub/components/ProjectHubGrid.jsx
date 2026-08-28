@@ -11,13 +11,14 @@ export default function ProjectHubGrid({
   onOpenProject,
   onPreloadProject,
   onDeleteProject,
+  canDeleteProject = true,
   getAccessLabel,
   formatLastOpened,
 }) {
   return (
     <div className="grid min-w-0 grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4">
       <ProjectHubCreateCard onClick={onCreate} />
-      <ProjectHubImportCard onImport={onImport} isImporting={isImporting} />
+      {/* <ProjectHubImportCard onImport={onImport} isImporting={isImporting} /> */}
 
       {projects.map((project, index) => (
         <ProjectHubCard
@@ -27,6 +28,7 @@ export default function ProjectHubGrid({
           onClick={() => onOpenProject(project)}
           onIntent={() => onPreloadProject?.(project)}
           onDelete={() => onDeleteProject?.(project)}
+          canDelete={canDeleteProject}
           getAccessLabel={getAccessLabel}
           formatLastOpened={formatLastOpened}
         />

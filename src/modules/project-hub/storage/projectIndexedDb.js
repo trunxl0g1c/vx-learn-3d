@@ -6,11 +6,13 @@ import {
   ADDITIONAL_MODEL_FILE_STORE,
   ALL_STORE_NAMES,
   ANIMATION_STORE,
+  ARRAY_MATERIAL_STORES,
   CHAPTER_STORE,
   DRAFT_STORE,
   FILE_STORE,
   FLOW_STORE,
   NORMALIZED_STORE_NAMES,
+  PLAYER_SETTINGS_STORE,
   PROCEDURE_STORE,
   PROJECT_ID_INDEX,
   QUIZ_STORE,
@@ -47,7 +49,7 @@ import {
 } from "./indexed-db/materialSerialization";
 
 import { DEFAULT_VIEWER_GRID } from "../../../engine/viewer";
-export { getCachedProjectSummaries };
+export { getCachedProjectSummaries } from "./indexed-db/catalogCache";
 
 function saveProjectRecord(db, project, file) {
   const { normalizedFields } = splitMaterialForStorage(project?.material);
@@ -103,7 +105,7 @@ export function createProjectRecord({ name, file, role = "EDITOR" }) {
 
     material: {
       id: createId(),
-      title: "Materi 3D Baru",
+      title: name || "Materi 3D Baru",
       description: "",
       version: "1.0.0",
       author: "",
@@ -180,7 +182,7 @@ export async function updateProjectInIndexedDb(projectId, patch = {}) {
     ...patch,
     metadata: {
       ...oldProject.metadata,
-      ...(patch.metadata || {}),
+      ...patch.metadata,
       updatedAt: new Date().toISOString(),
     },
   };

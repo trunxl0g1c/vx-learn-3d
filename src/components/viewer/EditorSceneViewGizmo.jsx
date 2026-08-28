@@ -141,7 +141,7 @@ function ProjectionModeButton({ active, label, onClick }) {
         color: active ? "#f4fdff" : "#9fdbe8",
         cursor: "pointer",
         fontSize: 7,
-        fontWeight: 800,
+        fontWeight: 300,
         letterSpacing: "-0.02em",
         lineHeight: 1,
         overflow: "hidden",
@@ -295,7 +295,7 @@ export default function EditorSceneViewGizmo({
               points="25,22 54,6 83,22 54,38"
               onChangeView={changeView}
             >
-              <text x="54" y="23" textAnchor="middle" fill="#eafcff" fontSize="8" fontWeight="800">TOP</text>
+              <text x="54" y="23" textAnchor="middle" fill="#eafcff" fontSize="8" fontWeight="300">TOP</text>
             </FaceButton>
 
             <FaceButton
@@ -305,7 +305,7 @@ export default function EditorSceneViewGizmo({
               points="25,22 54,38 54,70 25,53"
               onChangeView={changeView}
             >
-              <text x="39" y="49" textAnchor="middle" fill="#eafcff" fontSize="7" fontWeight="800" transform="rotate(29 39 49)">FRONT</text>
+              <text x="39" y="49" textAnchor="middle" fill="#eafcff" fontSize="7" fontWeight="300" transform="rotate(29 39 49)">FRONT</text>
             </FaceButton>
 
             <FaceButton
@@ -315,7 +315,7 @@ export default function EditorSceneViewGizmo({
               points="54,38 83,22 83,53 54,70"
               onChangeView={changeView}
             >
-              <text x="69" y="49" textAnchor="middle" fill="#eafcff" fontSize="7" fontWeight="800" transform="rotate(-29 69 49)">RIGHT</text>
+              <text x="69" y="49" textAnchor="middle" fill="#eafcff" fontSize="7" fontWeight="300" transform="rotate(-29 69 49)">RIGHT</text>
             </FaceButton>
 
             <g
@@ -357,7 +357,7 @@ export default function EditorSceneViewGizmo({
           marginTop: orthographicMode ? 7 : 5,
           color: "#a9e4ef",
           fontSize: 9,
-          fontWeight: 800,
+          fontWeight: 300,
           letterSpacing: "0.01em",
           textAlign: "center",
         }}

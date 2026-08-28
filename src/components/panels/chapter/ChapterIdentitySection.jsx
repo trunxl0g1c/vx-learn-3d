@@ -45,7 +45,7 @@ export default function ChapterIdentitySection({
                 updateChapterField(chapter.id, "title", e.target.value)
               }
               className="h-[44px] rounded-lg"
-              inputClassName="text-sm"
+              inputClassName="text-sm disabled"
             />
 
             <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">

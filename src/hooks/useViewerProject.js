@@ -399,7 +399,30 @@ export function useViewerProject({
           progress: null,
         });
 
-        const loaded = await loadProject(projectId);
+        const loaded = await loadProject(projectId, {
+          // Only fires for a cold (never-opened-on-this-browser) project,
+          // where the GLB has to be fetched from the backend — the local
+          // fast path never triggers this. Without it, the dialog just sat
+          // on the stale "Reading project data..." label with no movement
+          // for however long the model download took.
+          onDownloadProgress: (loadedBytes, totalBytes) => {
+            if (cancelled) return;
+
+            const percent = totalBytes
+              ? Math.round((loadedBytes / totalBytes) * 100)
+              : null;
+            const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+
+            updateLoading({
+              text:
+                percent != null
+                  // ? `Downloading 3D model... ${percent}%`
+                  ? `Downloading 3D model...`
+                  : `Downloading 3D model... ${loadedMb} MB`,
+              progress: percent,
+            });
+          },
+        });
 
         if (!loaded || cancelled) {
           hideLoading();
@@ -420,14 +443,6 @@ export function useViewerProject({
 
         setCurrentProject(project);
         setProjectDraft(projectDraft);
-
-        updateLoading({
-          text: `Opening ${project.name}...`,
-        });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-
-        if (cancelled) return;
 
         updateLoading({
           text: "Loading 3D model...",

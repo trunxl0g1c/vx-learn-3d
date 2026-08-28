@@ -16,11 +16,5 @@ export function getCurrentUser() {
 export function getCurrentUserName() {
   const user = getCurrentUser();
 
-  return (
-    user?.name ||
-    user?.fullName ||
-    user?.username ||
-    user?.email ||
-    ""
-  );
+  return user?.name || user?.fullName || user?.email || "";
 }

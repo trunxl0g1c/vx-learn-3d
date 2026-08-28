@@ -65,7 +65,7 @@ export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
                   "grid size-14 cursor-pointer place-items-center border transition",
                   active
                     ? "border-accent-main bg-accent-main text-white"
-                    : "border-transparent bg-transparent text-secondary-default hover:bg-white/5",
+                    : "border-transparent bg-[#1D1D20] text-secondary-default hover:bg-white/5",
                 ].join(" ")}
               >
                 <MaterialIcon

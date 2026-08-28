@@ -1,6 +1,13 @@
 import MaterialIcon from "../ui/material-icon";
 import Button from "../ui/button";
 import { QUIZ_QUESTION_TYPES } from "../../engine/quiz";
+import { sanitizeText } from "../../utils/validation";
+
+const TITLE_MAX_LENGTH = 120;
+const PROMPT_MAX_LENGTH = 1000;
+const OPTION_TEXT_MAX_LENGTH = 200;
+const CORRECT_TEXT_MAX_LENGTH = 200;
+const FEEDBACK_MAX_LENGTH = 500;
 
 function SectionLabel({ children }) {
   return (
@@ -42,9 +49,13 @@ function OptionEditor({ question, quizAuthoring }) {
           />
           <input
             value={option.text}
+            maxLength={OPTION_TEXT_MAX_LENGTH}
             onChange={(event) =>
               quizAuthoring.updateOption(option.id, {
-                text: event.target.value,
+                text: sanitizeText(event.target.value, {
+                  maxLength: OPTION_TEXT_MAX_LENGTH,
+                  collapseWhitespace: false,
+                }),
               })
             }
             className="h-8 min-w-0 flex-1 bg-transparent text-xs text-white outline-none"
@@ -158,7 +169,15 @@ export default function QuizQuestionEditor({
         <Field label="Question title">
           <input
             value={question.title}
-            onChange={(event) => update({ title: event.target.value })}
+            maxLength={TITLE_MAX_LENGTH}
+            onChange={(event) =>
+              update({
+                title: sanitizeText(event.target.value, {
+                  maxLength: TITLE_MAX_LENGTH,
+                  collapseWhitespace: false,
+                }),
+              })
+            }
             className={inputClass}
           />
         </Field>
@@ -207,7 +226,16 @@ export default function QuizQuestionEditor({
       <Field label="Question / instruction" className="mt-3">
         <textarea
           value={question.prompt}
-          onChange={(event) => update({ prompt: event.target.value })}
+          maxLength={PROMPT_MAX_LENGTH}
+          onChange={(event) =>
+            update({
+              prompt: sanitizeText(event.target.value, {
+                maxLength: PROMPT_MAX_LENGTH,
+                collapseWhitespace: false,
+                allowNewlines: true,
+              }),
+            })
+          }
           className={textareaClass}
           placeholder="Write the question or 3D task instruction..."
         />
@@ -237,8 +265,16 @@ export default function QuizQuestionEditor({
           <Field label="Correct text answer">
             <input
               value={question.correctAnswer?.text || ""}
+              maxLength={CORRECT_TEXT_MAX_LENGTH}
               onChange={(event) =>
-                update({ correctAnswer: { text: event.target.value } })
+                update({
+                  correctAnswer: {
+                    text: sanitizeText(event.target.value, {
+                      maxLength: CORRECT_TEXT_MAX_LENGTH,
+                      collapseWhitespace: false,
+                    }),
+                  },
+                })
               }
               className={inputClass}
               placeholder="Expected answer"
@@ -388,8 +424,17 @@ export default function QuizQuestionEditor({
         <Field label="Correct feedback">
           <textarea
             value={question.feedback?.correct || ""}
+            maxLength={FEEDBACK_MAX_LENGTH}
             onChange={(event) =>
-              update({ feedback: { correct: event.target.value } })
+              update({
+                feedback: {
+                  correct: sanitizeText(event.target.value, {
+                    maxLength: FEEDBACK_MAX_LENGTH,
+                    collapseWhitespace: false,
+                    allowNewlines: true,
+                  }),
+                },
+              })
             }
             className={textareaClass}
           />
@@ -397,8 +442,17 @@ export default function QuizQuestionEditor({
         <Field label="Incorrect feedback">
           <textarea
             value={question.feedback?.incorrect || ""}
+            maxLength={FEEDBACK_MAX_LENGTH}
             onChange={(event) =>
-              update({ feedback: { incorrect: event.target.value } })
+              update({
+                feedback: {
+                  incorrect: sanitizeText(event.target.value, {
+                    maxLength: FEEDBACK_MAX_LENGTH,
+                    collapseWhitespace: false,
+                    allowNewlines: true,
+                  }),
+                },
+              })
             }
             className={textareaClass}
           />

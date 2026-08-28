@@ -15,11 +15,11 @@ export function normalizeProToolsSettings() {
   return { ...DEFAULT_PRO_TOOLS_SETTINGS };
 }
 
-export function isProToolEnabled(settings, toolId) {
+export function isProToolEnabled(settings, toolId, licenseFlowEnabled = true) {
   const normalized = normalizeProToolsSettings(settings);
 
-  if (toolId === "flow") return normalized.flow;
-  if (toolId === "procedural") return normalized.procedure;
+  if (toolId === "flow") return normalized.flow && licenseFlowEnabled;
+  if (toolId === "procedural") return normalized.procedure && licenseFlowEnabled;
   if (toolId === "animation-creation") return normalized.animationCreation;
   if (toolId === "quiz") return normalized.quiz;
   if (toolId === "xr") return normalized.xrImmersive;

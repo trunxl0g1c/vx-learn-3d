@@ -1,72 +1,88 @@
+import { lazy, Suspense, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Button, { cn } from "../../../components/ui/button";
 import MaterialIcon from "../../../components/ui/material-icon";
+import { useAuth } from "../../auth/AuthContext";
 
-const menus = [
-  {
-    title: "My Catalogue",
-    href: "/viqubed",
-    match: "/viqubed",
-    icon: "package_2",
-  },
-  {
-    title: "Workspace",
-    href: "/workspace",
-    match: "/workspace",
-    icon: "work",
-  },
-  {
-    title: "Library",
-    href: "/library",
-    match: "/library",
-    icon: "video_library",
-  },
+const LicenseInfoDialog = lazy(
+  () => import("../../../components/dialog/LicenseInfoDialog"),
+);
 
-  { divider: true },
+function buildMenus(isAdmin) {
+  return [
+    {
+      title: "My Catalogue",
+      href: "/viqubed",
+      match: "/viqubed",
+      icon: "package_2",
+    },
+    {
+      title: "Workspace",
+      href: "/workspace",
+      match: "/workspace",
+      icon: "work",
+    },
+    {
+      title: "My Classrooms",
+      href: "/classrooms",
+      match: "/classrooms",
+      icon: "school",
+    },
 
-  {
-    title: "Assets Marketplace",
-    href: "/marketplace",
-    match: "/marketplace",
-    icon: "shopping_cart",
-  },
-  {
-    title: "VR Learn",
-    href: "/learn",
-    match: "/learn",
-    icon: "movie",
-  },
-  {
-    title: "GLB Compression",
-    href: "/glb",
-    match: "/glb",
-    icon: "compress",
-  },
+    ...(isAdmin
+      ? [
+          { divider: true },
+          {
+            title: "Category Management",
+            href: "/admin/categories",
+            match: "/admin/categories",
+            icon: "category",
+          },
+          {
+            title: "Environment & Storage",
+            href: "/admin/storage-settings",
+            match: "/admin/storage-settings",
+            icon: "dns",
+          },
+        ]
+      : []),
 
-  { divider: true },
+    { divider: true },
 
-  {
-    title: "Profile",
-    href: "/profile",
-    match: "/profile",
-    icon: "manage_accounts",
-  },
-  {
-    title: "Documentation",
-    href: "/documentation",
-    match: "/documentation",
-    icon: "book_3",
-  },
-  {
-    title: "Support",
-    href: "/support",
-    match: "/support",
-    icon: "support_agent",
-  },
-];
+    {
+      title: "License Information",
+      action: "license",
+      icon: "license",
+    },
+    {
+      title: "Profile",
+      href: "/profile",
+      match: "/profile",
+      icon: "manage_accounts",
+    },
+
+    { divider: true },
+
+    {
+      title: "Documentation",
+      href: "/documentation",
+      match: "/documentation",
+      icon: "book_3",
+    },
+    {
+      title: "Support",
+      href: "/support",
+      match: "/support",
+      icon: "support_agent",
+    },
+  ];
+}
 
 export default function ProjectHubSidebar() {
   const location = useLocation();
+  const { user } = useAuth();
+  const menus = buildMenus(user?.role === "Admin");
+  const [isLicenseOpen, setIsLicenseOpen] = useState(false);
 
   return (
     <aside className="w-[56px] shrink-0 overflow-y-auto border-r border-divider-main bg-primary sm:w-[68px] lg:w-[220px]">
@@ -78,6 +94,31 @@ export default function ProjectHubSidebar() {
                 key={`divider-${index}`}
                 className="my-2 border-t border-divider-main"
               />
+            );
+          }
+
+          if (item.action === "license") {
+            return (
+              <div key="license-information" title={item.title}>
+                <Button
+                  type="button"
+                  variant="sidebar"
+                  size="sm"
+                  onClick={() => setIsLicenseOpen(true)}
+                  className="w-full justify-center px-2 hover:bg-accent-main/80! lg:justify-start lg:gap-3 lg:px-3"
+                >
+                  <MaterialIcon
+                    name={item.icon}
+                    fill={1}
+                    size={20}
+                    className="shrink-0 text-secondary-default"
+                  />
+
+                  <span className="hidden truncate lg:inline">
+                    {item.title}
+                  </span>
+                </Button>
+              </div>
             );
           }
 
@@ -120,6 +161,15 @@ export default function ProjectHubSidebar() {
           );
         })}
       </nav>
+
+      {isLicenseOpen && (
+        <Suspense fallback={null}>
+          <LicenseInfoDialog
+            open
+            onClose={() => setIsLicenseOpen(false)}
+          />
+        </Suspense>
+      )}
     </aside>
   );
 }

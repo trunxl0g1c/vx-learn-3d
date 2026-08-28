@@ -128,3 +128,9 @@ export function clearProjectCatalogCache() {
     // Ignore localStorage errors.
   }
 }
+
+export function removeProjectFromCatalogCache(projectId) {
+  writeProjectCatalogCache(
+    getCachedProjectSummaries().filter((item) => item.id !== projectId),
+  );
+}
