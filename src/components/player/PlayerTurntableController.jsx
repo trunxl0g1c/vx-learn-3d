@@ -39,11 +39,9 @@ export default function PlayerTurntableController({
     const shouldRotate = Boolean(enabled && normalizedSettings.enabled);
 
     if (!shouldRotate) {
-      if (wasActiveRef.current || Math.abs(root.rotation.y) > 1e-6) {
-        root.rotation.set(0, 0, 0);
-        root.updateMatrixWorld(true);
-      }
-
+      // Freeze the turntable at its current angle. User interaction, Chapter,
+      // Flow, Procedure, Free Play, etc. must stop the intro rotation without
+      // snapping the model back to its original orientation.
       wasActiveRef.current = false;
       return;
     }

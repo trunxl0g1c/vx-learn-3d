@@ -3,7 +3,7 @@ import Button from "../ui/button";
 import MaterialIcon from "../ui/material-icon";
 import UserMenu from "../../modules/auth/components/UserMenu";
 import { EDITOR_TOP_BAR_HEIGHT } from "../../constants/editorLayout";
-import EditorDataMenu from "./EditorDataMenu";
+import EditorUserMenu from "./EditorUserMenu";
 import useFullscreen from "../../hooks/useFullscreen";
 import { getCurrentUserName } from "../../utils/authUser";
 
@@ -158,6 +158,9 @@ export default function EditorTopBar({
           onClick={onBulkUpdate}
         />
 
+        <EditorUserMenu
+          currentUserName={currentUserName}
+          onExport={onExport}
         <Button
           variant={publishStatus === "PUBLISHED" ? "cyanSolid" : "cyanOutline"}
           size="sm"

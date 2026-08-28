@@ -24,6 +24,11 @@ import ProjectHubLayout from "./layouts/ProjectHubLayout";
 import ProjectHubToolbar from "./layouts/ProjectHubToolbar";
 import ProjectHubGrid from "./components/ProjectHubGrid";
 import { preloadProjectRoute } from "../../routeLoaders";
+import { useProjectStore } from "../project-store/ProjectStoreContext";
+import {
+  forceReleaseAllGltfResourcesNow,
+  releaseUnusedGltfResourcesNow,
+} from "../../engine/model/GltfResourceLifecycle";
 import { useAlert } from "../../components/dialog/AlertContext";
 import {
   useCreateContent,
@@ -105,6 +110,8 @@ export default function ProjectHubPage() {
   const location = useLocation();
 
   const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
+  const { resetProjectStore } = useProjectStore();
+
   const { showAlert } = useAlert();
   const { user } = useAuth();
 
@@ -158,6 +165,33 @@ export default function ProjectHubPage() {
   const [localProjectsByContentId, setLocalProjectsByContentId] = useState(
     () => ({}),
   );
+
+  useEffect(() => {
+    // ProjectStoreProvider lives above Routes. Dashboard never needs the full
+    // editor project/draft, so explicitly release it on entry as a defensive
+    // fallback for every navigation path back from Editor/Player.
+    resetProjectStore();
+
+    // Dashboard owns no 3D Canvas. Release every GLTF entry immediately, even
+    // when a stale ref-count survived an interrupted route cleanup. The Model
+    // component registers its release callback at retain-time, so this also
+    // clears useLoader/parser caches that would otherwise retain large decoded
+    // texture and buffer dependencies. Keep two normal zero-ref passes as a
+    // defensive follow-up for any cleanup work queued in the same browser turn.
+    forceReleaseAllGltfResourcesNow();
+
+    const releaseTimers = [0, 250, 1500].map((delay) =>
+      globalThis.setTimeout?.(() => {
+        releaseUnusedGltfResourcesNow();
+      }, delay),
+    );
+
+    return () => {
+      releaseTimers.forEach((timer) => {
+        if (timer !== undefined) globalThis.clearTimeout?.(timer);
+      });
+    };
+  }, [resetProjectStore]);
 
   useEffect(() => {
     let active = true;

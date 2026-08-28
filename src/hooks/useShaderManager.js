@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   applyModelShaderMode,
   normalizeShaderMode,
@@ -22,6 +22,9 @@ export function useShaderManager({
   viewerSettings,
   setViewerSettings,
 }) {
+  const viewerSettingsRef = useRef(viewerSettings)
+  viewerSettingsRef.current = viewerSettings
+
   const [shaderMode, setShaderMode] = useState(() =>
     normalizeShaderMode(viewerSettings?.shaderMode),
   )
@@ -67,14 +70,15 @@ export function useShaderManager({
   const applyShaderModeToScene = useCallback(
     (mode, settingOverrides = {}) => {
       const nextMode = normalizeShaderMode(mode)
+      const currentViewerSettings = viewerSettingsRef.current || {}
       const shaderSettings = {
-        ...viewerSettings,
+        ...currentViewerSettings,
         ...settingOverrides,
         shaderMode: nextMode,
         metalness,
         roughness,
         envIntensity: normalizeSliderValue(
-          settingOverrides.envIntensity ?? viewerSettings?.envIntensity,
+          settingOverrides.envIntensity ?? currentViewerSettings?.envIntensity,
           DEFAULT_ENV_INTENSITY,
         ),
       }
@@ -93,7 +97,7 @@ export function useShaderManager({
       setShaderOutlineStyle(shaderState.outlineStyle || null)
       return shaderState
     },
-    [metalness, modelScene, roughness, viewerSettings, vxEngine],
+    [metalness, modelScene, roughness, vxEngine],
   )
 
   const applyShaderMode = useCallback(
@@ -102,9 +106,8 @@ export function useShaderManager({
 
       setShaderMode(nextMode)
       syncViewerSetting("shaderMode", nextMode)
-      applyShaderModeToScene(nextMode)
     },
-    [applyShaderModeToScene, syncViewerSetting],
+    [syncViewerSetting],
   )
 
   const restoreShaderMode = useCallback(() => {

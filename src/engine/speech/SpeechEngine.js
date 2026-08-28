@@ -15,6 +15,7 @@ export function createSpeechEngine() {
   let sessionId = 0;
   let cachedVoices = [];
   let observedSynth = null;
+  let voiceChangeHandler = null;
 
   const refreshVoices = (synth) => {
     const voices = synth?.getVoices?.() || [];
@@ -28,7 +29,8 @@ export function createSpeechEngine() {
 
     observedSynth = synth;
     if (typeof synth.addEventListener === "function") {
-      synth.addEventListener("voiceschanged", () => refreshVoices(synth));
+      voiceChangeHandler = () => refreshVoices(synth);
+      synth.addEventListener("voiceschanged", voiceChangeHandler);
     }
   };
 
@@ -36,6 +38,22 @@ export function createSpeechEngine() {
     sessionId += 1;
     const runtime = getSpeechRuntime();
     runtime?.synth?.cancel?.();
+  };
+
+  const dispose = () => {
+    stop();
+
+    if (
+      observedSynth &&
+      voiceChangeHandler &&
+      typeof observedSynth.removeEventListener === "function"
+    ) {
+      observedSynth.removeEventListener("voiceschanged", voiceChangeHandler);
+    }
+
+    observedSynth = null;
+    voiceChangeHandler = null;
+    cachedVoices = [];
   };
 
   const initialRuntime = getSpeechRuntime();
@@ -92,6 +110,7 @@ export function createSpeechEngine() {
   return {
     speak,
     stop,
+    dispose,
     isSupported() {
       return Boolean(getSpeechRuntime());
     },

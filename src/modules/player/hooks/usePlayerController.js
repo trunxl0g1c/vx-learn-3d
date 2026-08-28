@@ -475,8 +475,8 @@ export default function usePlayerController() {
       return null
     }
 
-    // Object List selection belongs to Free Play.
-    if (!freePlay) return null
+    // Object List always enters Free Play before selecting.
+    if (!freePlay) setPlayerFreePlayMode(true)
 
     if (xrayTargetRef.current) {
       restorePlayerRenderMode()

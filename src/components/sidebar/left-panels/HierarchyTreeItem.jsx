@@ -27,6 +27,8 @@ export default function HierarchyTreeItem({
   registerNodeRef,
   setRightTab,
   renameObject,
+  getObjectDescription,
+  onOpenObjectDescription,
 }) {
   const nodeKey = getNodeKey(item);
   const open = openMap?.[nodeKey] ?? true;
@@ -38,6 +40,23 @@ export default function HierarchyTreeItem({
     : selectedObject === item.object;
   const active = selectedObject === item.object;
   const canRename = typeof renameObject === "function";
+  const supportsDescriptionIndicator =
+    typeof getObjectDescription === "function" &&
+    typeof onOpenObjectDescription === "function";
+  const objectDescription = getObjectDescription?.(item.object, item.name) || null;
+  const hasDescriptionData = Boolean(
+    objectDescription &&
+      (String(objectDescription.description || "").trim() ||
+        Number(objectDescription.parameterCount || 0) > 0 ||
+        (objectDescription.parameters || []).some((parameter) =>
+          [parameter?.name, parameter?.value, parameter?.unit].some((value) =>
+            String(value ?? "").trim(),
+          ),
+        ) ||
+        (String(objectDescription.title || "").trim() &&
+          String(objectDescription.title || "").trim() !==
+            String(objectDescription.objectName || "").trim())),
+  );
 
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState(displayName);
@@ -139,6 +158,24 @@ export default function HierarchyTreeItem({
     refreshVisibility();
   };
 
+  const openObjectDescription = (event) => {
+    event.stopPropagation();
+    if (!objectDescription) return;
+
+    if (selectObjectFromList) {
+      selectObjectFromList(item.object, {
+        shouldFocus: false,
+        forceSelect: true,
+      });
+    } else {
+      setSelectedObject?.(item.object);
+      setSelectedObjectName(displayName);
+      highlightObject?.(item.object, { openInfo: false });
+    }
+
+    onOpenObjectDescription?.(objectDescription.id, item.object);
+  };
+
   const startEditing = (event) => {
     event.stopPropagation();
     cancelEditRef.current = false;
@@ -175,9 +212,11 @@ export default function HierarchyTreeItem({
       <div
         ref={(element) => registerNodeRef?.(nodeKey, element)}
         className={[
-          canRename
-            ? "grid grid-cols-[18px_minmax(0,1fr)_68px_22px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition"
-            : "grid grid-cols-[18px_minmax(0,1fr)_68px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition",
+          supportsDescriptionIndicator && canRename
+            ? "grid grid-cols-[18px_minmax(0,1fr)_68px_22px_22px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition"
+            : canRename || supportsDescriptionIndicator
+              ? "grid grid-cols-[18px_minmax(0,1fr)_68px_22px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition"
+              : "grid grid-cols-[18px_minmax(0,1fr)_68px_22px] items-center gap-2 rounded-md py-1.5 pr-1 text-xs transition",
           selected ? "text-secondary-default" : "text-white",
           active && multipleSelectEnabled ? "bg-accent-main/10" : "",
           visible ? "opacity-100" : "opacity-50",
@@ -285,6 +324,28 @@ export default function HierarchyTreeItem({
           />
         </button>
 
+        {supportsDescriptionIndicator && (
+          hasDescriptionData ? (
+            <button
+              type="button"
+              onClick={openObjectDescription}
+              title={`Edit description for ${displayName}`}
+              aria-label={`Edit description for ${displayName}`}
+              className="grid size-5 cursor-pointer place-items-center rounded text-secondary-default transition hover:bg-white/10 hover:text-white"
+            >
+              <MaterialIcon name="menu_book" fill={1} size={17} />
+            </button>
+          ) : (
+            <span
+              title={`No description for ${displayName}`}
+              aria-label={`No description for ${displayName}`}
+              className="grid size-5 place-items-center rounded text-secondary-default/30 opacity-60"
+            >
+              <MaterialIcon name="menu_book" fill={1} size={17} />
+            </span>
+          )
+        )}
+
         {canRename && (
           <button
             type="button"
@@ -322,6 +383,8 @@ export default function HierarchyTreeItem({
             registerNodeRef={registerNodeRef}
             setRightTab={setRightTab}
             renameObject={renameObject}
+            getObjectDescription={getObjectDescription}
+            onOpenObjectDescription={onOpenObjectDescription}
           />
         ))}
     </div>

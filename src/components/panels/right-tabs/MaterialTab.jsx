@@ -12,7 +12,7 @@ export default function MaterialTab({ material }) {
           value={material?.thumbnail ? "✓ Available" : "—"}
         />
         <InfoRow
-          label="Chapters"
+          label="Object Descriptions"
           value={String(material?.chapters?.length || 0)}
         />
         <InfoRow label="Flows" value={String(material?.flows?.length || 0)} />

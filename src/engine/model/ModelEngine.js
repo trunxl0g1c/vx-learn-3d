@@ -190,6 +190,7 @@ export function createModelEngine(options = {}) {
 
         if (originalMaterial) {
           child.material = cloneModelMaterial(originalMaterial)
+          child.userData.__vxGeneratedShaderMaterial = true
         }
       }
 

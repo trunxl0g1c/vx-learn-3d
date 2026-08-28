@@ -1,46 +1,29 @@
+import { useEffect, useState } from "react";
 import MaterialIcon from "../../../ui/material-icon";
 import Button from "../../../ui/button";
-
-const TRANSFORM_MODES = [
-  ["translate", "Move", "open_with"],
-  ["rotate", "Rotate", "360"],
-  ["scale", "Scale", "zoom_out_map"],
-];
 
 export default function ProcedureStepTransformSection({
   procedural,
   step,
   isAssembly,
 }) {
+  const [rotationExpanded, setRotationExpanded] = useState(false);
   const activeEntry = procedural.activeAnimatedEntry || null;
-  const activeEntries = procedural.activeAnimatedEntries || [];
-  const activeIndex = activeEntry
-    ? activeEntries.findIndex((entry) => entry.id === activeEntry.id)
-    : -1;
+
+  useEffect(() => {
+    procedural?.setTransformMode?.("translate");
+  }, [procedural, step?.id]);
 
   return (
     <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
-      <div className="mb-3 flex items-start gap-2">
-        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
-          {isAssembly ? "2" : "3"}
-        </span>
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-white">
-            {isAssembly ? "Set Start & Target" : "Set Start & End"}
-          </p>
-          <p className="mt-0.5 text-[10px] leading-4 text-contrast-grayout">
-            {isAssembly
-              ? "Start and Target are already saved when the object is assigned. Move the object only when you want to change either pose."
-              : "Configure the selected animation action."}
-          </p>
-        </div>
+      <div className="mb-3">
+        <p className="text-xs font-semibold text-white">
+          {isAssembly ? "Set Start & Target" : "Set Start & End"}
+        </p>
       </div>
 
       {!isAssembly && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent-main/35 bg-accent-main/10 px-2.5 py-2">
-          <span className="grid size-6 shrink-0 place-items-center rounded-full bg-accent-main/20 text-[9px] font-bold text-secondary-default">
-            {activeIndex >= 0 ? activeIndex + 1 : "-"}
-          </span>
           <span className="min-w-0 flex-1">
             <span className="block text-[9px] uppercase tracking-wide text-contrast-grayout">
               Active animation action
@@ -61,29 +44,93 @@ export default function ProcedureStepTransformSection({
         </div>
       )}
 
-      <div>
-        <span className="mb-1.5 block text-xs text-contrast-grayout">
-          Gizmo Mode
-        </span>
-        <div className="grid grid-cols-3 gap-2">
-          {TRANSFORM_MODES.map(([mode, label, icon]) => (
-            <Button
-              key={mode}
-              type="button"
-              size="xs"
-              variant={
-                procedural.transformMode === mode ? "default" : "darkOutline"
-              }
-              onClick={() => procedural.setTransformMode(mode)}
-            >
-              <MaterialIcon name={icon} className="size-4" />
-              {label}
-            </Button>
-          ))}
-        </div>
-      </div>
+      {!isAssembly && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-secondary-default/40 bg-black/10">
+          <button
+            type="button"
+            onClick={() => setRotationExpanded((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-white/5"
+            aria-expanded={rotationExpanded}
+          >
+            <span className="flex items-center gap-2 text-xs font-semibold text-white">
+              <MaterialIcon name="360" className="size-4 text-secondary-default" />
+              Rotation Animation
+            </span>
+            <MaterialIcon
+              name="expand_more"
+              className={[
+                "size-4 text-secondary-default transition-transform",
+                rotationExpanded ? "rotate-180" : "",
+              ].join(" ")}
+            />
+          </button>
 
-      <div className="mt-3 grid grid-cols-2 gap-2">
+          {rotationExpanded && (
+            <div className="space-y-3 border-t border-secondary-default/30 p-3">
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs text-contrast-grayout">
+                    Duration (ms)
+                  </span>
+                  <input
+                    type="number"
+                    min="100"
+                    max="30000"
+                    step="100"
+                    value={step.action?.duration || 1200}
+                    onChange={(event) =>
+                      procedural.updateStep(step.id, {
+                        action: { duration: Number(event.target.value) },
+                      })
+                    }
+                    className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-xs text-contrast-grayout">
+                    Extra Spin
+                  </span>
+                  <input
+                    type="number"
+                    min="-20"
+                    max="20"
+                    step="0.25"
+                    value={step.action?.spinTurns || 0}
+                    onChange={(event) =>
+                      procedural.updateStep(step.id, {
+                        action: { spinTurns: Number(event.target.value) },
+                      })
+                    }
+                    className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs text-contrast-grayout">
+                  Spin Axis
+                </span>
+                <select
+                  value={step.action?.spinAxis || "z"}
+                  onChange={(event) =>
+                    procedural.updateStep(step.id, {
+                      action: { spinAxis: event.target.value },
+                    })
+                  }
+                  className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
+                >
+                  <option value="x">Local X</option>
+                  <option value="y">Local Y</option>
+                  <option value="z">Local Z</option>
+                </select>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
         <Button
           type="button"
           size="xs"
@@ -104,12 +151,6 @@ export default function ProcedureStepTransformSection({
           <MaterialIcon name="sports_score" className="size-4" />
           {isAssembly ? "Update Target" : "Update End"}
         </Button>
-      </div>
-
-      <div className="mt-3 rounded-lg border border-secondary-default/35 bg-black/10 p-2.5 text-[9px] leading-4 text-contrast-grayout">
-        {isAssembly
-          ? "Simple flow: assign object → move it to the install position → Update Target. Update Start is only needed when the initial pose changes."
-          : "Start and End are saved automatically when the Animation Action is added. If the object does not move, no extra save is needed."}
       </div>
 
       {isAssembly && (

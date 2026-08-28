@@ -26,12 +26,75 @@ function cloneMaterial(material) {
   return material?.clone?.() || material
 }
 
+const XRAY_PREVIOUS_MATERIAL_KEY = "__vxXrayPreviousMaterial"
+const XRAY_PREVIOUS_GENERATED_KEY = "__vxXrayPreviousGeneratedMaterial"
+
+function rememberMaterialBeforeXray(mesh) {
+  if (!mesh?.isMesh || !mesh.material) return false
+
+  const userData = mesh.userData || (mesh.userData = {})
+
+  // A mesh can pass through several X-Ray actions before the user resets the
+  // visual state. Preserve the first real render material instead of stacking
+  // clones/references on every toggle.
+  if (Object.prototype.hasOwnProperty.call(userData, XRAY_PREVIOUS_MATERIAL_KEY)) {
+    return false
+  }
+
+  userData[XRAY_PREVIOUS_MATERIAL_KEY] = mesh.material
+  userData[XRAY_PREVIOUS_GENERATED_KEY] = Boolean(
+    userData.__vxGeneratedShaderMaterial,
+  )
+  return true
+}
+
+function restoreMaterialAfterXray(mesh) {
+  if (!mesh?.isMesh) return false
+
+  const userData = mesh.userData
+  if (
+    !userData ||
+    !Object.prototype.hasOwnProperty.call(userData, XRAY_PREVIOUS_MATERIAL_KEY)
+  ) {
+    return false
+  }
+
+  const previousMaterial = userData[XRAY_PREVIOUS_MATERIAL_KEY]
+  const previousGenerated = Boolean(userData[XRAY_PREVIOUS_GENERATED_KEY])
+
+  if (previousMaterial) {
+    mesh.material = previousMaterial
+  }
+
+  userData.__vxGeneratedShaderMaterial = previousGenerated
+  delete userData[XRAY_PREVIOUS_MATERIAL_KEY]
+  delete userData[XRAY_PREVIOUS_GENERATED_KEY]
+  markMaterialNeedsUpdate(mesh.material)
+  return true
+}
+
+export function restoreXrayMaterialAssignments(scene) {
+  if (!scene) return 0
+
+  let restoredCount = 0
+
+  scene.traverse?.((child) => {
+    if (restoreMaterialAfterXray(child)) {
+      restoredCount += 1
+    }
+  })
+
+  return restoredCount
+}
+
 function restoreOriginalMaterial(child) {
   if (!child?.isMesh || !child.userData?.originalMaterial) return
 
   releaseGeneratedModelMaterial(child)
   child.material = cloneMaterial(child.userData.originalMaterial)
-  child.userData.__vxGeneratedShaderMaterial = false
+  // The restored material is a Viqubed-owned clone. Mark it so the next
+  // restore/X-Ray transition disposes it instead of leaking one clone per click.
+  child.userData.__vxGeneratedShaderMaterial = true
 }
 
 function markMaterialNeedsUpdate(material) {
@@ -227,9 +290,11 @@ export function applyXrayToNonTargets({
 
   const logicalActiveTargetObject = resolveLogicalObject(activeTargetObject)
 
-  // Object List isolation keeps every selected subtree in its active render
-  // mode and applies transparency only to meshes outside the selection set.
-  resetSceneMaterialState(scene, restoreMaterialState)
+  // X-Ray is a transient material override. Restore only previous X-Ray swaps
+  // instead of rebuilding/cloning the active shader material for every mesh in
+  // the scene. Re-applying the whole shader mode here was the main source of
+  // the large one-time memory spike on the first X-Ray action.
+  restoreXrayMaterialAssignments(scene)
 
   const selectedMeshes = []
 
@@ -248,7 +313,7 @@ export function applyXrayToNonTargets({
       return
     }
 
-    releaseGeneratedModelMaterial(child)
+    rememberMaterialBeforeXray(child)
     child.material = xrayMaterial
     child.userData.__vxGeneratedShaderMaterial = false
     child.renderOrder = 0
@@ -286,7 +351,7 @@ export function applyXrayToTargets({
 
   const logicalActiveTargetObject = resolveLogicalObject(activeTargetObject)
 
-  resetSceneMaterialState(scene, restoreMaterialState)
+  restoreXrayMaterialAssignments(scene)
 
   const selectedMeshes = []
 
@@ -300,7 +365,7 @@ export function applyXrayToTargets({
 
     if (belongsToSelection) {
       selectedMeshes.push(child)
-      releaseGeneratedModelMaterial(child)
+      rememberMaterialBeforeXray(child)
       child.material = xrayMaterial
       child.userData.__vxGeneratedShaderMaterial = false
       child.renderOrder = 999
@@ -334,9 +399,9 @@ export function applyXrayExcept({
     return createClearSelectionPayload()
   }
 
-  // Restore the active render mode first, then apply transparency only to the
-  // selected target subtree. Other objects keep their normal materials.
-  resetSceneMaterialState(scene, restoreMaterialState)
+  // Restore only the previous X-Ray swap. The normal/shader material itself is
+  // kept alive and reused, so X-Ray does not allocate a fresh material set.
+  restoreXrayMaterialAssignments(scene)
 
   const selectedMeshes = []
 
@@ -349,7 +414,7 @@ export function applyXrayExcept({
 
     if (belongsToTarget) {
       selectedMeshes.push(child)
-      releaseGeneratedModelMaterial(child)
+      rememberMaterialBeforeXray(child)
       child.material = xrayMaterial
       child.userData.__vxGeneratedShaderMaterial = false
       child.renderOrder = 999
@@ -373,10 +438,18 @@ export function resetXrayObjects(
   restoreMaterialState = null,
 ) {
   if (scene) {
-    resetSceneMaterialState(scene, restoreMaterialState)
+    restoreXrayMaterialAssignments(scene)
 
     scene.traverse((child) => {
-      if (child.isMesh) child.renderOrder = 0
+      if (!child.isMesh) return
+
+      child.renderOrder = 0
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material]
+
+      materials.forEach((material) => material?.emissive?.set?.(0x000000))
+      markMaterialNeedsUpdate(child.material)
     })
 
     return createClearSelectionPayload()

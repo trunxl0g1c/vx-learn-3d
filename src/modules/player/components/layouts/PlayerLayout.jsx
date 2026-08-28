@@ -9,6 +9,7 @@ export default function PlayerLayout({
   children,
   showSidebar = true,
   selectedAnnotationId = null,
+  selectedAnnotationTarget = null,
   onAnnotationClick,
   onAnnotationClose,
   onAnnotationOpenDetail,
@@ -51,6 +52,7 @@ export default function PlayerLayout({
             Boolean(player.quizPanel?.isAssessmentActive)
           }
           selectedAnnotationId={selectedAnnotationId}
+          selectedAnnotationTarget={selectedAnnotationTarget}
           onAnnotationClick={onAnnotationClick}
           onAnnotationClose={onAnnotationClose}
           onAnnotationOpenDetail={onAnnotationOpenDetail}

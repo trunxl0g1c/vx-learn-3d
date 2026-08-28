@@ -23,6 +23,9 @@ export default function HierarchyPanel({
   hideAllObjects,
   setRightTab,
   renameObject,
+  chapters,
+  modelScene,
+  onOpenObjectDescription,
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -54,6 +57,9 @@ export default function HierarchyPanel({
           setSelectedObject={setSelectedObject}
           setRightTab={setRightTab}
           renameObject={renameObject}
+          chapters={chapters}
+          modelScene={modelScene}
+          onOpenObjectDescription={onOpenObjectDescription}
         />
       </div>
     </div>

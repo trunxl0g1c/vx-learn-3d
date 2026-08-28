@@ -282,7 +282,7 @@ export function useViewerPageController() {
   }, [activeChapter, modelScene]);
 
   const authoringObjectName = activeChapter
-    ? activeChapter.objectName || activeChapter.title || "Active Chapter Object"
+    ? activeChapter.objectName || activeChapter.title || "Object Description"
     : "";
 
   const [markerScale, setMarkerScale] = useState(0.08);

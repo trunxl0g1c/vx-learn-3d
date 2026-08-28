@@ -1,6 +1,44 @@
 import * as THREE from "three";
 
 const EPSILON = 1e-6;
+const VISIBILITY_RAYCAST_GUARD = "__vxVisibilityRaycastGuard";
+
+function isEffectivelyVisibleForRaycast(object) {
+  let current = object;
+
+  while (current) {
+    if (current.visible === false) return false;
+    current = current.parent || null;
+  }
+
+  return true;
+}
+
+function installVisibilityAwareRaycastGuards(scene) {
+  if (!scene || scene[VISIBILITY_RAYCAST_GUARD]) return;
+
+  scene.traverse((object) => {
+    if (!object || typeof object.raycast !== "function") return;
+    if (object[VISIBILITY_RAYCAST_GUARD]) return;
+
+    const originalRaycast = object.raycast;
+
+    Object.defineProperty(object, VISIBILITY_RAYCAST_GUARD, {
+      configurable: true,
+      value: originalRaycast,
+    });
+
+    object.raycast = function visibilityAwareRaycast(raycaster, intersections) {
+      if (!isEffectivelyVisibleForRaycast(this)) return undefined;
+      return originalRaycast.call(this, raycaster, intersections);
+    };
+  });
+
+  Object.defineProperty(scene, VISIBILITY_RAYCAST_GUARD, {
+    configurable: true,
+    value: true,
+  });
+}
 
 function finiteNumber(value, fallback) {
   const numericValue = Number(value);
@@ -255,8 +293,22 @@ function sanitizeMaterial(material) {
 }
 
 export function sanitizeLoadedModelScene(scene) {
-  if (!scene || scene.userData?.__viqubedSceneSafetyApplied) {
-    return scene?.userData?.__viqubedSceneSafetyReport || {
+  if (!scene) {
+    return {
+      transforms: 0,
+      materials: 0,
+    };
+  }
+
+  // Three.js raycasting can still report descendants whose own or ancestor
+  // visibility is false. R3F then treats that screen position as an object hit,
+  // which can steal pointer gestures from OrbitControls even though the model
+  // part is not rendered. Guard every loaded GLB raycast dynamically so hidden
+  // parts behave like empty canvas in both Editor and Player.
+  installVisibilityAwareRaycastGuards(scene);
+
+  if (scene.userData?.__viqubedSceneSafetyApplied) {
+    return scene.userData?.__viqubedSceneSafetyReport || {
       transforms: 0,
       materials: 0,
     };

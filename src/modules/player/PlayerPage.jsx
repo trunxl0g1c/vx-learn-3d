@@ -1,5 +1,6 @@
 import usePlayerController from "./hooks/usePlayerController";
 import usePlayerXRInteraction from "./hooks/usePlayerXRInteraction";
+import usePlayerTurntableSession from "./hooks/usePlayerTurntableSession";
 import PlayerFlowListPanel from "../../components/player/PlayerFlowListPanel";
 import PlayerProceduralListPanel from "../../components/player/PlayerProceduralListPanel";
 import PlayerQuizPanel from "../../components/player/PlayerQuizPanel";
@@ -7,7 +8,6 @@ import PlayerMaterialObjectListPanel from "../../components/player/PlayerMateria
 import PlayerXRControls from "../../components/player/PlayerXRControls";
 import PlayerXRMobileOverlay from "../../components/player/PlayerXRMobileOverlay";
 import Player3DLicense from "../../components/player/Player3DLicense";
-import { buildPlayerMaterialObjectTree } from "../../engine/chapter";
 import {
   Box,
   Clipboard,
@@ -53,7 +53,6 @@ export default function PlayerPage() {
   const [activePanel, setActivePanel] = useState(null);
   const [activeMedia, setActiveMedia] = useState(null);
   const [playerObjectSearch, setPlayerObjectSearch] = useState("");
-  const [playerObjectListMode, setPlayerObjectListMode] = useState("info");
   const appliedPlayerSettingsKeyRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -68,38 +67,42 @@ export default function PlayerPage() {
     [player.scene.material?.playerSettings],
   );
   const playerMenuVisibility = playerSettings.menuVisibility;
-  const visibleChapters = Array.isArray(
-    player.chapterList.visibleChapters,
-  )
-    ? player.chapterList.visibleChapters
-    : [];
-  const materialObjectList = useMemo(
-    () =>
-      buildPlayerMaterialObjectTree(
-        player.scene.objectList || [],
-        visibleChapters,
-        player.scene.modelScene || null,
-      ),
-    [player.scene.modelScene, player.scene.objectList, visibleChapters],
-  );
-  useEffect(() => {
+  const turntableSessionKey = useMemo(() => {
     const material = player.scene.material;
-    if (!material) return;
+    if (!material) return "";
 
-    const materialSessionKey = [
+    return [
       material.projectId || "",
       material.id || "",
       material.modelFileName || material.model?.fileName || "",
       material.modelUrl || material.model?.uri || "",
     ].join("::");
+  }, [player.scene.material]);
+  const { turntableSessionActive, restartTurntable } =
+    usePlayerTurntableSession({
+      enabled: playerSettings.turntableAnimation.enabled,
+      sessionKey: turntableSessionKey,
+    });
+  const visibleChapters = Array.isArray(
+    player.chapterList.visibleChapters,
+  )
+    ? player.chapterList.visibleChapters
+    : [];
+  useEffect(() => {
+    const material = player.scene.material;
+    if (!material || !turntableSessionKey) return;
 
-    if (appliedPlayerSettingsKeyRef.current === materialSessionKey) return;
+    if (appliedPlayerSettingsKeyRef.current === turntableSessionKey) return;
 
-    appliedPlayerSettingsKeyRef.current = materialSessionKey;
+    appliedPlayerSettingsKeyRef.current = turntableSessionKey;
     setActiveMedia(null);
     setSelectedAnnotation(null);
     setActivePanel(playerSettings.autoShowMaterial ? "project" : null);
-  }, [player.scene.material, playerSettings.autoShowMaterial]);
+  }, [
+    player.scene.material,
+    playerSettings.autoShowMaterial,
+    turntableSessionKey,
+  ]);
 
   const showBackToEditor = useMemo(
     () => isPlayerOpenedFromEditor(location.search, location.state),
@@ -183,15 +186,44 @@ export default function PlayerPage() {
     togglePanel("object");
   };
 
+  const openObjectListAnnotation = (object) => {
+    if (!object) return null;
+
+    const title =
+      String(object.name || object.userData?.name || object.type || "Object")
+        .replace(/[_-]+/g, " ")
+        .trim() || "Object";
+    const annotation = {
+      id: object.uuid || `object-${title}`,
+      title,
+      objectName: object.name || title,
+      object,
+      source: "object-list",
+    };
+
+    setSelectedAnnotation(annotation);
+    return annotation;
+  };
+
   const handleSelectObjectFromList = (object, { shouldFocus = false } = {}) => {
     const selection = player.scene.setObjectListSelectedObject?.(object);
     if (!selection) return null;
 
+    const selectedTarget = selection.selectedObject || object;
+    openObjectListAnnotation(selectedTarget);
+    player.scene.loadObjectDescription?.(selectedTarget)?.catch?.(() => {});
+
     if (shouldFocus) {
-      player.scene.focusObject?.(selection.selectedObject || object);
+      player.scene.focusObject?.(selectedTarget);
     }
 
     return selection;
+  };
+
+  const handleOpenObjectDescription = (_descriptionId, object) => {
+    const annotation = openObjectListAnnotation(object);
+    player.scene.loadObjectDescription?.(object)?.catch?.(() => {});
+    return annotation;
   };
 
   const handleSelectChapter = async (chapterId) => {
@@ -441,14 +473,13 @@ export default function PlayerPage() {
       sidebarItems={visibleSidebarItems}
       showSidebar={isSceneReady && showBrowserPlayerUI}
       selectedAnnotationId={selectedAnnotation?.id || null}
+      selectedAnnotationTarget={selectedAnnotation}
       onAnnotationClick={handleAnnotationClick}
       onAnnotationClose={() => setSelectedAnnotation(null)}
       onAnnotationOpenDetail={handleOpenAnnotationDetail}
       onAnnotationHierarchyBack={handleAnnotationHierarchyBack}
       onObjectSelectInteraction={handleObjectInteraction}
-      turntablePresentationActive={
-        activePanel === null || activePanel === "project"
-      }
+      turntablePresentationActive={turntableSessionActive}
       xrInteraction={xrInteraction}
     >
       {isSceneReady && (
@@ -539,12 +570,9 @@ export default function PlayerPage() {
         playerMenuVisibility.objectList &&
         (player.scene.objectList || []).length > 0 && (
           <PlayerMaterialObjectListPanel
-            objectList={materialObjectList}
-            fullObjectList={player.scene.objectList || []}
-            mode={playerObjectListMode}
-            onModeChange={setPlayerObjectListMode}
-            activeChapterId={player.chapterList.activeChapterId}
-            onSelectChapter={handleSelectChapter}
+            objectList={player.scene.objectList || []}
+            chapters={player.scene.material?.chapters || []}
+            modelScene={player.scene.modelScene || null}
             onClose={() => setActivePanel(null)}
             searchObject={playerObjectSearch}
             setSearchObject={setPlayerObjectSearch}
@@ -555,6 +583,7 @@ export default function PlayerPage() {
             onResetXray={player.scene.resetXray}
             onShowAllObjects={player.toolsMenu.showAllObjects}
             onHideAllObjects={player.toolsMenu.hideAllObjects}
+            onOpenObjectDescription={handleOpenObjectDescription}
           />
         )}
 
@@ -684,6 +713,7 @@ export default function PlayerPage() {
           }}
           onResetAll={() => {
             player.settingsPanel.resetAll?.();
+            restartTurntable();
             setActiveMedia(null);
             setSelectedAnnotation(null);
           }}

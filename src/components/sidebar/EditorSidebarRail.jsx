@@ -21,12 +21,6 @@ const sidebarItems = [
     target: "hierarchy",
   },
   {
-    id: "chapters",
-    icon: "library_books",
-    label: "Object Chapters",
-    target: "chapters",
-  },
-  {
     id: "slides",
     icon: "menu_book",
     label: "Slide",

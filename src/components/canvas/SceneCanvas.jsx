@@ -19,6 +19,8 @@ import {
   armExpectedWebGLContextLoss,
   installExpectedWebGLContextLossGuard,
   isExpectedWebGLContextLoss,
+  cancelScheduledWebGLRendererDisposal,
+  scheduleFinalWebGLRendererDisposal,
 } from '../../utils/webglContextLifecycle'
 import CustomHdriEnvironment from './CustomHdriEnvironment'
 import ViewerSceneBackground from './ViewerSceneBackground'
@@ -33,6 +35,7 @@ import AnimationPivotEditor from '../animation/AnimationPivotEditor'
 import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
 import { getFlowReferenceLengthFromObject } from '../../engine/flow'
 import { getBlinkPresetById } from '../../engine/selection'
+import { useCameraKeyboardPan } from '../../hooks/useCameraKeyboardPan'
 
 import { EffectComposer, Outline } from '@react-three/postprocessing'
 import BlinkSelectionOutline from '../viewer/BlinkSelectionOutline'
@@ -58,6 +61,7 @@ function WebGLRendererLifecycle({ registryKey }) {
 
   useEffect(() => {
     const canvas = gl.domElement
+    cancelScheduledWebGLRendererDisposal(gl)
     const removeExpectedLossGuard =
       installExpectedWebGLContextLossGuard(canvas)
 
@@ -114,6 +118,7 @@ function WebGLRendererLifecycle({ registryKey }) {
       // normal route/HMR teardown is not reported as an application failure.
       armExpectedWebGLContextLoss(canvas)
       removeExpectedLossGuard({ delayed: true })
+      scheduleFinalWebGLRendererDisposal(gl, canvas)
 
       canvas.removeEventListener('webglcontextlost', handleContextLost, false)
       canvas.removeEventListener('webglcontextrestored', handleContextRestored, false)
@@ -218,6 +223,12 @@ export default function SceneCanvas({
 }) {
   const modelRootRef = useRef(null)
   const additionalSceneStateRef = useRef(null)
+  useCameraKeyboardPan({
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    enabled: orbitEnabled && !isTransforming,
+  })
   const handleModelLoadedRef = useRef(handleModelLoaded)
   const [isFlowWaypointTransforming, setIsFlowWaypointTransforming] =
     useState(false)
