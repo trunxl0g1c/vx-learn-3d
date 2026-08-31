@@ -4,6 +4,7 @@ import Button from "../../../components/ui/button";
 import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import { useAlert } from "../../../components/dialog/AlertContext";
+import { useDecryptedImageSrc } from "../../../hooks/useDecryptedImageSrc";
 import {
   getWorkspaceThumbnailUrl,
   useUpdateWorkspace,
@@ -119,11 +120,12 @@ export default function WorkspaceOverviewTab({
 
   const isSaving = updateWorkspace.isPending;
   const isUploadingThumbnail = uploadThumbnail.isPending;
-  const displayedThumbnail =
+  const rawDisplayedThumbnail =
     thumbnailPreviewUrl ||
     (workspace?.thumbnail
       ? getWorkspaceThumbnailUrl(workspaceId, workspace?.modifiedAt)
       : "");
+  const displayedThumbnail = useDecryptedImageSrc(rawDisplayedThumbnail);
   const showThumbnailImage =
     displayedThumbnail && displayedThumbnail !== failedThumbnailUrl;
 

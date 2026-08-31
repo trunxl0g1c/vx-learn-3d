@@ -138,11 +138,15 @@ export async function unpublishContentRequest({ id }) {
 export function getContentThumbnailUrl(contentId, version) {
   if (!contentId) return "";
 
-  const url = new URL("/contents/thumbnail", API_BASE_URL);
-  url.searchParams.set("id", contentId);
-  if (version) url.searchParams.set("v", version);
+  try {
+    const url = new URL("/contents/thumbnail", API_BASE_URL);
+    url.searchParams.set("id", contentId);
+    if (version) url.searchParams.set("v", version);
 
-  return url.toString();
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 export async function patchContentLastOpenedRequest({ id }) {

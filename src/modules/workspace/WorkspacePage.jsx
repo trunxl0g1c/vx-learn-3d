@@ -7,6 +7,7 @@ import InlineAlert from "../../components/ui/inline-alert";
 import MaterialIcon from "../../components/ui/material-icon";
 import { getWorkspaceThumbnailUrl, useWorkspaces } from "./api/workspaces";
 import { useAuth } from "../auth/AuthContext";
+import { useDecryptedImageSrc } from "../../hooks/useDecryptedImageSrc";
 import { hasPermission } from "../../utils/permissions";
 
 const CreateWorkspaceDialog = lazy(() => import("./CreateWorkspaceDialog"));
@@ -43,9 +44,10 @@ function formatContentInfo(workspace) {
 
 function WorkspaceAvatar({ id, name, thumbnail, modifiedAt }) {
   const initial = (name || "?").trim().charAt(0).toUpperCase() || "?";
-  const thumbnailUrl = thumbnail
+  const rawThumbnailUrl = thumbnail
     ? getWorkspaceThumbnailUrl(id, modifiedAt)
     : "";
+  const thumbnailUrl = useDecryptedImageSrc(rawThumbnailUrl);
   const [failed, setFailed] = useState(false);
 
   if (thumbnailUrl && !failed) {

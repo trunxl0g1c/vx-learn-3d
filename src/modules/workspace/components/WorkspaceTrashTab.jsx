@@ -3,6 +3,7 @@ import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useAlert } from "../../../components/dialog/AlertContext";
+import { useDecryptedImageSrc } from "../../../hooks/useDecryptedImageSrc";
 import {
   useDeletedContents,
   useRecoverContent,
@@ -51,10 +52,11 @@ function ContentAvatar({ title }) {
 
 function ContentThumbnail({ content }) {
   const [failed, setFailed] = useState(false);
-  const thumbnailUrl = getContentThumbnailUrl(
+  const rawThumbnailUrl = getContentThumbnailUrl(
     content.id,
     content.modifiedAt || content.updatedAt,
   );
+  const thumbnailUrl = useDecryptedImageSrc(rawThumbnailUrl);
   const showThumbnail = Boolean(thumbnailUrl) && !failed;
 
   if (!showThumbnail) {

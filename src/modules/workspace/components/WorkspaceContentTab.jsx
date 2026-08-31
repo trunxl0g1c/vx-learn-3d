@@ -13,6 +13,7 @@ import Input from "../../../components/ui/input";
 import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useAlert } from "../../../components/dialog/AlertContext";
+import { useDecryptedImageSrc } from "../../../hooks/useDecryptedImageSrc";
 import { useGlobalLoading } from "../../loading/LoadingContext";
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -112,10 +113,11 @@ function ContentThumbnail({ content }) {
   // Always returns a URL, whether or not the content actually has a
   // thumbnail uploaded — a content with none 404s, hence the onError
   // fallback below (same pattern as ProjectHubCard).
-  const thumbnailUrl = getContentThumbnailUrl(
+  const rawThumbnailUrl = getContentThumbnailUrl(
     content.id,
     content.modifiedAt || content.updatedAt,
   );
+  const thumbnailUrl = useDecryptedImageSrc(rawThumbnailUrl);
   const showThumbnail = Boolean(thumbnailUrl) && !failed;
 
   if (!showThumbnail) {

@@ -63,11 +63,15 @@ export async function updateWorkspaceRequest({ id, name, description }) {
 export function getWorkspaceThumbnailUrl(id, version) {
   if (!id) return "";
 
-  const url = new URL("/workspaces/thumbnail", API_BASE_URL);
-  url.searchParams.set("id", id);
-  if (version) url.searchParams.set("v", version);
+  try {
+    const url = new URL("/workspaces/thumbnail", API_BASE_URL);
+    url.searchParams.set("id", id);
+    if (version) url.searchParams.set("v", version);
 
-  return url.toString();
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 export async function uploadWorkspaceThumbnailRequest({ id, file }) {

@@ -4,6 +4,7 @@ import InlineAlert from "../../../components/ui/inline-alert";
 import MaterialIcon from "../../../components/ui/material-icon";
 import { useGlobalLoading } from "../../loading/LoadingContext";
 import { useAlert } from "../../../components/dialog/AlertContext";
+import { useDecryptedImageSrc } from "../../../hooks/useDecryptedImageSrc";
 import { useIncomingContentPublic } from "../../content-public/api/contentPublic";
 import { getContentThumbnailUrl } from "../../project-hub/api/contents";
 import { openContentInPlayer } from "../../project-hub/openContentInPlayer";
@@ -24,7 +25,8 @@ function formatDate(value) {
 
 function ContentThumbnail({ content }) {
   const [failed, setFailed] = useState(false);
-  const thumbnailUrl = getContentThumbnailUrl(content?.id, content?.modifiedAt);
+  const rawThumbnailUrl = getContentThumbnailUrl(content?.id, content?.modifiedAt);
+  const thumbnailUrl = useDecryptedImageSrc(rawThumbnailUrl);
   const initial = (content?.title || "?").trim().charAt(0).toUpperCase() || "?";
 
   if (!thumbnailUrl || failed) {

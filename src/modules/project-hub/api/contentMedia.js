@@ -1,4 +1,4 @@
-import apiClient, { API_BASE_URL } from "../../../lib/apiClient";
+import apiClient from "../../../lib/apiClient";
 
 function normalizeList(payload) {
   if (Array.isArray(payload)) return payload;
@@ -12,22 +12,6 @@ export async function listContentMediaRequest({ contentId }) {
   });
 
   return normalizeList(response.data?.data);
-}
-
-// Resource-scoped (content:read-gated), not a raw storage-key lookup —
-// mirrors GET /workspaces/thumbnail: a plain authenticated GET that streams
-// the file's bytes straight through, no presigning. Kept around as a plain
-// URL builder for callers that just need a link; the actual "open a
-// project" path uses fetchContentMediaBlob below instead, since that one
-// goes through apiClient (cookie + 401-refresh handling) and hands back
-// bytes that can be cached into IndexedDB.
-export function getContentMediaStreamUrl(mediaId) {
-  if (!mediaId) return "";
-
-  const url = new URL("/content-media/stream", API_BASE_URL);
-  url.searchParams.set("id", mediaId);
-
-  return url.toString();
 }
 
 export async function findContentModelMedia({ contentId }) {

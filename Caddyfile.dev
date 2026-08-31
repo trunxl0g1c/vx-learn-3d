@@ -1,0 +1,33 @@
+# Self-signed HTTPS front door for the dev stack, LAN-IP access only.
+#
+# Why this exists: app-level response encryption (see src/lib/responseEncryption.js)
+# needs the browser's Web Crypto API (crypto.subtle), which browsers only expose in a
+# "secure context" — https://, or http://localhost/127.0.0.1. Plain
+# http://192.168.1.214:5174 does NOT qualify, so crypto.subtle is undefined there and
+# every encrypted response fails to decrypt (login included). This proxies both the dev
+# frontend and dev backend behind self-signed TLS on new ports so LAN devices (not just
+# this machine) get a real secure context. Each browser/device will show a one-time
+# certificate warning — click through/accept it (self-signed, not from a trusted CA).
+#
+# http://localhost:5174 / http://localhost:4004 keep working unproxied as before —
+# localhost is exempt from the secure-context rule, so encryption already works there
+# without this proxy.
+#
+# Cert is a manually-generated long-lived self-signed cert (certs/dev/, gitignored),
+# NOT Caddy's automatic "tls internal" issuer. Reason: browsers/curl don't send SNI for
+# IP-literal hostnames (SNI only applies to DNS names, RFC 6066), and Docker's
+# port-publishing NAT means Caddy sees the connection's local address as its own
+# container IP, not 192.168.1.214 — so Caddy's automatic HTTPS can't tell which
+# certificate to serve and the handshake fails with a TLS internal_error alert. Using a
+# bare `:port` catch-all address + an explicitly loaded cert sidesteps that matching
+# entirely: with only one certificate available, Caddy just serves it, no SNI needed.
+
+:5443 {
+	tls /certs/dev/dev.crt /certs/dev/dev.key
+	reverse_proxy host.docker.internal:5174
+}
+
+:4443 {
+	tls /certs/dev/dev.crt /certs/dev/dev.key
+	reverse_proxy host.docker.internal:4004
+}

@@ -1,8 +1,8 @@
-// Production should be 60 * 60 * 1000 (1 hour). Set to 1 minute right now
+// Production should be 60 * 60 * 1000 (1 hour). Set to 5 minutes right now
 // for testing — MUST match CONTENT_LOCK_TIMEOUT_MS in vxcubed-be's
 // src/content-lock/content-lock.constants.ts (no endpoint exposes this
 // value, so the two are kept in sync by hand — see that file's comment).
-export const CONTENT_LOCK_IDLE_TIMEOUT_MS = 60 * 1000;
+export const CONTENT_LOCK_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 // ~3 heartbeats per timeout window during testing. Scale this up (e.g. to
 // 5 minutes) when the timeout above goes back to 1 hour.

@@ -1,6 +1,16 @@
 import axios from "axios";
+import { decryptJsonEnvelope, decryptToBlob } from "./responseEncryption";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4002";
+
+try {
+  new URL(API_URL);
+} catch {
+  console.error(
+    `VITE_API_URL is not a valid absolute URL: ${JSON.stringify(API_URL)}. ` +
+      "It must include a scheme (e.g. https://api.example.com) — thumbnail/media URLs will silently fail until this is fixed.",
+  );
+}
 
 export const API_BASE_URL = API_URL;
 
@@ -40,13 +50,28 @@ function refreshAccessToken() {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  async (response) => {
+    response.data =
+      response.config.responseType === "blob"
+        ? await decryptToBlob(
+            response.data,
+            response.headers["x-plaintext-content-type"],
+          )
+        : await decryptJsonEnvelope(response.data);
+    return response;
+  },
   async (error) => {
     const config = error.config;
     const isAuthRoute =
       config?.url?.includes("/auth/login") ||
       config?.url?.includes("/auth/register") ||
       config?.url?.includes("/auth/refresh");
+
+    if (error.response?.data) {
+      error.response.data = await decryptJsonEnvelope(
+        error.response.data,
+      ).catch(() => error.response.data);
+    }
 
     if (
       error.response?.status !== 401 ||

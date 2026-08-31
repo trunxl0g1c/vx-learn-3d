@@ -1,5 +1,6 @@
 import { useState } from "react";
 import MaterialIcon from "../../../components/ui/material-icon";
+import { useDecryptedImageSrc } from "../../../hooks/useDecryptedImageSrc";
 
 export default function ProjectHubCard({
   project,
@@ -12,10 +13,11 @@ export default function ProjectHubCard({
 }) {
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
 
-  const thumbnail =
+  const thumbnailUrl =
     project.thumbnail ||
     project.metadata?.thumbnail ||
     project.metadata?.thumbnailUrl;
+  const thumbnail = useDecryptedImageSrc(thumbnailUrl);
   // Cloud-only cards get a URL back regardless of whether the content
   // actually has a thumbnail uploaded (see getContentThumbnailUrl) — a
   // content with none 404s, so this falls back the same way the blank
