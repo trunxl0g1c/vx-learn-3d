@@ -383,7 +383,7 @@ export default function AnimationTab({
                           size={isPlaying ? 21 : 25}
                           className={
                             isPlaying
-                              ? "text-accent-contrast"
+                              ? "text-accent-main"
                               : "text-secondary-default"
                           }
                         />
@@ -463,7 +463,7 @@ export default function AnimationTab({
               className={[
                 "mt-5 h-10 w-full gap-2 rounded-lg!",
                 "bg-dark-alpha text-sm font-normal text-white",
-                isPlayingAll ? "border-accent-contrast!" : "",
+                isPlayingAll ? "border-accent-main!" : "",
               ].join(" ")}
             >
               <MaterialIcon
@@ -472,7 +472,7 @@ export default function AnimationTab({
                 size={23}
                 className={
                   isPlayingAll
-                    ? "text-accent-contrast"
+                    ? "text-accent-main"
                     : "text-secondary-default"
                 }
               />

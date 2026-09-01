@@ -9,6 +9,7 @@ import {
   normalizeBlinkPresets,
   normalizeBlinkSelectionSettings,
 } from "../../../engine/selection";
+import MaterialIcon from "../../ui/material-icon";
 
 export default function BlinkPresetSettings({ viewerSettings, setViewerSettings, embedded = false }) {
   const presets = normalizeBlinkPresets(
@@ -61,7 +62,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
         <div className="mb-2 text-sm font-normal text-white">Blink Setting</div>
       )}
 
-      <p className="mb-4 text-xs leading-5 text-contrast-grayout">
+      <p className="mb-4 text-[11px] leading-5 text-contrast-grayout">
         Buat beberapa preset Blink. Saat Blink di-assign ke object, pilih preset
         yang ingin digunakan. Preset ikut tersimpan bersama Project Settings.
       </p>
@@ -82,7 +83,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
                   onChange={(event) =>
                     updatePreset(preset.id, { name: event.target.value })
                   }
-                  className="h-9 rounded-lg px-3"
+                  className="h-8! rounded-lg px-3"
                   inputClassName="text-sm"
                   aria-label={`Blink preset ${index + 1} name`}
                 />
@@ -90,7 +91,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
 
               <Button
                 type="button"
-                size="xs"
+                size="sm"
                 variant="destructive"
                 disabled={presets.length <= 1}
                 className="mt-5 size-9 px-0"
@@ -101,7 +102,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
                     : "Delete Blink preset"
                 }
               >
-                <Trash2 className="size-4" />
+                <MaterialIcon name="delete" fill={1} size={20} className="mr-1" />
               </Button>
             </div>
 
@@ -140,8 +141,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
         <Button
           type="button"
           size="sm"
-          variant="outline"
-          className="w-full border-secondary-default! text-secondary-default"
+          className="w-full"
           onClick={addPreset}
         >
           <Plus className="size-4" />

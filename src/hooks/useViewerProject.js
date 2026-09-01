@@ -31,6 +31,7 @@ import {
   getProjectFileFromIndexedDb,
   getAdditionalProjectModelFileFromIndexedDb,
   saveAdditionalProjectModelFile,
+  getProjectFromIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
 import {
   isLazyMaterialRecord,
@@ -51,6 +52,9 @@ import {
   removeModelLicenseEntry,
   upsertModelLicenseEntry,
 } from "../engine/project/ModelLicenseSettings";
+import { deleteContentMediaRequest } from "../modules/project-hub/api/contentMedia";
+import { hydrateProjectFromBackend } from "../modules/project-hub/api/projectHydrate";
+import { uploadAdditionalModelsToBackend } from "../modules/project-hub/api/additionalModelUpload";
 
 function getChangedTopLevelKeys(previousValue = {}, nextValue = {}) {
   return Array.from(
@@ -391,6 +395,24 @@ export function useViewerProject({
 
     let cancelled = false;
 
+    function handleDownloadProgress(loadedBytes, totalBytes) {
+      if (cancelled) return;
+
+      const percent = totalBytes
+        ? Math.round((loadedBytes / totalBytes) * 100)
+        : null;
+      const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
+
+      updateLoading({
+        text:
+          percent != null
+            // ? `Downloading 3D model... ${percent}%`
+            ? `Downloading 3D model...`
+            : `Downloading 3D model... ${loadedMb} MB`,
+        progress: percent,
+      });
+    }
+
     async function openProject() {
       try {
         updateLoading({
@@ -399,34 +421,60 @@ export function useViewerProject({
           progress: null,
         });
 
-        const loaded = await loadProject(projectId, {
+        let loaded = await loadProject(projectId, {
           // Only fires for a cold (never-opened-on-this-browser) project,
           // where the GLB has to be fetched from the backend — the local
           // fast path never triggers this. Without it, the dialog just sat
           // on the stale "Reading project data..." label with no movement
           // for however long the model download took.
-          onDownloadProgress: (loadedBytes, totalBytes) => {
-            if (cancelled) return;
-
-            const percent = totalBytes
-              ? Math.round((loadedBytes / totalBytes) * 100)
-              : null;
-            const loadedMb = (loadedBytes / (1024 * 1024)).toFixed(1);
-
-            updateLoading({
-              text:
-                percent != null
-                  // ? `Downloading 3D model... ${percent}%`
-                  ? `Downloading 3D model...`
-                  : `Downloading 3D model... ${loadedMb} MB`,
-              progress: percent,
-            });
-          },
+          onDownloadProgress: handleDownloadProgress,
         });
 
+        if (!loaded && !cancelled) {
+          // Not just the GLB missing (loadProject already recovers that on
+          // its own) but the whole local project record — happens when the
+          // editor is opened via a direct URL, or a plain browser refresh
+          // while already on this page, with local storage cleared/absent,
+          // which skips the Hub's own "open" click handler (the one that
+          // normally calls hydrateProjectFromBackend before navigating
+          // here). Without this, the page just failed outright and stayed
+          // that way until the user happened to go back through the Hub —
+          // which is what "needs several refreshes" actually was. Same
+          // recovery the Player already does for this identical scenario
+          // (see usePlayerProject.js) — reconstruct the local project row
+          // from the backend, then retry; the GLB itself streams (and gets
+          // cached) inside loadProject above.
+          updateLoading({
+            text: "Fetching project from server...",
+            progress: null,
+          });
+
+          try {
+            await hydrateProjectFromBackend({
+              contentId: projectId,
+              role: "EDITOR",
+            });
+
+            if (!cancelled) {
+              loaded = await loadProject(projectId, {
+                onDownloadProgress: handleDownloadProgress,
+              });
+            }
+          } catch (hydrateError) {
+            console.error(
+              "Failed to hydrate project from backend:",
+              hydrateError,
+            );
+          }
+        }
+
         if (!loaded || cancelled) {
-          hideLoading();
-          return;
+          if (cancelled) {
+            hideLoading();
+            return;
+          }
+
+          throw new Error("Project not found or could not be loaded.");
         }
 
         const {
@@ -636,7 +684,7 @@ export function useViewerProject({
   };
 
   const handleAddAdditionalGlbFiles = useCallback(
-    async (files = []) => {
+    async (files = [], { onProgress } = {}) => {
       if (!projectId || projectId === "demo") {
         throw new Error("Save/open a Viqubed project before adding another GLB.");
       }
@@ -690,6 +738,31 @@ export function useViewerProject({
         throw error;
       }
 
+      // A project not yet synced to a workspace (no remote.contentId) just
+      // stays local-only for now — same tolerance every other backend sync
+      // step in this codebase already has.
+      const storedProject = await getProjectFromIndexedDb(projectId, {
+        mode: "summary",
+      }).catch(() => null);
+      const contentId = storedProject?.remote?.contentId;
+
+      // Reported to the caller (AddMoreGlbPanel shows this inside its own
+      // already-open "Validate Additional GLB" dialog — a second, stacked
+      // full-screen modal here would just sit hidden behind that dialog's
+      // own backdrop) rather than the app's global loading overlay.
+      const remoteMediaIdByModelId = await uploadAdditionalModelsToBackend(
+        contentId,
+        addedModels,
+        incomingFiles,
+        ({ fileName, uploadedBytes, totalBytes }) => {
+          const percent = totalBytes
+            ? Math.round((uploadedBytes / totalBytes) * 100)
+            : null;
+
+          onProgress?.({ fileName, percent });
+        },
+      );
+
       setAdditionalModels((current) => {
         const byId = new Map(current.map((model) => [model.id, model]));
         addedModels.forEach((model) => byId.set(model.id, model));
@@ -714,6 +787,7 @@ export function useViewerProject({
               fileName: model.fileName,
               fileType: model.fileType,
               fileSize: model.fileSize,
+              remoteMediaId: remoteMediaIdByModelId.get(model.id) || null,
             })),
           ],
           modelLicenses,
@@ -733,6 +807,11 @@ export function useViewerProject({
   const handleRemoveAdditionalGlb = useCallback(
     async (modelId) => {
       if (!projectId || !modelId) return false;
+
+      const remoteMediaId = materialRef.current?.additionalModels?.find(
+        (model) => model?.id === modelId,
+      )?.remoteMediaId;
+
       await removeAdditionalModelFile(projectId, modelId);
       setAdditionalModels((current) =>
         current.filter((model) => model.id !== modelId),
@@ -747,6 +826,16 @@ export function useViewerProject({
           modelId,
         ),
       }));
+
+      if (remoteMediaId) {
+        deleteContentMediaRequest({ id: remoteMediaId }).catch((error) => {
+          console.warn(
+            `Failed to remove additional GLB from workspace storage (media ${remoteMediaId}).`,
+            error,
+          );
+        });
+      }
+
       return true;
     },
     [projectId, removeAdditionalModelFile, updateMaterialState],

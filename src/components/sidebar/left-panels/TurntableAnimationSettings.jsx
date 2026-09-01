@@ -2,8 +2,13 @@ import { RotateCw } from "lucide-react";
 import { normalizeTurntableAnimationSettings } from "../../../modules/material/playerSettings";
 import Slider from "../../ui/slider";
 import Switch from "../../ui/switch";
+import Button from "../../ui/button";
 
-export default function TurntableAnimationSettings({ settings, onChange, embedded = false }) {
+export default function TurntableAnimationSettings({
+  settings,
+  onChange,
+  embedded = false,
+}) {
   const turntable = normalizeTurntableAnimationSettings(settings);
 
   const updateSettings = (patch) => {
@@ -16,7 +21,13 @@ export default function TurntableAnimationSettings({ settings, onChange, embedde
   };
 
   return (
-    <div className={embedded ? "" : "rounded-xl border border-secondary-default bg-primary p-4"}>
+    <div
+      className={
+        embedded
+          ? ""
+          : "rounded-xl border border-secondary-default bg-primary p-4"
+      }
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           {!embedded && (
@@ -29,7 +40,13 @@ export default function TurntableAnimationSettings({ settings, onChange, embedde
                 Turntable Animation
               </div>
             )}
-            <p className={embedded ? "text-xs leading-5 text-contrast-grayout" : "mt-1 text-xs leading-5 text-contrast-grayout"}>
+            <p
+              className={
+                embedded
+                  ? "text-xs leading-5 text-contrast-grayout"
+                  : "mt-1 text-xs leading-5 text-contrast-grayout"
+              }
+            >
               Memutar model hanya pada tampilan awal Player. Animasi berhenti
               saat Chapter, Flow, Procedure, Free Play, atau panel lain dibuka.
             </p>
@@ -46,9 +63,7 @@ export default function TurntableAnimationSettings({ settings, onChange, embedde
       <div
         className={[
           "mt-4 space-y-4 border-t border-white/10 pt-4 transition-opacity",
-          turntable.enabled
-            ? "opacity-100"
-            : "pointer-events-none opacity-45",
+          turntable.enabled ? "opacity-100" : "pointer-events-none opacity-45",
         ].join(" ")}
       >
         <Slider
@@ -73,19 +88,15 @@ export default function TurntableAnimationSettings({ settings, onChange, embedde
               const selected = turntable.direction === option.value;
 
               return (
-                <button
-                  key={option.value}
+                <Button
+                  size="xs"
                   type="button"
+                  key={option.value}
                   onClick={() => updateSettings({ direction: option.value })}
-                  className={[
-                    "h-10 rounded-lg border px-3 text-xs font-medium transition",
-                    selected
-                      ? "border-accent-main bg-accent-main/10 text-accent-main"
-                      : "border-[#315b64] bg-transparent text-contrast-grayout hover:border-secondary-default hover:text-white",
-                  ].join(" ")}
+                  variant={selected ? "default" : "outline"}
                 >
                   {option.label}
-                </button>
+                </Button>
               );
             })}
           </div>

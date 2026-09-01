@@ -60,6 +60,65 @@ async function readDraftWithCompatibilityFallback(projectId) {
   }
 }
 
+// Same fallback the primary GLB already gets (see the findContentModelMedia
+// block in loadProject below), extended to additional models: a descriptor
+// referencing a remoteMediaId but with no matching local IndexedDB blob
+// means this browser's local DB doesn't have it (cleared cache, a fresh
+// device, cloud-only content) — fetch it once from backend storage and
+// cache it into IndexedDB, so every open after this one uses the fast local
+// path instead of re-fetching over the network.
+async function hydrateMissingAdditionalModelFiles({
+  projectId,
+  contentId,
+  additionalDescriptors,
+  additionalModelFiles,
+  onDownloadProgress,
+}) {
+  if (!contentId) return additionalModelFiles;
+
+  const localModelIds = new Set(
+    additionalModelFiles.map((record) => record?.modelId),
+  );
+  const missingDescriptors = additionalDescriptors.filter(
+    (descriptor) =>
+      descriptor?.id &&
+      descriptor?.remoteMediaId &&
+      !localModelIds.has(descriptor.id),
+  );
+
+  if (missingDescriptors.length === 0) return additionalModelFiles;
+
+  const hydratedRecords = [];
+
+  for (const descriptor of missingDescriptors) {
+    try {
+      const blob = await fetchContentMediaBlob({
+        id: descriptor.remoteMediaId,
+        onProgress: onDownloadProgress,
+      });
+      const cachedFileName = descriptor.fileName || "model.glb";
+      const fileForCache = new File([blob], cachedFileName, {
+        type: descriptor.fileType || blob.type || "model/gltf-binary",
+      });
+
+      hydratedRecords.push(
+        await saveAdditionalProjectModelFile(
+          projectId,
+          descriptor.id,
+          fileForCache,
+        ),
+      );
+    } catch (error) {
+      console.warn(
+        `Unable to re-download additional GLB "${descriptor.fileName || descriptor.id}" from workspace storage.`,
+        error,
+      );
+    }
+  }
+
+  return [...additionalModelFiles, ...hydratedRecords];
+}
+
 function withDetectedModelLicenses(material, detectedLicenses = []) {
   if (!material || typeof material !== "object") return material;
 
@@ -343,7 +402,21 @@ export default function useProjectLoader() {
           const descriptorById = new Map(
             additionalDescriptors.map((descriptor) => [descriptor?.id, descriptor]),
           );
-          const additionalModels = additionalModelFiles
+
+          const hydratedAdditionalModelFiles =
+            await hydrateMissingAdditionalModelFiles({
+              projectId: id,
+              contentId: storedProject.remote?.contentId,
+              additionalDescriptors,
+              additionalModelFiles,
+              onDownloadProgress,
+            });
+
+          if (loadSequence !== loadSequenceRef.current) {
+            return null;
+          }
+
+          const additionalModels = hydratedAdditionalModelFiles
             .filter((record) => record?.modelId && record?.blob instanceof Blob)
             .map((record) => {
               const url = URL.createObjectURL(record.blob);
@@ -373,7 +446,7 @@ export default function useProjectLoader() {
               return ai - bi;
             });
 
-          for (const record of additionalModelFiles) {
+          for (const record of hydratedAdditionalModelFiles) {
             if (!(record?.blob instanceof Blob) || !record?.modelId) continue;
             try {
               detectedLicenses.push(

@@ -8,6 +8,8 @@ const variants = {
   default:
     "bg-accent-main text-white border-transparent hover:bg-accent-main/80",
   outline: "bg-transparent text-white border-white/30 hover:bg-white/10",
+  accentOutline:
+    "bg-dark-alpha text-white border-accent-main hover:bg-accent-main/10",
   cyanOutline:
     "bg-dark-alpha text-secondary-default border-grayout-dark hover:bg-grayout-dark/10",
   cyanSolid: "bg-[#0b7fb2] text-white border-[#3ab9e8] hover:bg-[#0a91ca]",
@@ -63,11 +65,7 @@ export default function Button({
   }
 
   return (
-    <button
-      disabled={disabled}
-      className={buttonClassName}
-      {...props}
-    >
+    <button disabled={disabled} className={buttonClassName} {...props}>
       {children}
     </button>
   );

@@ -114,7 +114,7 @@ export default function VisualTab(props) {
               ["wireframe", "Wire"],
               ["xray", "X-Ray"],
               ["clay", "Clay"],
-              ["2d", "2D"],
+              // ["2d", "2D"],
               ["sketch", "Sketch"],
             ].map(([mode, label]) => (
               <Button

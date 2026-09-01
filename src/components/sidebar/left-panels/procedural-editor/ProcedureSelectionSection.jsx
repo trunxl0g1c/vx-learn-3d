@@ -1,6 +1,7 @@
 import MaterialIcon from "../../../ui/material-icon";
 import Button from "../../../ui/button";
 import { Section } from "./PanelPrimitives";
+import SelectField from "../../../ui/select";
 
 export default function ProcedureSelectionSection({
   procedural,
@@ -10,34 +11,36 @@ export default function ProcedureSelectionSection({
   return (
     <Section title="Create or Select Procedure">
       <div className="space-y-2">
-        <select
+        <SelectField
           value={procedural?.activeProcedureId || ""}
-          onChange={(event) => procedural?.selectProcedure?.(event.target.value)}
-          className="h-10 w-full rounded-lg border border-secondary-default/70 bg-primary px-3 text-sm text-white outline-none"
-        >
-          <option value="">Select procedure</option>
-          {(procedural?.procedures || []).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} · {item.type || "guided"}
-            </option>
-          ))}
-        </select>
+          onChange={(event) =>
+            procedural?.selectProcedure?.(event.target.value)
+          }
+          placeholder="Select procedure"
+          options={(procedural?.procedures || []).map((item) => ({
+            value: item.id,
+            label: `${item.name} · ${item.type || "guided"}`,
+          }))}
+          className="h-10! w-full"
+        />
 
         <div className="flex gap-2">
-          <select
-            value={newProcedureType}
-            onChange={(event) => setNewProcedureType(event.target.value)}
-            className="h-10 min-w-0 flex-1 rounded-lg border border-secondary-default/70 bg-primary px-3 text-sm text-white outline-none"
-          >
-            <option value="assembly">Assembly</option>
-            <option value="guided">Guided Procedure</option>
-          </select>
+          <SelectField
+            value={procedural?.activeStepId || ""}
+            onChange={(event) => procedural?.selectStep?.(event.target.value)}
+            placeholder="Select step"
+            options={(procedural?.steps || []).map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            className="h-9! w-full"
+          />
           <Button
             size="sm"
             onClick={() => procedural?.createProcedure?.(newProcedureType)}
           >
-            <MaterialIcon name="add" className="size-5" />
             New
+            <MaterialIcon name="add" size={20} />
           </Button>
         </div>
 
@@ -45,8 +48,7 @@ export default function ProcedureSelectionSection({
           <Button
             type="button"
             size="sm"
-            variant="cyanOutline"
-            className="min-w-0"
+            variant="accentOutline"
             disabled={
               !procedural?.activeProcedureId ||
               procedural?.isLoadingActiveProcedure
@@ -54,16 +56,16 @@ export default function ProcedureSelectionSection({
             onClick={() =>
               procedural?.duplicateProcedure?.(procedural.activeProcedureId)
             }
+            title="Duplicate the procedure"
           >
-            <MaterialIcon name="content_copy" className="size-5" />
+            <MaterialIcon name="content_copy" size={20} />
             Duplicate
           </Button>
 
           <Button
             type="button"
             size="sm"
-            variant="cyanOutline"
-            className="min-w-0"
+            variant="accentOutline"
             disabled={
               !procedural?.activeProcedureId ||
               procedural?.isLoadingActiveProcedure
@@ -73,9 +75,10 @@ export default function ProcedureSelectionSection({
                 reverse: true,
               })
             }
+            title="Duplicate and reverse the procedure"
           >
-            <MaterialIcon name="swap_vert" className="size-5" />
-            Duplicate Reverse
+            <MaterialIcon name="swap_vert" size={20} />
+            Reverse
           </Button>
         </div>
       </div>

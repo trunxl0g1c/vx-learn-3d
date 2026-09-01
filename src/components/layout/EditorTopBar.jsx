@@ -10,8 +10,8 @@ import { getCurrentUserName } from "../../utils/authUser";
 function SaveStatusBadge({ status }) {
   if (status === "saving") {
     return (
-      <div className="flex items-center gap-2 text-xs text-yellow-300">
-        <Loader2 className="size-4 animate-spin" />
+      <div className="flex items-center gap-2 text-sm text-accent-main">
+        <MaterialIcon name="progress_activity" size={20} className="animate-spin" />
         Saving...
       </div>
     );
@@ -19,16 +19,16 @@ function SaveStatusBadge({ status }) {
 
   if (status === "error") {
     return (
-      <div className="flex items-center gap-2 text-xs text-red-400">
-        <CloudOff className="size-4" />
+      <div className="flex items-center gap-2 text-sm text-red-400">
+        <MaterialIcon name="cloud_alert" size={20} />
         Save failed
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs text-emerald-400">
-      <CircleCheckBig className="size-4" />
+    <div className="flex items-center gap-2 text-sm text-emerald-400">
+      <MaterialIcon name="check_circle" size={20} />
       Saved locally
     </div>
   );

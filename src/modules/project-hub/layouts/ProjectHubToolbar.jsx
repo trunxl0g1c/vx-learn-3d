@@ -6,8 +6,14 @@ import MaterialIcon from "../../../components/ui/material-icon";
 export default function ProjectHubToolbar({
   search,
   setSearch,
-  accessFilter,
-  setAccessFilter,
+  workspaces = [],
+  workspaceFilter,
+  setWorkspaceFilter,
+  sortBy,
+  setSortBy,
+  classrooms = [],
+  classroomFilter,
+  setClassroomFilter,
   onClearLocalDb,
 }) {
   return (
@@ -30,45 +36,42 @@ export default function ProjectHubToolbar({
       />
 
       <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end sm:gap-3 xl:flex-nowrap">
-        <Button
-          disabled
-          size="sm"
-          variant="outline"
-          className="h-10! min-w-0 justify-between border-accent-main! px-3! whitespace-nowrap sm:min-w-[148px]"
-        >
-          <span className="truncate">All Workspaces</span>
-          <MaterialIcon
-            name="arrow_back_2"
-            fill={1}
-            size={18}
-            className="-rotate-90 text-accent-main"
-          />
-        </Button>
-
-        <Button
-          disabled
-          size="sm"
-          variant="outline"
-          className="h-10! min-w-0 justify-between border-accent-main! px-3! whitespace-nowrap sm:min-w-[126px]"
-        >
-          <span className="truncate">Last Viewed</span>
-          <MaterialIcon
-            name="arrow_back_2"
-            fill={1}
-            size={18}
-            className="-rotate-90 text-accent-main"
-          />
-        </Button>
+        <SelectField
+          value={workspaceFilter || "ALL"}
+          onChange={setWorkspaceFilter}
+          options={[
+            { label: "All Workspaces", value: "ALL" },
+            ...workspaces.map((workspace) => ({
+              label: workspace.name,
+              value: workspace.id,
+            })),
+          ]}
+          className="h-10! w-full! min-w-0 sm:w-auto! sm:min-w-[148px]"
+          iconClassName="h-10! text-accent-main"
+        />
 
         <SelectField
-          value={accessFilter || "ALL"}
-          onChange={setAccessFilter}
+          value={sortBy || "LAST_VIEWED"}
+          onChange={setSortBy}
           options={[
-            { label: "All Access", value: "ALL" },
-            { label: "Editor Access", value: "EDITOR" },
-            { label: "Player Access", value: "PLAYER" },
+            { label: "Last Viewed", value: "LAST_VIEWED" },
+            { label: "Default Order", value: "DEFAULT" },
           ]}
-          className="h-10! w-full! min-w-0 sm:w-[140px]!"
+          className="h-10! w-full! min-w-0 sm:w-auto! sm:min-w-[126px]"
+          iconClassName="h-10! text-accent-main"
+        />
+
+        <SelectField
+          value={classroomFilter || "ALL"}
+          onChange={setClassroomFilter}
+          options={[
+            { label: "All Classrooms", value: "ALL" },
+            ...classrooms.map((classroom) => ({
+              label: classroom.name,
+              value: classroom.id,
+            })),
+          ]}
+          className="h-10! w-full! min-w-0 sm:w-auto! sm:min-w-[172px]"
           iconClassName="h-10! text-accent-main"
         />
 

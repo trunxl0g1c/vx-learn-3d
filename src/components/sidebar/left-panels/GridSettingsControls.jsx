@@ -25,9 +25,9 @@ export default function GridSettingsControls({
   return (
     <div className="border-t border-white/10 pt-4">
       <div className="flex items-center justify-between gap-4">
-        <div>
+        <div className="max-w-60">
           <div className="text-sm font-normal text-white">Grid</div>
-          <p className="mt-1 text-xs leading-5 text-contrast-grayout">
+          <p className="mt-1 text-[11px] leading-5 text-contrast-grayout">
             Editor-style reference grid seperti Blender/CAD. Grid tidak mengubah
             model atau hierarchy GLB.
           </p>

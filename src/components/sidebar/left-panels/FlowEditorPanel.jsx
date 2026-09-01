@@ -18,7 +18,7 @@ const SPEED_OPTIONS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3];
 
 function Section({ title, step, children }) {
   return (
-    <section className="rounded-xl border border-secondary-default/60 bg-[#171b1b] p-4">
+    <section className="rounded-xl border border-accent-main/60 bg-[#171b1b] p-4">
       <div className="mb-4 flex items-center gap-3">
         {step && (
           <span className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-bold text-white">
@@ -63,10 +63,10 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
             flow?.stopAuthoring?.();
             onBack?.();
           }}
-          className="grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
+          className="cursor-pointer grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
           title="Back to Pro Tools"
         >
-          <MaterialIcon name="arrow_back" className="size-6" />
+          <MaterialIcon name="chevron_backward" size={25} />
         </button>
         <div>
           <p className="text-base font-normal text-white">Flow Authoring</p>
@@ -102,8 +102,8 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
             />
 
             <Button size="sm" onClick={flow?.createFlow}>
-              <MaterialIcon name="add" fill={1} size={20} />
               New
+              <MaterialIcon name="add" fill={1} size={20} />
             </Button>
           </div>
 
@@ -136,7 +136,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                         name: event.target.value,
                       })
                     }
-                    className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none focus:border-secondary-default"
+                    className="h-10 w-full rounded-lg border border-accent-main/60 bg-primary px-3 text-sm text-white outline-none focus:border-accent-main"
                   />
                 </label>
 
@@ -152,7 +152,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                       })
                     }
                     rows={3}
-                    className="w-full resize-none rounded-lg border border-secondary-default/60 bg-primary p-3 text-sm text-white outline-none focus:border-secondary-default"
+                    className="w-full resize-none rounded-lg border border-accent-main/60 bg-primary p-3 text-sm text-white outline-none focus:border-accent-main"
                     placeholder="Explain what this flow represents..."
                   />
                 </label>
@@ -160,11 +160,16 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
             </Section>
 
             <Section title="Build Flow Path" step="3">
-              <p className="mb-3 text-xs leading-5 text-contrast-grayout">
+              {/* <p className="mb-3 text-xs leading-5 text-contrast-grayout">
                 Points are connected in order from start to end. Add points by
                 clicking the model, from the selected object center, or from the
                 current camera target. Click an existing waypoint, then use its
                 translate gizmo to move it freely inside or outside a mesh.
+              </p> */}
+              <p className="mb-3 text-xs leading-5 text-contrast-grayout">
+                Points are connected in order from start to end. Add points by
+                clicking the model, from the selected object center, or from the
+                current camera target.
               </p>
 
               <Button
@@ -214,7 +219,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
               </Button>
 
               {flow.multiplePointEditEnabled && (
-                <div className="mt-3 rounded-lg border border-secondary-default/50 bg-secondary-default/10 p-3 text-xs leading-5 text-secondary-default">
+                <div className="mt-3 rounded-lg border border-accent-main/50 bg-secondary-default/10 p-3 text-xs leading-5 text-secondary-default">
                   Click several waypoints to select them. The gizmo appears at
                   the selection center and moves every selected waypoint
                   together.
@@ -272,7 +277,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 </SmallToolButton>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-lg border border-secondary-default/50">
+              <div className="mt-4 overflow-hidden rounded-lg border border-accent-main/50">
                 {activeFlow.points.length === 0 ? (
                   <div className="p-4 text-center text-xs text-contrast-grayout">
                     No points yet. Add at least two points.
@@ -330,7 +335,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                             event.stopPropagation();
                             flow.removePoint(point.id);
                           }}
-                          className="grid size-8 place-items-center rounded-lg text-contrast-grayout hover:bg-red-500/10 hover:text-red-300"
+                          className="cursor-pointer grid size-8 place-items-center rounded-lg bg-red-500/10 text-red-300"
                           title="Delete point"
                         >
                           <MaterialIcon name="delete" fill={1} size={15} />
@@ -388,7 +393,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                         settings: { color: event.target.value },
                       })
                     }
-                    className="h-9 w-14 cursor-pointer rounded-lg border border-secondary-default bg-transparent p-1"
+                    className="h-9 w-14 cursor-pointer rounded-lg border border-accent-main bg-transparent p-1"
                   />
                 </div>
 
@@ -580,13 +585,13 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 onClick={flow.saveViewState}
                 title="Save the current camera together with visibility, X-Ray, Exploded View, Cut, and selection"
               >
-                <MaterialIcon name="save" className="size-5" />
+                <MaterialIcon name="save" size={20} />
                 {activeFlow.visualState && activeFlow.cameraView
-                  ? "Update Camera + State"
-                  : "Save Camera + State"}
+                  ? "Update Camera & State"
+                  : "Save Camera & State"}
               </Button>
 
-              <div className="mb-3 rounded-lg border border-secondary-default/30 bg-primary/50 px-3 py-2 text-[10px] text-contrast-grayout">
+              <div className="mb-3 rounded-lg border border-accent-main/30 bg-primary/50 px-3 py-2 text-[10px] text-contrast-grayout">
                 Camera + State:{" "}
                 {activeFlow.visualState && activeFlow.cameraView
                   ? "Saved"
@@ -616,7 +621,7 @@ export default function FlowEditorPanel({ flow, onBack, selectedObjectName }) {
                 </p>
               )}
             </Section>
-            
+
             <DeleteFlowMaterialButton flow={flow} activeFlow={activeFlow} />
           </>
         )}

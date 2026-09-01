@@ -80,11 +80,7 @@ export default function SlideListPanel({ slideAuthoring }) {
     const finishDrag = () => {
       const target = dropTargetRef.current;
       if (target?.slideId) {
-        reorderSlide?.(
-          draggingSlideId,
-          target.slideId,
-          target.placement,
-        );
+        reorderSlide?.(draggingSlideId, target.slideId, target.placement);
       }
 
       if (dragFrameRef.current) {
@@ -101,7 +97,9 @@ export default function SlideListPanel({ slideAuthoring }) {
       setDropTarget(null);
     };
 
-    window.addEventListener("pointermove", handlePointerMove, { passive: false });
+    window.addEventListener("pointermove", handlePointerMove, {
+      passive: false,
+    });
     window.addEventListener("pointerup", finishDrag, { once: true });
     window.addEventListener("pointercancel", finishDrag, { once: true });
 
@@ -193,7 +191,7 @@ export default function SlideListPanel({ slideAuthoring }) {
                   data-slide-list-card
                   className={cn(
                     "flex overflow-hidden rounded-lg border border-contrast-grayout bg-dark-alpha transition",
-                    "hover:border-accent-main hover:bg-primary/50",
+                    "hover:border-secondary-default hover:bg-primary/50",
                     active && "border-accent-main! bg-primary",
                     isDragging && "border-dashed opacity-20",
                   )}
@@ -204,14 +202,16 @@ export default function SlideListPanel({ slideAuthoring }) {
                       if (draggingSlideId) return;
                       slideAuthoring?.previewSlide?.(slide.id);
                     }}
-                    className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
+                    className="cursor-pointer flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
                     title={`Edit ${slide.title || `Slide ${index + 1}`}`}
                   >
                     <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-divider-main bg-primary text-secondary-default">
                       <MaterialIcon name="menu_book" size={18} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-white">
+                      <span
+                        className={`block truncate text-sm ${active ? "text-white" : "text-white/80"}`}
+                      >
                         {slide.title || `Slide ${index + 1}`}
                       </span>
                       <span className="mt-1 block truncate text-xs text-grayout-main">
@@ -219,9 +219,13 @@ export default function SlideListPanel({ slideAuthoring }) {
                       </span>
                     </span>
                     <MaterialIcon
-                      name="edit"
+                      name="edit_square"
                       size={18}
-                      className="shrink-0 text-secondary-default"
+                      className={
+                        active
+                          ? "text-accent-main shrink-0"
+                          : "text-contrast-grayout shrink-0"
+                      }
                     />
                   </button>
 
@@ -229,9 +233,9 @@ export default function SlideListPanel({ slideAuthoring }) {
                     <button
                       type="button"
                       onPointerDown={(event) => startDrag(event, slide)}
-                      className="grid size-8 touch-none cursor-grab place-items-center rounded-md text-secondary-default transition hover:bg-white/10 active:cursor-grabbing"
                       title={`Drag slide ${index + 1} to reorder`}
                       aria-label={`Drag slide ${index + 1} to reorder`}
+                      className={`grid size-8 touch-none cursor-grab place-items-center rounded-md ${active ? "text-accent-main" : "text-contrast-grayout"} transition hover:bg-white/10 active:cursor-grabbing`}
                     >
                       <MaterialIcon name="drag_indicator" size={21} />
                     </button>
@@ -247,7 +251,9 @@ export default function SlideListPanel({ slideAuthoring }) {
         )}
       </div>
 
-      {dragPreview && draggingSlide && typeof document !== "undefined" &&
+      {dragPreview &&
+        draggingSlide &&
+        typeof document !== "undefined" &&
         createPortal(
           <div
             ref={dragPreviewElementRef}

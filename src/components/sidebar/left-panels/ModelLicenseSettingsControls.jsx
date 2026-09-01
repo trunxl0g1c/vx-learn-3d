@@ -51,7 +51,9 @@ export default function ModelLicenseSettingsControls({
     () =>
       normalizedModels.find(
         (model) => model.modelAssetId === selectedModelId,
-      ) || normalizedModels[0] || null,
+      ) ||
+      normalizedModels[0] ||
+      null,
     [normalizedModels, selectedModelId],
   );
 
@@ -104,20 +106,26 @@ export default function ModelLicenseSettingsControls({
   };
 
   return (
-    <section className={embedded ? "" : "rounded-xl border border-secondary-default/60 bg-white/[0.025] p-4"}>
+    <section
+      className={
+        embedded
+          ? ""
+          : "rounded-xl border border-secondary-default/60 bg-white/[0.025] p-4"
+      }
+    >
       {!embedded && (
-      <div className="mb-4 flex items-start gap-3">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-secondary-default/40 bg-secondary-default/10 text-secondary-default">
-          <MaterialIcon name="copyright" fill className="size-6" />
+        <div className="mb-4 flex items-start gap-3 cursor-pointer">
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-secondary-default/40 bg-secondary-default/10 text-secondary-default">
+            <MaterialIcon name="copyright" fill className="size-6" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-white">3D License</div>
+            <p className="mt-1 text-xs leading-5 text-contrast-grayout">
+              Isi lisensi secara manual atau baca metadata yang tersimpan di
+              GLB. Informasi ini akan ditampilkan di Player.
+            </p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold text-white">3D License</div>
-          <p className="mt-1 text-xs leading-5 text-contrast-grayout">
-            Isi lisensi secara manual atau baca metadata yang tersimpan di GLB.
-            Informasi ini akan ditampilkan di Player.
-          </p>
-        </div>
-      </div>
       )}
 
       {embedded && (
@@ -150,7 +158,10 @@ export default function ModelLicenseSettingsControls({
 
       {normalizedModels.length > 1 && (
         <div className="mb-3 rounded-lg border border-white/10 bg-white/[0.025] px-3 py-2 text-[11px] leading-4 text-white/60">
-          Editing license for: <span className="font-medium text-white/85">{activeModel.fileName || activeModel.modelName || "Model GLB"}</span>
+          Editing license for:{" "}
+          <span className="font-medium text-white/85">
+            {activeModel.fileName || activeModel.modelName || "Model GLB"}
+          </span>
         </div>
       )}
 
@@ -182,20 +193,21 @@ export default function ModelLicenseSettingsControls({
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div className="mt-4 grid grid-cols-2 items-center gap-2">
         <Button
           type="button"
           size="sm"
           variant="cyanOutline"
           disabled={reading || removing || !onReadModelLicenseMetadata}
           onClick={readMetadata}
-          className="min-w-0"
         >
           <MaterialIcon
             name={reading ? "hourglass_top" : "document_search"}
-            className={reading ? "size-4 animate-pulse" : "size-4"}
+            className={reading ? "animate-pulse mr-1" : "mr-1"}
+            fill={1}
+            size={20}
           />
-          {reading ? "Reading..." : "Read GLB Metadata"}
+          {reading ? "Reading..." : "Read GLB"}
         </Button>
 
         {typeof onRemoveAdditionalGlb === "function" && (
@@ -210,9 +222,8 @@ export default function ModelLicenseSettingsControls({
                 ? "Primary GLB tidak dapat dihapus dari project."
                 : `Remove ${activeModel.fileName || activeModel.modelName || "GLB"}`
             }
-            className="min-w-0"
           >
-            <MaterialIcon name="delete" className="size-4" />
+            <MaterialIcon name="delete" fill={1} size={20} className="mr-1" />
             Remove GLB
           </Button>
         )}

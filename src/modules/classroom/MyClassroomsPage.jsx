@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ProjectHubLayout from "../project-hub/layouts/ProjectHubLayout";
 import InlineAlert from "../../components/ui/inline-alert";
@@ -18,7 +18,7 @@ function ContentThumbnail({ content }) {
 
   if (!thumbnailUrl || failed) {
     return (
-      <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-main text-sm font-semibold text-white">
+      <div className="grid h-full w-full place-items-center bg-secondary-dark text-2xl font-semibold text-white">
         {initial}
       </div>
     );
@@ -29,19 +29,58 @@ function ContentThumbnail({ content }) {
       src={thumbnailUrl}
       alt=""
       loading="lazy"
-      className="size-9 shrink-0 rounded-lg bg-secondary-dark object-cover"
+      className="h-full w-full object-cover"
       onError={() => setFailed(true)}
     />
+  );
+}
+
+function ClassroomContentCard({ row, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group min-h-[190px] w-full cursor-pointer overflow-hidden rounded-lg border border-secondary-dark bg-dark text-left transition hover:border-accent-main hover:bg-white/5"
+    >
+      <div className="h-[128px] w-full overflow-hidden">
+        <ContentThumbnail content={row.content || {}} />
+      </div>
+
+      <div className="flex min-h-[62px] items-center justify-between gap-2 px-3 py-2">
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-[500] leading-4 text-white">
+            {row.content?.title || "Untitled"}
+          </h3>
+          {row.content?.description && (
+            <p className="mt-1 truncate text-[11px] font-normal text-contrast-grayout">
+              {row.content.description}
+            </p>
+          )}
+        </div>
+
+        <div className="grid size-7 shrink-0 place-items-center rounded-full bg-accent-main text-primary">
+          <MaterialIcon name="play_arrow" size={20} />
+        </div>
+      </div>
+    </button>
   );
 }
 
 // Classroom members never get a real WorkspaceMember row, so this is their
 // only entry point into content — always opens read-only in the Player,
 // never the Editor (see openContentInPlayer).
+//
+// Laid out as classroom list (left) + that classroom's content as a card
+// grid (right), the same master-detail shape WorkspaceClassroomTab now uses
+// on the admin side — a member browsing several classrooms sees the same
+// "pick a classroom on the left, its stuff shows on the right" pattern an
+// admin managing those classrooms does, instead of one flat table that
+// repeats the classroom name on every single row.
 export default function MyClassroomsPage() {
   const navigate = useNavigate();
   const { showLoading, updateLoading, hideLoading } = useGlobalLoading();
   const { showAlert } = useAlert();
+  const [selectedClassroomId, setSelectedClassroomId] = useState(null);
 
   const {
     data: classrooms = [],
@@ -56,6 +95,32 @@ export default function MyClassroomsPage() {
     isError: isContentsError,
     error: contentsError,
   } = useMyClassroomContents();
+
+  const contentCountByClassroomId = useMemo(() => {
+    const counts = new Map();
+    contents.forEach((row) => {
+      const id = row.classroomId;
+      counts.set(id, (counts.get(id) || 0) + 1);
+    });
+    return counts;
+  }, [contents]);
+
+  // Derived, not stored: defaults to the first classroom once the list
+  // loads, or falls back to it again if the previously-selected one drops
+  // out of the list (e.g. membership changed) — without an effect+setState
+  // round trip just to pick an initial value.
+  const effectiveSelectedId = classrooms.some(
+    (room) => room.id === selectedClassroomId,
+  )
+    ? selectedClassroomId
+    : classrooms[0]?.id ?? null;
+
+  const selectedClassroom = classrooms.find(
+    (room) => room.id === effectiveSelectedId,
+  );
+  const selectedContents = contents.filter(
+    (row) => row.classroomId === effectiveSelectedId,
+  );
 
   async function handleOpenContent(row) {
     try {
@@ -117,75 +182,81 @@ export default function MyClassroomsPage() {
         )}
 
         {classrooms.length > 0 && (
-          <div className="overflow-hidden rounded-lg">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-divider-main text-sm tracking-wide text-secondary-default">
-                    <th className="px-4 py-3 font-normal">Content</th>
-                    <th className="px-4 py-3 font-normal">Classroom</th>
-                    <th className="px-4 py-3 font-normal">Description</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {contents.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => handleOpenContent(row)}
-                      className="cursor-pointer border-b border-divider-main last:border-b-0 hover:bg-white/5"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <ContentThumbnail content={row.content || {}} />
-                          <span className="truncate font-medium text-accent-contrast">
-                            {row.content?.title || "Untitled"}
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-3 text-white">
-                        {row.classroom?.name || "—"}
-                      </td>
-
-                      <td className="px-4 py-3 text-white">
-                        {row.content?.description || "—"}
-                      </td>
-                    </tr>
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
+            <div className="max-h-[65vh] overflow-y-auto rounded-lg border border-divider-main">
+              {isLoading && (
+                <div className="space-y-2 p-2">
+                  {[0, 1, 2].map((index) => (
+                    <div
+                      key={index}
+                      className="h-14 animate-pulse rounded-lg bg-white/5"
+                    />
                   ))}
+                </div>
+              )}
 
-                  {!isLoading && contents.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="px-4 py-10 text-center text-contrast-grayout"
+              <div className="divide-y divide-divider-main">
+                {classrooms.map((classroom) => {
+                  const isSelected = classroom.id === effectiveSelectedId;
+
+                  return (
+                    <button
+                      key={classroom.id}
+                      type="button"
+                      onClick={() => setSelectedClassroomId(classroom.id)}
+                      className={[
+                        "flex w-full min-w-0 cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition",
+                        isSelected ? "bg-accent-main/15" : "hover:bg-white/5",
+                      ].join(" ")}
+                    >
+                      <span
+                        className={[
+                          "truncate text-sm font-medium",
+                          isSelected ? "text-white" : "text-accent-contrast",
+                        ].join(" ")}
                       >
-                        <div className="flex flex-col items-center gap-2">
-                          <MaterialIcon
-                            name="school"
-                            fill={1}
-                            size={28}
-                            className="text-secondary-default"
-                          />
-                          No content has been assigned to your classrooms yet.
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        {classroom.name}
+                      </span>
+                      <span className="flex items-center gap-3 text-xs text-contrast-grayout">
+                        <span className="truncate">
+                          {classroom.workspace?.name || "Workspace"}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <MaterialIcon name="deployed_code" size={14} />
+                          {contentCountByClassroomId.get(classroom.id) || 0}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {isLoading && (
-              <div className="space-y-2 p-4">
-                {[0, 1, 2].map((index) => (
-                  <div
-                    key={index}
-                    className="h-10 animate-pulse rounded-lg bg-white/5"
+            <div className="min-w-0">
+              {selectedContents.length === 0 ? (
+                <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-divider-main text-center text-sm text-contrast-grayout">
+                  <MaterialIcon
+                    name="school"
+                    fill={1}
+                    size={28}
+                    className="text-secondary-default"
                   />
-                ))}
-              </div>
-            )}
+                  {selectedClassroom
+                    ? `No content has been assigned to "${selectedClassroom.name}" yet.`
+                    : "Select a classroom to see its content."}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                  {selectedContents.map((row) => (
+                    <ClassroomContentCard
+                      key={row.id}
+                      row={row}
+                      onOpen={() => handleOpenContent(row)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

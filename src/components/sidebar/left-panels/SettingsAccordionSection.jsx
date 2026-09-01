@@ -16,7 +16,7 @@ export default function SettingsAccordionSection({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-secondary-default"
+        className="cursor-pointer flex w-full items-center gap-3 px-4 py-4 text-left transition hover:bg-white/[0.035] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-secondary-default"
       >
         {icon ? (
           <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-secondary-default/40 bg-secondary-default/10 text-secondary-default">
@@ -25,7 +25,7 @@ export default function SettingsAccordionSection({
         ) : null}
 
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium text-white">{title}</span>
+          <span className="block text-sm font-base text-white">{title}</span>
           {description ? (
             <span className="mt-1 block text-xs leading-5 text-contrast-grayout">
               {description}

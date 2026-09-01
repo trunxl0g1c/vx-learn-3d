@@ -52,8 +52,8 @@ export default function ProceduralEditorPanel({
     );
   const stepReady = Boolean(
     clickTargets.length > 0 &&
-      animatedEntriesReady &&
-      (!isAssembly || step?.cameraView),
+    animatedEntriesReady &&
+    (!isAssembly || step?.cameraView),
   );
 
   useEffect(() => {
@@ -82,13 +82,13 @@ export default function ProceduralEditorPanel({
               procedural?.stopAuthoring?.();
               onBack?.();
             }}
-            className="grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
+            className="cursor-pointer grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
             title="Back to Pro Tools"
           >
-            <MaterialIcon name="arrow_back" className="size-6" />
+            <MaterialIcon name="chevron_backward" size={25} />
           </button>
           <div className="flex min-w-0 items-center gap-2">
-            <p className="truncate text-base font-semibold text-white">
+            <p className="truncate text-lg font-normal text-white">
               Procedure Authoring
             </p>
           </div>

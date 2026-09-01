@@ -26,6 +26,7 @@ import {
   fetchContentSlideMediaBlob,
 } from "./contentSlideMedia";
 import { hashThumbnail, blobToDataUrl } from "./thumbnailUtils";
+import { decodeAdditionalModelFilename } from "./additionalModelFilename";
 
 // Same convention projectSync.js's syncThumbnail uploads under — lets
 // gallery hydration tell "this IMAGE row is the thumbnail" apart from
@@ -77,10 +78,13 @@ async function hydrateThumbnail(contentId) {
 }
 
 // Project-level "Media" gallery (material.media) — every content-media row
-// except the GLB model and whichever IMAGE row is the thumbnail (see
-// THUMBNAIL_FILENAME_PREFIX above). Each item's bytes are fetched and
-// converted back to the same base64 data URL shape material.media expects
-// locally, same as the thumbnail.
+// except the GLB model, whichever IMAGE row is the thumbnail (see
+// THUMBNAIL_FILENAME_PREFIX above), and any OTHER-classified row that's
+// actually an additional GLB (see hydrateAdditionalModelDescriptors below —
+// those share the OTHER classification with genuine gallery documents, so
+// they'd otherwise show up here as a bogus "document"). Each item's bytes
+// are fetched and converted back to the same base64 data URL shape
+// material.media expects locally, same as the thumbnail.
 async function hydrateProjectMedia(contentId) {
   try {
     const allMedia = await listContentMediaRequest({ contentId });
@@ -89,6 +93,12 @@ async function hydrateProjectMedia(contentId) {
       if (
         item.mediaClassification === "IMAGE" &&
         item.filename?.startsWith(THUMBNAIL_FILENAME_PREFIX)
+      ) {
+        return false;
+      }
+      if (
+        item.mediaClassification === "OTHER" &&
+        decodeAdditionalModelFilename(item.filename)
       ) {
         return false;
       }
@@ -128,6 +138,40 @@ async function hydrateProjectMedia(contentId) {
   } catch (error) {
     console.error("Failed to hydrate project media:", error);
     return { media: [], mediaIds: {} };
+  }
+}
+
+// Rebuilds material.additionalModels' descriptors (id/name/fileName/
+// fileType/fileSize/remoteMediaId) from the additional-GLB rows uploaded by
+// useViewerProject.js's uploadAdditionalModelsToBackend — identified by the
+// encoded filename (see additionalModelFilename.js), since OTHER is shared
+// with plain gallery documents. Only metadata: the GLB bytes themselves are
+// fetched and cached lazily by useProjectLoader's
+// hydrateMissingAdditionalModelFiles on first open, same as the primary
+// model, not eagerly here.
+async function hydrateAdditionalModelDescriptors(contentId) {
+  try {
+    const allMedia = await listContentMediaRequest({ contentId });
+
+    return (allMedia || [])
+      .filter((item) => item.mediaClassification === "OTHER")
+      .map((item) => {
+        const decoded = decodeAdditionalModelFilename(item.filename);
+        if (!decoded) return null;
+
+        return {
+          id: decoded.modelId,
+          name: decoded.originalFileName,
+          fileName: decoded.originalFileName,
+          fileType: item.mimetype,
+          fileSize: item.size,
+          remoteMediaId: item.id,
+        };
+      })
+      .filter(Boolean);
+  } catch (error) {
+    console.error("Failed to hydrate additional GLB descriptors:", error);
+    return [];
   }
 }
 
@@ -365,11 +409,12 @@ function mapContentSettingToViewerAndScene(setting) {
  * id instead).
  */
 export async function fetchContentEditorSnapshot(contentId) {
-  // Kicked off alongside the Promise.all below (not inside it) — both
-  // already swallow their own "nothing there" case internally, so neither
-  // should be able to fail the rest of the hydrate.
+  // Kicked off alongside the Promise.all below (not inside it) — all three
+  // already swallow their own "nothing there" case internally, so none of
+  // them should be able to fail the rest of the hydrate.
   const thumbnailPromise = hydrateThumbnail(contentId);
   const projectMediaPromise = hydrateProjectMedia(contentId);
+  const additionalModelsPromise = hydrateAdditionalModelDescriptors(contentId);
 
   const [
     content,
@@ -394,6 +439,7 @@ export async function fetchContentEditorSnapshot(contentId) {
   const { thumbnailDataUrl, thumbnailMediaId, thumbnailHash } =
     await thumbnailPromise;
   const { media: projectMedia, mediaIds } = await projectMediaPromise;
+  const additionalModels = await additionalModelsPromise;
 
   const chapterIds = {};
   const chapters = (objDescs || []).map((desc) => {
@@ -477,6 +523,7 @@ export async function fetchContentEditorSnapshot(contentId) {
     playerSettings,
     projectMedia,
     mediaIds,
+    additionalModels,
     thumbnailDataUrl,
     thumbnailMediaId,
     thumbnailHash,
@@ -532,6 +579,7 @@ export async function hydrateProjectFromBackend({
     playerSettings,
     projectMedia,
     mediaIds,
+    additionalModels,
     thumbnailDataUrl,
     thumbnailMediaId,
     thumbnailHash,
@@ -590,6 +638,7 @@ export async function hydrateProjectFromBackend({
       publishedAt: content?.publishedAt || null,
       modelUrl: "",
       media: projectMedia,
+      additionalModels,
       chapters,
       slides,
       flows: mappedFlows,
@@ -605,8 +654,11 @@ export async function hydrateProjectFromBackend({
     autosave: { status: "SAVED", lastSavedAt: null },
   };
 
-  // No file — the GLB is deliberately not downloaded here. useProjectLoader
-  // retrieves and caches it on open.
+  // No files — the primary GLB and every additional GLB are deliberately
+  // not downloaded here, only their metadata/remoteMediaId. useProjectLoader
+  // retrieves and caches each one's actual bytes lazily on open (see its
+  // findContentModelMedia fallback for the primary model and
+  // hydrateMissingAdditionalModelFiles for additional ones).
   await saveProjectToIndexedDb(project, null);
 
   return project;

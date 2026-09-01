@@ -166,17 +166,16 @@ export default function ProcedureStepListSection({
       <Button
         type="button"
         size="sm"
-        variant="cyanOutline"
         className="w-full"
         onClick={procedural.createStep}
       >
-        <MaterialIcon name="add_task" className="size-5" />
         {isAssembly ? "Add Assembly Step" : "Add Procedure Step"}
+        <MaterialIcon name="add_task" size={20} />
       </Button>
 
       <div className="mt-3 space-y-2">
         {steps.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-secondary-default/50 p-4 text-center text-xs text-contrast-grayout">
+          <div className="rounded-lg border border-dashed border-accent-main/50 p-4 text-center text-xs text-contrast-grayout">
             {isAssembly
               ? "No steps yet. Add the first component to install."
               : "No steps yet. Add the first object interaction."}
@@ -231,13 +230,13 @@ export default function ProcedureStepListSection({
                       procedural.setActiveStepId(item.id);
                       onOpenStep?.();
                     }}
-                    className="flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left"
+                    className="cursor-pointer flex min-w-0 flex-1 items-center gap-3 rounded-md p-1 text-left"
                   >
-                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-bold text-white">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-main text-xs font-normal text-white">
                       {index + 1}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-xs font-semibold text-white">
+                      <span className="block truncate text-xs font-normal text-white">
                         {item.name}
                       </span>
                       <span className="mt-1 block truncate text-[10px] text-contrast-grayout">
@@ -294,16 +293,16 @@ export default function ProcedureStepListSection({
                       title={`Drag step ${index + 1} to reorder`}
                       aria-label={`Drag step ${index + 1} to reorder`}
                     >
-                      <MaterialIcon name="drag_indicator" className="size-5" />
+                      <MaterialIcon name="drag_indicator" size={20} />
                     </button>
                     <button
                       type="button"
                       onClick={() => procedural.deleteStep(item.id)}
-                      className="grid size-7 place-items-center rounded-md text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+                      className="cursor-pointer grid size-7 place-items-center rounded-md text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
                       title="Delete step"
                       aria-label={`Delete step ${index + 1}`}
                     >
-                      <MaterialIcon name="delete" className="size-4" />
+                      <MaterialIcon name="delete" size={20} />
                     </button>
                   </div>
                 </div>
@@ -363,10 +362,10 @@ export default function ProcedureStepListSection({
 
                 <div className="flex shrink-0 flex-col items-center justify-center gap-1 border-l border-divider-main pl-2">
                   <span className="grid size-7 place-items-center rounded-md bg-white/5 text-secondary-default">
-                    <MaterialIcon name="drag_indicator" className="size-5" />
+                    <MaterialIcon name="drag_indicator" size={20} />
                   </span>
                   <span className="grid size-7 place-items-center rounded-md text-red-300/70">
-                    <MaterialIcon name="delete" className="size-4" />
+                    <MaterialIcon name="delete" size={20} />
                   </span>
                 </div>
               </div>

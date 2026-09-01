@@ -167,7 +167,7 @@ export default function ProToolsPanel({
                     );
                   }}
                   className={[
-                    "flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
+                    "cursor-pointer flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
                     "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-accent-main/50 disabled:hover:bg-primary/40",
                     active
                       ? "border-accent-main bg-accent-main/15"

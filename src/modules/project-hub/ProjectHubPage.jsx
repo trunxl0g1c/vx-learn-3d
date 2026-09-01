@@ -43,6 +43,10 @@ import {
   useWorkspaces,
   listWorkspaceMembersRequest,
 } from "../workspace/api/workspaces";
+import {
+  listClassroomsRequest,
+  listClassroomContentsRequest,
+} from "../classroom/api/classrooms";
 import { isEncryptedPackageFile } from "../../utils/cryptoUtils";
 import { useAuth } from "../auth/AuthContext";
 import { hasPermission } from "../../utils/permissions";
@@ -140,7 +144,9 @@ export default function ProjectHubPage() {
   // import/clear below still call it.
   const [, setProjects] = useState([]);
   const [search, setSearch] = useState("");
-  const [accessFilter, setAccessFilter] = useState("ALL");
+  const [classroomFilter, setClassroomFilter] = useState("ALL");
+  const [workspaceFilter, setWorkspaceFilter] = useState("ALL");
+  const [sortBy, setSortBy] = useState("LAST_VIEWED");
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
   const [isClearingProjects, setIsClearingProjects] = useState(false);
@@ -300,6 +306,56 @@ export default function ProjectHubPage() {
 
     roleInWorkspaceById[workspace.id] =
       membership?.roleInWorkspace || membership?.role || null;
+  });
+
+  // Per-workspace classrooms, fetched the same way as members/content above
+  // — the catalogue's classroom filter needs every classroom across every
+  // workspace the user belongs to, not just one.
+  const classroomQueries = useQueries({
+    queries: workspaces.map((workspace) => ({
+      queryKey: ["classrooms", { workspaceId: workspace.id }],
+      queryFn: () => listClassroomsRequest({ workspaceId: workspace.id }),
+      enabled: Boolean(workspace.id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const allClassrooms = workspaces.flatMap((workspace, index) => {
+    const classrooms = classroomQueries[index]?.data || [];
+
+    return classrooms.map((classroom) => ({
+      ...classroom,
+      workspaceId: workspace.id,
+      workspaceName: workspace.name,
+    }));
+  });
+
+  // No single "which classroom(s) is this content in" endpoint (same gap
+  // AssignToClassroomDialog works around) — fetch each classroom's content
+  // list in parallel and index it by contentId so the classroom filter below
+  // can look membership up per project.
+  const classroomContentQueries = useQueries({
+    queries: allClassrooms.map((classroom) => ({
+      queryKey: ["classrooms", "contents", classroom.id],
+      queryFn: () => listClassroomContentsRequest(classroom.id),
+      enabled: Boolean(classroom.id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const classroomIdsByContentId = {};
+  allClassrooms.forEach((classroom, index) => {
+    const rows = classroomContentQueries[index]?.data || [];
+
+    rows.forEach((row) => {
+      const contentId = row.contentId || row.content?.id;
+      if (!contentId) return;
+
+      if (!classroomIdsByContentId[contentId]) {
+        classroomIdsByContentId[contentId] = [];
+      }
+      classroomIdsByContentId[contentId].push(classroom.id);
+    });
   });
 
   // Same OR-with-global-permission gate WorkspaceContentTab.jsx uses: a
@@ -1034,10 +1090,30 @@ export default function ProjectHubPage() {
       project.workspace?.toLowerCase().includes(keyword) ||
       project.fileName?.toLowerCase().includes(keyword);
 
-    const matchAccess = accessFilter === "ALL" || project.role === accessFilter;
+    const matchWorkspace =
+      workspaceFilter === "ALL" || project.workspaceId === workspaceFilter;
 
-    return matchSearch && matchAccess;
+    const matchClassroom =
+      classroomFilter === "ALL" ||
+      (classroomIdsByContentId[project.contentId] || []).includes(
+        classroomFilter,
+      );
+
+    return matchSearch && matchWorkspace && matchClassroom;
   });
+
+  if (sortBy === "LAST_VIEWED") {
+    filteredProjects.sort((a, b) => {
+      const aTime = a.metadata?.lastOpenedAt
+        ? new Date(a.metadata.lastOpenedAt).getTime()
+        : 0;
+      const bTime = b.metadata?.lastOpenedAt
+        ? new Date(b.metadata.lastOpenedAt).getTime()
+        : 0;
+
+      return bTime - aTime;
+    });
+  }
 
   // Was IndexedDB-only (a leftover from before the catalogue was refactored
   // to read from the backend, below) — it deleted the local cache entry but
@@ -1099,8 +1175,14 @@ export default function ProjectHubPage() {
       <ProjectHubToolbar
         search={search}
         setSearch={setSearch}
-        accessFilter={accessFilter}
-        setAccessFilter={setAccessFilter}
+        workspaces={workspaces}
+        workspaceFilter={workspaceFilter}
+        setWorkspaceFilter={setWorkspaceFilter}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        classrooms={allClassrooms}
+        classroomFilter={classroomFilter}
+        setClassroomFilter={setClassroomFilter}
         onClearLocalDb={() => {
           setIsClearConfirmOpen(true);
         }}

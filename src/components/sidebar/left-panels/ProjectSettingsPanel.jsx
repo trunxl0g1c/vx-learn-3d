@@ -421,7 +421,7 @@ export default function ProjectSettingsPanel({
           />
         </div>
 
-        <div className="flex items-center justify-between">
+        {/* <div className="flex items-center justify-between">
           <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
@@ -435,7 +435,7 @@ export default function ProjectSettingsPanel({
               }))
             }
           />
-        </div>
+        </div> */}
 
         <div className="flex items-center justify-between">
           <div>
@@ -443,8 +443,7 @@ export default function ProjectSettingsPanel({
               Public
             </span>
             <span className="block text-xs text-contrast-grayout/70 max-w-62.5">
-              Required before this content can be shared to another workspace
-              or assigned to a classroom (it also needs to be Published).
+              Required before this content can be shared <br /> to other.
             </span>
           </div>
 
@@ -709,21 +708,20 @@ export default function ProjectSettingsPanel({
               />
             </div>
 
-
             <div className="border-t border-white/10 pt-4">
-              <button
+              <Button
                 type="button"
                 onClick={handleSaveDefaultPlayerCameraViewAndState}
-                className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-secondary-default text-sm font-bold text-white transition hover:bg-secondary-default hover:text-primary"
+                className="text-xs w-full"
               >
                 <Camera className="size-4" />
                 {playerSettings.defaultCameraView ||
-                  playerSettings.defaultVisualState
+                playerSettings.defaultVisualState
                   ? "Update Default Camera View and State"
                   : "Save Default Camera View and State"}
-              </button>
+              </Button>
 
-              <p className="mt-2 text-xs leading-5 text-contrast-grayout">
+              <p className="mt-2 text-[11px] leading-5 text-contrast-grayout">
                 Default camera dan state otomatis disimpan saat project pertama
                 kali dibuka. Tombol ini memperbaruinya dengan kondisi viewport
                 Editor saat ini untuk tampilan awal Editor maupun Player.
@@ -731,7 +729,7 @@ export default function ProjectSettingsPanel({
             </div>
 
             <div className="border-t border-white/10 pt-4">
-              <div className="mb-4 text-xs font-bold uppercase tracking-wide text-contrast-grayout">
+              <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-contrast-grayout">
                 Player Menu
               </div>
 

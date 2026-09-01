@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import MaterialIcon from "../../ui/material-icon";
 import Button from "../../ui/button";
+import ConfirmationDialog from "../../dialog/ConfirmationDialog";
 import { validateGlbFile } from "../../../utils/glbValidator";
 
 function formatFileSize(bytes = 0) {
@@ -26,31 +28,42 @@ function ValidationResult({ entry }) {
       <div className="flex items-start gap-3">
         <MaterialIcon
           name={valid ? "check_circle" : "cancel"}
-          fill
-          className={valid ? "size-5 text-emerald-300" : "size-5 text-red-300"}
+          size={20}
+          className={valid ? "text-emerald-300" : "text-red-300"}
         />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold text-white" title={entry.file?.name}>
-            {entry.file?.name || "model.glb"}
-          </div>
-          <div className="mt-1 text-[11px] text-contrast-grayout">
-            {formatFileSize(entry.file?.size)}
+          <div
+            className="truncate text-sm font-normal text-white uppercase"
+            title={entry.file?.name}
+          >
+            {entry.file?.name || "model.glb"}{" "}
+            <span className="text-contrast-grayout">
+              ({formatFileSize(entry.file?.size)})
+            </span>
           </div>
 
           {result?.info && (
-            <div className="mt-2 text-[11px] leading-5 text-white/75">
-              Meshes: {result.info.meshes} · Materials: {result.info.materials} · Textures: {result.info.textures} · Animations: {result.info.animations}
+            <div className="mt-1 text-[11px] leading-5 text-white/75">
+              Meshes: {result.info.meshes} · Materials: {result.info.materials}{" "}
+              · Textures: {result.info.textures} · Animations:{" "}
+              {result.info.animations}
             </div>
           )}
 
           {result?.warnings?.map((warning, index) => (
-            <div key={`warning-${index}`} className="mt-1 text-[11px] leading-5 text-amber-200">
+            <div
+              key={`warning-${index}`}
+              className="mt-1 text-[11px] leading-5 text-amber-200"
+            >
               ⚠ {warning}
             </div>
           ))}
 
           {result?.errors?.map((message, index) => (
-            <div key={`error-${index}`} className="mt-1 text-[11px] leading-5 text-red-200">
+            <div
+              key={`error-${index}`}
+              className="mt-1 text-[11px] leading-5 text-red-200"
+            >
               ✕ {message}
             </div>
           ))}
@@ -74,6 +87,10 @@ export default function AddMoreGlbPanel({
   const [pendingFiles, setPendingFiles] = useState([]);
   const [validationEntries, setValidationEntries] = useState([]);
   const [confirmError, setConfirmError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const [uploadingFileName, setUploadingFileName] = useState("");
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [removing, setRemoving] = useState(false);
 
   const allValid = useMemo(
     () =>
@@ -91,6 +108,8 @@ export default function AddMoreGlbPanel({
     setPendingFiles([]);
     setValidationEntries([]);
     setConfirmError("");
+    setUploadProgress(null);
+    setUploadingFileName("");
   };
 
   const handleFiles = async (event) => {
@@ -135,13 +154,34 @@ export default function AddMoreGlbPanel({
 
     setBusy(true);
     setConfirmError("");
+    setUploadProgress(null);
+    setUploadingFileName("");
     try {
-      await onAddFiles?.(pendingFiles);
+      await onAddFiles?.(pendingFiles, {
+        onProgress: ({ fileName, percent }) => {
+          setUploadProgress(percent);
+          setUploadingFileName(fileName || "");
+        },
+      });
       closeValidation();
     } catch (nextError) {
       setConfirmError(nextError?.message || "Failed to add GLB.");
     } finally {
       setBusy(false);
+      setUploadProgress(null);
+      setUploadingFileName("");
+    }
+  };
+
+  const confirmRemoveModel = async () => {
+    if (!removeTarget || removing) return;
+
+    setRemoving(true);
+    try {
+      await onRemoveModel?.(removeTarget.id);
+      setRemoveTarget(null);
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -152,24 +192,27 @@ export default function AddMoreGlbPanel({
           <button
             type="button"
             onClick={onBack}
-            className="grid size-9 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
+            className="cursor-pointer grid size-9 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
             title="Back to Pro Tools"
           >
-            <MaterialIcon name="arrow_back" className="size-5" />
+            <MaterialIcon name="chevron_backward" size={25} />
           </button>
           <div className="text-lg font-normal text-white">Add More GLB</div>
         </div>
 
         <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="rounded-xl border border-secondary-default/70 bg-[#171b1b] p-4">
+          <div className="rounded-xl border border-accent-main/70 bg-[#171b1b] p-4">
             <div className="mb-3 flex items-start gap-3">
-              <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-accent-main/50 bg-accent-main/10 text-secondary-default">
+              <div className="grid size-10 shrink-0 place-items-center rounded-xl border border-accent-main/50 bg-accent-main/10 text-accent-main">
                 <MaterialIcon name="deployed_code" fill className="size-6" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">Additional GLB Models</p>
+                <p className="text-sm font-normal text-white">
+                  Additional GLB Models
+                </p>
                 <p className="mt-1 text-xs leading-5 text-contrast-grayout">
-                  Choose GLB files first. Viqubed validates them before you can confirm adding them to the scene.
+                  Choose GLB files first. Viqubed validates them before you can
+                  confirm adding them to the scene.
                 </p>
               </div>
             </div>
@@ -184,14 +227,14 @@ export default function AddMoreGlbPanel({
             />
 
             <Button
+              size="sm"
               type="button"
-              variant="outline"
               disabled={busy || validating}
               onClick={() => inputRef.current?.click()}
-              className="w-full border-secondary-default!"
+              className="w-full"
             >
-              <MaterialIcon name="add" className="mr-2 size-5" />
               Add GLB
+              <MaterialIcon name="add" size={20} />
             </Button>
 
             {error && (
@@ -201,9 +244,9 @@ export default function AddMoreGlbPanel({
             )}
           </div>
 
-          <div className="mt-4 rounded-xl border border-secondary-default/70 bg-[#171b1b] p-4">
+          <div className="mt-4 rounded-xl border border-accent-main/70 bg-[#171b1b] p-4">
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-white">Added Models</div>
+              <div className="text-sm font-normal text-white">Added Models</div>
               <div className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-contrast-grayout">
                 {models.length}
               </div>
@@ -220,25 +263,29 @@ export default function AddMoreGlbPanel({
                     key={model.id}
                     className="flex items-center gap-3 rounded-lg border border-white/10 bg-primary/40 p-3"
                   >
-                    <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-secondary-default/40 text-secondary-default">
-                      <MaterialIcon name="view_in_ar" className="size-5" />
+                    <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-accent-main/40 text-accent-main">
+                      <MaterialIcon name="view_in_ar" size={20} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-semibold text-white" title={model.fileName || model.name}>
+                      <div
+                        className="truncate text-xs font-normal text-white uppercase"
+                        title={model.fileName || model.name}
+                      >
                         {model.fileName || model.name || "Additional model.glb"}
                       </div>
-                      <div className="mt-1 text-[11px] text-contrast-grayout">
+                      <div className="text-xs text-contrast-grayout">
                         {formatFileSize(model.fileSize || model.size)}
                       </div>
                     </div>
-                    <button
+                    <Button
+                      size="xs"
                       type="button"
-                      onClick={() => onRemoveModel?.(model.id)}
-                      className="grid size-8 shrink-0 place-items-center rounded-lg text-contrast-grayout transition hover:bg-red-500/10 hover:text-red-300"
+                      variant="destructive"
+                      onClick={() => setRemoveTarget(model)}
                       title="Remove GLB"
                     >
-                      <MaterialIcon name="delete" className="size-5" />
-                    </button>
+                      <MaterialIcon name="delete" size={20} />
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -247,90 +294,146 @@ export default function AddMoreGlbPanel({
         </div>
       </div>
 
-      {validationOpen && (
-        <div className="fixed inset-0 z-[1200] grid place-items-center bg-black/55 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-divider-main bg-[#151d1d] text-white shadow-[0_24px_70px_rgba(0,0,0,0.6)]">
-            <div className="flex min-h-16 items-center justify-between bg-dark-alpha px-5">
-              <div>
-                <div className="text-base font-medium">Validate Additional GLB</div>
-                <div className="mt-0.5 text-xs text-contrast-grayout">
-                  GLB must pass validation before it can be added.
-                </div>
-              </div>
-              {!busy && (
-                <button
-                  type="button"
-                  onClick={closeValidation}
-                  className="grid size-9 place-items-center rounded-lg text-secondary-default transition hover:bg-white/5"
-                  aria-label="Close validation"
-                >
-                  <MaterialIcon name="close" className="size-5" />
-                </button>
-              )}
-            </div>
-
-            <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-5">
-              {validating ? (
-                <div className="flex min-h-36 items-center justify-center rounded-xl border border-secondary-default/35 bg-white/[0.03] text-sm text-secondary-default">
-                  <MaterialIcon name="hourglass_top" className="mr-2 size-5 animate-pulse" />
-                  Checking GLB...
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div
-                    className={[
-                      "rounded-xl border px-4 py-3 text-sm",
-                      allValid
-                        ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
-                        : "border-red-400/40 bg-red-500/10 text-red-200",
-                    ].join(" ")}
-                  >
-                    {allValid
-                      ? "GLB is compatible. Confirm to add it to this project."
-                      : "GLB has issues. Cancel and choose a corrected GLB file."}
+      {validationOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-[1200] grid place-items-center bg-black/55 p-4 backdrop-blur-sm">
+            <div className="flex max-h-[82vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[20px] border border-divider-main bg-[#151d1d] text-white shadow-[0_24px_70px_rgba(0,0,0,0.6)]">
+              <div className="flex min-h-16 items-center justify-between bg-dark-alpha px-5">
+                <div>
+                  <div className="text-base font-normal">
+                    Validate Additional GLB
                   </div>
-
-                  {validationEntries.map((entry, index) => (
-                    <ValidationResult key={`${entry.file?.name || "glb"}-${index}`} entry={entry} />
-                  ))}
-
-                  {confirmError && (
-                    <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-                      {confirmError}
-                    </div>
-                  )}
+                  <div className="mt-0.5 text-xs text-contrast-grayout">
+                    GLB must pass validation before it can be added.
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <div className="border-t border-divider-main px-5 py-4">
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={closeValidation}
-                  className="flex-1 rounded-xl tracking-[2px]"
-                >
-                  CANCEL
-                </Button>
-
-                {allValid && (
-                  <Button
+                {!busy && (
+                  <button
                     type="button"
-                    variant="gold"
-                    disabled={busy}
-                    onClick={confirmAddFiles}
-                    className="flex-1 rounded-xl tracking-[2px]"
+                    onClick={closeValidation}
+                    className="cursor-pointer grid size-9 place-items-center rounded-lg text-secondary-default transition hover:bg-white/5"
+                    aria-label="Close validation"
                   >
-                    {busy ? "ADDING..." : "CONFIRM"}
-                  </Button>
+                    <MaterialIcon name="close" size={25} />
+                  </button>
                 )}
               </div>
+
+              <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-5">
+                {validating ? (
+                  <div className="flex min-h-36 items-center justify-center rounded-xl border border-secondary-default/35 bg-white/[0.03] text-sm text-secondary-default">
+                    <MaterialIcon
+                      name="hourglass_top"
+                      className="mr-2 size-5 animate-pulse"
+                    />
+                    Checking GLB...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div
+                      className={[
+                        "rounded-xl border px-4 py-3 text-sm",
+                        allValid
+                          ? "border-emerald-400/40 bg-emerald-500/10 text-emerald-200"
+                          : "border-red-400/40 bg-red-500/10 text-red-200",
+                      ].join(" ")}
+                    >
+                      {allValid
+                        ? "GLB is compatible. Confirm to add it to this project."
+                        : "GLB has issues. Cancel and choose a corrected GLB file."}
+                    </div>
+
+                    {validationEntries.map((entry, index) => (
+                      <ValidationResult
+                        key={`${entry.file?.name || "glb"}-${index}`}
+                        entry={entry}
+                      />
+                    ))}
+
+                    {confirmError && (
+                      <div className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                        {confirmError}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-t border-divider-main px-5 py-4">
+                {busy && (
+                  <div className="mb-3">
+                    <div className="mb-1.5 flex items-center justify-between text-[11px] text-contrast-grayout">
+                      <span className="truncate">
+                        {uploadProgress !== null
+                          ? `Uploading ${uploadingFileName || "GLB"} to workspace storage...`
+                          : "Saving GLB..."}
+                      </span>
+                      {uploadProgress !== null && (
+                        <span className="shrink-0 pl-2 text-white">
+                          {uploadProgress}%
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-black/40">
+                      <div
+                        className={[
+                          "h-full rounded-full bg-accent-main transition-all duration-300",
+                          uploadProgress === null
+                            ? "animate-[vx-global-loading-slide_1.1s_infinite_ease-in-out]"
+                            : "",
+                        ].join(" ")}
+                        style={{
+                          width:
+                            uploadProgress === null
+                              ? "45%"
+                              : `${uploadProgress}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={closeValidation}
+                    className="flex-1 rounded-xl tracking-[2px]"
+                  >
+                    CANCEL
+                  </Button>
+
+                  {allValid && (
+                    <Button
+                      type="button"
+                      variant="gold"
+                      disabled={busy}
+                      onClick={confirmAddFiles}
+                      className="flex-1 rounded-xl tracking-[2px]"
+                    >
+                      {busy ? "ADDING..." : "CONFIRM"}
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
+
+      <ConfirmationDialog
+        open={Boolean(removeTarget)}
+        title="Remove GLB from Project?"
+        message={`Remove "${removeTarget?.fileName || removeTarget?.name || "this GLB"}" from the project?`}
+        description="The additional GLB file and its 3D License data will be removed from the project. This cannot be undone."
+        confirmText="Remove GLB"
+        isLoading={removing}
+        onClose={() => {
+          if (!removing) setRemoveTarget(null);
+        }}
+        onConfirm={confirmRemoveModel}
+      />
     </>
   );
 }

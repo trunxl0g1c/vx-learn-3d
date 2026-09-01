@@ -1,3 +1,4 @@
+import Button from "../../../ui/button";
 import MaterialIcon from "../../../ui/material-icon";
 import { Section } from "./PanelPrimitives";
 
@@ -38,14 +39,16 @@ export default function ProcedureInfoSection({ procedural, procedure }) {
         </label>
 
         <div className="border-t border-divider-main pt-3">
-          <button
+          <Button
+            size="sm"
             type="button"
+            variant="destructive"
             onClick={() => procedural.deleteProcedure(procedure.id)}
-            className="flex items-center gap-2 text-xs text-red-300 transition hover:text-red-200"
+            className="w-full"
           >
-            <MaterialIcon name="delete_forever" className="size-5" />
+            <MaterialIcon name="delete_forever" size={20} />
             Delete Procedure
-          </button>
+          </Button>
         </div>
       </div>
     </Section>
