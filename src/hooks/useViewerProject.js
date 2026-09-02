@@ -32,6 +32,7 @@ import {
   getAdditionalProjectModelFileFromIndexedDb,
   saveAdditionalProjectModelFile,
   getProjectFromIndexedDb,
+  updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
 import {
   isLazyMaterialRecord,
@@ -841,6 +842,51 @@ export function useViewerProject({
     [projectId, removeAdditionalModelFile, updateMaterialState],
   );
 
+  // Project-level gallery media (ProjectSettingsPanel's "Media" section)
+  // lives as base64 in material.media and only reaches workspace storage
+  // once syncProjectToBackend runs, at which point its remote media id is
+  // tracked separately in the project's IndexedDb record (remote.mediaIds,
+  // keyed by local media id) rather than on the media item itself — see
+  // syncProjectMedia in projectSync.js. So unlike handleRemoveAdditionalGlb
+  // (whose remoteMediaId sits right on the model), this has to look the id
+  // up in IndexedDb before it can ask the backend to delete the file.
+  const handleRemoveProjectMedia = useCallback(
+    async (mediaId) => {
+      if (!mediaId) return false;
+
+      updateMaterialState((current) => ({
+        ...current,
+        media: (current?.media || []).filter((item) => item?.id !== mediaId),
+      }));
+
+      if (!projectId || projectId === "demo") return true;
+
+      const storedProject = await getProjectFromIndexedDb(projectId, {
+        mode: "summary",
+      }).catch(() => null);
+      const remoteMediaIds = storedProject?.remote?.mediaIds;
+      const remoteMediaId = remoteMediaIds?.[mediaId];
+
+      if (remoteMediaId) {
+        deleteContentMediaRequest({ id: remoteMediaId }).catch((error) => {
+          console.warn(
+            `Failed to remove project media from workspace storage (media ${remoteMediaId}).`,
+            error,
+          );
+        });
+
+        const nextMediaIds = { ...remoteMediaIds };
+        delete nextMediaIds[mediaId];
+        updateProjectInIndexedDb(projectId, {
+          remote: { ...storedProject.remote, mediaIds: nextMediaIds },
+        }).catch(() => {});
+      }
+
+      return true;
+    },
+    [projectId, updateMaterialState],
+  );
+
   const modelLicenseModels = useMemo(
     () =>
       createModelLicenseCatalog({
@@ -958,5 +1004,6 @@ export function useViewerProject({
     handleFile,
     handleAddAdditionalGlbFiles,
     handleRemoveAdditionalGlb,
+    handleRemoveProjectMedia,
   };
 }

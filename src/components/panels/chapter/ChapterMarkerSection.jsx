@@ -110,13 +110,13 @@ export default function ChapterMarkerSection({
             onClick={handleAddMarker}
             className="gap-2 text-white bg-dark-alpha rounded-lg!"
           >
+            Add New Marker
             <MaterialIcon
               name="add"
               fill={0}
               size={22}
               className="text-secondary-default"
             />
-            Add New Marker
           </Button>
         </>
       )}

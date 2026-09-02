@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Button, { cn } from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
+import { stripForceLanguageMarkup } from "../../../engine/speech";
 
 export default function SlideListPanel({ slideAuthoring }) {
   const slides = slideAuthoring?.slides || [];
@@ -146,109 +147,114 @@ export default function SlideListPanel({ slideAuthoring }) {
         Slide
       </div>
 
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto pb-10">
-        <div className="m-3 rounded-2xl bg-dark-alpha p-3">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="m-3 shrink-0 rounded-2xl bg-dark-alpha p-3">
           <Button
             size="sm"
             type="button"
             onClick={slideAuthoring?.createSlide}
             className="w-full gap-2"
           >
-            <MaterialIcon name="add" size={18} />
             Create New Slide
+            <MaterialIcon name="add" size={18} />
           </Button>
           <p className="mt-2 text-[11px] leading-4 text-contrast-grayout">
             Slide dapat dibuat langsung tanpa menghubungkannya ke object 3D.
           </p>
         </div>
 
-        {slides.length === 0 ? (
-          <div className="mx-4 rounded-xl border border-dashed border-divider-main p-4 text-sm leading-5 text-contrast-grayout">
-            Belum ada slide. Pilih Create New Slide untuk mulai membuat materi.
-          </div>
-        ) : (
-          slides.map((slide, index) => {
-            const active = slide.id === activeSlideId;
-            const isDragging = draggingSlideId === slide.id;
-            const showDropBefore =
-              dropTarget?.slideId === slide.id &&
-              dropTarget.placement === "before";
-            const showDropAfter =
-              dropTarget?.slideId === slide.id &&
-              dropTarget.placement === "after";
+        <div className="sidebar-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pb-10">
+          {slides.length === 0 ? (
+            <div className="mx-4 rounded-xl border border-dashed border-divider-main p-4 text-sm leading-5 text-contrast-grayout">
+              Belum ada slide. Pilih Create New Slide untuk mulai membuat
+              materi.
+            </div>
+          ) : (
+            slides.map((slide, index) => {
+              const active = slide.id === activeSlideId;
+              const isDragging = draggingSlideId === slide.id;
+              const showDropBefore =
+                dropTarget?.slideId === slide.id &&
+                dropTarget.placement === "before";
+              const showDropAfter =
+                dropTarget?.slideId === slide.id &&
+                dropTarget.placement === "after";
 
-            return (
-              <div
-                key={slide.id}
-                data-slide-list-id={slide.id}
-                className="relative mx-4 mb-3"
-              >
-                {showDropBefore && (
-                  <div className="pointer-events-none absolute -top-1.5 left-2 right-2 z-10 h-0.5 rounded-full bg-secondary-default shadow-[0_0_8px_rgba(86,205,223,0.75)]" />
-                )}
-
+              return (
                 <div
-                  data-slide-list-card
-                  className={cn(
-                    "flex overflow-hidden rounded-lg border border-contrast-grayout bg-dark-alpha transition",
-                    "hover:border-secondary-default hover:bg-primary/50",
-                    active && "border-accent-main! bg-primary",
-                    isDragging && "border-dashed opacity-20",
-                  )}
+                  key={slide.id}
+                  data-slide-list-id={slide.id}
+                  className="relative mx-4 mb-3"
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (draggingSlideId) return;
-                      slideAuthoring?.previewSlide?.(slide.id);
-                    }}
-                    className="cursor-pointer flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
-                    title={`Edit ${slide.title || `Slide ${index + 1}`}`}
-                  >
-                    <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-divider-main bg-primary text-secondary-default">
-                      <MaterialIcon name="menu_book" size={18} />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={`block truncate text-sm ${active ? "text-white" : "text-white/80"}`}
-                      >
-                        {slide.title || `Slide ${index + 1}`}
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-grayout-main">
-                        {slide.description || "No description"}
-                      </span>
-                    </span>
-                    <MaterialIcon
-                      name="edit_square"
-                      size={18}
-                      className={
-                        active
-                          ? "text-accent-main shrink-0"
-                          : "text-contrast-grayout shrink-0"
-                      }
-                    />
-                  </button>
+                  {showDropBefore && (
+                    <div className="pointer-events-none absolute -top-1.5 left-2 right-2 z-10 h-0.5 rounded-full bg-secondary-default shadow-[0_0_8px_rgba(86,205,223,0.75)]" />
+                  )}
 
-                  <div className="flex w-10 shrink-0 items-center justify-center border-l border-divider-main">
+                  <div
+                    data-slide-list-card
+                    className={cn(
+                      "flex overflow-hidden rounded-lg border border-contrast-grayout bg-dark-alpha transition",
+                      "hover:border-secondary-default hover:bg-primary/50",
+                      active && "border-accent-main! bg-primary",
+                      isDragging && "border-dashed opacity-20",
+                    )}
+                  >
                     <button
                       type="button"
-                      onPointerDown={(event) => startDrag(event, slide)}
-                      title={`Drag slide ${index + 1} to reorder`}
-                      aria-label={`Drag slide ${index + 1} to reorder`}
-                      className={`grid size-8 touch-none cursor-grab place-items-center rounded-md ${active ? "text-accent-main" : "text-contrast-grayout"} transition hover:bg-white/10 active:cursor-grabbing`}
+                      onClick={() => {
+                        if (draggingSlideId) return;
+                        slideAuthoring?.previewSlide?.(slide.id);
+                      }}
+                      className="cursor-pointer flex min-w-0 flex-1 items-center gap-3 p-3 text-left"
+                      title={`Edit ${slide.title || `Slide ${index + 1}`}`}
                     >
-                      <MaterialIcon name="drag_indicator" size={21} />
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-divider-main bg-primary text-secondary-default">
+                        <MaterialIcon name="menu_book" size={18} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={`block truncate text-sm ${active ? "text-white" : "text-white/80"}`}
+                        >
+                          {slide.title || `Slide ${index + 1}`}
+                        </span>
+                        <span className="mt-1 block truncate text-xs text-grayout-main">
+                          {slide.description
+                            ? stripForceLanguageMarkup(slide.description)
+                            : "No description"}
+                        </span>
+                      </span>
+                      <MaterialIcon
+                        name="edit_square"
+                        size={18}
+                        className={
+                          active
+                            ? "text-accent-main shrink-0"
+                            : "text-contrast-grayout shrink-0"
+                        }
+                      />
                     </button>
-                  </div>
-                </div>
 
-                {showDropAfter && (
-                  <div className="pointer-events-none absolute -bottom-1.5 left-2 right-2 z-10 h-0.5 rounded-full bg-secondary-default shadow-[0_0_8px_rgba(86,205,223,0.75)]" />
-                )}
-              </div>
-            );
-          })
-        )}
+                    <div className="flex w-10 shrink-0 items-center justify-center border-l border-divider-main">
+                      <button
+                        type="button"
+                        onPointerDown={(event) => startDrag(event, slide)}
+                        title={`Drag slide ${index + 1} to reorder`}
+                        aria-label={`Drag slide ${index + 1} to reorder`}
+                        className={`grid size-8 touch-none cursor-grab place-items-center rounded-md ${active ? "text-accent-main" : "text-contrast-grayout"} transition hover:bg-white/10 active:cursor-grabbing`}
+                      >
+                        <MaterialIcon name="drag_indicator" size={21} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {showDropAfter && (
+                    <div className="pointer-events-none absolute -bottom-1.5 left-2 right-2 z-10 h-0.5 rounded-full bg-secondary-default shadow-[0_0_8px_rgba(86,205,223,0.75)]" />
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
       {dragPreview &&

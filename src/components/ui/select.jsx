@@ -12,7 +12,7 @@ export default function SelectField({
   return (
     <div className={`relative w-full ${className}`}>
       <select
-        value={value}
+        value={value ?? ""}
         disabled={disabled}
         onChange={(e) => onChange?.(e.target.value)}
         className={`h-[46px] w-full cursor-pointer appearance-none rounded-lg border border-accent-main bg-transparent px-3 pr-10 text-sm font-normal text-white outline-none focus:ring-1 focus:ring-accent-main disabled:cursor-not-allowed disabled:opacity-50 ${className}`}

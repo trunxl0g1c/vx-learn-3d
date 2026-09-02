@@ -1,8 +1,12 @@
+import { useState } from "react";
 import Button from "../../../ui/button";
 import MaterialIcon from "../../../ui/material-icon";
+import ConfirmationDialog from "../../../dialog/ConfirmationDialog";
 import { Section } from "./PanelPrimitives";
 
 export default function ProcedureInfoSection({ procedural, procedure }) {
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
   return (
     <Section title="Procedure Information">
       <div className="space-y-3">
@@ -43,7 +47,7 @@ export default function ProcedureInfoSection({ procedural, procedure }) {
             size="sm"
             type="button"
             variant="destructive"
-            onClick={() => procedural.deleteProcedure(procedure.id)}
+            onClick={() => setConfirmDeleteOpen(true)}
             className="w-full"
           >
             <MaterialIcon name="delete_forever" size={20} />
@@ -51,6 +55,19 @@ export default function ProcedureInfoSection({ procedural, procedure }) {
           </Button>
         </div>
       </div>
+
+      <ConfirmationDialog
+        open={confirmDeleteOpen}
+        title="Delete Procedure?"
+        message={`Delete "${procedure.name || "this procedure"}"?`}
+        description="All of its steps and settings will be removed. This action cannot be undone."
+        confirmText="Delete Procedure"
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => {
+          procedural.deleteProcedure(procedure.id);
+          setConfirmDeleteOpen(false);
+        }}
+      />
     </Section>
   );
 }

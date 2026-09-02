@@ -601,6 +601,7 @@ export default function PlayerPage() {
           onOpenMedia={setActiveMedia}
           onPlayVoice={player.chapterPanel.speakChapterDescription}
           onStopVoice={player.chapterPanel.stopSpeaking}
+          isPlayingVoice={player.chapterPanel.isSpeaking}
           onPlayAnimations={player.chapterPanel.playChapterAnimations}
           onStopAnimations={player.chapterPanel.stopChapterAnimations}
           chapterFlowAssignments={
@@ -630,6 +631,7 @@ export default function PlayerPage() {
           onOpenMedia={setActiveMedia}
           onPlayVoice={player.slidePanel.speakDescription}
           onStopVoice={player.slidePanel.stopSpeaking}
+          isPlayingVoice={player.slidePanel.isSpeaking}
           onPlayAnimations={player.slidePanel.playAnimations}
           onStopAnimations={player.slidePanel.stopAnimations}
           chapterFlowAssignments={player.slidePanel.flowAssignments}
@@ -640,6 +642,7 @@ export default function PlayerPage() {
           onPlayChapterFlow={player.slidePanel.playFlow}
           onStopChapterFlows={player.slidePanel.stopFlows}
           chapters={player.slidePanel.slides}
+          richTextDescription
         />
       )}
 

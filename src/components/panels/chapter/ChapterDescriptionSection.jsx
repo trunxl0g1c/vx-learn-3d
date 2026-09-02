@@ -1,6 +1,7 @@
 export default function ChapterDescriptionSection({
   chapter,
   updateChapterField,
+  showRichTextHint = false,
 }) {
   const descriptionLength = chapter.description?.length || 0;
 
@@ -26,6 +27,20 @@ export default function ChapterDescriptionSection({
           {descriptionLength}/850
         </span>
       </div>
+
+      {showRichTextHint && (
+        <p className="text-[11px] leading-4 text-contrast-grayout">
+          Tips: bungkus kata dengan{" "}
+          <code className="rounded bg-dark-alpha px-1 py-0.5 text-secondary-default">
+            {"//kata//"}
+          </code>{" "}
+          agar tetap dibaca dalam Bahasa Inggris saat Play Voice, contoh{" "}
+          <code className="rounded bg-dark-alpha px-1 py-0.5 text-secondary-default">
+            {"//main//"}
+          </code>
+          .
+        </p>
+      )}
     </section>
   );
 }

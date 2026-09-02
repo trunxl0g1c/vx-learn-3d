@@ -16,6 +16,7 @@ const variants = {
   gold: "bg-[#b9a15a] text-white border-transparent hover:bg-[#c5ad64]",
   darkOutline: "bg-[#111b1d] text-white border-[#6f7f86] hover:bg-white/10",
   destructive: "border-red-500/40 text-red-300 hover:bg-red-500/10",
+  ghost: "bg-transparent text-white border-transparent hover:bg-white/10",
 
   // layouts
   sidebar:
@@ -23,6 +24,7 @@ const variants = {
 };
 
 const sizes = {
+  icon: "h-8 w-8 rounded-lg p-1",
   xs: "h-8 px-3 text-xs rounded-lg gap-1.5",
   sm: "h-9 px-4 text-sm rounded-lg gap-2",
   md: "h-11 px-6 text-base rounded-lg gap-2.5",

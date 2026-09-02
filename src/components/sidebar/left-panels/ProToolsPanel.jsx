@@ -10,7 +10,7 @@ const PRO_TOOLS = [
   {
     id: "add-more-glb",
     label: "Add More GLB",
-    description: "Load more GLB models into the current project scene.",
+    description: "Load more GLB models into the current project.",
     icon: "deployed_code",
   },
   {
@@ -108,97 +108,98 @@ export default function ProToolsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-[#14201f] px-4 text-lg font-normal">
-        Pro
+      <div className="flex-col sticky top-0 z-10 flex h-16 shrink-0 items-start pt-2 bg-[#14201f] px-4 text-lg font-normal">
+        Pro Tools
+        <p className="text-xs text-contrast-grayout">
+          Advanced authoring workspace
+        </p>
       </div>
 
       <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto p-4">
-        <div className="rounded-xl border border-accent-main/70 bg-[#171b1b] p-4">
-          <div className="mb-4 flex items-center gap-3">
+        <div className="hidden rounded-xl border border-accent-main/70 bg-[#171b1b] p-4">
+          {/* <div className="mb-4 flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-xl border border-accent-main/50 bg-accent-main/10 text-accent-main">
               <MaterialIcon name="workspace_premium" fill className="size-6" />
             </div>
             <div>
               <p className="text-sm font-normal text-white">Pro Tools</p>
-              <p className="text-xs text-contrast-grayout">
-                Advanced authoring workspace
-              </p>
             </div>
-          </div>
+          </div> */}
+        </div>
 
-          <div className="space-y-3">
-            {PRO_TOOLS.map((tool) => {
-              const active = activeTool === tool.id;
-              const enabled = isProToolEnabled(
-                proToolsSettings,
-                tool.id,
-                licenseFlowEnabled,
-              );
+        <div className="space-y-3">
+          {PRO_TOOLS.map((tool) => {
+            const active = activeTool === tool.id;
+            const enabled = isProToolEnabled(
+              proToolsSettings,
+              tool.id,
+              licenseFlowEnabled,
+            );
 
-              return (
-                <button
-                  key={tool.id}
-                  type="button"
-                  disabled={!enabled}
-                  title={
-                    enabled
-                      ? undefined
-                      : "Requires Pro Tools on your license — contact your administrator"
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                disabled={!enabled}
+                title={
+                  enabled
+                    ? undefined
+                    : "Requires Pro Tools on your license — contact your administrator"
+                }
+                onClick={() => {
+                  flow?.stopAuthoring?.();
+                  procedural?.stopAuthoring?.();
+                  animationAuthoring?.stopAuthoring?.();
+                  quizAuthoring?.stopAuthoring?.();
+                  xrAuthoring?.stopAuthoring?.();
+
+                  if (tool.id === "flow") flow?.beginAuthoring?.();
+                  if (tool.id === "procedural") procedural?.beginAuthoring?.();
+                  if (tool.id === "animation-creation") {
+                    animationAuthoring?.beginAuthoring?.();
                   }
-                  onClick={() => {
-                    flow?.stopAuthoring?.();
-                    procedural?.stopAuthoring?.();
-                    animationAuthoring?.stopAuthoring?.();
-                    quizAuthoring?.stopAuthoring?.();
-                    xrAuthoring?.stopAuthoring?.();
+                  if (tool.id === "quiz") quizAuthoring?.beginAuthoring?.();
+                  if (tool.id === "xr") xrAuthoring?.beginAuthoring?.();
 
-                    if (tool.id === "flow") flow?.beginAuthoring?.();
-                    if (tool.id === "procedural") procedural?.beginAuthoring?.();
-                    if (tool.id === "animation-creation") {
-                      animationAuthoring?.beginAuthoring?.();
-                    }
-                    if (tool.id === "quiz") quizAuthoring?.beginAuthoring?.();
-                    if (tool.id === "xr") xrAuthoring?.beginAuthoring?.();
-
-                    setActiveTool(
-                      ["animation-creation", "quiz", "xr"].includes(tool.id)
-                        ? null
-                        : tool.id,
-                    );
-                  }}
-                  className={[
-                    "cursor-pointer flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
-                    "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-accent-main/50 disabled:hover:bg-primary/40",
-                    active
-                      ? "border-accent-main bg-accent-main/15"
-                      : "border-accent-main/50 bg-primary/40 hover:border-accent-main hover:bg-white/5",
-                  ].join(" ")}
-                >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-accent-main/50 text-accent-main">
-                    <MaterialIcon
-                      name={tool.icon}
-                      fill={tool.id === "animation-creation" ? 0 : 1}
-                      className="size-6"
-                    />
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-normal text-white">
-                      {tool.label}
-                    </span>
-                    <span className="mt-1 block text-xs leading-4 text-contrast-grayout">
-                      {tool.description}
-                    </span>
-                  </span>
-
+                  setActiveTool(
+                    ["animation-creation", "quiz", "xr"].includes(tool.id)
+                      ? null
+                      : tool.id,
+                  );
+                }}
+                className={[
+                  "cursor-pointer flex w-full items-center gap-3 rounded-xl border p-3 text-left transition",
+                  "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-accent-main/50 disabled:hover:bg-primary/40",
+                  active
+                    ? "border-accent-main bg-accent-main/15"
+                    : "border-accent-main/50 bg-primary/40 hover:border-accent-main hover:bg-white/5",
+                ].join(" ")}
+              >
+                <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-accent-main/50 text-accent-main">
                   <MaterialIcon
-                    name="arrow_forward_ios"
-                    className="size-4 shrink-0 text-accent-main"
+                    name={tool.icon}
+                    fill={tool.id === "animation-creation" ? 0 : 1}
+                    className="size-6"
                   />
-                </button>
-              );
-            })}
-          </div>
+                </span>
+
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-normal text-white">
+                    {tool.label}
+                  </span>
+                  <span className="mt-1 block text-xs leading-4 text-contrast-grayout">
+                    {tool.description}
+                  </span>
+                </span>
+
+                <MaterialIcon
+                  name="arrow_forward_ios"
+                  size={20}
+                  className="shrink-0 text-accent-main"
+                />
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>

@@ -23,7 +23,10 @@ import Switch from "../../../components/ui/switch";
 import AnimationTab from "../../../components/panels/right-tabs/AnimationTab";
 import VisualTab from "../../../components/panels/right-tabs/VisualTab";
 import PlayerChapterPlaybackSection from "../../../components/player/PlayerChapterPlaybackSection";
-import PlayerProjectSlideList from "../../../components/player/PlayerProjectSlideList";
+import PlayerProjectSlideList, {
+  PlayerProjectSlideListHeader,
+} from "../../../components/player/PlayerProjectSlideList";
+import { stripForceLanguageMarkup } from "../../../engine/speech";
 
 function getProjectInfoTitle(material) {
   return (
@@ -106,7 +109,9 @@ function isSafeMediaUrl(value) {
   if (!source) return false;
 
   try {
-    return SAFE_MEDIA_URL_SCHEMES.has(new URL(source, window.location.href).protocol);
+    return SAFE_MEDIA_URL_SCHEMES.has(
+      new URL(source, window.location.href).protocol,
+    );
   } catch {
     return false;
   }
@@ -162,8 +167,8 @@ export function PlayerProjectInfoFloatingPanel({
 
   return (
     <PlayerFloatingPanel onClose={onClose}>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <h3 className="mb-3 pr-8 text-base font-bold">{title}</h3>
+      <div className="shrink-0">
+        <h3 className="mb-3 pr-8 text-lg font-medium">{title}</h3>
 
         <p className="whitespace-pre-line text-xs leading-relaxed text-white/80">
           {description}
@@ -188,6 +193,10 @@ export function PlayerProjectInfoFloatingPanel({
           </section>
         )}
 
+        <PlayerProjectSlideListHeader count={slideList.length} />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <PlayerProjectSlideList
           slides={slideList}
           activeSlideId={activeSlideId}
@@ -208,6 +217,7 @@ export function PlayerChapterReaderFloatingPanel({
   onOpenMedia,
   onPlayVoice,
   onStopVoice,
+  isPlayingVoice = false,
   onPlayAnimations,
   onStopAnimations,
   chapterFlowAssignments = [],
@@ -218,10 +228,14 @@ export function PlayerChapterReaderFloatingPanel({
   onPlayChapterFlow,
   onStopChapterFlows,
   chapters = [],
+  richTextDescription = false,
 }) {
   const title = activeChapter?.title || "Untitled Chapter";
-  const description =
+  const rawDescription =
     activeChapter?.description || "Belum ada deskripsi chapter.";
+  const description = richTextDescription
+    ? stripForceLanguageMarkup(rawDescription)
+    : rawDescription;
   const mediaAssets = getChapterMediaAssets(activeChapter);
   const chapterList = Array.isArray(chapters) ? chapters : [];
   const hasChapters = chapterList.length > 0;
@@ -271,15 +285,18 @@ export function PlayerChapterReaderFloatingPanel({
       <div className="min-h-0 flex-1 overflow-y-auto pr-1">
         <Button
           size="sm"
-          variant="outline"
+          variant={isPlayingVoice ? "darkOutline" : "default"}
           type="button"
-          onClick={onPlayVoice}
+          onClick={isPlayingVoice ? onStopVoice : onPlayVoice}
           disabled={!activeChapter?.description}
-          title="Play Voice"
+          title={isPlayingVoice ? "Stop Voice" : "Play Voice"}
           className="mb-3 w-full"
         >
-          <MaterialIcon name="brand_awareness" size={20} />
-          Play Voice
+          <MaterialIcon
+            name={isPlayingVoice ? "stop" : "brand_awareness"}
+            size={20}
+          />
+          {isPlayingVoice ? "Stop Voice" : "Play Voice"}
         </Button>
 
         <section>
@@ -482,9 +499,9 @@ export function PlayerViewSettingsFloatingPanel({
   ];
 
   return (
-    <div className="vx-player-panel absolute left-23 top-7 z-40 w-85 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
+    <div className="vx-player-panel absolute left-22 top-7 z-40 w-85 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
       <div className="mb-5 flex items-center justify-between gap-3">
-        <h3 className="text-base font-bold text-white">View Settings</h3>
+        <h3 className="text-lg font-medium text-white">View Settings</h3>
 
         <button
           type="button"
@@ -501,22 +518,18 @@ export function PlayerViewSettingsFloatingPanel({
           const Icon = action.icon;
 
           return (
-            <button
-              key={action.key}
+            <Button
               type="button"
+              key={action.key}
+              size="sm"
               disabled={action.disabled}
               onClick={action.onClick}
-              className={[
-                "flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-secondary-default/35 bg-black/10 px-3 py-4 text-center text-xs font-bold text-secondary-default transition",
-                action.disabled
-                  ? "cursor-not-allowed opacity-35"
-                  : "cursor-pointer hover:border-secondary-default hover:bg-secondary-default hover:text-primary",
-              ].join(" ")}
               title={action.label}
+              className="min-h-11"
             >
               <Icon className="size-5" />
               <span>{action.label}</span>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -702,7 +715,7 @@ export function PlayerAnimationFloatingPanel({
 function PlayerFloatingPanel({ children, onClose, className = "" }) {
   return (
     <div
-      className={`vx-player-panel absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-2xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
+      className={`vx-player-panel absolute left-[88px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-2xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
     >
       <button
         type="button"

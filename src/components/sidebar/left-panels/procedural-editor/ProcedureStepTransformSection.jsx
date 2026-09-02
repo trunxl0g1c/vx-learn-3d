@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import MaterialIcon from "../../../ui/material-icon";
 import Button from "../../../ui/button";
+import SelectField from "../../../ui/select";
 
 export default function ProcedureStepTransformSection({
   procedural,
@@ -17,7 +18,7 @@ export default function ProcedureStepTransformSection({
   return (
     <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
       <div className="mb-3">
-        <p className="text-xs font-semibold text-white">
+        <p className="text-xs font-normal text-white">
           {isAssembly ? "Set Start & Target" : "Set Start & End"}
         </p>
       </div>
@@ -28,7 +29,7 @@ export default function ProcedureStepTransformSection({
             <span className="block text-[9px] uppercase tracking-wide text-contrast-grayout">
               Active animation action
             </span>
-            <span className="block truncate text-[11px] font-semibold text-white">
+            <span className="block truncate text-xs font-normal text-white">
               {activeEntry?.object?.name || "Select an animation action above"}
             </span>
           </span>
@@ -37,8 +38,12 @@ export default function ProcedureStepTransformSection({
 
       {isAssembly && activeEntry?.object && (
         <div className="mb-3 flex items-center gap-2 rounded-lg border border-accent-main/35 bg-accent-main/10 px-2.5 py-2">
-          <MaterialIcon name="precision_manufacturing" className="size-4 text-secondary-default" />
-          <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white">
+          <MaterialIcon
+            name="precision_manufacturing"
+            size={20}
+            className="text-secondary-default"
+          />
+          <span className="min-w-0 flex-1 truncate text-xs font-normal text-white">
             {activeEntry.object.name || "Assembly object"}
           </span>
         </div>
@@ -49,17 +54,22 @@ export default function ProcedureStepTransformSection({
           <button
             type="button"
             onClick={() => setRotationExpanded((current) => !current)}
-            className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-white/5"
+            className="cursor-pointer flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition hover:bg-white/5"
             aria-expanded={rotationExpanded}
           >
-            <span className="flex items-center gap-2 text-xs font-semibold text-white">
-              <MaterialIcon name="360" className="size-4 text-secondary-default" />
+            <span className="flex items-center gap-2 text-xs font-normal text-white">
+              <MaterialIcon
+                name="360"
+                size={20}
+                className="text-secondary-default"
+              />
               Rotation Animation
             </span>
             <MaterialIcon
               name="expand_more"
+              size={20}
               className={[
-                "size-4 text-secondary-default transition-transform",
+                "text-secondary-default transition-transform",
                 rotationExpanded ? "rotate-180" : "",
               ].join(" ")}
             />
@@ -111,19 +121,19 @@ export default function ProcedureStepTransformSection({
                 <span className="mb-1.5 block text-xs text-contrast-grayout">
                   Spin Axis
                 </span>
-                <select
-                  value={step.action?.spinAxis || "z"}
-                  onChange={(event) =>
+                <SelectField value={step.action?.spinAxis || "z"}
+                  onChange={(value) =>
                     procedural.updateStep(step.id, {
-                      action: { spinAxis: event.target.value },
+                      action: { spinAxis: value },
                     })
                   }
-                  className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
-                >
-                  <option value="x">Local X</option>
-                  <option value="y">Local Y</option>
-                  <option value="z">Local Z</option>
-                </select>
+                  options={[
+                    { label: "Local X", value: "x" },
+                    { label: "Local Y", value: "y" },
+                    { label: "Local Z", value: "z" },
+                  ]}
+                  className="h-9!"
+                />
               </label>
             </div>
           )}
@@ -134,21 +144,19 @@ export default function ProcedureStepTransformSection({
         <Button
           type="button"
           size="xs"
-          variant="darkOutline"
           disabled={!activeEntry}
           onClick={procedural.captureStartTransform}
         >
-          <MaterialIcon name="flag" className="size-4" />
+          <MaterialIcon name="flag" size={20} />
           Update Start
         </Button>
         <Button
           type="button"
           size="xs"
-          variant="darkOutline"
           disabled={!activeEntry}
           onClick={procedural.captureEndTransform}
         >
-          <MaterialIcon name="sports_score" className="size-4" />
+          <MaterialIcon name="sports_score" size={20}  />
           {isAssembly ? "Update Target" : "Update End"}
         </Button>
       </div>
@@ -158,21 +166,19 @@ export default function ProcedureStepTransformSection({
           <Button
             type="button"
             size="xs"
-            variant="darkOutline"
             disabled={!activeEntry?.startTransform}
             onClick={procedural.showActiveStepStart}
           >
-            <MaterialIcon name="first_page" className="size-4" />
+            <MaterialIcon name="first_page" size={20}  />
             Show Start
           </Button>
           <Button
             type="button"
             size="xs"
-            variant="darkOutline"
             disabled={!activeEntry?.endTransform}
             onClick={procedural.showActiveStepTarget}
           >
-            <MaterialIcon name="my_location" className="size-4" />
+            <MaterialIcon name="my_location" size={20}  />
             Show Target
           </Button>
         </div>

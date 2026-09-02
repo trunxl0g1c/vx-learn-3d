@@ -255,8 +255,8 @@ export default function ChapterAnimationSection({
             className="w-full"
             onClick={() => addChapterAnimation?.(chapter.id)}
           >
-            <Plus className="size-4" />
             Add Animation
+            <Plus className="size-4" />
           </Button>
         </>
       )}

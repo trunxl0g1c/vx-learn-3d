@@ -12,6 +12,7 @@ import TurntableAnimationSettings from "./TurntableAnimationSettings";
 import StageBackgroundControls from "./StageBackgroundControls";
 import GridSettingsControls from "./GridSettingsControls";
 import InlineAlert from "../../ui/inline-alert";
+import ConfirmationDialog from "../../dialog/ConfirmationDialog";
 import { useState } from "react";
 import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
 import { createId } from "../../../utils/createId";
@@ -171,6 +172,7 @@ export default function ProjectSettingsPanel({
   onUpdateModelLicense,
   onReadModelLicenseMetadata,
   onRemoveAdditionalGlb,
+  onRemoveProjectMedia,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
@@ -193,6 +195,8 @@ export default function ProjectSettingsPanel({
   else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
 
   const [panelError, setPanelError] = useState("");
+  const [mediaPendingDelete, setMediaPendingDelete] = useState(null);
+  const [isRemovingMedia, setIsRemovingMedia] = useState(false);
   const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
     cameraProjectionMode,
     onSwitchToPerspective: setCameraProjectionMode,
@@ -301,6 +305,26 @@ export default function ProjectSettingsPanel({
       ...prev,
       media: (prev.media || []).filter((item) => item.id !== mediaId),
     }));
+  };
+
+  const confirmRemoveProjectMedia = async () => {
+    if (!mediaPendingDelete) return;
+
+    setIsRemovingMedia(true);
+
+    try {
+      if (onRemoveProjectMedia) {
+        await onRemoveProjectMedia(mediaPendingDelete.id);
+      } else {
+        removeProjectMedia(mediaPendingDelete.id);
+      }
+
+      setMediaPendingDelete(null);
+    } catch (error) {
+      showPanelError(error?.message || "Failed to remove media.");
+    } finally {
+      setIsRemovingMedia(false);
+    }
   };
 
   const mediaList = Array.isArray(material.media) ? material.media : [];
@@ -641,14 +665,15 @@ export default function ProjectSettingsPanel({
                       </div>
                     </div>
 
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => removeProjectMedia(item.id)}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#315b64] text-contrast-grayout transition hover:border-secondary-default hover:text-white"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setMediaPendingDelete(item)}
                       aria-label="Remove media"
                     >
                       <Trash2 className="size-4" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -1033,6 +1058,23 @@ export default function ProjectSettingsPanel({
           />
         </div> */}
       </div>
+
+      <ConfirmationDialog
+        open={Boolean(mediaPendingDelete)}
+        title="Remove Media?"
+        message={`Delete "${
+          mediaPendingDelete?.title ||
+          mediaPendingDelete?.name ||
+          `this ${getMediaLabel(mediaPendingDelete?.type).toLowerCase()}`
+        }" from the project?`}
+        description="If this file was already uploaded, it will also be removed from storage. This action cannot be undone."
+        confirmText="Remove"
+        isLoading={isRemovingMedia}
+        onClose={() => {
+          if (!isRemovingMedia) setMediaPendingDelete(null);
+        }}
+        onConfirm={confirmRemoveProjectMedia}
+      />
     </div>
   );
 }

@@ -102,7 +102,7 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
                     : "Delete Blink preset"
                 }
               >
-                <MaterialIcon name="delete" fill={1} size={20} className="mr-1" />
+                <MaterialIcon name="delete" fill={1} size={20} />
               </Button>
             </div>
 
@@ -144,8 +144,8 @@ export default function BlinkPresetSettings({ viewerSettings, setViewerSettings,
           className="w-full"
           onClick={addPreset}
         >
-          <Plus className="size-4" />
           Add Preset Blink
+          <MaterialIcon name="add" size={20} />
         </Button>
       </div>
     </div>

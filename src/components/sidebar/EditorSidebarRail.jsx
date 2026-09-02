@@ -49,7 +49,7 @@ export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
             onClick={() => navigate("/")}
             className="grid size-14 cursor-pointer place-items-center text-secondary-default transition hover:bg-white/5"
           >
-            <MaterialIcon name="arrow_back" fill={1} className="size-7" />
+            <MaterialIcon name="home" className="size-7" />
           </button>
 
           {sidebarItems.map((item) => {

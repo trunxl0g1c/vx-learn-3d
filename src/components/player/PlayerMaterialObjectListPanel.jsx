@@ -23,9 +23,9 @@ export default function PlayerMaterialObjectListPanel({
   const maxTreeDepth = useMemo(() => getMaxTreeDepth(objectList), [objectList]);
 
   return (
-    <aside className="vx-player-panel vx-player-panel--full-mobile absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#182223]/75 text-white shadow-2xl backdrop-blur-xl">
+    <aside className="vx-player-panel vx-player-panel--full-mobile absolute bottom-7 left-22 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#182223]/75 text-white shadow-2xl backdrop-blur-xl">
       <div className="flex h-14 shrink-0 items-center gap-3 border-b border-white/10 px-6 pt-1">
-        <h3 className="min-w-0 flex-1 truncate text-base font-bold text-white">
+        <h3 className="min-w-0 flex-1 truncate text-lg font-normal text-white">
           Object List
         </h3>
 

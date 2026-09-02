@@ -89,6 +89,7 @@ export default function SlideTab({
         <ChapterDescriptionSection
           chapter={slide}
           updateChapterField={slideAuthoring?.updateSlideField}
+          showRichTextHint
         />
         <ChapterParameterSection
           chapter={slide}

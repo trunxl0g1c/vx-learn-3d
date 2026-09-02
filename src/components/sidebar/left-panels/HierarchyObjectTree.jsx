@@ -270,7 +270,7 @@ export default function HierarchyObjectTree({
           value={searchObject}
           onChange={(event) => setSearchObject(event.target.value)}
           leftIcon={<Search className="size-5" />}
-          className="mb-4 h-8.5! rounded-full px-2!"
+          className="mb-4 h-9! rounded-full px-2!"
           inputClassName="text-base"
         />
 

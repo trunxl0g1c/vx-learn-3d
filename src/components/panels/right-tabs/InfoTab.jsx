@@ -92,7 +92,7 @@ export default function InfoTab({
             title={contentAuthoringLockReason || undefined}
             aria-disabled={contentAuthoringLocked}
           >
-            {hasContent ? "EDIT DESCRIPTION OBJECT" : "CREATE DESCRIPTION OBJECT"}
+            {hasContent ? "EDIT DESCRIPTION OBJECT" : "CREATE DESCRIPTION"}
           </Button>
         </div>
 

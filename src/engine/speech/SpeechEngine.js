@@ -16,6 +16,7 @@ export function createSpeechEngine() {
   let cachedVoices = [];
   let observedSynth = null;
   let voiceChangeHandler = null;
+  let activeSpeakingListener = null;
 
   const refreshVoices = (synth) => {
     const voices = synth?.getVoices?.() || [];
@@ -34,10 +35,20 @@ export function createSpeechEngine() {
     }
   };
 
+  // Only one utterance queue can ever be active (shared browser
+  // speechSynthesis), so "who's currently speaking" is tracked as a single
+  // slot rather than a list — starting a new speak() interrupts whichever
+  // caller previously held it, notifying that caller's own callback first.
+  const notifySpeaking = (value) => {
+    activeSpeakingListener?.(value);
+    if (!value) activeSpeakingListener = null;
+  };
+
   const stop = () => {
     sessionId += 1;
     const runtime = getSpeechRuntime();
     runtime?.synth?.cancel?.();
+    notifySpeaking(false);
   };
 
   const dispose = () => {
@@ -64,10 +75,12 @@ export function createSpeechEngine() {
     {
       language = "auto",
       defaultLanguage = "id-ID",
+      allowForceMarkup = false,
       rate = 1,
       pitch = 1,
       volume = 1,
       consistentVoice = true,
+      onSpeakingChange,
     } = {},
   ) => {
     const runtime = getSpeechRuntime();
@@ -78,7 +91,7 @@ export function createSpeechEngine() {
     stop();
     const currentSessionId = sessionId;
     const segments = language === "auto"
-      ? segmentSpeechText(normalizedText, { defaultLanguage })
+      ? segmentSpeechText(normalizedText, { defaultLanguage, allowForceMarkup })
       : [{ text: normalizedText, lang: language }];
 
     if (!segments.length) return false;
@@ -89,7 +102,10 @@ export function createSpeechEngine() {
       ? selectConsistentSpeechVoices(voices, segmentLanguages)
       : {};
 
-    segments.forEach((segment) => {
+    activeSpeakingListener = onSpeakingChange || null;
+    notifySpeaking(true);
+
+    segments.forEach((segment, index) => {
       if (currentSessionId !== sessionId) return;
 
       const utterance = new runtime.Utterance(segment.text);
@@ -100,6 +116,14 @@ export function createSpeechEngine() {
 
       const voice = selectedVoices[segment.lang] || null;
       if (voice) utterance.voice = voice;
+
+      if (index === segments.length - 1) {
+        const finishSpeaking = () => {
+          if (currentSessionId === sessionId) notifySpeaking(false);
+        };
+        utterance.onend = finishSpeaking;
+        utterance.onerror = finishSpeaking;
+      }
 
       runtime.synth.speak(utterance);
     });

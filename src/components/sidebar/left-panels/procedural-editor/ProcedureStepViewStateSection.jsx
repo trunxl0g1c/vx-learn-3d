@@ -24,7 +24,7 @@ export default function ProcedureStepViewStateSection({
     <section className="rounded-xl border border-secondary-default/55 bg-primary/50 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <p className="text-xs font-semibold text-white">
+          <p className="text-xs font-normal text-white">
             {isAssembly ? "Save Step View" : "Camera & Visual State"}
           </p>
         </div>
@@ -35,10 +35,10 @@ export default function ProcedureStepViewStateSection({
         <Button
           type="button"
           size="xs"
-          variant={hasCompleteSavedView ? "default" : "cyanOutline"}
+          variant={hasCompleteSavedView ? "default" : "outline"}
           onClick={procedural?.saveActiveStepViewState}
         >
-          <MaterialIcon name="save" className="size-4" />
+          <MaterialIcon name="save" size={20} />
           {isAssembly
             ? hasCompleteSavedView
               ? "Update View"
@@ -50,11 +50,11 @@ export default function ProcedureStepViewStateSection({
         <Button
           type="button"
           size="xs"
-          variant="darkOutline"
+          variant="outline"
           disabled={!hasAnySavedView}
           onClick={procedural?.showActiveStepViewState}
         >
-          <MaterialIcon name="visibility" className="size-4" />
+          <MaterialIcon name="visibility" size={20} />
           View Saved
         </Button>
       </div>
@@ -63,7 +63,7 @@ export default function ProcedureStepViewStateSection({
         <button
           type="button"
           onClick={procedural?.deleteActiveStepViewState}
-          className="mt-2 text-[10px] text-red-300 transition hover:text-red-200"
+          className="mt-2 text-xs text-red-300 transition hover:text-red-200"
         >
           Remove saved camera and state
         </button>

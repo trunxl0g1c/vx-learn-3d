@@ -353,7 +353,7 @@ export default function HierarchyTreeItem({
             title={`Rename ${displayName}`}
             className="grid size-5 cursor-pointer place-items-center rounded text-secondary-default transition hover:bg-white/10 hover:text-white"
           >
-            <MaterialIcon name="edit" size={16} />
+            <MaterialIcon name="edit_square" size={16} />
           </button>
         )}
       </div>

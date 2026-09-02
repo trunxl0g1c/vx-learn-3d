@@ -28,6 +28,7 @@ export default function usePlayerSlide({
   const [activeSlideData, setActiveSlideData] = useState(null);
   const [activeCameraViewIndex, setActiveCameraViewIndex] = useState(0);
   const [activeSlideFlowIds, setActiveSlideFlowIds] = useState([]);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [slideFlowPlaybackKey, setSlideFlowPlaybackKey] = useState(0);
   const slideSelectionRequestRef = useRef(0);
 
@@ -229,9 +230,11 @@ export default function usePlayerSlide({
     return speakText(activeSlide.description, {
       language: "auto",
       defaultLanguage: "id-ID",
+      allowForceMarkup: true,
       rate: 1,
       pitch: 1,
       consistentVoice: true,
+      onSpeakingChange: setIsSpeaking,
     });
   };
 
@@ -258,5 +261,6 @@ export default function usePlayerSlide({
     handleFlowComplete,
     speakDescription,
     stopSpeaking,
+    isSpeaking,
   };
 }

@@ -1,5 +1,7 @@
 import MaterialIcon from "../ui/material-icon";
 import Button from "../ui/button";
+import Checkbox from "../ui/checkbox";
+import RadioButton from "../ui/radio";
 import { QUIZ_QUESTION_TYPES } from "../../engine/quiz";
 import { sanitizeText } from "../../utils/validation";
 
@@ -11,7 +13,7 @@ const FEEDBACK_MAX_LENGTH = 500;
 
 function SectionLabel({ children }) {
   return (
-    <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-contrast-grayout">
+    <div className="text-xs font-normal text-contrast-grayout">
       {children}
     </div>
   );
@@ -27,7 +29,7 @@ function Field({ label, children, className = "" }) {
 }
 
 const inputClass =
-  "h-9 w-full rounded-lg border border-divider-main bg-primary/70 px-3 text-xs text-white outline-none transition focus:border-secondary-default";
+  "h-9 w-full rounded-lg border border-divider-main bg-primary/70 px-3 text-xs text-white outline-none transition focus:border-secondary-default outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 const textareaClass =
   "min-h-20 w-full resize-none rounded-lg border border-divider-main bg-primary/70 px-3 py-2 text-xs leading-5 text-white outline-none transition focus:border-secondary-default";
 
@@ -39,12 +41,9 @@ function OptionEditor({ question, quizAuthoring }) {
           key={option.id}
           className="flex items-center gap-2 rounded-lg border border-divider-main bg-primary/45 p-2"
         >
-          <input
-            type="radio"
-            name={`quiz-correct-${question.id}`}
+          <RadioButton
             checked={option.isCorrect === true}
-            onChange={() => quizAuthoring.setCorrectOption(option.id)}
-            className="size-4 accent-accent-main"
+            onCheckedChange={() => quizAuthoring.setCorrectOption(option.id)}
             title="Correct answer"
           />
           <input
@@ -65,21 +64,20 @@ function OptionEditor({ question, quizAuthoring }) {
             type="button"
             onClick={() => quizAuthoring.removeOption(option.id)}
             disabled={(question.options || []).length <= 2}
-            className="grid size-8 place-items-center rounded-lg text-contrast-grayout transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-25"
+            className="cursor-pointer grid size-8 place-items-center rounded-lg transition bg-red-500/10 text-red-300 disabled:opacity-25"
             title="Delete option"
           >
-            <MaterialIcon name="delete" className="size-4" />
+            <MaterialIcon name="delete" size={20} />
           </button>
         </div>
       ))}
       <Button
         type="button"
         size="xs"
-        variant="cyanOutline"
         onClick={quizAuthoring.addOption}
       >
-        <MaterialIcon name="add" className="size-4" />
         Add Option
+        <MaterialIcon name="add" size={20} />
       </Button>
     </div>
   );
@@ -378,13 +376,11 @@ export default function QuizQuestionEditor({
 
       <div className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-divider-main bg-primary/35 p-3">
         <label className="flex items-center gap-2 text-[11px] text-white">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={question.settings?.required !== false}
-            onChange={(event) =>
-              update({ settings: { required: event.target.checked } })
+            onCheckedChange={(checked) =>
+              update({ settings: { required: checked } })
             }
-            className="size-3.5 accent-accent-main"
           />
           Required
         </label>
@@ -464,31 +460,31 @@ export default function QuizQuestionEditor({
         <Button
           type="button"
           size="xs"
-          variant="cyanOutline"
+          variant="default"
           onClick={quizAuthoring.saveActiveQuestionCamera}
         >
-          <MaterialIcon name="photo_camera" className="size-4" />
+          <MaterialIcon name="photo_camera" size={20} />
           Save Camera
         </Button>
         <Button
           type="button"
           size="xs"
-          variant="cyanOutline"
+          variant="default"
           onClick={quizAuthoring.saveActiveQuestionVisualState}
         >
-          <MaterialIcon name="visibility" className="size-4" />
+          <MaterialIcon name="visibility" size={20} />
           Save Visual State
         </Button>
         <Button
           type="button"
           size="xs"
-          variant="cyanOutline"
+          variant="default"
           onClick={quizAuthoring.saveActiveQuestionViewState}
         >
-          <MaterialIcon name="bookmark_added" className="size-4" />
+          <MaterialIcon name="bookmark_added" size={20} />
           Save Camera + State
         </Button>
-        <span className="ml-auto text-[10px] text-contrast-grayout">
+        <span className="ml-auto text-xs text-contrast-grayout">
           {question.cameraView ? "Camera saved" : "No camera"} ·{" "}
           {question.visualState ? "Visual state saved" : "No visual state"}
         </span>

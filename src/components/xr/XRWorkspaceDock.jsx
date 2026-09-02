@@ -3,20 +3,30 @@ import Button from "../ui/button";
 import Switch from "../ui/switch";
 
 const inputClass =
-  "h-8 rounded-lg border border-divider-main bg-primary/70 px-2.5 text-[11px] text-white outline-none focus:border-secondary-default";
+  "h-8 rounded-lg border border-divider-main bg-primary/70 px-2.5 text-xs text-white outline-none focus:border-secondary-default";
 
-function SettingToggle({ label, description, checked, onChange, disabled = false }) {
+function SettingToggle({
+  label,
+  description,
+  checked,
+  onChange,
+  disabled = false,
+}) {
   return (
     <div className="flex min-h-12 items-center justify-between gap-4 rounded-xl border border-divider-main bg-primary/40 px-3 py-2">
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-white">{label}</p>
+        <p className="text-xs font-normal text-white">{label}</p>
         {description && (
-          <p className="mt-0.5 text-[10px] leading-4 text-contrast-grayout">
+          <p className="mt-0.5 text-[11px] leading-4 text-contrast-grayout">
             {description}
           </p>
         )}
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} disabled={disabled} />
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+      />
     </div>
   );
 }
@@ -33,7 +43,7 @@ function SupportBadge({ supported, checking, label }) {
   return (
     <span
       className={[
-        "rounded-full border px-2 py-1 text-[9px] font-semibold",
+        "rounded-full border px-2 py-1 text-xs font-normal",
         supported === true
           ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300"
           : supported === false
@@ -58,36 +68,32 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
         <button
           type="button"
           onClick={xrAuthoring.stopAuthoring}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
+          className="cursor-pointer grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
           title="Back to Pro Tools"
         >
-          <MaterialIcon name="arrow_back" className="size-5" />
+          <MaterialIcon name="chevron_backward" size={20} />
         </button>
 
         <div className="mr-2 shrink-0">
-          <p className="text-xs font-semibold">XR / Immersive</p>
-          <p className="text-[9px] text-contrast-grayout">VR + AR authoring</p>
+          <p className="text-sm font-normal">XR / Immersive</p>
+          <p className="text-xs text-contrast-grayout">VR + AR authoring</p>
         </div>
 
-        <div className="flex rounded-lg border border-divider-main bg-primary/60 p-1">
+        <div className="flex rounded-lg border border-divider-main bg-primary/60 p-1 gap-2">
           {[
             ["vr", "VR", "view_in_ar"],
             ["ar", "AR", "deployed_code"],
           ].map(([id, label, icon]) => (
-            <button
+            <Button
               key={id}
               type="button"
+              size="xs"
+              variant={activeMode === id ? "default" : "outline"}
               onClick={() => xrAuthoring.setActiveMode(id)}
-              className={[
-                "flex h-7 items-center gap-1.5 rounded-md px-3 text-[10px] font-semibold transition",
-                activeMode === id
-                  ? "bg-accent-main text-white"
-                  : "text-contrast-grayout hover:bg-white/5 hover:text-white",
-              ].join(" ")}
             >
-              <MaterialIcon name={icon} className="size-4" />
+              <MaterialIcon name={icon} size={20} />
               {label}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -105,19 +111,15 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
           <Button
             type="button"
             size="xs"
-            variant="cyanOutline"
+            variant="outline"
             onClick={xrAuthoring.refreshSupport}
             disabled={xrAuthoring.supportChecking}
           >
-            <MaterialIcon name="refresh" className="size-4" />
+            <MaterialIcon name="refresh" size={20} />
             Check Device
           </Button>
-          <Button
-            type="button"
-            size="xs"
-            onClick={onOpenPlayerPreview}
-          >
-            <MaterialIcon name="play_arrow" className="size-4" />
+          <Button type="button" size="xs" onClick={onOpenPlayerPreview}>
+            <MaterialIcon name="play_arrow" size={20} />
             Open Player
           </Button>
         </div>
@@ -135,8 +137,8 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
               />
 
               <div className="grid gap-3 md:grid-cols-3">
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
-                  <span className="uppercase tracking-wide">Initial Scale</span>
+                <label className="space-y-2 text-xs text-contrast-grayout">
+                  <span className="tracking-wide">Initial Scale</span>
                   <input
                     type="number"
                     min="0.01"
@@ -144,39 +146,53 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                     step="0.1"
                     value={settings.vr.scale}
                     onChange={(event) =>
-                      xrAuthoring.updateVR({ scale: Number(event.target.value) || 1 })
+                      xrAuthoring.updateVR({
+                        scale: Number(event.target.value) || 1,
+                      })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} mt-1 w-full outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   />
                 </label>
 
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
-                  <span className="uppercase tracking-wide">Locomotion</span>
+                <label className="space-y-2 text-xs text-contrast-grayout">
+                  <span className="tracking-wide">Locomotion</span>
                   <select
                     value={settings.vr.locomotion}
                     onChange={(event) =>
                       xrAuthoring.updateVR({ locomotion: event.target.value })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} mt-1 w-full cursor-pointer`}
                   >
-                    <option value="teleport" className="bg-primary">Teleport</option>
-                    <option value="smooth" className="bg-primary">Smooth</option>
-                    <option value="stationary" className="bg-primary">Stationary</option>
+                    <option value="teleport" className="bg-primary">
+                      Teleport
+                    </option>
+                    <option value="smooth" className="bg-primary">
+                      Smooth
+                    </option>
+                    <option value="stationary" className="bg-primary">
+                      Stationary
+                    </option>
                   </select>
                 </label>
 
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
-                  <span className="uppercase tracking-wide">Hand Tracking</span>
+                <label className="space-y-2 text-xs text-contrast-grayout">
+                  <span className="tracking-wide">Hand Tracking</span>
                   <select
                     value={settings.vr.handTracking}
                     onChange={(event) =>
                       xrAuthoring.updateVR({ handTracking: event.target.value })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} mt-1 w-full cursor-pointer`}
                   >
-                    <option value="auto" className="bg-primary">Auto</option>
-                    <option value="on" className="bg-primary">Prefer On</option>
-                    <option value="off" className="bg-primary">Off</option>
+                    <option value="auto" className="bg-primary">
+                      Auto
+                    </option>
+                    <option value="on" className="bg-primary">
+                      Prefer On
+                    </option>
+                    <option value="off" className="bg-primary">
+                      Off
+                    </option>
                   </select>
                 </label>
               </div>
@@ -185,7 +201,9 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                 <SettingToggle
                   label="Controller Ray"
                   checked={settings.vr.controllerRay}
-                  onChange={(controllerRay) => xrAuthoring.updateVR({ controllerRay })}
+                  onChange={(controllerRay) =>
+                    xrAuthoring.updateVR({ controllerRay })
+                  }
                 />
                 <SettingToggle
                   label="Grab Interaction"
@@ -205,11 +223,15 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
 
             <div className="rounded-xl border border-divider-main bg-primary/40 p-3">
               <div className="mb-3 flex items-center gap-2">
-                <MaterialIcon name="person_pin_circle" className="size-5 text-secondary-default" />
-                <p className="text-xs font-semibold">VR Spawn</p>
+                <MaterialIcon
+                  name="panorama_photosphere"
+                  size={20}
+                  className="text-accent-main"
+                />
+                <p className="text-sm font-normal">VR Spawn</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
+                <label className="space-y-1 text-xs text-contrast-grayout">
                   <span>Distance</span>
                   <input
                     type="number"
@@ -222,10 +244,10 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                         spawnDistance: Number(event.target.value) || 2,
                       })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} w-full mt-1 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   />
                 </label>
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
+                <label className="space-y-1 text-xs text-contrast-grayout">
                   <span>Height Offset</span>
                   <input
                     type="number"
@@ -238,22 +260,22 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                         spawnHeight: Number(event.target.value) || 0,
                       })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} w-full mt-1 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   />
                 </label>
               </div>
               <Button
                 type="button"
                 size="xs"
-                variant="cyanOutline"
                 onClick={xrAuthoring.saveCurrentViewAsVRSpawn}
                 className="mt-3"
               >
-                <MaterialIcon name="photo_camera" className="size-4" />
+                <MaterialIcon name="photo_camera" size={20} />
                 Use Current View Distance
               </Button>
-              <p className="mt-2 text-[9px] leading-4 text-contrast-grayout">
-                Player VR places the model in front of the viewer using this saved distance.
+              <p className="mt-2 text-xs leading-4 text-contrast-grayout">
+                Player VR places the model in front of the viewer using this
+                saved distance.
               </p>
             </div>
           </div>
@@ -268,21 +290,25 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
               />
 
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
-                  <span className="uppercase tracking-wide">Placement</span>
+                <label className="space-y-1 text-xs text-contrast-grayout">
+                  <span className="tracking-wide">Placement</span>
                   <select
                     value={settings.ar.placement}
                     onChange={(event) =>
                       xrAuthoring.updateAR({ placement: event.target.value })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} w-full mt-1`}
                   >
-                    <option value="surface" className="bg-primary">Surface / Hit Test</option>
-                    <option value="fixed" className="bg-primary">Fixed</option>
+                    <option value="surface" className="bg-primary">
+                      Surface / Hit Test
+                    </option>
+                    <option value="fixed" className="bg-primary">
+                      Fixed
+                    </option>
                   </select>
                 </label>
-                <label className="space-y-1 text-[10px] text-contrast-grayout">
-                  <span className="uppercase tracking-wide">Initial Scale</span>
+                <label className="space-y-1 text-xs text-contrast-grayout">
+                  <span className="tracking-wide">Initial Scale</span>
                   <input
                     type="number"
                     min="0.01"
@@ -290,9 +316,11 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                     step="0.1"
                     value={settings.ar.scale}
                     onChange={(event) =>
-                      xrAuthoring.updateAR({ scale: Number(event.target.value) || 1 })
+                      xrAuthoring.updateAR({
+                        scale: Number(event.target.value) || 1,
+                      })
                     }
-                    className={`${inputClass} w-full`}
+                    className={`${inputClass} mt-1 w-full outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                   />
                 </label>
               </div>
@@ -306,12 +334,16 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
                 <SettingToggle
                   label="Allow Rotate"
                   checked={settings.ar.allowRotate}
-                  onChange={(allowRotate) => xrAuthoring.updateAR({ allowRotate })}
+                  onChange={(allowRotate) =>
+                    xrAuthoring.updateAR({ allowRotate })
+                  }
                 />
                 <SettingToggle
                   label="Allow Scale"
                   checked={settings.ar.allowScale}
-                  onChange={(allowScale) => xrAuthoring.updateAR({ allowScale })}
+                  onChange={(allowScale) =>
+                    xrAuthoring.updateAR({ allowScale })
+                  }
                 />
                 <SettingToggle
                   label="Show Grid"
@@ -323,14 +355,21 @@ export default function XRWorkspaceDock({ xrAuthoring, onOpenPlayerPreview }) {
 
             <div className="rounded-xl border border-divider-main bg-primary/40 p-3">
               <div className="mb-2 flex items-center gap-2">
-                <MaterialIcon name="view_in_ar" className="size-5 text-secondary-default" />
-                <p className="text-xs font-semibold">AR Surface Placement</p>
+                <MaterialIcon
+                  name="view_in_ar"
+                  className="text-accent-main"
+                  size={20}
+                />
+                <p className="text-sm font-normal">AR Surface Placement</p>
               </div>
-              <p className="text-[10px] leading-5 text-contrast-grayout">
-                Surface mode requests WebXR hit-test. In Player AR a reticle appears on a detected surface; tap/select to place the model.
+              <p className="text-xs leading-5 text-contrast-grayout">
+                Surface mode requests WebXR hit-test. In Player AR a reticle
+                appears on a detected surface; tap/select to place the model.
               </p>
-              <div className="mt-3 rounded-lg border border-secondary-default/30 bg-[#0b1212] p-3 text-[10px] leading-5 text-contrast-grayout">
-                Advanced real-machine alignment, depth occlusion, anchors and QR calibration are intentionally outside this first XR implementation.
+              <div className="mt-3 rounded-lg border border-secondary-default/30 bg-[#0b1212] p-3 text-xs leading-5 text-contrast-grayout">
+                Advanced real-machine alignment, depth occlusion, anchors and QR
+                calibration are intentionally outside this first XR
+                implementation.
               </div>
             </div>
           </div>

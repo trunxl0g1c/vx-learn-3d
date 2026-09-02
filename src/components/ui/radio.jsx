@@ -1,10 +1,8 @@
-import { Check } from "lucide-react";
-
 function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-function Checkbox({
+function RadioButton({
   checked = false,
   onCheckedChange,
   disabled = false,
@@ -16,11 +14,13 @@ function Checkbox({
   return (
     <button
       type="button"
-      role="checkbox"
+      role="radio"
       aria-checked={checked}
       disabled={disabled}
       title={title}
-      onClick={() => onCheckedChange?.(!checked)}
+      onClick={() => {
+        if (!checked) onCheckedChange?.(true);
+      }}
       className={cn(
         "inline-flex cursor-pointer items-center gap-2 text-sm font-normal text-white",
         "disabled:pointer-events-none disabled:opacity-50",
@@ -29,13 +29,18 @@ function Checkbox({
     >
       <span
         className={cn(
-          "grid size-5 place-items-center rounded border transition",
+          "grid size-5 shrink-0 place-items-center rounded-full border transition",
           checked
-            ? "border-accent-main bg-accent-main text-white"
-            : "border-secondary-default bg-transparent text-transparent",
+            ? "border-accent-main bg-accent-main"
+            : "border-secondary-default bg-transparent",
         )}
       >
-        <Check className="size-3.5" />
+        <span
+          className={cn(
+            "size-2 rounded-full bg-white transition",
+            checked ? "scale-100 opacity-100" : "scale-0 opacity-0",
+          )}
+        />
       </span>
 
       {label && (
@@ -47,7 +52,7 @@ function Checkbox({
   );
 }
 
-Checkbox.displayName = "Checkbox";
+RadioButton.displayName = "RadioButton";
 
-export { Checkbox };
-export default Checkbox;
+export { RadioButton };
+export default RadioButton;

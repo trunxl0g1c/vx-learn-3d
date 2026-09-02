@@ -164,8 +164,7 @@ function mergeSpeechTokens(tokens, defaultLanguage) {
     .filter((segment) => segment.text.trim().length > 0);
 }
 
-export function segmentSpeechText(text, { defaultLanguage = "id-ID" } = {}) {
-  const normalizedText = String(text || "").trim();
+function segmentPlainSpeechText(normalizedText, defaultLanguage) {
   if (!normalizedText) return [];
 
   const parts = normalizedText.match(/\p{L}+(?:[’'-]\p{L}+)*|\d+(?:[.,]\d+)*|[^\p{L}\d]+/gu) || [];
@@ -177,6 +176,69 @@ export function segmentSpeechText(text, { defaultLanguage = "id-ID" } = {}) {
 
   inferUnknownLanguages(tokens, defaultLanguage);
   return mergeSpeechTokens(tokens, defaultLanguage);
+}
+
+// Authoring rule for slide descriptions: wrapping a word or phrase in
+// //double slashes// pins it to English so the id/en auto-detection above
+// never reclassifies it as Bahasa (e.g. "main" is a real Indonesian word,
+// but //main// in a description always means the English term).
+const FORCE_ENGLISH_PATTERN = /\/\/([^/]+)\/\//g;
+
+export function stripForceLanguageMarkup(text) {
+  return String(text || "").replace(FORCE_ENGLISH_PATTERN, "$1");
+}
+
+function splitForceLanguageMarkup(text) {
+  const parts = [];
+  let lastIndex = 0;
+  FORCE_ENGLISH_PATTERN.lastIndex = 0;
+
+  let match;
+  while ((match = FORCE_ENGLISH_PATTERN.exec(text))) {
+    if (match.index > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, match.index), forced: false });
+    }
+    parts.push({ text: match[1], forced: true });
+    lastIndex = FORCE_ENGLISH_PATTERN.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), forced: false });
+  }
+
+  return parts;
+}
+
+function mergeAdjacentSegments(segments) {
+  return segments.reduce((merged, segment) => {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.lang === segment.lang) {
+      previous.text += segment.text;
+    } else {
+      merged.push({ ...segment });
+    }
+    return merged;
+  }, []);
+}
+
+export function segmentSpeechText(
+  text,
+  { defaultLanguage = "id-ID", allowForceMarkup = false } = {},
+) {
+  const normalizedText = String(text || "").trim();
+  if (!normalizedText) return [];
+
+  if (!allowForceMarkup || !normalizedText.includes("//")) {
+    return segmentPlainSpeechText(normalizedText, defaultLanguage);
+  }
+
+  const segments = splitForceLanguageMarkup(normalizedText).flatMap((part) => {
+    if (!part.text) return [];
+    if (part.forced) return [{ text: part.text, lang: "en-US" }];
+    return segmentPlainSpeechText(part.text, defaultLanguage);
+  });
+
+  return mergeAdjacentSegments(segments);
 }
 
 export function detectSpeechLanguage(text, options = {}) {

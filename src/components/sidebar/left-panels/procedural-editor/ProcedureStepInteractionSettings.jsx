@@ -1,3 +1,4 @@
+import Checkbox from "../../../ui/checkbox";
 import MaterialIcon from "../../../ui/material-icon";
 
 export default function ProcedureStepInteractionSettings({
@@ -12,11 +13,11 @@ export default function ProcedureStepInteractionSettings({
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-white">
         <span className="flex min-w-0 items-center gap-2">
           <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent-main/10 text-secondary-default">
-            <MaterialIcon name="settings" className="size-4" />
+            <MaterialIcon name="settings" size={20} />
           </span>
-          <span className="text-xs font-semibold">Advanced Assembly Settings</span>
+          <span className="text-xs font-normal">Advanced Assembly Settings</span>
         </span>
-        <MaterialIcon name="expand_more" className="size-4 shrink-0 text-contrast-grayout" />
+        <MaterialIcon name="expand_more" size={20} className="shrink-0 text-contrast-grayout" />
       </summary>
 
       <div className="space-y-3 border-t border-secondary-default/30 p-3">
@@ -39,7 +40,7 @@ export default function ProcedureStepInteractionSettings({
                 },
               })
             }
-            className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none"
+            className="h-10 w-full rounded-lg border border-secondary-default/60 bg-primary px-3 text-sm text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
         </label>
 
@@ -53,15 +54,14 @@ export default function ProcedureStepInteractionSettings({
             className="flex items-center justify-between gap-3 rounded-lg border border-secondary-default/25 bg-black/10 px-2.5 py-2 text-xs text-white"
           >
             <span>{label}</span>
-            <input
-              type="checkbox"
-              checked={step.interaction?.[key] !== false}
-              onChange={(event) =>
+            <Checkbox
+              checked={step.interaction?.[key] || false}
+              disabled={step.interaction?.[key] === undefined}
+              onCheckedChange={(checked) =>
                 procedural.updateStep(step.id, {
-                  interaction: { [key]: event.target.checked },
+                  interaction: { [key]: checked },
                 })
               }
-              className="size-4 accent-cyan-400"
             />
           </label>
         ))}

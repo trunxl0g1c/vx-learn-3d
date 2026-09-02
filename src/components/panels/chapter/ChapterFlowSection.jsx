@@ -158,8 +158,8 @@ export default function ChapterFlowSection({
             className="w-full"
             onClick={() => addChapterFlow?.(chapter.id)}
           >
-            <Plus className="size-4" />
             Add Flow
+            <Plus className="size-4" />
           </Button>
         </>
       )}

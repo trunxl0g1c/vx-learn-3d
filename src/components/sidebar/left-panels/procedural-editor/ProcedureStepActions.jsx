@@ -12,26 +12,26 @@ export default function ProcedureStepActions({
       <Button
         type="button"
         size="xs"
-        variant="cyanOutline"
+        variant="outline"
+        disabled={!step.startTransform}
+        onClick={procedural.resetActiveStep}
+      >
+        <MaterialIcon name="restart_alt" size={20} />
+        Reset Step
+      </Button>
+      <Button
+        type="button"
+        size="xs"
+        variant={procedural.isPreviewing ? "outline" : "default"}
         disabled={!stepReady || procedural.isPreviewing}
         onClick={procedural.previewActiveStep}
       >
-        <MaterialIcon name="play_arrow" className="size-4" />
+        <MaterialIcon name="play_arrow" size={20} />
         {procedural.isPreviewing
           ? "Playing..."
           : isAssembly
             ? "Preview Install"
             : "Preview Step"}
-      </Button>
-      <Button
-        type="button"
-        size="xs"
-        variant="darkOutline"
-        disabled={!step.startTransform}
-        onClick={procedural.resetActiveStep}
-      >
-        <MaterialIcon name="restart_alt" className="size-4" />
-        Reset Step
       </Button>
     </div>
   );

@@ -70,6 +70,7 @@ export default function EditorLeftSidebar({
   onReadModelLicenseMetadata,
   onAddAdditionalGlbFiles,
   onRemoveAdditionalGlb,
+  onRemoveProjectMedia,
   onProcedureStepPanelVisibilityChange,
 }) {
   if (!activeSidebar) return null;
@@ -170,6 +171,7 @@ export default function EditorLeftSidebar({
             onUpdateModelLicense={onUpdateModelLicense}
             onReadModelLicenseMetadata={onReadModelLicenseMetadata}
             onRemoveAdditionalGlb={onRemoveAdditionalGlb}
+            onRemoveProjectMedia={onRemoveProjectMedia}
           />
         )}
 

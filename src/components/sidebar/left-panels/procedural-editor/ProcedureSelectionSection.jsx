@@ -13,9 +13,7 @@ export default function ProcedureSelectionSection({
       <div className="space-y-2">
         <SelectField
           value={procedural?.activeProcedureId || ""}
-          onChange={(event) =>
-            procedural?.selectProcedure?.(event.target.value)
-          }
+          onChange={(value) => procedural?.selectProcedure?.(value)}
           placeholder="Select procedure"
           options={(procedural?.procedures || []).map((item) => ({
             value: item.id,
@@ -27,7 +25,7 @@ export default function ProcedureSelectionSection({
         <div className="flex gap-2">
           <SelectField
             value={procedural?.activeStepId || ""}
-            onChange={(event) => procedural?.selectStep?.(event.target.value)}
+            onChange={(value) => procedural?.selectStep?.(value)}
             placeholder="Select step"
             options={(procedural?.steps || []).map((item) => ({
               value: item.id,

@@ -4,6 +4,7 @@ import {
   getLazyAwareMaterialRecordCount,
   isLazyMaterialRecord,
 } from "../../engine/project/LazyMaterialRecords";
+import Button from "../ui/button";
 
 export default function PlayerFlowListPanel({
   flows = [],
@@ -14,10 +15,10 @@ export default function PlayerFlowListPanel({
   onClose,
 }) {
   return (
-    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[86px] top-6 z-50 flex max-h-[calc(100vh-48px)] w-[380px] flex-col overflow-hidden rounded-2xl border border-grayout-dark bg-dark-alpha shadow-2xl backdrop-blur-2xl">
-      <div className="flex items-center justify-between border-b border-grayout-dark px-5 py-4">
+    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[86px] border border-grayout-extra-dark top-6 z-50 flex max-h-[calc(100vh-48px)] w-[380px] flex-col overflow-hidden rounded-2xl bg-dark-alpha shadow-2xl backdrop-blur-2xl">
+      <div className="flex items-start justify-between border-b border-grayout-dark px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-white">Flow Materials</h2>
+          <h2 className="text-lg font-normal text-white">Flow Materials</h2>
           <p className="mt-1 text-xs text-contrast-grayout">
             Select and play a saved visual flow
           </p>
@@ -25,7 +26,7 @@ export default function PlayerFlowListPanel({
         <button
           type="button"
           onClick={onClose}
-          className="grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
+          className="cursor-pointer grid size-9 place-items-center rounded-lg text-white/75 hover:bg-white/10"
           title="Close"
         >
           <X className="size-5" />
@@ -61,12 +62,12 @@ export default function PlayerFlowListPanel({
                 ].join(" ")}
               >
                 <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent-main text-sm font-bold text-white">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent-main text-sm font-normal text-white">
                     {index + 1}
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-semibold text-white">
+                    <h3 className="truncate text-sm font-normal text-white">
                       {flow.name}
                     </h3>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-contrast-grayout">
@@ -78,17 +79,25 @@ export default function PlayerFlowListPanel({
                           ? "Points load on play"
                           : `${pointCount} points`}
                       </span>
-                      <span>{getFlowEffectLabel(flow.settings?.effectType)}</span>
+                      <span>
+                        {getFlowEffectLabel(flow.settings?.effectType)}
+                      </span>
                       <span>{flow.settings?.speed || 1}x speed</span>
                       <span>{flow.settings?.repeat ? "Repeat" : "Once"}</span>
-                      {(flow.visualState || flow.hasVisualState) && <span>Saved State</span>}
-                      {(flow.cameraView || flow.hasCameraView) && <span>Saved Camera</span>}
+                      {(flow.visualState || flow.hasVisualState) && (
+                        <span>Saved State</span>
+                      )}
+                      {(flow.cameraView || flow.hasCameraView) && (
+                        <span>Saved Camera</span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <button
+                <Button
                   type="button"
+                  size="sm"
+                  variant={active && isPlaying ? "outline" : "default"}
                   disabled={!canPlay}
                   onClick={() => {
                     if (active && isPlaying) {
@@ -97,13 +106,7 @@ export default function PlayerFlowListPanel({
                       onPlay?.(flow.id);
                     }
                   }}
-                  className={[
-                    "mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
-                    active && isPlaying
-                      ? "border-red-400/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                      : "border-secondary-default/60 bg-primary text-secondary-default hover:bg-white/10",
-                    !canPlay ? "cursor-not-allowed opacity-40" : "",
-                  ].join(" ")}
+                  className="w-full mt-4"
                 >
                   {active && isPlaying ? (
                     <>
@@ -118,7 +121,7 @@ export default function PlayerFlowListPanel({
                       <Play className="size-4" /> Play Flow
                     </>
                   )}
-                </button>
+                </Button>
               </article>
             );
           })

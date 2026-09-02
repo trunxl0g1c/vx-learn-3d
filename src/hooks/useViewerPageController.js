@@ -147,6 +147,7 @@ export function useViewerPageController() {
     handleFile,
     handleAddAdditionalGlbFiles,
     handleRemoveAdditionalGlb,
+    handleRemoveProjectMedia,
   } = useViewerProject({
     projectId,
     markDirty,
@@ -1040,6 +1041,7 @@ export function useViewerPageController() {
     handleUpdateModelLicense, handleReadModelLicenseMetadata,
     handleAddAdditionalGlbFiles,
     handleRemoveAdditionalGlb,
+    handleRemoveProjectMedia,
     addMarker,
     updateMarker,
     handleModelLoaded: handleModelLoadedWithCutBounds,

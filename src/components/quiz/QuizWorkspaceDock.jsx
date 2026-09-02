@@ -1,6 +1,9 @@
+import { useState } from "react";
 import MaterialIcon from "../ui/material-icon";
 import Button from "../ui/button";
 import QuizQuestionEditor from "./QuizQuestionEditor";
+import ConfirmationDialog from "../dialog/ConfirmationDialog";
+import Checkbox from "../ui/checkbox";
 
 const smallInput =
   "h-8 rounded-lg border border-divider-main bg-primary/70 px-2.5 text-[11px] text-white outline-none focus:border-secondary-default";
@@ -11,6 +14,9 @@ export default function QuizWorkspaceDock({
   procedures = [],
   authoredAnimations = [],
 }) {
+  const [confirmDeleteQuizOpen, setConfirmDeleteQuizOpen] = useState(false);
+  const [questionPendingDelete, setQuestionPendingDelete] = useState(null);
+
   if (!quizAuthoring?.isAuthoringActive) return null;
 
   const quiz = quizAuthoring.activeQuiz;
@@ -22,25 +28,29 @@ export default function QuizWorkspaceDock({
         <button
           type="button"
           onClick={quizAuthoring.stopAuthoring}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/5"
+          className="cursor-pointer grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/5"
           title="Back to Pro Tools"
         >
-          <MaterialIcon name="arrow_back" className="size-5" />
+          <MaterialIcon name="chevron_backward" size={20} />
         </button>
 
         <div className="mr-2">
-          <div className="text-xs font-semibold">Quiz Authoring</div>
-          <div className="text-[9px] text-contrast-grayout">
+          <div className="text-sm font-normal">Quiz Authoring</div>
+          <div className="text-xs text-contrast-grayout">
             LMS + interactive 3D assessment
           </div>
         </div>
 
         <select
           value={quizAuthoring.activeQuizId || ""}
-          onChange={(event) => quizAuthoring.selectQuiz(event.target.value || null)}
+          onChange={(event) =>
+            quizAuthoring.selectQuiz(event.target.value || null)
+          }
           className={`${smallInput} w-48 shrink-0`}
         >
-          <option value="" className="bg-primary">Select Quiz</option>
+          <option value="" className="bg-primary">
+            Select Quiz
+          </option>
           {quizAuthoring.quizzes.map((item) => (
             <option key={item.id} value={item.id} className="bg-primary">
               {item.name}
@@ -49,30 +59,43 @@ export default function QuizWorkspaceDock({
         </select>
 
         <Button type="button" size="xs" onClick={quizAuthoring.createQuiz}>
-          <MaterialIcon name="add" className="size-4" />
           New Quiz
+          <MaterialIcon name="add" size={20} />
         </Button>
 
         <Button
           type="button"
           size="xs"
-          variant="cyanOutline"
+          variant="outline"
           disabled={!quiz}
           onClick={() => quizAuthoring.duplicateQuiz(quiz.id)}
         >
-          <MaterialIcon name="content_copy" className="size-4" />
           Duplicate
+          <MaterialIcon name="content_copy" size={20} />
         </Button>
 
         <button
           type="button"
           disabled={!quiz}
-          onClick={() => quizAuthoring.deleteQuiz(quiz.id)}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-contrast-grayout transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-25"
+          onClick={() => setConfirmDeleteQuizOpen(true)}
+          className="cursor-pointer grid size-8 shrink-0 place-items-center rounded-lg transition bg-red-500/10 text-red-300 disabled:opacity-25"
           title="Delete quiz"
         >
-          <MaterialIcon name="delete" className="size-4" />
+          <MaterialIcon name="delete" size={20} />
         </button>
+
+        <ConfirmationDialog
+          open={confirmDeleteQuizOpen}
+          title="Delete Quiz?"
+          message={`Delete "${quiz?.name || "this quiz"}"?`}
+          description="All of its questions and settings will be removed. This action cannot be undone."
+          confirmText="Delete Quiz"
+          onClose={() => setConfirmDeleteQuizOpen(false)}
+          onConfirm={() => {
+            quizAuthoring.deleteQuiz(quiz.id);
+            setConfirmDeleteQuizOpen(false);
+          }}
+        />
 
         {quiz && (
           <>
@@ -86,7 +109,9 @@ export default function QuizWorkspaceDock({
               title="Quiz name"
             />
             <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-              <span className="text-[9px] uppercase text-contrast-grayout">Pass</span>
+              <span className="text-xs uppercase text-contrast-grayout">
+                Pass
+              </span>
               <input
                 type="number"
                 min="0"
@@ -99,12 +124,14 @@ export default function QuizWorkspaceDock({
                     },
                   })
                 }
-                className="w-10 bg-transparent text-right text-[10px] text-white outline-none"
+                className="w-9 bg-transparent text-right text-xs text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
-              <span className="text-[9px]">%</span>
+              <span className="text-xs text-contrast-grayout">%</span>
             </label>
             <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-              <span className="text-[9px] uppercase text-contrast-grayout">Attempts</span>
+              <span className="text-xs uppercase text-contrast-grayout">
+                Attempts
+              </span>
               <input
                 type="number"
                 min="1"
@@ -116,50 +143,46 @@ export default function QuizWorkspaceDock({
                     },
                   })
                 }
-                className="w-8 bg-transparent text-right text-[10px] text-white outline-none"
+                className="w-7 bg-transparent text-right text-xs text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
             </label>
-            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-[10px]">
-              <input
-                type="checkbox"
+            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-xs">
+              <Checkbox
                 checked={quiz.settings?.randomizeQuestions === true}
-                onChange={(event) =>
+                onCheckedChange={(value) => {
                   quizAuthoring.updateQuiz(quiz.id, {
-                    settings: { randomizeQuestions: event.target.checked },
-                  })
-                }
-                className="size-3.5 accent-accent-main"
+                    settings: { randomizeQuestions: value },
+                  });
+                }}
               />
               Random
             </label>
-            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-[10px]">
-              <input
-                type="checkbox"
+            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-xs">
+              <Checkbox
                 checked={quiz.settings?.randomizeOptions === true}
-                onChange={(event) =>
+                onCheckedChange={(value) => {
                   quizAuthoring.updateQuiz(quiz.id, {
-                    settings: { randomizeOptions: event.target.checked },
-                  })
-                }
-                className="size-3.5 accent-accent-main"
+                    settings: { randomizeOptions: value },
+                  });
+                }}
               />
               Shuffle Options
             </label>
-            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-[10px]">
-              <input
-                type="checkbox"
+            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-xs">
+              <Checkbox
                 checked={quiz.settings?.allowRetry !== false}
-                onChange={(event) =>
+                onCheckedChange={(value) => {
                   quizAuthoring.updateQuiz(quiz.id, {
-                    settings: { allowRetry: event.target.checked },
-                  })
-                }
-                className="size-3.5 accent-accent-main"
+                    settings: { allowRetry: value },
+                  });
+                }}
               />
               Retry
             </label>
             <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-              <span className="text-[9px] uppercase text-contrast-grayout">Limit</span>
+              <span className="text-xs uppercase text-contrast-grayout">
+                Limit
+              </span>
               <input
                 type="number"
                 min="0"
@@ -171,20 +194,18 @@ export default function QuizWorkspaceDock({
                     },
                   })
                 }
-                className="w-10 bg-transparent text-right text-[10px] text-white outline-none"
+                className="w-10 bg-transparent text-right text-xs text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
-              <span className="text-[9px]">s</span>
+              <span className="text-[9px] text-contrast-grayout">s</span>
             </label>
-            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-[10px]">
-              <input
-                type="checkbox"
+            <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-divider-main bg-primary/70 px-2 text-xs">
+              <Checkbox
                 checked={quiz.settings?.showScore !== false}
-                onChange={(event) =>
+                onCheckedChange={(value) => {
                   quizAuthoring.updateQuiz(quiz.id, {
-                    settings: { showScore: event.target.checked },
-                  })
-                }
-                className="size-3.5 accent-accent-main"
+                    settings: { showScore: value },
+                  });
+                }}
               />
               Show Score
             </label>
@@ -196,8 +217,8 @@ export default function QuizWorkspaceDock({
         <aside className="flex w-64 shrink-0 flex-col border-r border-divider-main bg-[#121919]">
           <div className="flex items-center justify-between border-b border-divider-main px-3 py-2">
             <div>
-              <p className="text-xs font-semibold">Questions</p>
-              <p className="text-[9px] text-contrast-grayout">
+              <p className="text-sm font-normal">Questions</p>
+              <p className="text-xs text-contrast-grayout">
                 {questions.length} items
               </p>
             </div>
@@ -207,7 +228,7 @@ export default function QuizWorkspaceDock({
               disabled={!quiz}
               onClick={() => quizAuthoring.addQuestion("multiple-choice")}
             >
-              <MaterialIcon name="add" className="size-4" />
+              <MaterialIcon name="add" size={20} />
             </Button>
           </div>
 
@@ -220,20 +241,20 @@ export default function QuizWorkspaceDock({
                   type="button"
                   onClick={() => quizAuthoring.setActiveQuestionId(question.id)}
                   className={[
-                    "group flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition",
+                    "cursor-pointer group flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition",
                     active
                       ? "border-accent-main bg-accent-main/10"
                       : "border-transparent hover:border-divider-main hover:bg-white/5",
                   ].join(" ")}
                 >
-                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary text-[10px] text-secondary-default">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary text-xs text-secondary-default">
                     {index + 1}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[11px] text-white">
+                    <span className="block truncate text-xs text-white">
                       {question.title}
                     </span>
-                    <span className="block truncate text-[9px] text-contrast-grayout">
+                    <span className="block truncate text-[10px] text-contrast-grayout">
                       {question.type} · {question.points} pts
                     </span>
                   </span>
@@ -242,11 +263,11 @@ export default function QuizWorkspaceDock({
                     tabIndex={0}
                     onClick={(event) => {
                       event.stopPropagation();
-                      quizAuthoring.deleteQuestion(question.id);
+                      setQuestionPendingDelete(question);
                     }}
-                    className="grid size-6 place-items-center rounded-md text-contrast-grayout opacity-0 transition hover:bg-red-500/10 hover:text-red-300 group-hover:opacity-100"
+                    className={`grid size-6 place-items-center rounded-md transition bg-red-500/10 text-red-300 ${active ? "opacity-100" : "opacity-0"}`}
                   >
-                    <MaterialIcon name="delete" className="size-3.5" />
+                    <MaterialIcon name="delete" size={20} />
                   </span>
                 </button>
               );
@@ -263,6 +284,19 @@ export default function QuizWorkspaceDock({
           />
         </main>
       </div>
+
+      <ConfirmationDialog
+        open={Boolean(questionPendingDelete)}
+        title="Delete Question?"
+        message={`Delete "${questionPendingDelete?.title || "this question"}"?`}
+        description="Its options and scoring will be removed. This action cannot be undone."
+        confirmText="Delete Question"
+        onClose={() => setQuestionPendingDelete(null)}
+        onConfirm={() => {
+          quizAuthoring.deleteQuestion(questionPendingDelete.id);
+          setQuestionPendingDelete(null);
+        }}
+      />
     </section>
   );
 }

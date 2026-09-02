@@ -209,6 +209,7 @@ export function createPlayerControllerApi({
       selectCameraView: handleSelectChapterCameraView,
       speakChapterDescription: playerSpeech.speakChapterDescription,
       stopSpeaking: playerSpeech.stopSpeaking,
+      isSpeaking: playerSpeech.isSpeaking,
       playChapterAnimations: playerAnimation.playChapterAnimations,
       stopChapterAnimations: playerAnimation.stopChapterAnimations,
       chapterFlowAssignments: getChapterFlowAssignments(
@@ -265,6 +266,7 @@ export function createPlayerControllerApi({
       stopFlows: playerSlide.stopFlows,
       speakDescription: playerSlide.speakDescription,
       stopSpeaking: playerSlide.stopSpeaking,
+      isSpeaking: playerSlide.isSpeaking,
     },
 
     xrPanel: {

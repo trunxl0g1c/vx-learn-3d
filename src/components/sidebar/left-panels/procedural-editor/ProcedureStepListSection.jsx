@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import MaterialIcon from "../../../ui/material-icon";
 import Button from "../../../ui/button";
+import ConfirmationDialog from "../../../dialog/ConfirmationDialog";
 import { Section, StatusBadge } from "./PanelPrimitives";
 
 function getStepClickTargets(procedural, item, isAssembly) {
@@ -36,6 +37,7 @@ export default function ProcedureStepListSection({
   onOpenStep,
 }) {
   const steps = procedure.steps || [];
+  const [stepPendingDelete, setStepPendingDelete] = useState(null);
   const [draggingStepId, setDraggingStepId] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [dragPreview, setDragPreview] = useState(null);
@@ -160,6 +162,14 @@ export default function ProcedureStepListSection({
       }
     };
   }, [draggingStepId, procedural.reorderStep]);
+
+  let stepDeleteMessage = "";
+  if (stepPendingDelete) {
+    const suffix = stepPendingDelete.name
+      ? ` — "${stepPendingDelete.name}"`
+      : "";
+    stepDeleteMessage = `Delete step ${stepPendingDelete.index + 1}${suffix}?`;
+  }
 
   return (
     <Section title="Procedure Steps">
@@ -297,7 +307,13 @@ export default function ProcedureStepListSection({
                     </button>
                     <button
                       type="button"
-                      onClick={() => procedural.deleteStep(item.id)}
+                      onClick={() =>
+                        setStepPendingDelete({
+                          id: item.id,
+                          name: item.name,
+                          index,
+                        })
+                      }
                       className="cursor-pointer grid size-7 place-items-center rounded-md text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
                       title="Delete step"
                       aria-label={`Delete step ${index + 1}`}
@@ -373,6 +389,19 @@ export default function ProcedureStepListSection({
           </div>,
           document.body,
         )}
+
+      <ConfirmationDialog
+        open={Boolean(stepPendingDelete)}
+        title="Delete Step?"
+        message={stepDeleteMessage}
+        description="This step's click targets, animations, and settings will be removed. This action cannot be undone."
+        confirmText="Delete Step"
+        onClose={() => setStepPendingDelete(null)}
+        onConfirm={() => {
+          procedural.deleteStep(stepPendingDelete.id);
+          setStepPendingDelete(null);
+        }}
+      />
     </Section>
   );
 }

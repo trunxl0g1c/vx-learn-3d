@@ -1,4 +1,6 @@
 import MaterialIcon from "../ui/material-icon";
+import Checkbox from "../ui/checkbox";
+import Button from "../ui/button";
 
 const RIG_TYPES = [
   { id: "free", label: "Free Transform" },
@@ -18,9 +20,11 @@ function NumberField({ value, onChange, step = "0.01", suffix = "" }) {
         step={step}
         value={Number(value || 0)}
         onChange={(event) => onChange(Number(event.target.value) || 0)}
-        className="w-14 bg-transparent text-right font-mono text-[9px] text-white outline-none"
+        className="w-11 bg-transparent text-right font-mono text-[10px] text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
-      {suffix && <span className="text-[8px] text-contrast-grayout">{suffix}</span>}
+      {suffix && (
+        <span className="text-[8px] text-contrast-grayout">{suffix}</span>
+      )}
     </label>
   );
 }
@@ -28,7 +32,9 @@ function NumberField({ value, onChange, step = "0.01", suffix = "" }) {
 function ReferenceChip({ label, reference, onAssign, selectedObjectName }) {
   return (
     <div className="flex h-8 min-w-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-      <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">{label}</span>
+      <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">
+        {label}
+      </span>
       <span
         className="max-w-28 truncate text-[10px] text-white"
         title={reference?.name || "Not assigned"}
@@ -40,10 +46,14 @@ function ReferenceChip({ label, reference, onAssign, selectedObjectName }) {
           type="button"
           disabled={!selectedObjectName}
           onClick={onAssign}
-          title={selectedObjectName ? `Use ${selectedObjectName}` : "Select an object in the viewport"}
-          className="ml-1 grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
+          title={
+            selectedObjectName
+              ? `Use ${selectedObjectName}`
+              : "Select an object in the viewport"
+          }
+          className="ml-1 grid size-6 shrink-0 cursor-pointer place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-30"
         >
-          <MaterialIcon name="my_location" className="size-3.5" />
+          <MaterialIcon name="my_location" size={200} />
         </button>
       )}
     </div>
@@ -65,53 +75,71 @@ function RigPointControl({
   const values = Array.isArray(point) ? point : [0, 0, 0];
 
   return (
-    <div className="flex h-8 shrink-0 items-center gap-1 rounded-lg border border-divider-main bg-primary/70 px-2">
+    <div className="flex h-10 shrink-0 items-center gap-3 rounded-lg border border-divider-main bg-primary/70 px-2">
       <span className="mr-1 text-[9px] uppercase tracking-wide text-contrast-grayout">
         {label}
       </span>
       {onAssignSelected && (
-        <button
+        <Button
           type="button"
+          size="icon"
+          variant="outline"
           disabled={!selectedObjectName}
           onClick={onAssignSelected}
-          title={selectedObjectName ? `Use ${selectedObjectName} as ${label.toLowerCase()}` : "Select an object in the viewport"}
-          className="grid size-6 shrink-0 place-items-center rounded-md border border-divider-main text-secondary-default transition hover:bg-white/5 disabled:opacity-30"
+          title={
+            selectedObjectName
+              ? `Use ${selectedObjectName} as ${label.toLowerCase()}`
+              : "Select an object in the viewport"
+          }
         >
-          <MaterialIcon name="my_location" className="size-3.5" />
-        </button>
+          <MaterialIcon name="my_location" size={15} />
+        </Button>
       )}
-      <button
+      <Button
         type="button"
+        size="icon"
         disabled={!canDrag}
         onClick={onToggleDrag}
-        title={active ? `Finish ${label.toLowerCase()} drag mode` : `Drag ${label.toLowerCase()} in viewport`}
-        className={`grid h-6 min-w-[38px] shrink-0 place-items-center rounded-md border px-1.5 text-[8px] font-semibold uppercase tracking-wide transition disabled:opacity-30 ${
+        title={
           active
-            ? "border-accent-main bg-accent-main/20 text-white"
-            : "border-divider-main text-secondary-default hover:bg-white/5"
-        }`}
+            ? `Finish ${label.toLowerCase()} drag mode`
+            : `Drag ${label.toLowerCase()} in viewport`
+        }
+        variant={active ? "default" : "outline"}
       >
-        {active ? "Done" : "Drag"}
-      </button>
+        {active ? (
+          <MaterialIcon name="pan_tool_alt" size={15} />
+        ) : (
+          <MaterialIcon name="pan_tool" size={15} />
+        )}
+      </Button>
       {active && (
         <label
           className="flex h-6 items-center gap-1 rounded-md border border-divider-main px-1.5"
           title={`Click a mesh in the viewport to snap the ${label.toLowerCase()}`}
         >
-          <span className="text-[8px] uppercase tracking-wide text-contrast-grayout">Snap</span>
+          <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">
+            Snap
+          </span>
           <select
             value={snapMode}
             onChange={(event) => onSnapModeChange?.(event.target.value)}
-            className="bg-transparent text-[8px] text-white outline-none"
+            className="cursor-pointer bg-transparent text-xs text-white outline-none"
           >
-            <option value="surface" className="bg-primary">Surface</option>
-            <option value="vertex" className="bg-primary">Vertex</option>
+            <option value="surface" className="bg-primary">
+              Surface
+            </option>
+            <option value="vertex" className="bg-primary">
+              Vertex
+            </option>
           </select>
         </label>
       )}
       {AXES.map((axis, index) => (
-        <label key={axis} className="flex items-center gap-1">
-          <span className="text-[8px] uppercase text-contrast-grayout">{axis}</span>
+        <label key={axis} className="flex items-center justify-center gap-1">
+          <span className="text-[9px] uppercase text-contrast-grayout">
+            {axis}
+          </span>
           <input
             type="number"
             step="0.01"
@@ -121,7 +149,7 @@ function RigPointControl({
               next[index] = Number(event.target.value) || 0;
               onPointChange?.(next);
             }}
-            className="w-11 bg-transparent text-right font-mono text-[9px] text-white outline-none"
+            className="w-11 bg-transparent text-right text-xs text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           />
         </label>
       ))}
@@ -143,7 +171,9 @@ export default function AnimationRigToolbar({
   const hydraulic = rig.hydraulic || {};
   const morph = rig.morph || {};
   const morphCompatibility = animationAuthoring?.activeMorphCompatibility;
-  const otherTracks = (animation.tracks || []).filter((item) => item.id !== track.id);
+  const otherTracks = (animation.tracks || []).filter(
+    (item) => item.id !== track.id,
+  );
   const pointEditorActive = animationAuthoring?.isPivotEditing === true;
   const pointEditorTarget = animationAuthoring?.rigPointEditTarget || "pivot";
   const sharedPointProps = {
@@ -161,16 +191,18 @@ export default function AnimationRigToolbar({
   };
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b border-divider-main bg-[#101717] px-3 scrollbar-thin">
-      <div className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-secondary-default">
-        <MaterialIcon name="account_tree" className="size-4" />
+    <div className="flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-b border-divider-main bg-[#101717] px-3 scrollbar-thin">
+      <div className="flex shrink-0 items-center gap-1.5 text-sm font-normal text-accent-main">
+        <MaterialIcon name="account_tree" size={20} />
         Animation Rig
       </div>
 
       <select
         value={type}
-        onChange={(event) => animationAuthoring?.setActiveTrackRigType?.(event.target.value)}
-        className="h-8 w-36 shrink-0 rounded-lg border border-secondary-default/50 bg-primary px-2 text-[10px] text-white outline-none"
+        onChange={(event) =>
+          animationAuthoring?.setActiveTrackRigType?.(event.target.value)
+        }
+        className="cursor-pointer h-8 w-36 shrink-0 rounded-lg border border-secondary-default/50 bg-primary px-2 text-xs text-white outline-none"
       >
         {RIG_TYPES.map((item) => (
           <option key={item.id} value={item.id} className="bg-primary">
@@ -180,13 +212,21 @@ export default function AnimationRigToolbar({
       </select>
 
       <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-        <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">Parent</span>
+        <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">
+          Parent
+        </span>
         <select
           value={rig.parentTrackId || ""}
-          onChange={(event) => animationAuthoring?.setActiveTrackRigParent?.(event.target.value || null)}
-          className="max-w-32 bg-transparent text-[10px] text-white outline-none"
+          onChange={(event) =>
+            animationAuthoring?.setActiveTrackRigParent?.(
+              event.target.value || null,
+            )
+          }
+          className="cursor-pointer max-w-32 bg-transparent text-xs text-white outline-none"
         >
-          <option value="" className="bg-primary">None</option>
+          <option value="" className="bg-primary">
+            None
+          </option>
           {otherTracks.map((item) => (
             <option key={item.id} value={item.id} className="bg-primary">
               {item.object?.name || "Unnamed Track"}
@@ -197,11 +237,17 @@ export default function AnimationRigToolbar({
 
       {["revolute", "linear", "hydraulic"].includes(type) && (
         <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-          <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">Axis</span>
+          <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">
+            Axis
+          </span>
           <select
             value={rig.axis || "y"}
-            onChange={(event) => animationAuthoring?.updateActiveTrackRig?.({ axis: event.target.value })}
-            className="bg-transparent text-[10px] uppercase text-white outline-none"
+            onChange={(event) =>
+              animationAuthoring?.updateActiveTrackRig?.({
+                axis: event.target.value,
+              })
+            }
+            className="cursor-pointer bg-transparent text-[10px] uppercase text-white outline-none"
           >
             {AXES.map((axis) => (
               <option key={axis} value={axis} className="bg-primary">
@@ -219,7 +265,9 @@ export default function AnimationRigToolbar({
           active={pointEditorActive && pointEditorTarget === "pivot"}
           onToggleDrag={() => animationAuthoring?.togglePivotEditing?.()}
           onPointChange={animationAuthoring?.setActiveTrackRigPivot}
-          onAssignSelected={animationAuthoring?.assignRigPivotFromSelectedObject}
+          onAssignSelected={
+            animationAuthoring?.assignRigPivotFromSelectedObject
+          }
           selectedObjectName={selectedObjectName}
           {...sharedPointProps}
         />
@@ -228,22 +276,22 @@ export default function AnimationRigToolbar({
       {(type === "revolute" || type === "linear") && (
         <div className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
           <label className="flex items-center gap-1.5 text-[9px] text-white">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={limits.enabled === true}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 animationAuthoring?.updateActiveTrackRig?.({
-                  limits: { enabled: event.target.checked },
+                  limits: { enabled: checked },
                 })
               }
-              className="size-3.5 accent-accent-main"
             />
             Limit
           </label>
           <NumberField
             value={limits.min}
             onChange={(value) =>
-              animationAuthoring?.updateActiveTrackRig?.({ limits: { min: value } })
+              animationAuthoring?.updateActiveTrackRig?.({
+                limits: { min: value },
+              })
             }
             suffix={type === "revolute" ? "°" : ""}
           />
@@ -251,7 +299,9 @@ export default function AnimationRigToolbar({
           <NumberField
             value={limits.max}
             onChange={(value) =>
-              animationAuthoring?.updateActiveTrackRig?.({ limits: { max: value } })
+              animationAuthoring?.updateActiveTrackRig?.({
+                limits: { max: value },
+              })
             }
             suffix={type === "revolute" ? "°" : ""}
           />
@@ -268,7 +318,9 @@ export default function AnimationRigToolbar({
             onAssign={animationAuthoring?.assignMorphTargetFromSelectedObject}
           />
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2">
-            <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">Mode</span>
+            <span className="text-[9px] uppercase tracking-wide text-contrast-grayout">
+              Mode
+            </span>
             <select
               value={morph.mode || "auto"}
               onChange={(event) =>
@@ -276,11 +328,17 @@ export default function AnimationRigToolbar({
                   morph: { mode: event.target.value },
                 })
               }
-              className="bg-transparent text-[10px] text-white outline-none"
+              className="cursor-pointer bg-transparent text-[10px] text-white outline-none"
             >
-              <option value="auto" className="bg-primary">Auto</option>
-              <option value="true" className="bg-primary">True Morph</option>
-              <option value="cross" className="bg-primary">Cross Fade</option>
+              <option value="auto" className="bg-primary">
+                Auto
+              </option>
+              <option value="true" className="bg-primary">
+                True Morph
+              </option>
+              <option value="cross" className="bg-primary">
+                Cross Fade
+              </option>
             </select>
           </label>
           <div
@@ -293,7 +351,9 @@ export default function AnimationRigToolbar({
             ].join(" ")}
           >
             <MaterialIcon
-              name={morphCompatibility?.compatible ? "check_circle" : "swap_horiz"}
+              name={
+                morphCompatibility?.compatible ? "check_circle" : "swap_horiz"
+              }
               className="size-3.5 shrink-0"
             />
             <span className="truncate">
@@ -307,28 +367,24 @@ export default function AnimationRigToolbar({
             </span>
           </div>
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={morph.hideSourceWhenComplete !== false}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 animationAuthoring?.updateActiveTrackRig?.({
-                  morph: { hideSourceWhenComplete: event.target.checked },
+                  morph: { hideSourceWhenComplete: checked },
                 })
               }
-              className="size-3.5 accent-accent-main"
             />
             Swap at 100%
           </label>
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={morph.hideTargetWhenStart !== false}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 animationAuthoring?.updateActiveTrackRig?.({
-                  morph: { hideTargetWhenStart: event.target.checked },
+                  morph: { hideTargetWhenStart: checked },
                 })
               }
-              className="size-3.5 accent-accent-main"
             />
             Hide Target at 0%
           </label>
@@ -342,7 +398,9 @@ export default function AnimationRigToolbar({
             reference={hydraulic.baseObject}
             selectedObjectName={selectedObjectName}
             onAssign={() =>
-              animationAuthoring?.assignRigReferenceFromSelectedObject?.("baseObject")
+              animationAuthoring?.assignRigReferenceFromSelectedObject?.(
+                "baseObject",
+              )
             }
           />
           <RigPointControl
@@ -350,8 +408,12 @@ export default function AnimationRigToolbar({
             point={hydraulic.baseAnchor}
             active={pointEditorActive && pointEditorTarget === "baseAnchor"}
             canDrag={Boolean(hydraulic.baseObject)}
-            onToggleDrag={() => animationAuthoring?.toggleHydraulicAnchorEditing?.("baseAnchor")}
-            onPointChange={(value) => updateHydraulicAnchor("baseAnchor", value)}
+            onToggleDrag={() =>
+              animationAuthoring?.toggleHydraulicAnchorEditing?.("baseAnchor")
+            }
+            onPointChange={(value) =>
+              updateHydraulicAnchor("baseAnchor", value)
+            }
             {...sharedPointProps}
           />
           <ReferenceChip
@@ -359,7 +421,9 @@ export default function AnimationRigToolbar({
             reference={hydraulic.targetObject}
             selectedObjectName={selectedObjectName}
             onAssign={() =>
-              animationAuthoring?.assignRigReferenceFromSelectedObject?.("targetObject")
+              animationAuthoring?.assignRigReferenceFromSelectedObject?.(
+                "targetObject",
+              )
             }
           />
           <RigPointControl
@@ -367,48 +431,49 @@ export default function AnimationRigToolbar({
             point={hydraulic.targetAnchor}
             active={pointEditorActive && pointEditorTarget === "targetAnchor"}
             canDrag={Boolean(hydraulic.targetObject)}
-            onToggleDrag={() => animationAuthoring?.toggleHydraulicAnchorEditing?.("targetAnchor")}
-            onPointChange={(value) => updateHydraulicAnchor("targetAnchor", value)}
+            onToggleDrag={() =>
+              animationAuthoring?.toggleHydraulicAnchorEditing?.("targetAnchor")
+            }
+            onPointChange={(value) =>
+              updateHydraulicAnchor("targetAnchor", value)
+            }
             {...sharedPointProps}
           />
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hydraulic.anchorToBase !== false}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 animationAuthoring?.updateActiveTrackRig?.({
-                  hydraulic: { anchorToBase: event.target.checked },
+                  hydraulic: { anchorToBase: checked },
                 })
               }
-              className="size-3.5 accent-accent-main"
             />
             Anchor Base
           </label>
           <label className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main bg-primary/70 px-2 text-[9px] text-white">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={hydraulic.stretch !== false}
-              onChange={(event) =>
+              onCheckedChange={(checked) =>
                 animationAuthoring?.updateActiveTrackRig?.({
-                  hydraulic: { stretch: event.target.checked },
+                  hydraulic: { stretch: checked },
                 })
               }
-              className="size-3.5 accent-accent-main"
             />
             Auto Stretch
           </label>
         </>
       )}
 
-      <button
+      <Button
+        size="xs"
         type="button"
         onClick={animationAuthoring?.captureActiveTrackRigBase}
         title="Use current object transform as the neutral rig pose"
-        className="ml-auto flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-divider-main px-2.5 text-[9px] text-contrast-grayout transition hover:bg-white/5 hover:text-white"
+        className="ml-auto"
       >
-        <MaterialIcon name="adjust" className="size-3.5" />
+        <MaterialIcon name="adjust" size={20} />
         Set Neutral Pose
-      </button>
+      </Button>
     </div>
   );
 }

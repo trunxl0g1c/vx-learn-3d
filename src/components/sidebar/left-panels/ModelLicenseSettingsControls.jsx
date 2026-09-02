@@ -193,7 +193,7 @@ export default function ModelLicenseSettingsControls({
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-2 items-center gap-2">
+      <div className="mt-4 grid grid-cols-1 items-center gap-2">
         <Button
           type="button"
           size="sm"
@@ -210,7 +210,7 @@ export default function ModelLicenseSettingsControls({
           {reading ? "Reading..." : "Read GLB"}
         </Button>
 
-        {typeof onRemoveAdditionalGlb === "function" && (
+        {/* {typeof onRemoveAdditionalGlb === "function" && (
           <Button
             type="button"
             size="sm"
@@ -226,7 +226,7 @@ export default function ModelLicenseSettingsControls({
             <MaterialIcon name="delete" fill={1} size={20} className="mr-1" />
             Remove GLB
           </Button>
-        )}
+        )} */}
 
         {activeModel.metadataDetected && (
           <span className="inline-flex min-h-8 items-center rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-[11px] text-emerald-200">

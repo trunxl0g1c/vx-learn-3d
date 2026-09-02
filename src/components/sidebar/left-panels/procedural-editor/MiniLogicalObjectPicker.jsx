@@ -63,21 +63,21 @@ export default function MiniLogicalObjectPicker({
         <div className="rounded-lg border border-secondary-default/45 bg-[#111717] p-2.5">
           <div className="flex items-center gap-2">
             <span className="grid size-7 shrink-0 place-items-center rounded-md bg-accent-main/15 text-secondary-default">
-              <MaterialIcon name={icon} className="size-4" />
+              <MaterialIcon name={icon} size={20} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-[9px] uppercase tracking-wide text-contrast-grayout">
                 Selected in viewport
               </span>
-              <span className="block truncate text-[11px] font-semibold text-white">
+              <span className="block truncate text-xs font-normal text-white">
                 {currentObject ? currentName : "Select an object first"}
               </span>
             </span>
             <Button
               type="button"
               size="xs"
-              variant="darkOutline"
-              className="shrink-0 px-2"
+              variant="outline"
+              className="shrink-0 px-2!"
               disabled={!parentObject}
               onClick={() => procedural?.selectAuthoringObject?.(parentObject)}
               title={
@@ -86,14 +86,14 @@ export default function MiniLogicalObjectPicker({
                   : "No selectable parent"
               }
             >
-              <MaterialIcon name="arrow_upward" className="size-4" />
               Parent
+              <MaterialIcon name="arrow_upward" size={14} />
             </Button>
           </div>
 
           {currentObject && objectPath.length > 0 && (
             <p
-              className="mt-1.5 truncate text-[9px] text-contrast-grayout"
+              className="mt-1.5 truncate text-xs text-contrast-grayout"
               title={objectPath.map(getObjectLabel).join(" / ")}
             >
               {objectPath.map(getObjectLabel).join(" / ")}
@@ -104,12 +104,14 @@ export default function MiniLogicalObjectPicker({
         <Button
           type="button"
           size="xs"
-          variant="cyanOutline"
           className="w-full"
           disabled={!currentObject}
           onClick={assignCurrentObject}
         >
-          <MaterialIcon name={role === "animated" ? "add" : icon} className="size-4" />
+          <MaterialIcon
+            name={role === "animated" ? "add" : icon}
+            size={20}
+          />
           {role === "target"
             ? "Add as Click Target"
             : role === "assembly"
@@ -125,8 +127,8 @@ export default function MiniLogicalObjectPicker({
       {!hideHeader && (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-white">{title}</p>
-            <p className="mt-1 truncate text-[10px] text-contrast-grayout">
+            <p className="text-xs font-normal text-white">{title}</p>
+            <p className="mt-1 truncate text-xs text-contrast-grayout">
               {assignedText}
             </p>
           </div>
@@ -145,13 +147,14 @@ export default function MiniLogicalObjectPicker({
         <div className="flex items-center gap-2 rounded-md border border-accent-main/60 bg-accent-main/10 px-2 py-2">
           <MaterialIcon
             name={icon}
-            className="size-4 shrink-0 text-secondary-default"
+            className="shrink-0 text-secondary-default"
+            size={20}
           />
           <span className="min-w-0 flex-1">
-            <span className="block text-[9px] uppercase tracking-wide text-secondary-default">
+            <span className="block text-xs uppercase tracking-wide text-secondary-default">
               Current object selected in viewport
             </span>
-            <span className="block truncate text-[11px] font-semibold text-white">
+            <span className="block truncate text-xs font-normal text-white">
               {currentObject ? currentName : "Select an object in the viewport"}
             </span>
           </span>
@@ -164,7 +167,7 @@ export default function MiniLogicalObjectPicker({
 
         {currentObject && objectPath.length > 0 && (
           <p
-            className="mt-2 truncate px-1 text-[9px] text-contrast-grayout"
+            className="mt-2 truncate px-1 text-xs text-contrast-grayout"
             title={objectPath.map(getObjectLabel).join(" / ")}
           >
             {objectPath.map(getObjectLabel).join(" / ")}
@@ -184,7 +187,7 @@ export default function MiniLogicalObjectPicker({
               : "This object has no selectable parent"
           }
         >
-          <MaterialIcon name="arrow_upward" className="size-4" />
+          <MaterialIcon name="arrow_upward" size={20} />
           Get Parent of This Object
         </Button>
       </div>
@@ -197,7 +200,7 @@ export default function MiniLogicalObjectPicker({
         disabled={!currentObject}
         onClick={assignCurrentObject}
       >
-        <MaterialIcon name={icon} className="size-4" />
+        <MaterialIcon name={icon} size={20} />
         {currentObject
           ? role === "target"
             ? `Add ${currentName} as Click Target`

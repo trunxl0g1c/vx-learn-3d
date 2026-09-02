@@ -11,8 +11,13 @@ import EditorSceneViewGizmo from "../viewer/EditorSceneViewGizmo";
 import TransformModeToolbar from "../viewer/TransformModeToolbar";
 import { viewportStyle } from "../../constants/viewerStyles";
 
+const DEFAULT_ANIMATION_DOCK_HEIGHT = 360;
+
 export default function EditorViewport({ controller }) {
   const [procedureStepPanelVisible, setProcedureStepPanelVisible] = useState(false);
+  const [animationDockHeight, setAnimationDockHeight] = useState(
+    DEFAULT_ANIMATION_DOCK_HEIGHT,
+  );
 
   const {
     activeSidebar,
@@ -37,6 +42,7 @@ export default function EditorViewport({ controller }) {
     handleReadModelLicenseMetadata,
     handleAddAdditionalGlbFiles,
     handleRemoveAdditionalGlb,
+    handleRemoveProjectMedia,
     handleModelLoaded,
     markerMode,
     setMarkerMode,
@@ -148,6 +154,15 @@ export default function EditorViewport({ controller }) {
     setActiveChapterId,
   } = controller;
 
+  let viewportBottomOffset = 0;
+  if (animationAuthoring?.isAuthoringActive) {
+    viewportBottomOffset = animationDockHeight;
+  } else if (quizAuthoring?.isAuthoringActive) {
+    viewportBottomOffset = 420;
+  } else if (xrAuthoring?.isAuthoringActive) {
+    viewportBottomOffset = 360;
+  }
+
   const workspaceAuthoringActive = Boolean(
     animationAuthoring?.isAuthoringActive ||
       quizAuthoring?.isAuthoringActive ||
@@ -229,15 +244,8 @@ export default function EditorViewport({ controller }) {
       )}
 
       <div
-        className={
-          animationAuthoring?.isAuthoringActive
-            ? "absolute inset-x-0 top-0 bottom-[360px]"
-            : quizAuthoring?.isAuthoringActive
-              ? "absolute inset-x-0 top-0 bottom-[420px]"
-              : xrAuthoring?.isAuthoringActive
-                ? "absolute inset-x-0 top-0 bottom-[360px]"
-                : "absolute inset-0"
-        }
+        className="absolute inset-x-0 top-0"
+        style={{ bottom: viewportBottomOffset }}
       >
         <SceneCanvas
         cameraRef={cameraRef}
@@ -415,6 +423,8 @@ export default function EditorViewport({ controller }) {
       <AnimationWorkspaceDock
         animationAuthoring={animationAuthoring}
         selectedObjectName={selectedObjectName}
+        dockHeight={animationDockHeight}
+        onDockHeightChange={setAnimationDockHeight}
       />
       <QuizWorkspaceDock
         quizAuthoring={quizAuthoring}
@@ -486,6 +496,7 @@ export default function EditorViewport({ controller }) {
         onReadModelLicenseMetadata={handleReadModelLicenseMetadata}
         onAddAdditionalGlbFiles={handleAddAdditionalGlbFiles}
         onRemoveAdditionalGlb={handleRemoveAdditionalGlb}
+        onRemoveProjectMedia={handleRemoveProjectMedia}
         onProcedureStepPanelVisibilityChange={setProcedureStepPanelVisible}
       />
     </div>

@@ -24,22 +24,22 @@ export default function ProcedureStepEditorSection({
   }, [scrollResetKey, step?.id]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden border border-secondary-default/60 bg-[#151b1b]/95 shadow-2xl backdrop-blur-xl">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden border-b border-l border-divider-main bg-[#151b1b]/95 shadow-2xl backdrop-blur-xl">
       <div className="flex h-16 shrink-0 items-center gap-3 border-b border-divider-main bg-[#14201f] px-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">
+          <p className="truncate text-sm font-normal text-white">
             {isAssembly ? "Configure Assembly Step" : "Configure Step"}
           </p>
-          <p className="truncate text-[10px] text-contrast-grayout">{step.name}</p>
+          <p className="truncate text-xs text-contrast-grayout">{step.name}</p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10 hover:text-white"
+          className="cursor-pointer grid size-8 shrink-0 place-items-center rounded-lg text-secondary-default transition hover:bg-white/10 hover:text-white"
           title="Close Configure Step"
           aria-label="Close Configure Step"
         >
-          <MaterialIcon name="close" className="size-5" />
+          <MaterialIcon name="close" size={20} />
         </button>
       </div>
 
