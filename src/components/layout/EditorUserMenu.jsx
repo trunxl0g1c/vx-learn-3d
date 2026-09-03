@@ -136,7 +136,7 @@ export default function EditorUserMenu({
 
           <div className="my-1 border-t border-white/10" />
 
-          <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+          <div className="px-3 pb-1 pt-1.5 text-[10px] font-normal uppercase tracking-[0.14em] text-white/40">
             Data
           </div>
 

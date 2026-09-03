@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Button, { cn } from "../../ui/button";
 import MaterialIcon from "../../ui/material-icon";
-import { stripForceLanguageMarkup } from "../../../engine/speech";
+import { descriptionToPlainText } from "../../../utils/descriptionHtml";
 
 export default function SlideListPanel({ slideAuthoring }) {
   const slides = slideAuthoring?.slides || [];
@@ -219,7 +219,7 @@ export default function SlideListPanel({ slideAuthoring }) {
                         </span>
                         <span className="mt-1 block truncate text-xs text-grayout-main">
                           {slide.description
-                            ? stripForceLanguageMarkup(slide.description)
+                            ? descriptionToPlainText(slide.description)
                             : "No description"}
                         </span>
                       </span>
@@ -281,7 +281,9 @@ export default function SlideListPanel({ slideAuthoring }) {
                       {draggingSlide.title || `Slide ${draggingSlideIndex + 1}`}
                     </span>
                     <span className="mt-1 block truncate text-xs text-grayout-main">
-                      {draggingSlide.description || "No description"}
+                      {draggingSlide.description
+                        ? descriptionToPlainText(draggingSlide.description)
+                        : "No description"}
                     </span>
                   </span>
                   <MaterialIcon

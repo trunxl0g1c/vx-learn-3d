@@ -642,7 +642,6 @@ export default function PlayerPage() {
           onPlayChapterFlow={player.slidePanel.playFlow}
           onStopChapterFlows={player.slidePanel.stopFlows}
           chapters={player.slidePanel.slides}
-          richTextDescription
         />
       )}
 

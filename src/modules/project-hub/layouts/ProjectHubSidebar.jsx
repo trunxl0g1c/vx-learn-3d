@@ -44,6 +44,12 @@ function buildMenus(isAdmin) {
             match: "/admin/storage-settings",
             icon: "dns",
           },
+          {
+            title: "User Management",
+            href: "/admin/users",
+            match: "/admin/users",
+            icon: "group_add",
+          },
         ]
       : []),
 

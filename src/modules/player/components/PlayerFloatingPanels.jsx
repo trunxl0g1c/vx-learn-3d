@@ -26,7 +26,7 @@ import PlayerChapterPlaybackSection from "../../../components/player/PlayerChapt
 import PlayerProjectSlideList, {
   PlayerProjectSlideListHeader,
 } from "../../../components/player/PlayerProjectSlideList";
-import { stripForceLanguageMarkup } from "../../../engine/speech";
+import RichDescriptionText from "../../../components/ui/rich-description-text";
 
 function getProjectInfoTitle(material) {
   return (
@@ -228,14 +228,10 @@ export function PlayerChapterReaderFloatingPanel({
   onPlayChapterFlow,
   onStopChapterFlows,
   chapters = [],
-  richTextDescription = false,
 }) {
   const title = activeChapter?.title || "Untitled Chapter";
-  const rawDescription =
+  const description =
     activeChapter?.description || "Belum ada deskripsi chapter.";
-  const description = richTextDescription
-    ? stripForceLanguageMarkup(rawDescription)
-    : rawDescription;
   const mediaAssets = getChapterMediaAssets(activeChapter);
   const chapterList = Array.isArray(chapters) ? chapters : [];
   const hasChapters = chapterList.length > 0;
@@ -304,9 +300,10 @@ export function PlayerChapterReaderFloatingPanel({
             Description
           </div>
 
-          <p className="text-sm leading-7 text-white/85 whitespace-pre-line">
-            {description}
-          </p>
+          <RichDescriptionText
+            text={description}
+            className="text-sm leading-7 text-white/85"
+          />
         </section>
 
         {cameraViewCount > 0 && (

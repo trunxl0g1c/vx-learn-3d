@@ -1,5 +1,5 @@
 import { BookOpen, ChevronRight } from "lucide-react";
-import { stripForceLanguageMarkup } from "../../engine/speech";
+import { descriptionToPlainText } from "../../utils/descriptionHtml";
 
 export function PlayerProjectSlideListHeader({ count = 0 }) {
   return (
@@ -60,7 +60,7 @@ export default function PlayerProjectSlideList({
               </span>
               {slide?.description ? (
                 <span className="mt-0.5 block truncate text-xs text-white/40">
-                  {stripForceLanguageMarkup(slide.description)}
+                  {descriptionToPlainText(slide.description)}
                 </span>
               ) : (
                 <span className="mt-0.5 block text-[10px] text-white/30">

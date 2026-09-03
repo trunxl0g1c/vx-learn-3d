@@ -56,6 +56,24 @@ function normalizeLicenseInfo(data) {
     max: features[featureKey],
   }));
 
+  // Derived, not its own license feature: vxcubed-be's assertSeatAvailable()
+  // caps total distinct editor+viewer seat holders at whichever of
+  // max_user_editor/max_user_viewer is larger (unlimited if either is
+  // unset) — see that method's doc comment. Only shown once both role
+  // limits are actually set, matching the backend's own condition for
+  // enforcing this combined ceiling at all.
+  if (
+    typeof features.max_user_editor === "number" &&
+    typeof features.max_user_viewer === "number"
+  ) {
+    quotas.push({
+      key: "combined_user_seats",
+      label: "Total Editor + Viewer Seats",
+      used: usage.totalSeatUsers,
+      max: Math.max(features.max_user_editor, features.max_user_viewer),
+    });
+  }
+
   const contentByWorkspace =
     features.max_content != null
       ? (usage.contentByWorkspace || []).map((entry) => ({

@@ -12,6 +12,7 @@ import {
 import { normalizeSlideDefinition, normalizeSlideDefinitions } from "../../../engine/slide";
 import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
 import { speakText, stopSpeech } from "../../../engine/speech";
+import { descriptionToSpeechText } from "../../../utils/descriptionHtml";
 
 export default function usePlayerSlide({
   material,
@@ -227,7 +228,7 @@ export default function usePlayerSlide({
   const speakDescription = () => {
     if (!activeSlide?.description) return false;
 
-    return speakText(activeSlide.description, {
+    return speakText(descriptionToSpeechText(activeSlide.description), {
       language: "auto",
       defaultLanguage: "id-ID",
       allowForceMarkup: true,

@@ -800,3 +800,67 @@ canvas {
   bottom: calc(380px + env(safe-area-inset-bottom, 0px)) !important;
   z-index: 160 !important;
 }
+
+/* Rich text chapter/slide description: shared between the Tiptap editor
+   (.ProseMirror) and the sanitized read-only reader view (.vx-rich-description). */
+.vx-rich-description p,
+.ProseMirror p {
+  margin: 0 0 0.5em;
+}
+
+.vx-rich-description p:last-child,
+.ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.vx-rich-description .vx-ta-left,
+.ProseMirror .vx-ta-left {
+  text-align: left;
+}
+
+.vx-rich-description .vx-ta-center,
+.ProseMirror .vx-ta-center {
+  text-align: center;
+}
+
+.vx-rich-description .vx-ta-right,
+.ProseMirror .vx-ta-right {
+  text-align: right;
+}
+
+.vx-rich-description .vx-ta-justify,
+.ProseMirror .vx-ta-justify {
+  text-align: justify;
+}
+
+.vx-rich-description .vx-force-en,
+.ProseMirror .vx-force-en {
+  border-bottom: 1px dashed var(--color-secondary-default);
+}
+
+.vx-rich-description code,
+.ProseMirror code {
+  background: var(--color-dark-alpha);
+  color: var(--color-secondary-default);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.vx-rich-description a,
+.ProseMirror a {
+  color: var(--color-secondary-default);
+  text-decoration: underline;
+}
+
+.vx-description-editor.ProseMirror {
+  outline: none;
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--color-contrast-grayout);
+}

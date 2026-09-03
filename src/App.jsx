@@ -14,6 +14,7 @@ import WorkspaceDetailRoute from "./modules/workspace/WorkspaceDetailRoute";
 import ProfileRoute from "./modules/profile/ProfileRoute";
 import AdminCategoriesRoute from "./modules/admin/categories/AdminCategoriesRoute";
 import AdminStorageSettingsRoute from "./modules/admin/storage-settings/AdminStorageSettingsRoute";
+import AdminUsersRoute from "./modules/admin/users/AdminUsersRoute";
 import MyClassroomsRoute from "./modules/classroom/MyClassroomsRoute";
 import { loadPlayerPage, loadViewerPage } from "./routeLoaders";
 
@@ -79,6 +80,7 @@ export default function App() {
                     path="/admin/storage-settings"
                     element={<AdminStorageSettingsRoute />}
                   />
+                  <Route path="/admin/users" element={<AdminUsersRoute />} />
                 </Route>
               </Route>
 
