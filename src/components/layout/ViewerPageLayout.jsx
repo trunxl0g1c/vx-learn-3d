@@ -140,6 +140,7 @@ export default function ViewerPageLayout({ controller }) {
       <EditorSidebarRail
         activeSidebar={activeSidebar}
         setActiveSidebar={setActiveSidebar}
+        returnToSlideList={Boolean(slideAuthoring?.activeSlideId)}
       />
 
       <Activity

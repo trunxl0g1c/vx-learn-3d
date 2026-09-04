@@ -3,6 +3,11 @@ import Button from "../../../ui/button";
 import { Section } from "./PanelPrimitives";
 import SelectField from "../../../ui/select";
 
+const PROCEDURE_TYPE_OPTIONS = [
+  { value: "guided", label: "Guided Procedure" },
+  { value: "assembly", label: "Assembly" },
+];
+
 export default function ProcedureSelectionSection({
   procedural,
   newProcedureType,
@@ -24,13 +29,9 @@ export default function ProcedureSelectionSection({
 
         <div className="flex gap-2">
           <SelectField
-            value={procedural?.activeStepId || ""}
-            onChange={(value) => procedural?.selectStep?.(value)}
-            placeholder="Select step"
-            options={(procedural?.steps || []).map((item) => ({
-              value: item.id,
-              label: item.name,
-            }))}
+            value={newProcedureType}
+            onChange={setNewProcedureType}
+            options={PROCEDURE_TYPE_OPTIONS}
             className="h-9! w-full"
           />
           <Button
@@ -41,6 +42,18 @@ export default function ProcedureSelectionSection({
             <MaterialIcon name="add" size={20} />
           </Button>
         </div>
+
+        <SelectField
+          value={procedural?.activeStepId || ""}
+          onChange={(value) => procedural?.selectStep?.(value)}
+          placeholder="Select step"
+          disabled={!procedural?.activeProcedureId}
+          options={(procedural?.steps || []).map((item) => ({
+            value: item.id,
+            label: item.name,
+          }))}
+          className="h-9! w-full"
+        />
 
         <div className="grid grid-cols-2 gap-2">
           <Button

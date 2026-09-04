@@ -9,6 +9,7 @@ import {
   applyModelTransformOverrides,
   captureModelTransformOverrides,
 } from "./ModelTransformState"
+import { showObjectsInScene } from "./ModelVisibility"
 
 export function computeModelBounds(scene) {
   if (!scene) return null
@@ -807,13 +808,15 @@ export function createModelEngine(options = {}) {
     originalGroupPositions.forEach((item) => {
       const object = item?.object
 
-      if (!object || !item?.position || !item?.rotation) return
+      if (!object || !item?.position || !item?.rotation || !item?.scale) return
 
       const targetPosition = item.position.clone()
       const targetRotation = item.rotation.clone()
+      const targetScale = item.scale.clone()
       const targetQuaternion = new THREE.Quaternion().setFromEuler(targetRotation)
       const positionChanged = object.position.distanceToSquared(targetPosition) > 1e-10
       const rotationChanged = object.quaternion.angleTo(targetQuaternion) > 1e-5
+      const scaleChanged = object.scale.distanceToSquared(targetScale) > 1e-10
 
       delete object.userData.targetPosition
       delete object.userData.targetPositionAnimation
@@ -821,13 +824,14 @@ export function createModelEngine(options = {}) {
       delete object.userData.moveTargetRotation
       delete object.userData.moveTargetTransformAnimation
 
-      if (!positionChanged && !rotationChanged) return
+      if (!positionChanged && !rotationChanged && !scaleChanged) return
 
       const requestedDuration = Number(animationDuration)
 
       if (Number.isFinite(requestedDuration) && requestedDuration <= 0) {
         object.position.copy(targetPosition)
         object.rotation.copy(targetRotation)
+        object.scale.copy(targetScale)
         object.updateMatrixWorld?.(true)
         animatedObjectCount += 1
         return
@@ -838,7 +842,9 @@ export function createModelEngine(options = {}) {
       object.userData.moveTargetTransformAnimation = {
         fromPosition: object.position.clone(),
         fromQuaternion: object.quaternion.clone(),
+        fromScale: object.scale.clone(),
         targetQuaternion,
+        targetScale,
         startedAt: getNow(),
         duration: Math.max(requestedDuration || 560, 1),
       }
@@ -883,6 +889,10 @@ export function createModelEngine(options = {}) {
     return true
   }
 
+  const showObjects = (objectOrObjects) => {
+    return showObjectsInScene(scene, objectOrObjects)
+  }
+
   const soloObject = (objectOrObjects) => {
     if (!scene) return false
 
@@ -899,22 +909,9 @@ export function createModelEngine(options = {}) {
       if (child.isMesh) child.visible = false
     })
 
-    targets.forEach((targetObject) => {
-      // A selected branch must remain renderable even when it (or one of its
-      // parents) had previously been hidden. Sibling meshes stay hidden.
-      let ancestor = targetObject
-      while (ancestor) {
-        ancestor.visible = true
-        if (ancestor === scene) break
-        ancestor = ancestor.parent
-      }
-
-      targetObject.traverse?.((child) => {
-        child.visible = true
-      })
-    })
-
-    return true
+    // A selected branch must remain renderable even when it (or one of its
+    // parents) had previously been hidden. Sibling meshes stay hidden.
+    return showObjects(targets)
   }
 
   const resetTransforms = () => {
@@ -980,6 +977,7 @@ export function createModelEngine(options = {}) {
     clearState,
     dispose,
     showAllObjects,
+    showObjects,
     hideAllObjects,
     hideObject,
     soloObject,

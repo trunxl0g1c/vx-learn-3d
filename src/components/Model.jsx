@@ -18,6 +18,7 @@ import {
   DEFAULT_MARKER_LABEL_OFFSET,
   findVisibleMarkerPlacementHit,
 } from "../engine/marker";
+import { createEmbeddedAnimationSummaries } from "../engine/animation";
 
 function applyAnimationActionConfig(action, config = {}) {
   if (!action) return;
@@ -53,30 +54,6 @@ function getAnimationActions(actionGroups, animationName) {
 
 function getAnimationClipName(clip) {
   return clip?.name || "Unnamed Animation";
-}
-
-function createAnimationSummaries(clips = []) {
-  const summariesByName = new Map();
-
-  clips.forEach((clip) => {
-    const name = getAnimationClipName(clip);
-    const duration = Number(clip?.duration) || 0;
-    const current = summariesByName.get(name);
-
-    if (current) {
-      current.duration = Math.max(current.duration, duration);
-      current.clipCount += 1;
-      return;
-    }
-
-    summariesByName.set(name, {
-      name,
-      duration,
-      clipCount: 1,
-    });
-  });
-
-  return Array.from(summariesByName.values());
 }
 
 function Model({
@@ -175,7 +152,7 @@ function Model({
 
     mixer.setTime(0);
 
-    onAnimationsLoaded?.(createAnimationSummaries(animations));
+    onAnimationsLoaded?.(createEmbeddedAnimationSummaries(animations));
 
     onModelLoaded?.(scene);
 
@@ -374,10 +351,20 @@ function Model({
             transformAnimation.targetQuaternion,
             easedProgress,
           );
+          if (transformAnimation.fromScale && transformAnimation.targetScale) {
+            child.scale.lerpVectors(
+              transformAnimation.fromScale,
+              transformAnimation.targetScale,
+              easedProgress,
+            );
+          }
 
           if (progress >= 1) {
             child.position.copy(child.userData.moveTargetPosition);
             child.quaternion.copy(transformAnimation.targetQuaternion);
+            if (transformAnimation.targetScale) {
+              child.scale.copy(transformAnimation.targetScale);
+            }
 
             delete child.userData.moveTargetPosition;
             delete child.userData.moveTargetRotation;

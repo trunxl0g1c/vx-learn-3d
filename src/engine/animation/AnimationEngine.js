@@ -5,6 +5,7 @@ import {
   captureAuthoredAnimationBaseline,
   captureAuthoredAnimationTrackBaseline,
   createAuthoredAnimationDefinition,
+  createAuthoredAnimationKeyframeTransform,
   createAuthoredAnimationObjectReference,
   createAuthoredAnimationLocalPivot,
   createAuthoredAnimationLocalPivotFromHit,
@@ -20,6 +21,7 @@ import {
   upsertAuthoredAnimationKeyframe,
 } from "./AuthoredAnimation";
 import {
+  applyMechanicalPivotTransform,
   createMechanicalRigDefinition,
   normalizeMechanicalRig,
 } from "./MechanicalRig";
@@ -28,6 +30,12 @@ import {
   organizeAuthoredAnimationTracks,
   reorderAuthoredAnimationTrack,
 } from "./TrackHierarchy";
+import {
+  createEmbeddedAnimationSummaries,
+  resolveAnimationTargetObjects,
+  resolveAuthoredAnimationTargetObjects,
+  resolveEmbeddedAnimationTargetObjects,
+} from "./AnimationTargets";
 
 export const ANIMATION_COMMAND_TYPES = {
   PLAY: "play",
@@ -419,6 +427,8 @@ export function createAnimationEngine() {
     findAuthoredObject: findAuthoredAnimationObject,
     createAuthoredTrack: createAuthoredAnimationTrack,
     createAuthoredTransform: createAuthoredAnimationTransform,
+    createAuthoredKeyframeTransform: createAuthoredAnimationKeyframeTransform,
+    applyMechanicalPivotTransform,
     evaluateAuthoredTrackState: evaluateAuthoredAnimationTrackState,
     applyAuthoredTransform: applyAuthoredAnimationTransform,
     upsertAuthoredKeyframe: upsertAuthoredAnimationKeyframe,
@@ -427,6 +437,10 @@ export function createAnimationEngine() {
     captureAuthoredBaseline: captureAuthoredAnimationBaseline,
     captureAuthoredTrackBaseline: captureAuthoredAnimationTrackBaseline,
     restoreAuthoredBaseline: restoreAuthoredAnimationBaseline,
+    createEmbeddedAnimationSummaries,
+    resolveAnimationTargets: resolveAnimationTargetObjects,
+    resolveAuthoredAnimationTargets: resolveAuthoredAnimationTargetObjects,
+    resolveEmbeddedAnimationTargets: resolveEmbeddedAnimationTargetObjects,
     clear,
     reset: clear,
     dispose: clear,

@@ -422,16 +422,17 @@ export default function usePlayerFreePlay({
   }
 
   const resetVisualState = ({ animationDuration = 560 } = {}) => {
+    // Keep mesh-level pull-apart resets on the same timing as group resets.
+    // Run this first because resetParts clears pending move-transform data.
+    // The complete position/rotation/scale reset installed below must remain
+    // authoritative until it finishes.
+    resetSavedPresentationState({ animationDuration })
     resetMovedObjects({ animationDuration })
     resetModelRotationForCut()
-    // Keep mesh-level pull-apart resets on the same timing as group resets.
-    // Procedure playback passes 0 here so no stale targetPosition animation can
-    // continue after the authored Start transform has been applied.
-    resetSavedPresentationState({ animationDuration })
   }
 
   const resetAllTransforms = () => {
-    resetVisualState()
+    resetVisualState({ animationDuration: 0 })
   }
 
   const applySavedPullApart = (pullApartState, targetObject) => {

@@ -45,7 +45,9 @@ export function useViewerObjectActions({
   ]);
 
   const resetAllObjectState = useCallback(() => {
-    resetVisualState?.();
+    // Reset All is an explicit restore command, so object transforms must
+    // return to their authored baseline immediately instead of animating.
+    resetVisualState?.({ animationDuration: 0 });
     resetXray?.({ closeInfo: false });
     setBlinkSelectedObjectsEnabled?.(false);
     setBlinkTargetObjects?.([]);

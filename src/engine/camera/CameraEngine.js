@@ -6,6 +6,7 @@ import {
   createCameraState,
   createDefaultCameraTarget,
   createFocusTargetFromObject,
+  createFocusTargetFromObjects,
   createFocusTargetFromScene,
 } from "./CameraFocusUtils"
 
@@ -99,6 +100,17 @@ export function createCameraEngine(initialState = {}) {
         options.camera || camera,
         options.controls || controls,
         options
+      )
+
+      return setFocusTarget(focusTarget, options)
+    },
+
+    focusObjects(objects, options = {}) {
+      const focusTarget = createFocusTargetFromObjects(
+        objects,
+        options.camera || camera,
+        options.controls || controls,
+        options,
       )
 
       return setFocusTarget(focusTarget, options)

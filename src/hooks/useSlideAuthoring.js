@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createId } from "../utils/createId";
 import {
   addSlideAnimationAssignment,
@@ -19,10 +19,8 @@ import {
   syncChapterCameraViews,
 } from "../engine/chapter";
 import {
-  PERSPECTIVE_CAMERA_SAVE_WARNING,
   createViewerCameraView,
   createViewerVisualState,
-  isOrthographicViewerCamera,
 } from "../engine/viewer";
 import {
   applyChapterModelRotation,
@@ -85,11 +83,13 @@ export function useSlideAuthoring({
 }) {
   const [activeSlideId, setActiveSlideId] = useState(null);
   const [feedback, setFeedback] = useState(null);
-  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
-    cameraRef,
-    cameraProjectionMode,
-    onSwitchToPerspective: setCameraProjectionMode,
-  });
+  const slidePreviewRequestRef = useRef(0);
+  const { notifyIfOrthographicCameraSaved } =
+    usePerspectiveCameraSaveGuard({
+      cameraRef,
+      cameraProjectionMode,
+      onSwitchToPerspective: setCameraProjectionMode,
+    });
 
   const slides = Array.isArray(material?.slides) ? material.slides : [];
   const activeSlide = useMemo(
@@ -100,6 +100,7 @@ export function useSlideAuthoring({
 
   useEffect(() => {
     if (!enabled) {
+      slidePreviewRequestRef.current += 1;
       setActiveSlideId(null);
       setMarkerMode?.(false);
       setRightTab?.((current) => (current === "slide" ? null : current));
@@ -170,6 +171,7 @@ export function useSlideAuthoring({
   ]);
 
   const createSlide = useCallback(() => {
+    slidePreviewRequestRef.current += 1;
     const cameraView = createViewerCameraView({
       camera: cameraRef.current,
       controls: controlsRef.current,
@@ -196,13 +198,12 @@ export function useSlideAuthoring({
     setActiveSlideId(slide.id);
     setMarkerMode?.(false);
     setRightTab?.("slide");
+    if (cameraView && visualState) notifyIfOrthographicCameraSaved();
     showFeedback(
       "success",
       cameraView && visualState
         ? "Slide created with Camera 1 and current state."
-        : isOrthographicViewerCamera(cameraRef.current)
-          ? "Slide created without Camera 1. Switch View to Perspective before saving Camera & State."
-          : "Slide created successfully.",
+        : "Slide created successfully.",
     );
     return slide;
   }, [
@@ -215,10 +216,13 @@ export function useSlideAuthoring({
     setRightTab,
     showFeedback,
     slides.length,
+    notifyIfOrthographicCameraSaved,
   ]);
 
   const selectSlide = useCallback(
     async (slideId) => {
+      slidePreviewRequestRef.current += 1;
+
       if (!slideId) {
         setActiveSlideId(null);
         if (enabled) setRightTab?.(null);
@@ -240,12 +244,14 @@ export function useSlideAuthoring({
   );
 
   const closeSlide = useCallback(() => {
+    slidePreviewRequestRef.current += 1;
     setActiveSlideId(null);
     setMarkerMode?.(false);
     setRightTab?.(null);
   }, [setMarkerMode, setRightTab]);
 
   const stopAuthoring = useCallback(() => {
+    slidePreviewRequestRef.current += 1;
     setActiveSlideId(null);
     setMarkerMode?.(false);
     setRightTab?.((current) => (current === "slide" ? null : current));
@@ -375,11 +381,6 @@ export function useSlideAuthoring({
         return false;
       }
 
-      if (!requirePerspectiveCameraForSave()) {
-        showFeedback("error", PERSPECTIVE_CAMERA_SAVE_WARNING);
-        return false;
-      }
-
       const cameraView = createViewerCameraView({
         camera: cameraRef.current,
         controls: controlsRef.current,
@@ -422,6 +423,7 @@ export function useSlideAuthoring({
             : slide,
         ),
       }));
+      notifyIfOrthographicCameraSaved();
       showFeedback("success", cameraViewId ? "Camera and state updated." : "Camera and state added.");
       return true;
     }, [
@@ -433,7 +435,7 @@ export function useSlideAuthoring({
       modelScene,
       setMaterial,
       showFeedback,
-      requirePerspectiveCameraForSave,
+      notifyIfOrthographicCameraSaved,
     ],
   );
 
@@ -458,20 +460,40 @@ export function useSlideAuthoring({
 
   const previewSlide = useCallback(
     async (slideId, cameraViewId = null) => {
-      let slide = slides.find((item) => item.id === slideId) || null;
-      if (slide && isLazyMaterialRecord(slide, "slides")) {
-        slide = (await hydrateSlideRecord?.(slideId)) || slide;
-      }
-      if (!slide || !modelScene) return false;
-
+      const requestId = slidePreviewRequestRef.current + 1;
+      slidePreviewRequestRef.current = requestId;
       setActiveSlideId(slideId);
       setMarkerMode?.(false);
       setRightTab?.("slide");
+
+      let slide = slides.find((item) => item.id === slideId) || null;
+      try {
+        if (slide && isLazyMaterialRecord(slide, "slides")) {
+          slide = (await hydrateSlideRecord?.(slideId)) || slide;
+        }
+      } catch (error) {
+        if (slidePreviewRequestRef.current === requestId) {
+          console.error("Failed to preview slide:", error);
+          showFeedback("error", "Unable to load slide content.");
+        }
+        return false;
+      }
+
+      // IndexedDB reads can finish out of order when Slide List is clicked
+      // quickly. Only the latest click may restore camera, visibility, and
+      // object transforms; an older request must never overwrite it.
+      if (slidePreviewRequestRef.current !== requestId) return false;
+      if (!slide || !modelScene) return false;
+
       resetXray?.({ closeInfo: false });
       setBlinkSelectedObjectsEnabled?.(false);
       setBlinkTargetObjects?.([]);
       setBlinkAssignments?.([]);
-      resetVisualState?.();
+      // Restore every object to its authored baseline before applying this
+      // Slide's sparse transform overrides. Without an immediate reset,
+      // position/rotation/scale from the previous Slide can leak into objects
+      // that are unchanged (and therefore absent) in the next saved state.
+      resetVisualState?.({ animationDuration: 0 });
       clearCutSession?.();
       setSelectedObject?.(null);
       setSelectedObjectName?.("");
@@ -526,6 +548,7 @@ export function useSlideAuthoring({
       setRightTab,
       setSelectedObject,
       setSelectedObjectName,
+      showFeedback,
       slides,
     ],
   );

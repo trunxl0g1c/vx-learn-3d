@@ -120,6 +120,15 @@ export function useDefaultViewerPresentation({
         return;
       }
 
+      if (isOrthographicViewerCamera(cameraRef?.current)) {
+        if (attempts < 120) {
+          animationFrameId = window.requestAnimationFrame(
+            captureMissingDefaultPresentation,
+          );
+        }
+        return;
+      }
+
       const capturedCameraView = needsCameraView ? captureCameraView?.() : null;
       const capturedVisualState = needsVisualState ? captureVisualState?.() : null;
 
@@ -182,6 +191,7 @@ export function useDefaultViewerPresentation({
   }, [
     captureCameraView,
     captureVisualState,
+    cameraRef,
     modelScene,
     playerSettings.defaultCameraView,
     playerSettings.defaultVisualState,

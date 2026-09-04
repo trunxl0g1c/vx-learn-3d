@@ -1,5 +1,8 @@
 import { Plus, Trash2 } from "lucide-react";
-import { normalizeChapterAnimationAssignments } from "../../../engine/chapter";
+import {
+  ANIMATION_PLAYBACK_MODES,
+  normalizeChapterAnimationAssignments,
+} from "../../../engine/chapter";
 import Button from "../../ui/button";
 import Checkbox from "../../ui/checkbox";
 import SelectField from "../../ui/select";
@@ -95,7 +98,10 @@ export default function ChapterAnimationSection({
       <div>
         <div className="text-sm font-normal text-contrast-grayout">Animation</div>
         <p className="mt-1 text-xs leading-5 text-contrast-grayout">
-          Assign embedded GLB clips or animations authored in Pro → Animation Creation.
+          Assign embedded GLB clips or animations authored in Pro → Animation
+          Creation. Use After Previous for a sequence or With Previous to play
+          animations together. A looping group keeps the following sequence
+          waiting.
         </p>
       </div>
 
@@ -107,11 +113,11 @@ export default function ChapterAnimationSection({
         <>
           {assignments.length === 0 ? (
             <div className="rounded-lg border border-dashed border-divider-main px-3 py-3 text-sm leading-5 text-contrast-grayout">
-              No animation has been assigned to this chapter.
+              No animation has been assigned to this slide.
             </div>
           ) : (
             <div className="space-y-3">
-              {assignments.map((assignment) => {
+              {assignments.map((assignment, index) => {
                 const currentValue = getAssignmentValue(assignment);
                 const options = getAvailableAnimationOptions(
                   allOptions,
@@ -125,6 +131,10 @@ export default function ChapterAnimationSection({
                     className="rounded-lg border border-divider-main bg-primary/60 p-3"
                     onClick={(event) => event.stopPropagation()}
                   >
+                    <div className="mb-2 text-[11px] font-medium text-secondary-default">
+                      Animation {index + 1}
+                    </div>
+
                     <div className="flex items-start gap-2">
                       <SelectField
                         value={currentValue}
@@ -172,8 +182,45 @@ export default function ChapterAnimationSection({
 
                     <div className="mt-3 space-y-3">
                       <div className="flex items-center justify-between gap-3">
+                        <label
+                          htmlFor={`content-animation-play-mode-${assignment.assignmentId}`}
+                          className="text-xs text-contrast-grayout"
+                        >
+                          Playback timing
+                        </label>
+                        <select
+                          id={`content-animation-play-mode-${assignment.assignmentId}`}
+                          value={assignment.playMode}
+                          disabled={!currentValue || index === 0}
+                          onChange={(event) =>
+                            updateChapterAnimation?.(
+                              chapter.id,
+                              assignment.assignmentId,
+                              { playMode: event.target.value },
+                            )
+                          }
+                          className={[
+                            "h-8 w-36 rounded-md border border-divider-main",
+                            "bg-primary px-2 text-xs text-white outline-none",
+                            "transition-colors hover:border-accent-main",
+                            "focus:border-accent-main",
+                            "disabled:cursor-not-allowed disabled:opacity-50",
+                          ].join(" ")}
+                        >
+                          <option value={ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS}>
+                            {index === 0 ? "Start Sequence" : "After Previous"}
+                          </option>
+                          {index > 0 && (
+                            <option value={ANIMATION_PLAYBACK_MODES.WITH_PREVIOUS}>
+                              With Previous
+                            </option>
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
                         <span className="text-xs text-contrast-grayout">
-                          Play automatically when chapter opens
+                          Play automatically when slide opens
                         </span>
                         <Checkbox
                           checked={assignment.autoPlay}

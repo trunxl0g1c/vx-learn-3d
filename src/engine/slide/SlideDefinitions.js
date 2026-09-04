@@ -1,5 +1,6 @@
 import { createId } from "../../utils/createId";
 import {
+  ANIMATION_PLAYBACK_MODES,
   getChapterCameraViews,
   normalizeChapterAnimationAssignments,
   normalizeChapterFlowAssignments,
@@ -96,6 +97,7 @@ export function addSlideAnimationAssignment(material, slideId) {
         autoPlay: false,
         loop: false,
         speed: 1,
+        playMode: ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS,
       },
     ],
     updatedAt: new Date().toISOString(),

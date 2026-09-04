@@ -32,6 +32,7 @@ import FlowRuntimeRenderer from '../flow/FlowRuntimeRenderer'
 import FlowWaypointEditor from '../flow/FlowWaypointEditor'
 import AssemblyGhostTarget from '../procedural/AssemblyGhostTarget'
 import AnimationPivotEditor from '../animation/AnimationPivotEditor'
+import AnimationObjectTransformControls from '../animation/AnimationObjectTransformControls'
 import { DEFAULT_ORBIT_MIN_DISTANCE } from '../../engine/camera'
 import { getFlowReferenceLengthFromObject } from '../../engine/flow'
 import { getBlinkPresetById } from '../../engine/selection'
@@ -218,6 +219,7 @@ export default function SceneCanvas({
   animationPivotObject = null,
   animationPivotValue = [0, 0, 0],
   onAnimationTransformChange = null,
+  onAnimationPivotTransform = null,
   onAnimationPivotChange = null,
   onAnimationPivotPick = null,
 }) {
@@ -254,6 +256,13 @@ export default function SceneCanvas({
   const transformShowX = !animationRigLocksAxis || animationRigAxis === "x"
   const transformShowY = !animationRigLocksAxis || animationRigAxis === "y"
   const transformShowZ = !animationRigLocksAxis || animationRigAxis === "z"
+  const animationObjectPivotEnabled = Boolean(
+    !animationPivotEditEnabled &&
+      animationTransformObject &&
+      animationTransformRig?.type === "free" &&
+      ["rotate", "scale"].includes(activeTransformMode) &&
+      onAnimationPivotTransform,
+  )
 
   const transientOutlineObjects = useMemo(() => {
     if (!blinkSelectionEnabled || blinkOutlineObjects.length === 0) {
@@ -619,7 +628,23 @@ export default function SceneCanvas({
         onPivotChange={onAnimationPivotChange}
       />
 
-      {transformObject && (
+      <AnimationObjectTransformControls
+        object={animationTransformObject}
+        pivot={animationTransformRig?.pivot}
+        mode={activeTransformMode}
+        enabled={animationObjectPivotEnabled}
+        controlsRef={controlsRef}
+        showX={transformShowX}
+        showY={transformShowY}
+        showZ={transformShowZ}
+        onTransformingChange={handleViewportTransformingChange}
+        onTransformStart={onTransformStart}
+        onTransformEnd={onTransformEnd}
+        onObjectChange={onAnimationTransformChange}
+        onApplyPivotTransform={onAnimationPivotTransform}
+      />
+
+      {transformObject && !animationObjectPivotEnabled && (
         <TransformControls
           object={transformObject}
           mode={activeTransformMode}

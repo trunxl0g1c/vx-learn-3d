@@ -32,16 +32,16 @@ export default function TransformModeToolbar({
               onChange?.(item.id);
             }}
             className={[
-              "cursor-pointer flex h-9 min-w-0 flex-[0_1_auto] items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium transition max-[767px]:px-[9px] max-[420px]:w-12 max-[420px]:flex-none max-[420px]:px-0",
+              "grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg transition",
               active
                 ? "bg-accent-main text-white/85"
                 : "text-contrast-grayout hover:bg-white/10 hover:text-white/85",
             ].join(" ")}
             title={`${item.label} gizmo`}
+            aria-label={`${item.label} gizmo`}
             aria-pressed={active}
           >
             <MaterialIcon name={item.icon} size={20} />
-            <span className="truncate max-[420px]:hidden">{item.label}</span>
           </button>
         );
       })}

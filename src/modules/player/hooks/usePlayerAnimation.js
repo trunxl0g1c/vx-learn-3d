@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { createId } from "../../../utils/createId";
-import { normalizeChapterAnimationAssignments } from "../../../engine/chapter";
+import {
+  createChapterAnimationPlaybackGroups,
+  normalizeChapterAnimationAssignments,
+} from "../../../engine/chapter";
 import {
   applyAuthoredAnimationAtTime,
   captureAuthoredAnimationBaseline,
@@ -15,6 +18,7 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
   const [selectedAnimations, setSelectedAnimations] = useState({});
   const [animationCommand, setAnimationCommand] = useState(null);
   const autoPlayTokenRef = useRef(0);
+  const playbackTimeoutsRef = useRef([]);
   const authoredPlaybackRef = useRef({ token: 0, frameId: 0, entries: [] });
 
   const getChapterAnimationConfig = (chapter) => {
@@ -73,36 +77,30 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
     return definition ? normalizeAuthoredAnimationDefinition(definition) : null;
   };
 
-  const playAuthoredAssignments = async (assignments = []) => {
+  const clearScheduledPlayback = () => {
+    playbackTimeoutsRef.current.forEach((timeoutId) => {
+      clearTimeout(timeoutId);
+    });
+    playbackTimeoutsRef.current = [];
+  };
+
+  const startResolvedAuthoredAssignments = (resolved = []) => {
     if (!modelScene) return false;
-    const playable = (Array.isArray(assignments) ? assignments : []).filter(
-      (assignment) =>
-        assignment?.source === "authored" &&
-        (assignment.animationId || assignment.name),
+    const playable = (Array.isArray(resolved) ? resolved : []).filter(
+      (item) => item.definition?.tracks?.length,
     );
     if (playable.length === 0) return false;
 
     stopAuthoredAnimations(true);
     const token = authoredPlaybackRef.current.token + 1;
     authoredPlaybackRef.current.token = token;
-    const resolved = await Promise.all(
-      playable.map(async (assignment) => ({
-        assignment,
-        definition: await resolveAuthoredDefinition(assignment),
-      })),
-    );
-
-    if (authoredPlaybackRef.current.token !== token) return false;
-
-    const entries = resolved
-      .filter((item) => item.definition?.tracks?.length)
-      .map(({ assignment, definition }) => ({
-        assignment,
-        definition,
-        baseline: captureAuthoredAnimationBaseline(modelScene, definition),
-        startedAt: performance.now(),
-      }));
-    if (entries.length === 0) return false;
+    const startedAt = performance.now();
+    const entries = playable.map(({ assignment, definition }) => ({
+      assignment,
+      definition,
+      baseline: captureAuthoredAnimationBaseline(modelScene, definition),
+      startedAt,
+    }));
 
     authoredPlaybackRef.current.entries = entries;
 
@@ -137,8 +135,91 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
     return true;
   };
 
+  const preparePlaybackGroup = async (assignments = []) => {
+    const prepared = await Promise.all(
+      assignments.map(async (assignment) => {
+        const authored = assignment.source === "authored";
+        const definition = authored
+          ? await resolveAuthoredDefinition(assignment)
+          : null;
+        const embeddedSummary = authored
+          ? null
+          : animations.find((item) => item?.name === assignment.name);
+        const playable = authored
+          ? Boolean(definition?.tracks?.length)
+          : Boolean(assignment.name);
+        const sourceDuration = authored
+          ? Number(definition?.duration)
+          : Number(embeddedSummary?.duration);
+        const speed = Math.max(0.05, Number(assignment.speed) || 1);
+        const fallbackDuration = authored ? 2 : 0.1;
+        const duration =
+          Math.max(0.1, sourceDuration || fallbackDuration) / speed;
+
+        return {
+          assignment,
+          definition,
+          playable,
+          duration: assignment.loop === true ? Infinity : duration,
+        };
+      }),
+    );
+    const entries = prepared.filter((item) => item.playable);
+
+    return {
+      entries,
+      duration: entries.reduce(
+        (longest, entry) => Math.max(longest, entry.duration),
+        0,
+      ),
+    };
+  };
+
+  const startPlaybackGroup = (group, playToken) => {
+    if (autoPlayTokenRef.current !== playToken) return;
+
+    const embedded = group.entries.filter(
+      (entry) => entry.assignment.source !== "authored",
+    );
+    const authored = group.entries.filter(
+      (entry) => entry.assignment.source === "authored",
+    );
+
+    stopAuthoredAnimations(true);
+
+    if (embedded.length > 0) {
+      const nextSelectedAnimations = embedded.reduce((result, entry) => {
+        result[entry.assignment.name] = {
+          selected: true,
+          loop: entry.assignment.loop === true,
+          speed: Number(entry.assignment.speed) || 1,
+        };
+        return result;
+      }, {});
+
+      setSelectedAnimations(nextSelectedAnimations);
+      setAnimationCommand({
+        type: "playChapter",
+        animations: embedded.map((entry) => ({
+          name: entry.assignment.name,
+          loop: entry.assignment.loop === true,
+          speed: Number(entry.assignment.speed) || 1,
+        })),
+        id: createId(),
+      });
+    } else {
+      setSelectedAnimations({});
+      setAnimationCommand({ type: "stop", reset: true, id: createId() });
+    }
+
+    if (authored.length > 0) {
+      startResolvedAuthoredAssignments(authored);
+    }
+  };
+
   const resetAnimationState = () => {
     autoPlayTokenRef.current += 1;
+    clearScheduledPlayback();
     stopAuthoredAnimations(true);
     setAnimations([]);
     setSelectedAnimations({});
@@ -147,6 +228,7 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
 
   const stopCurrentAnimations = () => {
     autoPlayTokenRef.current += 1;
+    clearScheduledPlayback();
     stopAuthoredAnimations(true);
     setAnimationCommand({
       type: "stop",
@@ -168,57 +250,50 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
     if (autoPlayAnimations.length === 0) return;
     const autoPlayToken = autoPlayTokenRef.current;
 
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       if (autoPlayTokenRef.current !== autoPlayToken) return;
       playAnimationAssignments(autoPlayAnimations);
     }, 10);
+    playbackTimeoutsRef.current.push(timeoutId);
   };
 
   const playAnimationAssignments = (assignments = []) => {
-    const normalized = normalizeChapterAnimationAssignments(assignments).filter(
-      (animation) => animation.name || animation.animationId,
-    );
-    const embedded = normalized.filter(
-      (animation) => animation.source !== "authored" && animation.name,
-    );
-    const authored = normalized.filter(
-      (animation) => animation.source === "authored",
-    );
+    const groups = createChapterAnimationPlaybackGroups(assignments);
+    if (groups.length === 0) return false;
 
-    if (embedded.length > 0) {
-      const nextSelectedAnimations = embedded.reduce((result, animation) => {
-        result[animation.name] = {
-          selected: true,
-          loop: animation.loop === true,
-          speed: Number(animation.speed) || 1,
-        };
-        return result;
-      }, {});
+    autoPlayTokenRef.current += 1;
+    const playToken = autoPlayTokenRef.current;
+    clearScheduledPlayback();
+    stopAuthoredAnimations(true);
+    setSelectedAnimations({});
+    setAnimationCommand({ type: "stop", reset: true, id: createId() });
 
-      autoPlayTokenRef.current += 1;
-      const playToken = autoPlayTokenRef.current;
-      setSelectedAnimations(nextSelectedAnimations);
-      setAnimationCommand(null);
-
-      setTimeout(() => {
+    void Promise.all(groups.map(preparePlaybackGroup))
+      .then((preparedGroups) => {
         if (autoPlayTokenRef.current !== playToken) return;
-        setAnimationCommand({
-          type: "playChapter",
-          animations: embedded.map((animation) => ({
-            name: animation.name,
-            loop: animation.loop === true,
-            speed: Number(animation.speed) || 1,
-          })),
-          id: createId(),
+
+        let delayMs = 10;
+        preparedGroups.forEach((group) => {
+          if (group.entries.length === 0 || !Number.isFinite(delayMs)) return;
+
+          const timeoutId = setTimeout(() => {
+            startPlaybackGroup(group, playToken);
+          }, delayMs);
+          playbackTimeoutsRef.current.push(timeoutId);
+
+          if (!Number.isFinite(group.duration)) {
+            delayMs = Infinity;
+          } else {
+            delayMs += Math.max(0, group.duration * 1000);
+          }
         });
-      }, 10);
-    }
+      })
+      .catch((error) => {
+        if (autoPlayTokenRef.current !== playToken) return;
+        console.error("Failed to prepare animation sequence:", error);
+      });
 
-    if (authored.length > 0) {
-      void playAuthoredAssignments(authored);
-    }
-
-    return embedded.length > 0 || authored.length > 0;
+    return true;
   };
 
   const playChapterAnimations = () => {
@@ -228,6 +303,7 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
 
   const stopChapterAnimations = () => {
     autoPlayTokenRef.current += 1;
+    clearScheduledPlayback();
     stopAuthoredAnimations(true);
     setAnimationCommand({
       type: "stop",
@@ -238,6 +314,7 @@ export default function usePlayerAnimation(activeChapter, material, modelScene) 
 
   useEffect(
     () => () => {
+      clearScheduledPlayback();
       stopAuthoredAnimations(true);
     },
     // The cleanup intentionally uses the latest ref state and modelScene object.

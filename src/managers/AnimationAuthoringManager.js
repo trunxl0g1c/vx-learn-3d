@@ -1,8 +1,10 @@
 import {
   applyAuthoredAnimationAtTime,
+  applyMechanicalPivotTransform,
   captureAuthoredAnimationBaseline,
   captureAuthoredAnimationTrackBaseline,
   createAuthoredAnimationDefinition,
+  createAuthoredAnimationKeyframeTransform,
   createAuthoredAnimationTrack,
   createAuthoredAnimationTransform,
   createAuthoredAnimationObjectReference,
@@ -123,6 +125,33 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
       return (
         engine?.createAuthoredTransform?.(object) ||
         createAuthoredAnimationTransform(object)
+      );
+    },
+    createKeyframeTransform(object, rig) {
+      return (
+        engine?.createAuthoredKeyframeTransform?.(object, rig) ||
+        createAuthoredAnimationKeyframeTransform(object, rig)
+      );
+    },
+    applyPivotTransform(
+      object,
+      startObjectWorldMatrix,
+      startPivotWorldMatrix,
+      currentPivotWorldMatrix,
+    ) {
+      if (engine?.applyMechanicalPivotTransform) {
+        return engine.applyMechanicalPivotTransform(
+          object,
+          startObjectWorldMatrix,
+          startPivotWorldMatrix,
+          currentPivotWorldMatrix,
+        );
+      }
+      return applyMechanicalPivotTransform(
+        object,
+        startObjectWorldMatrix,
+        startPivotWorldMatrix,
+        currentPivotWorldMatrix,
       );
     },
     evaluateTrackState(track, time) {

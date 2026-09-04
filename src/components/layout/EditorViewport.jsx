@@ -129,6 +129,7 @@ export default function EditorViewport({ controller }) {
     flow,
     procedural,
     animationAuthoring,
+    animationPlayback,
     quizAuthoring,
     xrAuthoring,
     slideAuthoring,
@@ -357,6 +358,11 @@ export default function EditorViewport({ controller }) {
             ? animationAuthoring?.previewActiveTrackTransform
             : null
         }
+        onAnimationPivotTransform={
+          animationAuthoring?.isAuthoringActive
+            ? animationAuthoring?.applyActiveTrackPivotTransform
+            : null
+        }
         onAnimationPivotChange={
           animationAuthoring?.isAuthoringActive
             ? animationAuthoring?.setActiveTrackRigPoint
@@ -487,6 +493,7 @@ export default function EditorViewport({ controller }) {
         flow={flow}
         procedural={procedural}
         animationAuthoring={animationAuthoring}
+        animationPlayback={animationPlayback}
         quizAuthoring={quizAuthoring}
         xrAuthoring={xrAuthoring}
         slideAuthoring={slideAuthoring}

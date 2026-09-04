@@ -23,11 +23,12 @@
 # entirely: with only one certificate available, Caddy just serves it, no SNI needed.
 
 :5443 {
-	tls /certs/dev/dev.crt /certs/dev/dev.key
+	tls internal
 	reverse_proxy host.docker.internal:5174
 }
 
 :4443 {
-	tls /certs/dev/dev.crt /certs/dev/dev.key
+	tls internal
 	reverse_proxy host.docker.internal:4004
 }
+
