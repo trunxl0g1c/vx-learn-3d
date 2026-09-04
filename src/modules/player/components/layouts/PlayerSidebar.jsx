@@ -2,26 +2,26 @@ import { Link } from "react-router-dom";
 
 export default function PlayerSidebar({
   logo = "/images/logo.svg",
-  logoAlt = "VXplore Studio",
+  logoAlt = "Viqubed Studio",
   items = [],
   className = "",
 }) {
   return (
     <aside
-      className={`absolute left-7 top-7 z-40 flex h-fit w-[48px] justify-center rounded-full border border-grayout-extra-dark bg-dark-alpha ${className}`}
+      className={`vx-player-sidebar absolute left-7 top-7 z-40 flex h-fit w-[48px] justify-center rounded-full border border-grayout-extra-dark bg-dark-alpha ${className}`}
     >
       <div className="flex flex-col items-center gap-1 pt-2">
-        <img src={logo} alt={logoAlt} className="size-8 rounded-full mb-1" />
+        <img src={logo} alt={logoAlt} className="size-7.5 rounded-full mb-1" />
 
-        <div className="mt-1 h-[1px] w-[32px] bg-grayout-extra-dark" />
+        <div className="vx-player-sidebar-separator mt-1 h-[1px] w-[32px] bg-grayout-extra-dark" />
 
-        <div className="flex flex-col items-center gap-1 py-2">
+        <div className="vx-player-sidebar-items flex flex-col items-center gap-1 py-2">
           {items.map((item, index) => {
             if (item.type === "separator") {
               return (
                 <div
                   key={`separator-${index}`}
-                  className="h-[1px] w-[32px] bg-grayout-extra-dark mt-1"
+                  className="vx-player-sidebar-separator h-[1px] w-[32px] bg-grayout-extra-dark mt-1"
                 />
               );
             }

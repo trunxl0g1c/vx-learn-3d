@@ -3,6 +3,7 @@ import { useState } from "react";
 export function useViewerDialogs({
   addMarker,
   setActiveChapterId,
+  setActiveSlideId,
   setMarkerMode,
   setRightTab,
 }) {
@@ -11,9 +12,17 @@ export function useViewerDialogs({
   const [pendingMarkerName, setPendingMarkerName] = useState("");
 
   const requestAddMarker = (chapterId) => {
+    setActiveSlideId?.(null);
     setActiveChapterId(chapterId);
     setMarkerMode(true);
     setRightTab("chapter");
+  };
+
+  const requestAddSlideMarker = (slideId) => {
+    setActiveChapterId(null);
+    setActiveSlideId?.(slideId);
+    setMarkerMode(true);
+    setRightTab("slide");
   };
 
   const handleMarkerPointPicked = (markerPayload) => {
@@ -48,6 +57,7 @@ export function useViewerDialogs({
     pendingMarkerName,
     setPendingMarkerName,
     requestAddMarker,
+    requestAddSlideMarker,
     handleMarkerPointPicked,
     confirmMarkerDialog,
     cancelAddMarker,

@@ -1,8 +1,13 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import Button from "../../ui/button";
 import Switch from "../../ui/switch";
 import Slider from "../../ui/slider";
 import SelectField from "../../ui/select";
+import { createDefaultViewerSettings } from "../../../hooks/viewer/createDefaultViewerSettings";
+
+// Module-scope: these are plain numeric defaults (never mutated), so one
+// shared instance is fine rather than recomputing per render.
+const VIEWER_SETTINGS_DEFAULTS = createDefaultViewerSettings();
 
 export default function VisualTab(props) {
   const {
@@ -39,15 +44,68 @@ export default function VisualTab(props) {
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
+    showHeader = true,
+    className = "",
+    contentClassName = "p-4",
+    rendererGlobal = "__EDITOR_RENDERER__",
   } = props;
 
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
-        Environment Settings
-      </div>
+  const handleExposureChange = (value) => {
+    setViewerSettings((prev) => ({
+      ...prev,
+      exposure: value,
+    }));
 
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4">
+    const renderer =
+      typeof window !== "undefined" ? window[rendererGlobal] : null;
+
+    if (renderer) {
+      renderer.toneMappingExposure = value;
+    }
+  };
+
+  const handleAmbientLightChange = (value) =>
+    setViewerSettings((prev) => ({ ...prev, ambientLight: value }));
+
+  const handleMainLightChange = (value) =>
+    setViewerSettings((prev) => ({ ...prev, mainLight: value }));
+
+  const handleFillLightChange = (value) =>
+    setViewerSettings((prev) => ({ ...prev, fillLight: value }));
+
+  const handleHemiLightChange = (value) =>
+    setViewerSettings((prev) => ({ ...prev, hemiLight: value }));
+
+  const handleResetAllViewerSettings = () => {
+    setMetalness(VIEWER_SETTINGS_DEFAULTS.metalness);
+    setRoughness(VIEWER_SETTINGS_DEFAULTS.roughness);
+    handleExposureChange(VIEWER_SETTINGS_DEFAULTS.exposure);
+    handleAmbientLightChange(VIEWER_SETTINGS_DEFAULTS.ambientLight);
+    handleMainLightChange(VIEWER_SETTINGS_DEFAULTS.mainLight);
+    handleFillLightChange(VIEWER_SETTINGS_DEFAULTS.fillLight);
+    handleHemiLightChange(VIEWER_SETTINGS_DEFAULTS.hemiLight);
+    updateEnvIntensity(VIEWER_SETTINGS_DEFAULTS.envIntensity);
+  };
+
+  return (
+    <div
+      className={[
+        "flex h-full min-h-0 flex-col overflow-hidden",
+        className,
+      ].join(" ")}
+    >
+      {showHeader && (
+        <div className="sticky top-0 z-10 flex h-16 shrink-0 items-center bg-[#14201f] px-4 text-lg font-normal">
+          Environment Settings
+        </div>
+      )}
+
+      <div
+        className={[
+          "sidebar-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
+          contentClassName,
+        ].join(" ")}
+      >
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-2">
             {[
@@ -56,7 +114,7 @@ export default function VisualTab(props) {
               ["wireframe", "Wire"],
               ["xray", "X-Ray"],
               ["clay", "Clay"],
-              ["2d", "2D"],
+              // ["2d", "2D"],
               ["sketch", "Sketch"],
             ].map(([mode, label]) => (
               <Button
@@ -70,6 +128,16 @@ export default function VisualTab(props) {
             ))}
           </div>
 
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={handleResetAllViewerSettings}
+          >
+            <RotateCcw className="mr-1.5 size-3.5" />
+            Reset All to Default
+          </Button>
+
           <Slider
             label="Metalness"
             value={metalness}
@@ -77,6 +145,7 @@ export default function VisualTab(props) {
             max={1}
             step={0.01}
             onChange={setMetalness}
+            onReset={() => setMetalness(VIEWER_SETTINGS_DEFAULTS.metalness)}
           />
 
           <Slider
@@ -86,6 +155,7 @@ export default function VisualTab(props) {
             max={1}
             step={0.01}
             onChange={setRoughness}
+            onReset={() => setRoughness(VIEWER_SETTINGS_DEFAULTS.roughness)}
           />
 
           <Slider
@@ -94,16 +164,10 @@ export default function VisualTab(props) {
             min={0.5}
             max={3}
             step={0.1}
-            onChange={(value) => {
-              setViewerSettings((prev) => ({
-                ...prev,
-                exposure: value,
-              }));
-
-              if (window.__EDITOR_RENDERER__) {
-                window.__EDITOR_RENDERER__.toneMappingExposure = value;
-              }
-            }}
+            onChange={handleExposureChange}
+            onReset={() =>
+              handleExposureChange(VIEWER_SETTINGS_DEFAULTS.exposure)
+            }
           />
 
           <Slider
@@ -112,11 +176,9 @@ export default function VisualTab(props) {
             min={0}
             max={5}
             step={0.1}
-            onChange={(value) =>
-              setViewerSettings((prev) => ({
-                ...prev,
-                ambientLight: value,
-              }))
+            onChange={handleAmbientLightChange}
+            onReset={() =>
+              handleAmbientLightChange(VIEWER_SETTINGS_DEFAULTS.ambientLight)
             }
           />
 
@@ -126,11 +188,9 @@ export default function VisualTab(props) {
             min={0}
             max={8}
             step={0.1}
-            onChange={(value) =>
-              setViewerSettings((prev) => ({
-                ...prev,
-                mainLight: value,
-              }))
+            onChange={handleMainLightChange}
+            onReset={() =>
+              handleMainLightChange(VIEWER_SETTINGS_DEFAULTS.mainLight)
             }
           />
 
@@ -140,11 +200,9 @@ export default function VisualTab(props) {
             min={0}
             max={5}
             step={0.1}
-            onChange={(value) =>
-              setViewerSettings((prev) => ({
-                ...prev,
-                fillLight: value,
-              }))
+            onChange={handleFillLightChange}
+            onReset={() =>
+              handleFillLightChange(VIEWER_SETTINGS_DEFAULTS.fillLight)
             }
           />
 
@@ -154,11 +212,9 @@ export default function VisualTab(props) {
             min={0}
             max={5}
             step={0.1}
-            onChange={(value) =>
-              setViewerSettings((prev) => ({
-                ...prev,
-                hemiLight: value,
-              }))
+            onChange={handleHemiLightChange}
+            onReset={() =>
+              handleHemiLightChange(VIEWER_SETTINGS_DEFAULTS.hemiLight)
             }
           />
 
@@ -169,6 +225,9 @@ export default function VisualTab(props) {
             max={8}
             step={0.1}
             onChange={updateEnvIntensity}
+            onReset={() =>
+              updateEnvIntensity(VIEWER_SETTINGS_DEFAULTS.envIntensity)
+            }
           />
 
           <div className="pt-2">

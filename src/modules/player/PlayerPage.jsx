@@ -1,127 +1,59 @@
 import usePlayerController from "./hooks/usePlayerController";
-import PlayerChapterListPanel from "../../components/player/PlayerChapterListPanel";
+import usePlayerXRInteraction from "./hooks/usePlayerXRInteraction";
+import usePlayerTurntableSession from "./hooks/usePlayerTurntableSession";
+import PlayerFlowListPanel from "../../components/player/PlayerFlowListPanel";
+import PlayerProceduralListPanel from "../../components/player/PlayerProceduralListPanel";
+import PlayerQuizPanel from "../../components/player/PlayerQuizPanel";
+import PlayerMaterialObjectListPanel from "../../components/player/PlayerMaterialObjectListPanel";
+import PlayerXRControls from "../../components/player/PlayerXRControls";
+import PlayerXRMobileOverlay from "../../components/player/PlayerXRMobileOverlay";
+import Player3DLicense from "../../components/player/Player3DLicense";
 import {
   Box,
-  ChevronLeft,
-  ChevronRight,
   Clipboard,
-  Download,
-  Eye,
-  FileText,
   Home,
-  ImageIcon,
-  List,
+  ListChecks,
   Scan,
   Scissors,
   SlidersVertical,
-  RotateCcw,
-  Video,
-  Volume2,
-  X,
-  Copy,
+  Orbit,
+  Sun,
+  Move3d,
+  GitBranch,
+  GraduationCap,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import PlayerLayout from "./components/layouts/PlayerLayout";
-import HierarchyObjectTree from "../../components/sidebar/left-panels/HierarchyObjectTree";
 import PlayerCutSlider from "../../components/player/PlayerCutSlider";
-import { getMaxTreeDepth } from "../../utils/objectTreeUtils";
 import Button from "../../components/ui/button";
 import MaterialIcon from "../../components/ui/material-icon";
-import Switch from "../../components/ui/switch";
-
-// export default function PlayerPage() {
-//   const player = usePlayerController()
-//   const { isLoadingProject, loadError } = player.status
-
-//   if (isLoadingProject) {
-//     return <div style={{ padding: 24 }}>Loading project...</div>
-//   }
-
-//   if (loadError) {
-//     return <div style={{ padding: 24 }}>{loadError}</div>
-//   }
-
-//   return (
-//     <div
-//       style={{
-//         width: "100vw",
-//         height: "100vh",
-//         position: "relative",
-//         ...getViewerBackgroundStyle(player.scene.viewerSettings),
-//         color: "white",
-//         overflow: "hidden",
-//       }}
-//     >
-//       <main
-//         style={{
-//           position: "absolute",
-//           inset: 0,
-//           height: "100vh",
-//           ...getViewerBackgroundStyle(player.scene.viewerSettings),
-//         }}
-//       >
-//         <PlayerSceneCanvas {...player.scene} />
-
-//         {!player.chapterPanel.freePlay &&
-//           player.chapterPanel.showInfoPanel &&
-//           player.chapterPanel.activeChapter && (
-//             <PlayerChapterInfoPanel
-//               activeChapter={player.chapterPanel.activeChapter}
-//               speakChapterDescription={player.chapterPanel.speakChapterDescription}
-//               stopSpeaking={player.chapterPanel.stopSpeaking}
-//               playChapterAnimations={player.chapterPanel.playChapterAnimations}
-//               stopChapterAnimations={player.chapterPanel.stopChapterAnimations}
-//             />
-//           )}
-
-//         {player.toolsMenu.freePlay && player.toolsMenu.freePlayMenu && (
-//           <PlayerToolsMenu
-//             cutEnabled={player.toolsMenu.cutEnabled}
-//             toggleCutSection={player.toolsMenu.toggleCutSection}
-//             hideSelectedObject={player.toolsMenu.hideSelectedObject}
-//             pullApart={player.toolsMenu.pullApart}
-//             resetAllTransforms={player.toolsMenu.resetAllTransforms}
-//             soloSelectedObject={player.toolsMenu.soloSelectedObject}
-//             showAllObjects={player.toolsMenu.showAllObjects}
-//           />
-//         )}
-
-//         {player.cutSlider.freePlay && player.cutSlider.cutEnabled && (
-//           <PlayerCutSlider
-//             cutAxis={player.cutSlider.cutAxis}
-//             setCutAxis={player.cutSlider.setCutAxis}
-//             cutValue={player.cutSlider.cutValue}
-//             cutMin={player.cutSlider.cutMin}
-//             cutMax={player.cutSlider.cutMax}
-//             setCutValue={player.cutSlider.setCutValue}
-//           />
-//         )}
-
-//         {!player.chapterList.freePlay &&
-//           player.chapterList.activeMenu === "chapters" &&
-//           player.chapterList.material && (
-//             <PlayerChapterListPanel
-//               material={player.chapterList.material}
-//               activeChapterId={player.chapterList.activeChapterId}
-//               handleSelectChapter={handleSelectChapter}
-//             />
-//           )}
-
-//         <PlayerBottomToolbar {...player.toolbar} />
-//       </main>
-//     </div>
-//   )
-// }
+import useFullscreen from "../../hooks/useFullscreen";
+import { normalizePlayerSettings } from "../material/playerSettings";
+import {
+  focusEditorAndClosePlayer,
+  isPlayerOpenedFromEditor,
+  prepareEditorOpenerForFullscreenHandoff,
+  releaseCurrentPlayerPreviewWindowName,
+} from "../../utils/playerWindowNavigation";
+import {
+  PlayerAnimationFloatingPanel,
+  PlayerChapterReaderFloatingPanel,
+  PlayerEnvironmentSettingsFloatingPanel,
+  PlayerMediaViewer,
+  PlayerProjectInfoFloatingPanel,
+  PlayerViewSettingsFloatingPanel,
+} from "./components/PlayerFloatingPanels";
 
 export default function PlayerPage() {
   const player = usePlayerController();
-  const { isLoadingProject, loadError } = player.status;
+  const { isLoadingProject, isSceneReady, loadError } = player.status;
+  const { isFullscreen, isSupported: isFullscreenSupported, toggleFullscreen } = useFullscreen();
 
   const [activePanel, setActivePanel] = useState(null);
   const [activeMedia, setActiveMedia] = useState(null);
   const [playerObjectSearch, setPlayerObjectSearch] = useState("");
-  const [playerObjectTreeDepth, setPlayerObjectTreeDepth] = useState(2);
+  const appliedPlayerSettingsKeyRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { projectId } = useParams();
@@ -130,24 +62,75 @@ export default function PlayerPage() {
   const [selectedAnnotation, setSelectedAnnotation] = useState(null);
   const chapterReturnPanelRef = useRef(null);
 
-  const showBackToEditor = useMemo(() => {
-    const params = new URLSearchParams(location.search);
+  const playerSettings = useMemo(
+    () => normalizePlayerSettings(player.scene.material?.playerSettings),
+    [player.scene.material?.playerSettings],
+  );
+  const playerMenuVisibility = playerSettings.menuVisibility;
+  const turntableSessionKey = useMemo(() => {
+    const material = player.scene.material;
+    if (!material) return "";
 
-    return (
-      params.get("preview") === "true" ||
-      location.state?.preview === true ||
-      location.state?.fromEditor === true
-    );
-  }, [location.search, location.state]);
+    return [
+      material.projectId || "",
+      material.id || "",
+      material.modelFileName || material.model?.fileName || "",
+      material.modelUrl || material.model?.uri || "",
+    ].join("::");
+  }, [player.scene.material]);
+  const { turntableSessionActive, restartTurntable } =
+    usePlayerTurntableSession({
+      enabled: playerSettings.turntableAnimation.enabled,
+      sessionKey: turntableSessionKey,
+    });
+  const visibleChapters = Array.isArray(
+    player.chapterList.visibleChapters,
+  )
+    ? player.chapterList.visibleChapters
+    : [];
+  useEffect(() => {
+    const material = player.scene.material;
+    if (!material || !turntableSessionKey) return;
+
+    if (appliedPlayerSettingsKeyRef.current === turntableSessionKey) return;
+
+    appliedPlayerSettingsKeyRef.current = turntableSessionKey;
+    setActiveMedia(null);
+    setSelectedAnnotation(null);
+    setActivePanel(playerSettings.autoShowMaterial ? "project" : null);
+  }, [
+    player.scene.material,
+    playerSettings.autoShowMaterial,
+    turntableSessionKey,
+  ]);
+
+  const showBackToEditor = useMemo(
+    () => isPlayerOpenedFromEditor(location.search, location.state),
+    [location.search, location.state],
+  );
 
   const handleBackToEditor = () => {
+    if (isFullscreen && projectId) {
+      // Fullscreen belongs to the current browser document and cannot be
+      // transferred reliably to the opener tab. Keep this same document
+      // fullscreen and turn it back into the Editor instead. If this Player
+      // came from an Editor popup, retire the old Editor route first so only
+      // one live editor can write to the project.
+      prepareEditorOpenerForFullscreenHandoff(projectId);
+      releaseCurrentPlayerPreviewWindowName();
+      navigate(`/viqubed/editor/${projectId}`, { replace: true });
+      return;
+    }
+
+    if (focusEditorAndClosePlayer()) return;
+
     if (location.state?.fromEditorPath) {
-      navigate(location.state.fromEditorPath);
+      navigate(location.state.fromEditorPath, { replace: true });
       return;
     }
 
     if (projectId) {
-      navigate(`/vxplore/editor/${projectId}`);
+      navigate(`/viqubed/editor/${projectId}`, { replace: true });
       return;
     }
 
@@ -162,17 +145,10 @@ export default function PlayerPage() {
     if (activePanel !== "chapter") return;
 
     const previousPanel = chapterReturnPanelRef.current;
-    const hasChapters =
-      (player.chapterList.material?.chapters || []).length > 0;
-
-    const nextPanel =
-      previousPanel === "chapters" && !hasChapters
-        ? "project"
-        : previousPanel;
 
     player.chapterList.clearActiveChapter?.();
     setActiveMedia(null);
-    setActivePanel(nextPanel || null);
+    setActivePanel(previousPanel || null);
   };
 
   const handleAnnotationClick = (annotation) => {
@@ -182,16 +158,6 @@ export default function PlayerPage() {
 
   const handleObjectInteraction = () => {
     restorePanelBeforeChapterDetail();
-  };
-
-  const handleSetObjectListSelectedObject = (targetObject) => {
-    restorePanelBeforeChapterDetail();
-
-    if (!targetObject) {
-      setSelectedAnnotation(null);
-    }
-
-    player.scene.setObjectListSelectedObject?.(targetObject);
   };
 
   const handleOpenProjectPanel = () => {
@@ -213,34 +179,107 @@ export default function PlayerPage() {
   };
 
   const handleOpenObjectPanel = () => {
+    if ((player.scene.objectList || []).length === 0) return;
+
     setActiveMedia(null);
+    setSelectedAnnotation(null);
     togglePanel("object");
   };
 
-  const handleOpenChapterList = () => {
-    const chapters = player.chapterList.material?.chapters || [];
+  const openObjectListAnnotation = (object) => {
+    if (!object) return null;
 
-    if (chapters.length === 0) return;
+    const title =
+      String(object.name || object.userData?.name || object.type || "Object")
+        .replace(/[_-]+/g, " ")
+        .trim() || "Object";
+    const annotation = {
+      id: object.uuid || `object-${title}`,
+      title,
+      objectName: object.name || title,
+      object,
+      source: "object-list",
+    };
 
-    setActiveMedia(null);
-    setActivePanel("chapters");
+    setSelectedAnnotation(annotation);
+    return annotation;
   };
 
-  const handleSelectChapter = (chapterId) => {
+  const handleSelectObjectFromList = (object, { shouldFocus = false } = {}) => {
+    const selection = player.scene.setObjectListSelectedObject?.(object);
+    if (!selection) return null;
+
+    const selectedTarget = selection.selectedObject || object;
+    openObjectListAnnotation(selectedTarget);
+    player.scene.loadObjectDescription?.(selectedTarget)?.catch?.(() => {});
+
+    if (shouldFocus) {
+      player.scene.focusObject?.(selectedTarget);
+    }
+
+    return selection;
+  };
+
+  const handleOpenObjectDescription = (_descriptionId, object) => {
+    const annotation = openObjectListAnnotation(object);
+    player.scene.loadObjectDescription?.(object)?.catch?.(() => {});
+    return annotation;
+  };
+
+  const handleSelectChapter = async (chapterId) => {
     if (activePanel !== "chapter") {
       chapterReturnPanelRef.current = activePanel;
     }
 
-    player.chapterList.handleSelectChapter?.(chapterId);
+    const opened = await player.chapterList.handleSelectChapter?.(chapterId);
+    if (!opened) return false;
+
     setActiveMedia(null);
+    setSelectedAnnotation(null);
     setActivePanel("chapter");
+    return true;
   };
+
+  const handleSelectSlide = async (slideId) => {
+    const opened = await player.slidePanel?.selectSlide?.(slideId);
+    if (!opened) return false;
+    setActiveMedia(null);
+    setSelectedAnnotation(null);
+    setActivePanel("slide");
+    return true;
+  };
+
+  const xrInteraction = usePlayerXRInteraction({
+    player,
+    visibleChapters,
+    onSelectChapter: handleSelectChapter,
+    onSelectSlide: handleSelectSlide,
+    onClearTransientUI: ({ clearChapterReturn = false } = {}) => {
+      if (clearChapterReturn) chapterReturnPanelRef.current = null;
+      setActiveMedia(null);
+      setSelectedAnnotation(null);
+      setActivePanel(null);
+    },
+  });
 
   const handleOpenAnnotationDetail = (chapterId) => {
     if (!chapterId) return;
 
     handleSelectChapter(chapterId);
     setSelectedAnnotation(null);
+  };
+
+  const handleAnnotationHierarchyBack = () => {
+    setSelectedAnnotation(null);
+
+    // Returning to a parent annotation level must not keep the child object
+    // selected or highlighted. Parent annotations are navigation targets only.
+    player.scene.setSelectedObject?.(null);
+    player.scene.setOutlineObjects?.([]);
+
+    // Detail opened from an annotation may have activated a chapter and its
+    // object highlight. Restore the panel that was visible before that detail.
+    restorePanelBeforeChapterDetail();
   };
 
   const sidebarItems = [
@@ -256,31 +295,135 @@ export default function PlayerPage() {
       icon: Clipboard,
       active:
         activePanel === "project" ||
-        activePanel === "chapters" ||
-        activePanel === "chapter",
+        (activePanel === "chapter" && chapterReturnPanelRef.current !== "object"),
       onClick: handleOpenProjectPanel,
     },
-    {
+  ];
+
+  if (playerMenuVisibility.environmentSettings) {
+    sidebarItems.push({
+      key: "environment",
+      label: "Environment Settings",
+      icon: Sun,
+      active: activePanel === "environment",
+      onClick: () => {
+        setActiveMedia(null);
+        togglePanel("environment");
+      },
+    });
+  }
+
+  if (
+    playerMenuVisibility.objectList &&
+    (player.scene.objectList || []).length > 0
+  ) {
+    sidebarItems.push({
       key: "object",
-      label: "Object",
+      label: "Object List",
       icon: Box,
-      active: activePanel === "object",
+      active:
+        activePanel === "object" ||
+        (activePanel === "chapter" && chapterReturnPanelRef.current === "object"),
       onClick: handleOpenObjectPanel,
+    });
+  }
+
+  sidebarItems.push({
+    key: "animation",
+    label: "Animation",
+    icon: Orbit,
+    active: activePanel === "animation",
+    onClick: () => {
+      setActiveMedia(null);
+      togglePanel("animation");
     },
+  });
 
-    { type: "separator" },
+  if ((player.flowPanel.flows || []).length > 0) {
+    sidebarItems.push({
+      key: "flow",
+      label: "Flow Materials",
+      icon: GitBranch,
+      active: activePanel === "flow" || player.flowPanel.isPlaying,
+      onClick: () => {
+        setActiveMedia(null);
+        togglePanel("flow");
+      },
+    });
+  }
 
-    {
+  if ((player.quizPanel?.quizzes || []).length > 0) {
+    sidebarItems.push({
+      key: "quiz",
+      label: "Quiz & Assessment",
+      icon: GraduationCap,
+      active:
+        activePanel === "quiz" || Boolean(player.quizPanel?.isAssessmentActive),
+      onClick: () => {
+        setActiveMedia(null);
+        togglePanel("quiz");
+      },
+    });
+  }
+
+  if ((player.procedurePanel.procedures || []).length > 0) {
+    sidebarItems.push({
+      key: "procedural",
+      label: "Procedures",
+      icon: ListChecks,
+      active:
+        activePanel === "procedural" ||
+        ["resetting", "waiting", "dragging", "animating", "completed"].includes(
+          player.procedurePanel.status,
+        ),
+      onClick: () => {
+        setActiveMedia(null);
+        togglePanel("procedural");
+      },
+    });
+  }
+
+  const playerToolItems = [];
+
+  if (playerMenuVisibility.freePlay) {
+    playerToolItems.push({
+      key: "free-play",
+      label: "Free Play",
+      icon: Move3d,
+      active: Boolean(player.toolsMenu.freePlay),
+      onClick: () => {
+        const nextFreePlay = !player.toolsMenu.freePlay;
+
+        setActiveMedia(null);
+        setSelectedAnnotation(null);
+
+        if (nextFreePlay) {
+          // Free Play is a clean, standalone interaction mode. Close every
+          // material panel and discard the previous Chapter return target.
+          chapterReturnPanelRef.current = null;
+          setActivePanel(null);
+        }
+
+        player.toolbar.setFreePlay?.(nextFreePlay);
+      },
+    });
+  }
+
+  if (playerMenuVisibility.pullApart) {
+    playerToolItems.push({
       key: "pull-apart",
-      label: "Pull Apart",
+      label: "Exploded View",
       icon: Scan,
       active: Boolean(player.toolsMenu.isPullApartActive),
       onClick: () => {
         setActiveMedia(null);
         player.toolsMenu.pullApart?.();
       },
-    },
-    {
+    });
+  }
+
+  if (playerMenuVisibility.cut) {
+    playerToolItems.push({
       key: "cut",
       label: "Cut",
       icon: Scissors,
@@ -289,13 +432,18 @@ export default function PlayerPage() {
         setActiveMedia(null);
         togglePanel("cut");
       },
-    },
+    });
+  }
 
+  if (playerToolItems.length > 0) {
+    sidebarItems.push({ type: "separator" }, ...playerToolItems);
+  }
+
+  sidebarItems.push(
     { type: "separator" },
-
     {
       key: "settings",
-      label: "Settings",
+      label: "View Settings",
       icon: SlidersVertical,
       active: activePanel === "settings",
       onClick: () => {
@@ -303,7 +451,13 @@ export default function PlayerPage() {
         togglePanel("settings");
       },
     },
-  ];
+  );
+
+  const visibleSidebarItems = player.quizPanel?.isAssessmentActive
+    ? sidebarItems.filter((item) => item?.key === "quiz")
+    : sidebarItems;
+
+  const showBrowserPlayerUI = !player.xrPanel?.activeMode;
 
   if (isLoadingProject) {
     return <div style={{ padding: 24 }}>Loading project...</div>;
@@ -316,68 +470,120 @@ export default function PlayerPage() {
   return (
     <PlayerLayout
       player={player}
-      sidebarItems={sidebarItems}
+      sidebarItems={visibleSidebarItems}
+      showSidebar={isSceneReady && showBrowserPlayerUI}
       selectedAnnotationId={selectedAnnotation?.id || null}
+      selectedAnnotationTarget={selectedAnnotation}
       onAnnotationClick={handleAnnotationClick}
       onAnnotationClose={() => setSelectedAnnotation(null)}
       onAnnotationOpenDetail={handleOpenAnnotationDetail}
+      onAnnotationHierarchyBack={handleAnnotationHierarchyBack}
       onObjectSelectInteraction={handleObjectInteraction}
+      turntablePresentationActive={turntableSessionActive}
+      xrInteraction={xrInteraction}
     >
-      {showBackToEditor && (
-        <Button
-          size="sm"
-          type="button"
-          variant="cyanOutline"
-          onClick={handleBackToEditor}
-          className="absolute right-16 top-5 z-50"
-        >
-          <MaterialIcon
-            name="arrow_left_alt"
-            fill
-            size={20}
-            className="text-secondary-default"
+      {isSceneReady && (
+        <>
+      <PlayerXRControls xr={player.xrPanel} />
+      {player.xrPanel?.activeMode === "ar" &&
+        player.xrPanel?.platform?.isAndroid && (
+          <PlayerXRMobileOverlay
+            interaction={xrInteraction}
+            xr={player.xrPanel}
           />
-          Back to Editor
-        </Button>
+        )}
+      {showBrowserPlayerUI && (
+        <>
+      {!player.xrPanel?.activeMode && (isFullscreenSupported || showBackToEditor) && (
+        <div className="vx-player-top-actions absolute right-2 top-2 z-50 flex max-w-[calc(100vw-1rem)] items-center justify-end gap-2 sm:right-3 sm:top-3 md:right-5 md:top-5">
+          {showBackToEditor && (
+            <Button
+              size="sm"
+              type="button"
+              variant="cyanOutline"
+              onClick={handleBackToEditor}
+              title="Back to Editor"
+              className="vx-player-back-button min-w-0 shrink px-2! sm:px-3! md:px-4!"
+            >
+              <MaterialIcon
+                name="arrow_left_alt"
+                fill
+                size={20}
+                className="shrink-0 text-secondary-default"
+              />
+              <span className="vx-player-back-label hidden truncate sm:inline">Back to Editor</span>
+            </Button>
+          )}
+
+          {isFullscreenSupported && (
+            <Button
+              type="button"
+              size="sm"
+              variant={isFullscreen ? "default" : "cyanOutline"}
+              onClick={toggleFullscreen}
+              aria-pressed={isFullscreen}
+              title={isFullscreen ? "Exit full screen" : "Full screen"}
+              className={
+                `vx-player-fullscreen-button h-9! w-9! shrink-0 p-0! ${
+                  isFullscreen
+                    ? "border-accent-main shadow-[0_0_14px_rgba(3,105,157,0.55)]"
+                    : ""
+                }`
+              }
+            >
+              <MaterialIcon
+                name={isFullscreen ? "fullscreen_exit" : "fullscreen"}
+                fill={1}
+                size={22}
+              />
+            </Button>
+          )}
+        </div>
       )}
+
+      <Player3DLicense
+        models={player.licensePanel?.models || []}
+        hidden={Boolean(activeMedia) || Boolean(player.quizPanel?.isAssessmentActive)}
+        avoidBottomPanel={Boolean(selectedAnnotation)}
+      />
 
       {activePanel === "project" && (
         <PlayerProjectInfoFloatingPanel
           material={player.scene.material}
-          activeChapterId={player.chapterList.activeChapterId}
+          activeSlideId={player.slidePanel?.activeSlideId}
           onClose={() => setActivePanel(null)}
-          onOpenList={handleOpenChapterList}
-          onSelectChapter={handleSelectChapter}
+          onSelectSlide={handleSelectSlide}
           onOpenMedia={setActiveMedia}
+          slides={player.slidePanel?.slides || []}
         />
       )}
 
-      {activePanel === "object" && (
-        <PlayerObjectListFloatingPanel
-          objectList={player.scene.objectList || []}
-          selectedObject={player.scene.selectedObject}
-          setSelectedObject={handleSetObjectListSelectedObject}
+      {activePanel === "environment" &&
+        playerMenuVisibility.environmentSettings && (
+        <PlayerEnvironmentSettingsFloatingPanel
+          environment={player.environmentPanel}
           onClose={() => setActivePanel(null)}
-          searchObject={playerObjectSearch}
-          setSearchObject={setPlayerObjectSearch}
-          treeDepth={playerObjectTreeDepth}
-          setTreeDepth={setPlayerObjectTreeDepth}
-          highlightObject={player.scene.handleSelectObjectFromPlayer}
-          makeXrayExcept={player.scene.makeXrayExcept}
-          resetXray={player.scene.resetXray}
-          focusObject={player.scene.focusObject}
-          showAllObjects={player.toolsMenu.showAllObjects}
-          hideAllObjects={player.toolsMenu.hideAllObjects}
         />
       )}
 
-      {activePanel === "chapters" &&
-        player.chapterList.material?.chapters?.length > 0 && (
-          <PlayerChapterListPanel
-            material={player.chapterList.material}
-            activeChapterId={player.chapterList.activeChapterId}
-            handleSelectChapter={handleSelectChapter}
+      {activePanel === "object" &&
+        playerMenuVisibility.objectList &&
+        (player.scene.objectList || []).length > 0 && (
+          <PlayerMaterialObjectListPanel
+            objectList={player.scene.objectList || []}
+            chapters={player.scene.material?.chapters || []}
+            modelScene={player.scene.modelScene || null}
             onClose={() => setActivePanel(null)}
+            searchObject={playerObjectSearch}
+            setSearchObject={setPlayerObjectSearch}
+            selectedObject={player.scene.selectedObject}
+            onSelectObject={handleSelectObjectFromList}
+            onClearSelection={player.scene.clearPlayerSelection}
+            onFocusObject={player.scene.focusObject}
+            onResetXray={player.scene.resetXray}
+            onShowAllObjects={player.toolsMenu.showAllObjects}
+            onHideAllObjects={player.toolsMenu.hideAllObjects}
+            onOpenObjectDescription={handleOpenObjectDescription}
           />
         )}
 
@@ -390,32 +596,139 @@ export default function PlayerPage() {
             setActivePanel(null);
             setActiveMedia(null);
           }}
-          onOpenList={handleOpenChapterList}
+          onOpenList={handleOpenObjectPanel}
           onSelectChapter={handleSelectChapter}
           onOpenMedia={setActiveMedia}
           onPlayVoice={player.chapterPanel.speakChapterDescription}
           onStopVoice={player.chapterPanel.stopSpeaking}
+          isPlayingVoice={player.chapterPanel.isSpeaking}
+          onPlayAnimations={player.chapterPanel.playChapterAnimations}
+          onStopAnimations={player.chapterPanel.stopChapterAnimations}
+          chapterFlowAssignments={
+            player.chapterPanel.chapterFlowAssignments
+          }
+          activeChapterFlowIds={player.chapterPanel.activeChapterFlowIds}
+          cameraViews={player.chapterPanel.cameraViews}
+          activeCameraViewIndex={player.chapterPanel.activeCameraViewIndex}
+          onSelectCameraView={player.chapterPanel.selectCameraView}
+          onPlayChapterFlow={player.chapterPanel.playChapterFlow}
+          onStopChapterFlows={player.chapterPanel.stopChapterFlows}
+          chapters={visibleChapters}
         />
       )}
 
-      {activePanel === "cut" && (
+      {activePanel === "slide" && player.slidePanel?.activeSlide && (
+        <PlayerChapterReaderFloatingPanel
+          material={player.scene.material}
+          activeChapter={player.slidePanel.activeSlide}
+          activeChapterId={player.slidePanel.activeSlideId}
+          onClose={() => {
+            setActivePanel(null);
+            setActiveMedia(null);
+          }}
+          onOpenList={() => setActivePanel("project")}
+          onSelectChapter={handleSelectSlide}
+          onOpenMedia={setActiveMedia}
+          onPlayVoice={player.slidePanel.speakDescription}
+          onStopVoice={player.slidePanel.stopSpeaking}
+          isPlayingVoice={player.slidePanel.isSpeaking}
+          onPlayAnimations={player.slidePanel.playAnimations}
+          onStopAnimations={player.slidePanel.stopAnimations}
+          chapterFlowAssignments={player.slidePanel.flowAssignments}
+          activeChapterFlowIds={player.slidePanel.activeFlowIds}
+          cameraViews={player.slidePanel.cameraViews}
+          activeCameraViewIndex={player.slidePanel.activeCameraViewIndex}
+          onSelectCameraView={player.slidePanel.selectCameraView}
+          onPlayChapterFlow={player.slidePanel.playFlow}
+          onStopChapterFlows={player.slidePanel.stopFlows}
+          chapters={player.slidePanel.slides}
+        />
+      )}
+
+      <PlayerAnimationFloatingPanel
+        hidden={activePanel !== "animation"}
+        animations={player.animationPanel.animations}
+        selectedAnimations={player.animationPanel.selectedAnimations}
+        setSelectedAnimations={player.animationPanel.setSelectedAnimations}
+        setAnimationCommand={player.animationPanel.setAnimationCommand}
+        onClose={() => setActivePanel(null)}
+      />
+
+      {activePanel === "flow" && (
+        <PlayerFlowListPanel
+          flows={player.flowPanel.flows}
+          activeFlowId={player.flowPanel.activeFlowId}
+          isPlaying={player.flowPanel.isPlaying}
+          onPlay={player.flowPanel.playFlow}
+          onStop={player.flowPanel.stopFlow}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
+
+      {activePanel === "procedural" && (
+        <PlayerProceduralListPanel
+          procedures={player.procedurePanel.procedures}
+          activeProcedureId={player.procedurePanel.activeProcedureId}
+          activeSteps={player.procedurePanel.activeSteps}
+          status={player.procedurePanel.status}
+          activeStepIndex={player.procedurePanel.activeStepIndex}
+          completedStepIds={player.procedurePanel.completedStepIds}
+          feedback={player.procedurePanel.feedback}
+          onPlay={player.procedurePanel.playProcedure}
+          onReplay={player.procedurePanel.replayProcedure}
+          onStop={player.procedurePanel.stopProcedure}
+          onPlayCompletionAnimation={
+            player.procedurePanel.playCompletionAnimation
+          }
+          onClose={() => setActivePanel(null)}
+        />
+      )}
+
+      {activePanel === "quiz" && (
+        <PlayerQuizPanel
+          quiz={player.quizPanel}
+          onClose={() => setActivePanel(null)}
+        />
+      )}
+
+      {activePanel === "cut" && playerMenuVisibility.cut && (
         <PlayerCutSlider
           cutValues={player.cutSlider.cutValues}
           cutRanges={player.cutSlider.cutRanges}
           updateCutValue={player.cutSlider.updateCutValue}
           resetCutValues={player.cutSlider.resetCutValues}
+          cutAllObjects={player.cutSlider.cutAllObjects}
+          setCutAllObjects={player.cutSlider.setCutAllObjects}
+          cutTargetAvailable={player.cutSlider.cutTargetAvailable}
           onClose={() => setActivePanel(null)}
         />
       )}
 
       {activePanel === "settings" && (
-        <PlayerCameraSettingsFloatingPanel
+        <PlayerViewSettingsFloatingPanel
           showAnnotations={player.settingsPanel.showAnnotations}
           setShowAnnotations={player.settingsPanel.setShowAnnotations}
+          hasSelectedObject={Boolean(player.scene.selectedObject)}
+          onResetView={() => {
+            player.settingsPanel.resetView?.();
+            setSelectedAnnotation(null);
+          }}
           onResetAll={() => {
             player.settingsPanel.resetAll?.();
+            restartTurntable();
             setActiveMedia(null);
             setSelectedAnnotation(null);
+          }}
+          onHideSelected={() => {
+            player.toolsMenu.hideSelectedObject?.();
+            setSelectedAnnotation(null);
+          }}
+          onSoloSelected={() => {
+            player.toolsMenu.soloSelectedObject?.();
+            setSelectedAnnotation(null);
+          }}
+          onShowAll={() => {
+            player.toolsMenu.showAllObjects?.();
           }}
           onClose={() => setActivePanel(null)}
         />
@@ -428,701 +741,11 @@ export default function PlayerPage() {
           onClose={() => setActiveMedia(null)}
         />
       )}
+        </>
+      )}
+        </>
+      )}
     </PlayerLayout>
   );
 }
 
-function getProjectInfoTitle(material) {
-  return (
-    material?.projectName ||
-    material?.project?.name ||
-    material?.title ||
-    "Untitled Project"
-  );
-}
-
-function getProjectInfoDescription(material) {
-  return (
-    material?.projectDescription ||
-    material?.project?.description ||
-    material?.description ||
-    "Belum ada deskripsi project."
-  );
-}
-
-function getIntegratedAssets(material) {
-  const candidates = [
-    material?.media,
-    material?.integratedAssets,
-    material?.assets,
-    material?.projectAssets,
-    material?.projectSettings?.integratedAssets,
-    material?.settings?.integratedAssets,
-  ];
-
-  const assets = candidates.find((item) => Array.isArray(item));
-
-  return assets || [];
-}
-
-function getChapterMediaAssets(activeChapter) {
-  // Chapter reader must only show media explicitly assigned from the
-  // Editor's Chapter Media panel. Project-level media belongs to the
-  // Project Info panel and must not appear as a fallback here.
-  return Array.isArray(activeChapter?.media) ? activeChapter.media : [];
-}
-
-function getMediaKind(asset) {
-  const rawType = String(
-    asset?.type || asset?.mediaType || asset?.mimeType || "",
-  ).toUpperCase();
-
-  if (rawType.includes("IMAGE")) return "IMAGE";
-  if (rawType.includes("VIDEO")) return "VIDEO";
-  if (
-    rawType.includes("DOCUMENT") ||
-    rawType.includes("PDF") ||
-    rawType.includes("WORD") ||
-    rawType.includes("TEXT") ||
-    rawType.includes("PRESENTATION") ||
-    rawType.includes("SPREADSHEET")
-  ) {
-    return "DOCUMENT";
-  }
-
-  const source = String(
-    asset?.url || asset?.dataUrl || asset?.name || asset?.title || "",
-  ).toLowerCase();
-
-  if (/\.(png|jpe?g|webp|gif|bmp|svg)(\?|#|$)/.test(source)) return "IMAGE";
-  if (/\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/.test(source)) return "VIDEO";
-
-  return "DOCUMENT";
-}
-
-function getMediaSource(asset) {
-  return (
-    asset?.url ||
-    asset?.dataUrl ||
-    asset?.data ||
-    asset?.src ||
-    asset?.href ||
-    ""
-  );
-}
-
-function getMediaMimeType(asset) {
-  return asset?.mimeType || asset?.type || "";
-}
-
-function getMediaIcon(kind, className = "size-4") {
-  if (kind === "IMAGE") return <ImageIcon className={className} />;
-  if (kind === "VIDEO") return <Video className={className} />;
-  return <FileText className={className} />;
-}
-
-function getAssetLabel(asset, index) {
-  if (typeof asset === "string") return asset;
-
-  return (
-    asset?.title ||
-    asset?.name ||
-    asset?.label ||
-    asset?.fileName ||
-    asset?.type ||
-    `Asset ${index + 1}`
-  );
-}
-
-function PlayerProjectInfoFloatingPanel({
-  material,
-  activeChapterId,
-  onClose,
-  onOpenList,
-  onSelectChapter,
-  onOpenMedia,
-}) {
-  const title = getProjectInfoTitle(material);
-  const description = getProjectInfoDescription(material);
-  const integratedAssets = getIntegratedAssets(material);
-  const chapters = material?.chapters || [];
-  const hasChapters = chapters.length > 0;
-  const activeChapterIndex = chapters.findIndex(
-    (chapter) => chapter.id === activeChapterId,
-  );
-  const canGoPrevious = activeChapterIndex > 0;
-  const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
-
-  const handlePrevious = () => {
-    if (!canGoPrevious) return;
-
-    onSelectChapter?.(chapters[activeChapterIndex - 1].id);
-  };
-
-  const handleNext = () => {
-    if (!canGoNext) return;
-
-    onSelectChapter?.(chapters[activeChapterIndex + 1].id);
-  };
-
-  return (
-    <PlayerFloatingPanel onClose={onClose}>
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <h3 className="mb-3 pr-8 text-base font-bold">{title}</h3>
-
-        <p className="text-xs leading-relaxed text-white/80 whitespace-pre-line">
-          {description}
-        </p>
-
-        {integratedAssets.length > 0 && (
-          <section className="mt-5 border-t border-white/10 pt-4">
-            <div className="mb-3 text-xs font-bold text-white/60">
-              Media ({integratedAssets.length})
-            </div>
-
-            <div className="max-h-[32vh] space-y-2 overflow-y-auto pr-1">
-              {integratedAssets.map((asset, index) => (
-                <PanelAssetItem
-                  key={asset?.id || asset?.name || asset?.title || index}
-                  asset={asset}
-                  label={getAssetLabel(asset, index)}
-                  onOpen={onOpenMedia}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-
-      <div className="mt-5 flex justify-between items-center border-t border-white/10 pt-4">
-        <PanelFooterButton
-          onClick={onOpenList}
-          icon={List}
-          // label="List"
-          disabled={!hasChapters}
-        />
-        <div className="flex gap-2">
-          <PanelFooterButton
-            onClick={handlePrevious}
-            icon={ChevronLeft}
-            // label="Prev"
-            disabled={!canGoPrevious}
-          />
-          <PanelFooterButton
-            onClick={handleNext}
-            icon={ChevronRight}
-            // label="Next"
-            disabled={!canGoNext}
-          />
-        </div>
-      </div>
-    </PlayerFloatingPanel>
-  );
-}
-
-function PlayerChapterReaderFloatingPanel({
-  material,
-  activeChapter,
-  activeChapterId,
-  onClose,
-  onOpenList,
-  onSelectChapter,
-  onOpenMedia,
-  onPlayVoice,
-  onStopVoice,
-}) {
-  const title = activeChapter?.title || "Untitled Chapter";
-  const description =
-    activeChapter?.description || "Belum ada deskripsi chapter.";
-  const mediaAssets = getChapterMediaAssets(activeChapter);
-  const chapters = material?.chapters || [];
-  const hasChapters = chapters.length > 0;
-  const activeChapterIndex = chapters.findIndex(
-    (chapter) => chapter.id === activeChapterId,
-  );
-  const canGoPrevious = activeChapterIndex > 0;
-  const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
-
-  const handlePrevious = () => {
-    if (!canGoPrevious) return;
-    onSelectChapter?.(chapters[activeChapterIndex - 1].id);
-  };
-
-  const handleNext = () => {
-    if (!canGoNext) return;
-    onSelectChapter?.(chapters[activeChapterIndex + 1].id);
-  };
-
-  return (
-    <PlayerFloatingPanel onClose={onClose} className="w-105">
-      <div className="mb-5 flex shrink-0 items-start justify-between gap-3 pr-8">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-normal leading-tight text-white">
-            {title}
-          </h3>
-          {activeChapter?.objectName && (
-            <div className="mt-1 truncate text-xs font-normal text-contrast-grayout">
-              {activeChapter.objectName}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-        <Button
-          size="sm"
-          variant="outline"
-          type="button"
-          onClick={onPlayVoice}
-          disabled={!activeChapter?.description}
-          title="Play Voice"
-          className="mb-3 w-full"
-        >
-          <MaterialIcon name="brand_awareness" size={20} />
-          Play Voice
-        </Button>
-
-        <section>
-          <div className="mb-2 text-xs font-normal text-white/60">
-            Description
-          </div>
-
-          <p className="text-sm leading-7 text-white/85 whitespace-pre-line">
-            {description}
-          </p>
-        </section>
-
-        {activeChapter?.parameters?.length > 0 && (
-          <section className="mt-5 border-t border-white/10 pt-4">
-            <div className="mb-3 text-xs font-normal text-white/60">
-              Parameters
-            </div>
-
-            <div className="space-y-2">
-              {activeChapter.parameters.map((parameter, index) => {
-                const label =
-                  parameter.name || parameter.label || `Parameter ${index + 1}`;
-                const value = parameter.value || "-";
-                const unit = parameter.unit || "";
-
-                return (
-                  <div
-                    key={parameter.id || `${label}-${index}`}
-                    className="grid grid-cols-[1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs"
-                  >
-                    <span className="min-w-0 truncate text-white/60">
-                      {label}
-                    </span>
-                    <span className="text-right text-white">
-                      {value}
-                      {unit ? ` ${unit}` : ""}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {mediaAssets.length > 0 && (
-          <section className="mt-5 border-t border-white/10 pt-4">
-            <div className="mb-3 text-xs font-normal text-white/60">
-              Media ({mediaAssets.length})
-            </div>
-
-            <div className="max-h-[32vh] space-y-2 overflow-y-auto pr-1">
-              {mediaAssets.map((asset, index) => (
-                <PanelAssetItem
-                  key={asset?.id || asset?.name || asset?.title || index}
-                  asset={asset}
-                  label={getAssetLabel(asset, index)}
-                  onOpen={onOpenMedia}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-      </div>
-
-      <div className="mt-5 flex justify-between items-center border-t border-white/10 pt-4">
-        <PanelFooterButton
-          onClick={onOpenList}
-          icon={List}
-          // label="List"
-          disabled={!hasChapters}
-        />
-        <div className="flex gap-2">
-          <PanelFooterButton
-            onClick={handlePrevious}
-            icon={ChevronLeft}
-            // label="Prev"
-            disabled={!canGoPrevious}
-          />
-          <PanelFooterButton
-            onClick={handleNext}
-            icon={ChevronRight}
-            // label="Next"
-            disabled={!canGoNext}
-          />
-        </div>
-      </div>
-    </PlayerFloatingPanel>
-  );
-}
-
-function PlayerObjectListFloatingPanel({
-  objectList,
-  selectedObject,
-  setSelectedObject,
-  onClose,
-  searchObject,
-  setSearchObject,
-  treeDepth,
-  setTreeDepth,
-  highlightObject,
-  makeXrayExcept,
-  resetXray,
-  focusObject,
-  showAllObjects,
-  hideAllObjects,
-}) {
-  const maxTreeDepth = Math.max(getMaxTreeDepth(objectList || []), 1);
-
-  return (
-    <aside className="absolute bottom-7 left-23 top-7 z-40 flex w-100 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#182223]/75 text-white shadow-2xl backdrop-blur-xl">
-      <div className="flex h-14 shrink-0 items-center gap-3 px-6 pt-1">
-        <h3 className="min-w-0 flex-1 text-base font-bold text-white">
-          Object List
-        </h3>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white transition hover:bg-white/10"
-          title="Close object list"
-        >
-          <X className="size-5" />
-        </button>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-hidden px-6 pb-5">
-        <HierarchyObjectTree
-          objectList={objectList || []}
-          selectedObject={selectedObject}
-          setSelectedObject={setSelectedObject}
-          highlightObject={highlightObject || (() => {})}
-          makeXrayExcept={makeXrayExcept || (() => {})}
-          resetXray={resetXray}
-          focusObject={focusObject || (() => {})}
-          setSelectedObjectName={() => {}}
-          treeDepth={treeDepth}
-          setTreeDepth={setTreeDepth}
-          maxTreeDepth={maxTreeDepth}
-          searchObject={searchObject}
-          setSearchObject={setSearchObject}
-          showAllObjects={showAllObjects}
-          hideAllObjects={hideAllObjects}
-          setRightTab={() => {}}
-        />
-      </div>
-    </aside>
-  );
-}
-
-function PlayerCameraSettingsFloatingPanel({
-  showAnnotations,
-  setShowAnnotations,
-  onResetAll,
-  onClose,
-}) {
-  return (
-    <div className="absolute left-23 top-7 z-40 w-85 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h3 className="text-base font-bold text-white">Camera Setting</h3>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white"
-          title="Close camera setting"
-        >
-          <X className="size-5" />
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-white/90">Show Annotations</span>
-
-          <Switch
-            checked={showAnnotations}
-            onCheckedChange={(checked) => setShowAnnotations?.(checked)}
-          />
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-white/90">Dark Theme</span>
-
-          <Switch checked={false} onCheckedChange={() => {}} />
-        </div>
-
-        {/* <div className="border-t border-white/10 pt-4">
-          <button
-            type="button"
-            onClick={onResetAll}
-            className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-secondary-default/50 px-4 text-sm font-bold text-secondary-default transition hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
-          >
-            <RotateCcw className="size-4" />
-            Reset All
-          </button>
-        </div> */}
-      </div>
-    </div>
-  );
-}
-
-function PlayerMediaViewer({ media, onClose }) {
-  if (!media) return null;
-
-  const kind = getMediaKind(media);
-  const source = getMediaSource(media);
-  const title = getAssetLabel(media, 0);
-  const mimeType = getMediaMimeType(media);
-
-  return (
-    <aside
-      onClick={(event) => event.stopPropagation()}
-      className="absolute bottom-7 left-[470px] right-7 top-7 z-50 flex min-w-0 flex-col overflow-hidden rounded-xl border border-grayout-extra-dark bg-dark-alpha backdrop-blur-sm"
-    >
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-white/10 px-4">
-        <div className="flex min-w-0 items-center gap-2 text-xs font-normal text-white">
-          {getMediaIcon(kind, "size-4 text-secondary-default")}
-          <span className="min-w-0 truncate">{title}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {source && (
-            <a
-              href={source}
-              download={media?.name || media?.title || title}
-              className="grid size-8 place-items-center rounded-lg border border-secondary-default/40 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
-              title="Download media"
-            >
-              <Download className="size-4" />
-            </a>
-          )}
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-8 cursor-pointer place-items-center rounded-lg border border-secondary-default/40 text-secondary-default hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
-            title="Close media viewer"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex min-h-0 flex-1 items-center justify-center bg-black/35 p-4">
-        {!source && (
-          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-5 py-4 text-sm text-white/70">
-            Media source tidak tersedia.
-          </div>
-        )}
-
-        {source && kind === "IMAGE" && (
-          <img
-            src={source}
-            alt={title}
-            className="max-h-full max-w-full rounded-lg object-contain"
-          />
-        )}
-
-        {source && kind === "VIDEO" && (
-          <video
-            src={source}
-            controls
-            className="max-h-full max-w-full rounded-lg bg-black"
-          />
-        )}
-
-        {source &&
-          kind === "DOCUMENT" &&
-          (mimeType.includes("pdf") ||
-          String(source).startsWith("data:application/pdf") ? (
-            <iframe
-              src={source}
-              title={title}
-              className="h-full w-full rounded-lg border border-white/10 bg-white"
-            />
-          ) : (
-            <div className="max-w-md rounded-xl border border-white/10 bg-white/[0.03] p-5 text-center">
-              <div className="mx-auto mb-3 grid size-14 place-items-center rounded-xl border border-secondary-default/40 text-secondary-default">
-                <FileText className="size-7" />
-              </div>
-              <div className="mb-2 text-sm font-bold text-white">{title}</div>
-              <p className="mb-4 text-xs leading-5 text-white/60">
-                Preview dokumen ini belum tersedia di browser. Gunakan tombol
-                download untuk membuka file.
-              </p>
-              <a
-                href={source}
-                download={media?.name || media?.title || title}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-secondary-default/50 px-4 text-xs font-bold text-secondary-default transition hover:border-secondary-default hover:bg-secondary-default hover:text-primary"
-              >
-                <Download className="size-4" />
-                Download Document
-              </a>
-            </div>
-          ))}
-      </div>
-    </aside>
-  );
-}
-
-function PlayerFloatingPanel({ children, onClose, className = "" }) {
-  return (
-    <div
-      className={`absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[360px] flex-col rounded-2xl border border-grayout-extra-dark bg-dark-alpha p-5 backdrop-blur-sm ${className}`}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        className="grid absolute right-4 top-4 size-8 cursor-pointer place-items-center rounded-lg text-white hover:bg-white/10"
-        title="Close"
-      >
-        <X className="size-5" />
-      </button>
-
-      {children}
-    </div>
-  );
-}
-
-function PanelAssetItem({ asset, label, onOpen }) {
-  const kind = getMediaKind(asset);
-  const source = getMediaSource(asset);
-  const meta =
-    kind === "IMAGE" ? "Image" : kind === "VIDEO" ? "Video" : "Document";
-
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen?.(asset)}
-      className="group grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-xs text-white/75 transition hover:border-secondary-default/60 hover:bg-secondary-default/10 hover:text-white"
-    >
-      {kind === "IMAGE" && source ? (
-        <img
-          src={source}
-          alt={label}
-          className="h-12 w-16 shrink-0 rounded-md object-cover"
-        />
-      ) : (
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-secondary-default/40 text-secondary-default">
-          {getMediaIcon(kind, "size-5")}
-        </span>
-      )}
-
-      <span className="min-w-0">
-        <span className="block truncate font-normal text-white/90">
-          {label}
-        </span>
-        <span className="mt-1 block text-xs text-white/45">{meta}</span>
-      </span>
-
-      <span className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 text-white/65">
-        <Eye className="size-4 group-hover:text-white" />
-      </span>
-    </button>
-  );
-}
-
-function PanelFooterButton({ icon: Icon, label, disabled = false, onClick }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={[
-        "flex rounded-full h-9 p-2 items-center justify-center gap-2 border text-xs font-normal transition",
-        disabled
-          ? "cursor-not-allowed border-white/10 text-white/30"
-          : "cursor-pointer border-grayout-dark text-white hover:border-grayout-dark/80 hover:bg-dark-alpha/80",
-      ].join(" ")}
-    >
-      {Icon && <Icon className="size-4" />}
-      {/* <span>{label}</span> */}
-    </button>
-  );
-}
-
-function PlayerAnnotationInfoPanel({ title = "Muffler", number, onClose }) {
-  const properties = [
-    { label: "Part Type", value: "Baud 65" },
-    { label: "Width", value: "320", unit: "cm" },
-    { label: "Height", value: "480", unit: "cm" },
-    { label: "Average of Lorem Ipsum", value: "6400", unit: "m²" },
-    { label: "Long Value", value: "Lorem ipsum dolor sit amet..." },
-  ];
-
-  return (
-    <div className="absolute right-10 bottom-10 z-40 w-90 rounded-2xl border border-grayout-extra-dark bg-[#182223B8] p-5 text-white shadow-2xl backdrop-blur-sm">
-      <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-        <h3 className="text-sm font-bold text-white">
-          {title || `Annotation ${number}`}
-        </h3>
-
-        <button
-          type="button"
-          onClick={onClose}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white"
-          title="Close annotation info"
-        >
-          <X className="size-5" />
-        </button>
-      </div>
-
-      <div className="space-y-1">
-        {properties.map((item) => (
-          <PlayerAnnotationInfoRow key={item.label} {...item} />
-        ))}
-      </div>
-
-      <button
-        type="button"
-        className="mt-5 inline-flex h-8 cursor-pointer items-center justify-center gap-2 rounded-lg border border-accent-contrast px-3 text-sm font-normal text-white transition hover:border-secondary-default hover:bg-secondary-default/10"
-      >
-        <Clipboard className="size-5 text-secondary-default" />
-        Detail
-      </button>
-    </div>
-  );
-}
-
-function PlayerAnnotationInfoRow({ label, value, unit }) {
-  return (
-    <div className="grid min-h-7.5 grid-cols-[130px_1fr_28px] overflow-hidden rounded-md border border-white/10 bg-white/[0.03] text-xs">
-      <div className="flex items-center border-r border-white/10 bg-white/[0.03] px-3 text-secondary-default">
-        {label}
-      </div>
-
-      <div className="flex min-w-0 items-center justify-between gap-2 px-3 text-white">
-        <span className="line-clamp-2 leading-4">{value}</span>
-        {unit && <span className="shrink-0 text-white/80">{unit}</span>}
-      </div>
-
-      <button
-        type="button"
-        onClick={() =>
-          navigator.clipboard?.writeText(`${value}${unit ? ` ${unit}` : ""}`)
-        }
-        className="grid cursor-pointer place-items-center text-white/80 transition hover:bg-white/5 hover:text-white"
-        title="Copy value"
-      >
-        <Copy className="size-3.5" />
-      </button>
-    </div>
-  );
-}

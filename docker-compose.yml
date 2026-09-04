@@ -1,0 +1,73 @@
+# vxcubed-be runs as its own standalone stack (see
+# D:/Web/vxcubed-run/vxcubed/vxcubed-be/docker-compose.yml) — production on
+# 4002, dev on 4003. VITE_API_URL / VITE_API_URL_DEV (.env.docker) point at
+# those; vxcubed-be's own FRONTEND_URL env vars must match wherever each
+# frontend below ends up reachable (CORS origin check).
+services:
+  # Static build served by nginx — no bind mount, so editing source has NO
+  # effect here until you deliberately rebuild. This is the one at the
+  # shared URL other people use; VITE_API_URL is baked in at build time
+  # (see Dockerfile's build/production stages), not read at container start.
+  # To ship new work: `docker compose --env-file .env.docker up -d --build vx-learn-3d`.
+  vx-learn-3d:
+    build:
+      context: .
+      target: production
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+    container_name: vx-learn-3d-app
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+  # Vite dev server (HMR) against bind-mounted source — the only real
+  # difference from production above is which backend it talks to
+  # (vxcubed-be-dev on 4003, an isolated instance with its own database,
+  # instead of the shared production one on 4002). Kept on a separate
+  # container/port so local iteration never disturbs the production URL.
+  vx-learn-3d-dev:
+    build:
+      context: .
+      target: dev
+    container_name: vx-learn-3d-app-dev
+    environment:
+      VITE_API_URL: ${VITE_API_URL_DEV}
+      # Must exactly match vxcubed-be-dev's RESPONSE_ENCRYPTION_KEY — dev
+      # only for now, production frontend has no key set (encryption is
+      # disabled on the production backend too, so nothing to decrypt there).
+      VITE_RESPONSE_ENCRYPTION_KEY: ${VITE_RESPONSE_ENCRYPTION_KEY_DEV}
+    ports:
+      - "5174:5173"
+    volumes:
+      # Bind-mount the source for HMR; keep the container's own
+      # Linux-built node_modules instead of the host's (which may carry
+      # Windows-specific native binaries, e.g. esbuild) — the anonymous
+      # volume shadows whatever the bind mount above would put there.
+      - .:/app
+      - /app/node_modules
+    restart: unless-stopped
+
+  # TLS-terminating reverse proxy in front of vx-learn-3d-dev + vxcubed-be-dev,
+  # self-signed cert for the LAN IP — see Caddyfile.dev for why this exists
+  # (crypto.subtle / Web Crypto needs a secure context, which plain
+  # http://<lan-ip> isn't). Reaches both dev services via their already-
+  # published host ports (host.docker.internal), so it doesn't need to join
+  # either stack's Docker network.
+  caddy-dev:
+    image: caddy:2-alpine
+    container_name: vx-learn-3d-caddy-dev
+    ports:
+      - "5443:5443"
+      - "4443:4443"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - ./certs/dev:/certs/dev:ro
+      - caddy_data_dev:/data
+      - caddy_config_dev:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  caddy_data_dev:
+  caddy_config_dev:

@@ -1,0 +1,390 @@
+import { createModelLicenseCatalog } from "../../../engine/project/ModelLicenseSettings";
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords";
+import { findExactChapterForObject } from "../../../engine/selection";
+
+export function createPlayerControllerApi({
+  playerProject,
+  material,
+  modelScene,
+  viewerSettings,
+  outlineObjects,
+  blinkSelectionEnabled,
+  blinkRenderGroups,
+  shaderOutlineObjects,
+  shaderOutlineStyle,
+  setOutlineObjects,
+  setSelectedObject,
+  cameraRef,
+  controlsRef,
+  focusTargetRef,
+  freePlay,
+  selectedObject,
+  transformMode,
+  setTransformMode,
+  objectList,
+  focusObject,
+  makePlayerXrayExcept,
+  resetPlayerObjectXray,
+  setObjectListSelectedObject,
+  playerChapter,
+  handleSelectChapterCameraView,
+  playerAnimation,
+  handleSelectObjectFromPlayer,
+  handleDoubleClickObjectFromPlayer,
+  clearPlayerSelection,
+  handleModelLoaded,
+  captureInitialCameraState,
+  showAnnotations,
+  activeFlow,
+  flowPlaying,
+  setFlowPlaying,
+  flowPlaybackKey,
+  activeChapterFlows,
+  turntableAnimation,
+  chapterFlowPlaybackKey,
+  handleChapterFlowComplete,
+  playerProcedure,
+  playerQuiz,
+  playerSlide,
+  playerXR,
+  handleSelectSlide,
+  handleSelectSlideCameraView,
+  playerSpeech,
+  getChapterFlowAssignments,
+  activeChapterFlowIds,
+  playChapterFlow,
+  stopChapterFlows,
+  flows,
+  activeFlowId,
+  playFlow,
+  stopFlow,
+  freePlayMenu,
+  cutEnabled,
+  playerFreePlay,
+  pullApartPlayerObjects,
+  hideSelectedPlayerObject,
+  resetAllPlayerView,
+  hideAllObjects,
+  cutAxis,
+  cutValue,
+  cutValues,
+  cutRanges,
+  cutMin,
+  cutMax,
+  setCutValue,
+  activeMenu,
+  activeChapterId,
+  visibleChapters,
+  handleSelectChapter,
+  clearActiveChapter,
+  setViewerSettings,
+  applyPlayerShaderMode,
+  setPlayerMetalness,
+  setPlayerRoughness,
+  updatePlayerEnvIntensity,
+  setShowAnnotations,
+  resetPlayerView,
+  setFreePlay,
+  setFreePlayMenu,
+  setActiveMenu,
+  setShowInfoPanel,
+  setCutEnabled,
+  showInfoPanel,
+}) {
+  const loadObjectDescription = async (object) => {
+    let description = findExactChapterForObject(
+      object,
+      material?.chapters || [],
+      modelScene,
+    );
+
+    if (
+      description?.id &&
+      isLazyMaterialRecord(description, "chapters") &&
+      playerProject.loadChapterRecord
+    ) {
+      description =
+        (await playerProject.loadChapterRecord(description.id)) || description;
+    }
+
+    return description || null;
+  };
+
+  const modelLicenseModels = createModelLicenseCatalog({
+    entries: material?.modelLicenses,
+    primaryFileName:
+      material?.modelFileName || material?.model?.fileName || "model.glb",
+    additionalModels: material?.additionalModels || [],
+    additionalEnabled: material?.proToolsSettings?.addMoreGlb === true,
+  });
+
+  return {
+    status: {
+      isLoadingProject: playerProject.isLoadingProject,
+      isSceneReady: playerProject.isSceneReady,
+      loadError: playerProject.loadError,
+    },
+
+    scene: {
+      material,
+      modelScene,
+      viewerSettings,
+      outlineObjects,
+      blinkSelectionEnabled,
+      blinkRenderGroups,
+      shaderOutlineObjects,
+      shaderOutlineStyle,
+      setOutlineObjects,
+      setSelectedObject,
+      cameraRef,
+      controlsRef,
+      focusTargetRef,
+      freePlay,
+      selectedObject,
+      transformMode,
+      setTransformMode,
+      objectList,
+      focusObject,
+      makeXrayExcept: makePlayerXrayExcept,
+      resetXray: resetPlayerObjectXray,
+      setObjectListSelectedObject,
+      loadObjectDescription,
+      activeChapter: playerChapter.activeChapter,
+      activeSlide: playerSlide.activeSlide,
+      activeProcedure: playerProcedure.activeProcedure,
+      activeQuiz: playerQuiz.activeQuiz,
+      turntableAnimation,
+      selectedAnimations: playerAnimation.selectedAnimations,
+      animationCommand: playerAnimation.animationCommand,
+      handleSelectObjectFromPlayer,
+      handleDoubleClickObjectFromPlayer,
+      clearPlayerSelection,
+      handleModelLoaded,
+      captureInitialCameraState,
+      onSceneReady: playerProject.notifySceneReady,
+      setAnimations: playerAnimation.setAnimations,
+      showAnnotations,
+      activeFlow,
+      flowPlaying,
+      flowPlaybackKey,
+      activeChapterFlows,
+      chapterFlowPlaybackKey,
+      activeSlideFlows: playerSlide.activeSlideFlows,
+      slideFlowPlaybackKey: playerSlide.slideFlowPlaybackKey,
+      onSlideFlowComplete: playerSlide.handleFlowComplete,
+      onChapterFlowComplete: handleChapterFlowComplete,
+      onFlowComplete: () => {
+        if (!activeFlow?.settings?.repeat) {
+          setFlowPlaying(false);
+        }
+      },
+      assemblyDragObject: playerProcedure.activeAssemblyObject,
+      assemblyStartTransform: playerProcedure.activeStep?.startTransform || null,
+      assemblyTargetTransform: playerProcedure.activeStep?.endTransform || null,
+      assemblyDragEnabled:
+        playerProcedure.isAssembly &&
+        ["waiting", "dragging"].includes(playerProcedure.status) &&
+        Boolean(playerProcedure.activeAssemblyObject),
+      assemblyCameraLocked:
+        playerProcedure.isAssembly &&
+        ["waiting", "dragging"].includes(playerProcedure.status) &&
+        Boolean(playerProcedure.activeStep),
+      assemblyShowGhost:
+        playerProcedure.activeStep?.interaction?.showGhost !== false,
+      assemblyGhostRevision: playerProcedure.assemblyGhostRevision,
+      onAssemblyDragStart: playerProcedure.handleAssemblyDragStart,
+      onAssemblyDrag: playerProcedure.handleAssemblyDrag,
+      onAssemblyDragEnd: playerProcedure.handleAssemblyDragEnd,
+      xrMode: playerXR.activeMode,
+      xrSettings: playerXR.settings,
+      onRendererReady: playerXR.setRenderer,
+    },
+
+    chapterPanel: {
+      freePlay,
+      showInfoPanel,
+      activeChapter: playerChapter.activeChapter,
+      cameraViews: playerChapter.cameraViews,
+      activeCameraViewIndex: playerChapter.activeCameraViewIndex,
+      selectCameraView: handleSelectChapterCameraView,
+      speakChapterDescription: playerSpeech.speakChapterDescription,
+      stopSpeaking: playerSpeech.stopSpeaking,
+      isSpeaking: playerSpeech.isSpeaking,
+      playChapterAnimations: playerAnimation.playChapterAnimations,
+      stopChapterAnimations: playerAnimation.stopChapterAnimations,
+      chapterFlowAssignments: getChapterFlowAssignments(
+        playerChapter.activeChapter,
+      ),
+      activeChapterFlowIds,
+      playChapterFlow,
+      stopChapterFlows,
+    },
+
+    animationPanel: {
+      animations: playerAnimation.animations,
+      selectedAnimations: playerAnimation.selectedAnimations,
+      setSelectedAnimations: playerAnimation.setSelectedAnimations,
+      setAnimationCommand: playerAnimation.setAnimationCommand,
+      stopAnimations: playerAnimation.stopCurrentAnimations,
+    },
+
+    flowPanel: {
+      flows,
+      activeFlow,
+      activeFlowId,
+      isPlaying: flowPlaying,
+      playFlow,
+      stopFlow,
+    },
+
+    quizPanel: {
+      ...playerQuiz,
+      startQuiz: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerQuiz.startQuiz?.(...args);
+      },
+      retryQuiz: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerQuiz.retryQuiz?.(...args);
+      },
+    },
+
+    slidePanel: {
+      slides: playerSlide.slides,
+      activeSlide: playerSlide.activeSlide,
+      activeSlideId: playerSlide.activeSlideId,
+      cameraViews: playerSlide.cameraViews,
+      activeCameraViewIndex: playerSlide.activeCameraViewIndex,
+      flowAssignments: playerSlide.slideFlowAssignments,
+      activeFlowIds: playerSlide.activeSlideFlowIds,
+      selectSlide: handleSelectSlide,
+      clearSlide: playerSlide.clearSlide,
+      selectCameraView: handleSelectSlideCameraView,
+      playAnimations: playerSlide.playAnimations,
+      stopAnimations: playerSlide.stopAnimations,
+      playFlow: playerSlide.playFlow,
+      stopFlows: playerSlide.stopFlows,
+      speakDescription: playerSlide.speakDescription,
+      stopSpeaking: playerSlide.stopSpeaking,
+      isSpeaking: playerSlide.isSpeaking,
+    },
+
+    xrPanel: {
+      ...playerXR,
+    },
+
+    procedurePanel: {
+      procedures: playerProcedure.procedures,
+      activeProcedure: playerProcedure.activeProcedure,
+      activeProcedureId: playerProcedure.activeProcedureId,
+      activeSteps: playerProcedure.activeSteps,
+      activeStepIndex: playerProcedure.stepIndex,
+      completedStepIds: playerProcedure.completedStepIds,
+      status: playerProcedure.status,
+      feedback: playerProcedure.feedback,
+      playProcedure: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerProcedure.playProcedure?.(...args);
+      },
+      replayProcedure: (...args) => {
+        playerSlide.clearSlide?.();
+        return playerProcedure.replayProcedure?.(...args);
+      },
+      stopProcedure: playerProcedure.stopProcedure,
+      playCompletionAnimation:
+        playerProcedure.playProcedureCompletionAnimation,
+    },
+
+    toolsMenu: {
+      freePlay,
+      freePlayMenu,
+      cutEnabled,
+      toggleCutSection: playerFreePlay.toggleCutSection,
+      hideSelectedObject: hideSelectedPlayerObject,
+      pullApart: pullApartPlayerObjects,
+      // XR needs Pull Apart to remain useful from Project Overview and Slide
+      // playback, where the desktop wrapper intentionally may have no Chapter
+      // target. The same ModelEngine implementation is still used.
+      pullApartXR: ({ targetObject = null } = {}) =>
+        playerFreePlay.pullApart({
+          targetObject: targetObject || selectedObject || null,
+          allowSceneFallback: true,
+        }),
+      isPullApartActive: playerFreePlay.isPullApartActive,
+      resetAllTransforms: resetAllPlayerView,
+      soloSelectedObject: playerFreePlay.soloSelectedObject,
+      showAllObjects: playerFreePlay.showAllObjects,
+      hideAllObjects,
+    },
+
+    cutSlider: {
+      freePlay,
+      cutEnabled,
+      cutAxis,
+      setCutAxis: playerFreePlay.updateCutAxis,
+      cutValue,
+      cutValues,
+      cutRanges,
+      cutMin,
+      cutMax,
+      setCutValue,
+      updateCutValue: playerFreePlay.updateCutValue,
+      resetCutValues: playerFreePlay.resetSection,
+      cutAllObjects: playerFreePlay.cutAllObjects,
+      setCutAllObjects: playerFreePlay.setCutAllObjects,
+      cutTargetAvailable: playerFreePlay.cutTargetAvailable,
+    },
+
+    chapterList: {
+      freePlay,
+      activeMenu,
+      material,
+      activeChapterId,
+      visibleChapters,
+      handleSelectChapter,
+      clearActiveChapter,
+    },
+
+    licensePanel: {
+      models: Array.isArray(modelLicenseModels) ? modelLicenseModels : [],
+    },
+
+    environmentPanel: {
+      viewerSettings,
+      setViewerSettings,
+      shaderMode: viewerSettings.shaderMode || "original",
+      applyShaderMode: applyPlayerShaderMode,
+      metalness: viewerSettings.metalness ?? 0.1,
+      setMetalness: setPlayerMetalness,
+      roughness: viewerSettings.roughness ?? 0.1,
+      setRoughness: setPlayerRoughness,
+      updateEnvIntensity: updatePlayerEnvIntensity,
+    },
+
+    settingsPanel: {
+      showAnnotations,
+      setShowAnnotations,
+      resetView: resetPlayerView,
+      resetAll: resetAllPlayerView,
+    },
+
+    toolbar: {
+      loadPlayerFile: playerProject.loadPlayerFile,
+      freePlay,
+      setFreePlay,
+      setFreePlayMenu,
+      setActiveMenu,
+      setShowInfoPanel,
+      setOutlineObjects,
+      stopChapterAnimations: playerAnimation.stopChapterAnimations,
+      setCutEnabled,
+      showAllObjects: playerFreePlay.showAllObjects,
+      resetAllTransforms: resetAllPlayerView,
+      activeChapterId,
+      handleSelectChapter,
+      freePlayMenu,
+      activeMenu,
+      showInfoPanel,
+    },
+  };
+}

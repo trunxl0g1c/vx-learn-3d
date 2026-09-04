@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
 import { useState } from "react";
+import useResponsiveViewport from "../../hooks/useResponsiveViewport";
 import Button from "../ui/button";
+import Switch from "../ui/switch";
 
 const AXIS_LABELS = {
   x: "X Axis",
@@ -26,7 +28,7 @@ function getValueFromPercent(percent, range) {
   return max - ((max - min) * clampedPercent) / 100;
 }
 
-function AxisCutSlider({ axis, value, range, onChange }) {
+export function AxisCutSlider({ axis, value, range, onChange, disabled = false }) {
   const percent = getAxisPercent(axis, value, range);
 
   return (
@@ -42,6 +44,7 @@ function AxisCutSlider({ axis, value, range, onChange }) {
         max={100}
         step={1}
         value={percent}
+        disabled={disabled}
         onChange={(event) => {
           if (typeof onChange !== "function") return;
           onChange(axis, getValueFromPercent(event.target.value, range));
@@ -57,9 +60,14 @@ export default function PlayerCutSlider({
   cutRanges,
   updateCutValue,
   resetCutValues,
+  cutAllObjects = true,
+  setCutAllObjects,
+  cutTargetAvailable = true,
   onClose,
 }) {
   const PANEL_WIDTH = 390;
+  const { isMobile, isTablet } = useResponsiveViewport();
+  const dragDisabled = isMobile || isTablet;
   const [position, setPosition] = useState(() => ({
     x:
       typeof window !== "undefined"
@@ -71,6 +79,7 @@ export default function PlayerCutSlider({
   const [offset, setOffset] = useState({ x: 0, y: 0 });
 
   const startDrag = (event) => {
+    if (dragDisabled) return;
     setDragging(true);
     setOffset({
       x: event.clientX - position.x,
@@ -79,7 +88,7 @@ export default function PlayerCutSlider({
   };
 
   const onDrag = (event) => {
-    if (!dragging) return;
+    if (dragDisabled || !dragging) return;
 
     setPosition({
       x: event.clientX - offset.x,
@@ -109,12 +118,12 @@ export default function PlayerCutSlider({
 
       <div
         onMouseDown={startDrag}
-        className="absolute rounded-[22px] border border-grayout-extra-dark bg-[#182223B8] p-5 text-white backdrop-blur-md backdrop-saturate-150"
+        className="vx-player-cut-panel absolute rounded-[22px] border border-grayout-extra-dark bg-[#182223B8] p-5 text-white backdrop-blur-md backdrop-saturate-150"
         style={{
           width: PANEL_WIDTH,
           left: position.x,
           top: position.y,
-          cursor: dragging ? "grabbing" : "grab",
+          cursor: dragDisabled ? "default" : dragging ? "grabbing" : "grab",
           pointerEvents: "auto",
           userSelect: "none",
         }}
@@ -142,8 +151,30 @@ export default function PlayerCutSlider({
               value={cutValues?.[axis]}
               range={cutRanges?.[axis]}
               onChange={updateCutValue}
+              disabled={!cutTargetAvailable}
             />
           ))}
+        </div>
+
+        <div
+          className="mt-5 flex items-center justify-between border-t border-white/10 pt-4"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div>
+            <div className="text-sm font-medium text-secondary-default">
+              Cut All Objects
+            </div>
+            {!cutAllObjects && !cutTargetAvailable && (
+              <div className="mt-1 text-xs text-grayout-main">
+                Select an object to apply Cut.
+              </div>
+            )}
+          </div>
+
+          <Switch
+            checked={cutAllObjects}
+            onCheckedChange={setCutAllObjects}
+          />
         </div>
 
         <Button

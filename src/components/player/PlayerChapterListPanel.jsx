@@ -32,35 +32,36 @@ function FooterButton({ icon: Icon, label, disabled = false, onClick }) {
 
 export default function PlayerChapterListPanel({
   material,
+  chapters = [],
   activeChapterId,
   handleSelectChapter,
   onClose,
 }) {
   if (!material) return null;
 
-  const chapters = material.chapters || [];
-  const activeChapterIndex = chapters.findIndex(
+  const chapterList = Array.isArray(chapters) ? chapters : [];
+  const activeChapterIndex = chapterList.findIndex(
     (chapter) => chapter.id === activeChapterId,
   );
   const canGoPrevious = activeChapterIndex > 0;
   const canGoNext =
-    activeChapterIndex >= 0 && activeChapterIndex < chapters.length - 1;
+    activeChapterIndex >= 0 && activeChapterIndex < chapterList.length - 1;
 
   const handlePrevious = () => {
     if (!canGoPrevious) return;
-    handleSelectChapter?.(chapters[activeChapterIndex - 1].id);
+    handleSelectChapter?.(chapterList[activeChapterIndex - 1].id);
   };
 
   const handleNext = () => {
     if (!canGoNext) return;
-    handleSelectChapter?.(chapters[activeChapterIndex + 1].id);
+    handleSelectChapter?.(chapterList[activeChapterIndex + 1].id);
   };
 
   return (
     <aside
       onClick={(event) => event.stopPropagation()}
       className={[
-        "absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
+        "vx-player-panel vx-player-panel--full-mobile absolute left-[92px] top-7 z-40 flex max-h-[80vh] w-[420px] flex-col overflow-hidden",
         "rounded-2xl border border-white/10 bg-[#182223]/75 p-5 text-white shadow-2xl",
         "backdrop-blur-xl backdrop-saturate-200",
       ].join(" ")}
@@ -79,7 +80,7 @@ export default function PlayerChapterListPanel({
       </h3>
 
       <div className="sidebar-scroll min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-        {chapters.map((chapter, index) => {
+        {chapterList.map((chapter, index) => {
           const active = activeChapterId === chapter.id;
 
           return (

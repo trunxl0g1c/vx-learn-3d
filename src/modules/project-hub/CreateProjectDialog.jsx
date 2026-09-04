@@ -1,26 +1,63 @@
-import { ImageIcon, Play, SquarePen, X } from "lucide-react";
+import { ImageIcon, X } from "lucide-react";
 import Button from "../../components/ui/button";
 import Input from "../../components/ui/input";
 import InlineAlert from "../../components/ui/inline-alert";
+import SelectField from "../../components/ui/select";
+import UploadProgressRing from "../../components/ui/upload-progress-ring";
+import { useWorkspaces } from "../workspace/api/workspaces";
+import { useCategories } from "../category/api/categories";
 
 export default function CreateProjectDialog({
   open,
   onClose,
+  workspaceId,
+  setWorkspaceId,
   projectName,
   setProjectName,
+  categoryId,
+  setCategoryId,
   file,
   setFile,
-  createRole,
-  setCreateRole,
   onSubmit,
   progress,
+  progressLabel,
   isSubmitting,
   glbValidation,
   isValidatingGlb,
   error,
   onClearError,
 }) {
+  const {
+    data: workspaces = [],
+    isLoading: isLoadingWorkspaces,
+    isError: isWorkspacesError,
+  } = useWorkspaces(undefined, { enabled: open });
+
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories,
+    isError: isCategoriesError,
+  } = useCategories(undefined, { enabled: open });
+
   if (!open) return null;
+
+  const workspaceOptions = workspaces.map((workspace) => ({
+    label: workspace.name,
+    value: workspace.id,
+  }));
+
+  let workspacePlaceholder = "Select a workspace";
+  if (isWorkspacesError) workspacePlaceholder = "Failed to load workspaces";
+  else if (isLoadingWorkspaces) workspacePlaceholder = "Loading workspaces...";
+
+  const categoryOptions = categories.map((category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+
+  let categoryPlaceholder = "Select a category";
+  if (isCategoriesError) categoryPlaceholder = "Failed to load categories";
+  else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
 
   return (
     <div className="fixed inset-0 z-999 grid place-items-center bg-black/45 backdrop-blur-sm">
@@ -41,52 +78,31 @@ export default function CreateProjectDialog({
         </div>
 
         {isSubmitting ? (
-          <>
-            <div className="px-6 py-2">
-              <div className="flex items-center gap-6">
-                <div className="relative flex size-20 items-center justify-center">
-                  <svg className="-rotate-90 h-15 w-15" viewBox="0 0 100 100">
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      stroke="#4c3f72"
-                      strokeWidth="8"
-                      fill="none"
-                    />
-
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      stroke="#0EA5E9"
-                      strokeWidth="8"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={264}
-                      strokeDashoffset={264 - (264 * progress) / 100}
-                      className="transition-all duration-300"
-                    />
-                  </svg>
-
-                  <span className="absolute text-lg font-semibold text-accent-main">
-                    {progress}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <h3 className="text-sm font-normal">
-                    Your project is being uploaded & prepared. Please be
-                    patient...
-                  </h3>
-                </div>
-              </div>
-            </div>
-          </>
+          <UploadProgressRing progress={progress} label={progressLabel} />
         ) : (
           <>
             <div className="space-y-6 px-5 pb-5 pt-4">
               <InlineAlert type="error" message={error} autoHide={false} />
+
+              <div className="space-y-2">
+                <label className="block text-sm font-normal text-contrast-grayout">
+                  Workspace
+                </label>
+
+                <SelectField
+                  value={workspaceId || ""}
+                  onChange={(value) => {
+                    setWorkspaceId(value);
+                    onClearError?.();
+                  }}
+                  options={workspaceOptions}
+                  placeholder={workspacePlaceholder}
+                  disabled={
+                    isSubmitting || isLoadingWorkspaces || isWorkspacesError
+                  }
+                  className="h-11! rounded-lg border-accent-main!"
+                />
+              </div>
 
               <div className="space-y-2">
                 <label className="block text-sm font-normal text-contrast-grayout">
@@ -96,7 +112,7 @@ export default function CreateProjectDialog({
                 <div className="relative">
                   <Input
                     value={projectName}
-                    maxLength={16}
+                    maxLength={64}
                     placeholder="Type project name here"
                     onClick={(event) => {
                       event.stopPropagation();
@@ -114,9 +130,29 @@ export default function CreateProjectDialog({
                   />
 
                   <span className="absolute bottom-2 right-3 text-[9px] font-normal text-contrast-grayout">
-                    {projectName.length}/16
+                    {projectName.length}/64
                   </span>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-normal text-contrast-grayout">
+                  Category
+                </label>
+
+                <SelectField
+                  value={categoryId || ""}
+                  onChange={(value) => {
+                    setCategoryId(value);
+                    onClearError?.();
+                  }}
+                  options={categoryOptions}
+                  placeholder={categoryPlaceholder}
+                  disabled={
+                    isSubmitting || isLoadingCategories || isCategoriesError
+                  }
+                  className="h-11! rounded-lg border-accent-main!"
+                />
               </div>
 
               <label className="mb-4 flex min-h-35 cursor-pointer items-center gap-6 rounded-lg border border-grayout-dark bg-dark-alpha px-5 transition hover:border-secondary-default">
@@ -194,73 +230,6 @@ export default function CreateProjectDialog({
                 </div>
               )}
 
-              <div className="mb-4">
-                <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-                  Access Mode
-                </label>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {/* <button
-                type="button"
-                onClick={() => setCreateRole("EDITOR")}
-                disabled={isSubmitting}
-                className={[
-                  "cursor-pointer h-10 rounded-lg border text-sm transition disabled:pointer-events-none disabled:opacity-50",
-                  createRole === "EDITOR"
-                    ? "border-[#63c7e5] bg-[#63c7e5]/15 text-white"
-                    : "border-[#315263] bg-transparent text-secondary-default hover:bg-white/5",
-                ].join(" ")}
-              >
-                <SquarePen className="size-6" /> Editor
-              </button> */}
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "EDITOR" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("EDITOR");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <SquarePen className="size-4" />
-                    Editor
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant={
-                      createRole === "PLAYER" ? "cyanSolid" : "cyanOutline"
-                    }
-                    onClick={() => {
-                      setCreateRole("PLAYER");
-                      onClearError?.();
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    <Play className="size-4" />
-                    Player
-                  </Button>
-                </div>
-              </div>
-
-              {isSubmitting && (
-                <div className="rounded-lg bg-dark-alpha p-3">
-                  <div className="mb-2 flex justify-between text-xs text-secondary-default">
-                    <span>Uploading GLB...</span>
-                    <span>{progress}%</span>
-                  </div>
-
-                  <div className="h-2 overflow-hidden rounded-full bg-black/40">
-                    <div
-                      className="h-full rounded-full bg-[#63c7e5] transition-all duration-200"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="flex gap-4 border-t border-[#315263] px-6 py-6">

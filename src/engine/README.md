@@ -1,6 +1,6 @@
-# VXplore Engine
+# Viqubed Engine
 
-This folder is the target home for VXplore reusable application logic.
+This folder is the target home for Viqubed reusable application logic.
 
 ## Rule
 

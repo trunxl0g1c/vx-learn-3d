@@ -5,6 +5,35 @@ import {
   getCutAxisState,
 } from "../engine/cut"
 
+function createComparableCutHistorySnapshot(snapshot) {
+  const engineState = snapshot?.engineState || {};
+
+  return {
+    cutAllObjects: Boolean(snapshot?.cutAllObjects),
+    enabled: Boolean(engineState.enabled),
+    axis: engineState.axis || "x",
+    targetObjectUuid: engineState.targetObjectUuid || null,
+    targetStates: (engineState.targetStates || []).map((state) => ({
+      targetObjectUuid: state?.targetObjectUuid || null,
+      enabled: Boolean(state?.enabled),
+      values: state?.values || {},
+    })),
+  };
+}
+
+function areCutHistorySnapshotsEqual(a, b) {
+  return (
+    JSON.stringify(createComparableCutHistorySnapshot(a)) ===
+    JSON.stringify(createComparableCutHistorySnapshot(b))
+  );
+}
+// Bounds (SceneCanvas.jsx's <Bounds fit clip margin={1.2}>, maxDuration
+// defaults to 1000ms) animates the camera into its framed position once
+// this model mounts. Hiding the loading overlay immediately would expose
+// that camera swoop mid-flight — this delay lets it visually settle first
+// (its damped-exponential ease is ~97.5% complete by 700ms of a 1000ms max).
+const CAMERA_FIT_SETTLE_DELAY_MS = 700
+
 function createDefaultCutRanges() {
   return {
     x: { min: -3, max: 3 },
@@ -37,6 +66,17 @@ function createCutValuesFromPercentages(
 
     return values
   }, {})
+}
+
+function hasActiveCutValues(values = {}, bounds = {}) {
+  return ["x", "y", "z"].some((axis) => {
+    const max = Number(bounds?.[axis]?.max)
+    const value = Number(values?.[axis])
+
+    return Number.isFinite(max) && Number.isFinite(value)
+      ? value < max - 0.000001
+      : false
+  })
 }
 
 function syncLegacyAxisState({ state, setCutAxis, setCutMin, setCutMax, setCutValue }) {
@@ -76,6 +116,7 @@ export function useViewerCut({
   updateLoading,
   hideLoading,
   handleModelLoaded,
+  historyEngine,
 }) {
   const cutEngineRef = useRef(null)
 
@@ -83,7 +124,16 @@ export function useViewerCut({
     cutEngineRef.current = vxEngine?.cut || createCutEngine()
   }
 
-  const cutTarget = selectedObject || modelScene
+  // Keep the Cut scope on the existing engine instance instead of adding a
+  // new React Hook. This preserves the Hook order during Vite Fast Refresh
+  // and avoids ViewerPage crashing when this module is hot-reloaded.
+  if (typeof cutEngineRef.current.__vxCutAllObjects !== "boolean") {
+    cutEngineRef.current.__vxCutAllObjects = true
+  }
+
+  const cutAllObjects = cutEngineRef.current.__vxCutAllObjects
+  const cutTarget = cutAllObjects ? modelScene : selectedObject
+  const cutTargetAvailable = Boolean(cutTarget)
 
   const syncStateToReact = useCallback(
     (state) => {
@@ -119,17 +169,64 @@ export function useViewerCut({
     }
   }, [modelScene, setTargetRotationY, setIsAutoRotating, focusTargetRef])
 
-  // Selection only changes which cut state is being edited. Existing cuts on
-  // other objects stay registered and remain visible.
+  const captureCutHistorySnapshot = useCallback(() => ({
+    engineState: cutEngineRef.current.getState(),
+    cutAllObjects: Boolean(cutEngineRef.current.__vxCutAllObjects),
+  }), [])
+
+  const applyCutHistorySnapshot = useCallback(
+    (snapshot) => {
+      if (!snapshot?.engineState) return
+
+      const cutEngine = cutEngineRef.current
+      cutEngine.__vxCutAllObjects = Boolean(snapshot.cutAllObjects)
+      const state = cutEngine.restoreState(snapshot.engineState, modelScene)
+
+      setCutEnabled(Boolean(state.enabled))
+      syncStateToReact(state)
+    },
+    [modelScene, setCutEnabled, syncStateToReact],
+  )
+
+  const recordCutHistory = useCallback(
+    (label, before, mergeKey = null, mergeWindowMs = 0) => {
+      historyEngine?.recordSnapshot?.({
+        label,
+        before,
+        after: captureCutHistorySnapshot(),
+        apply: applyCutHistorySnapshot,
+        equals: areCutHistorySnapshotsEqual,
+        mergeKey,
+        mergeWindowMs,
+      })
+    },
+    [applyCutHistorySnapshot, captureCutHistorySnapshot, historyEngine],
+  )
+
+  // Each target owns an independent Cut state. Switching selection only
+  // changes the state shown by the panel; it never copies or deletes the
+  // values stored by another object or by the whole-scene target.
   useEffect(() => {
     const cutEngine = cutEngineRef.current
 
-    if (!modelScene || !cutTarget) return
+    if (!modelScene) return
 
-    const state = cutEngine.setTarget(cutTarget)
+    if (!cutTarget) {
+      cutEngine.apply(modelScene)
+      return
+    }
+
+    let state = cutEngine.setTarget(cutTarget)
+
+    // A target that already has stored Cut values becomes active again when
+    // the user returns to it while the Cut tool is enabled.
+    if (cutEnabled && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, cutTarget)
+    }
+
     syncStateToReact(state)
     cutEngine.apply(modelScene)
-  }, [modelScene, cutTarget, syncStateToReact])
+  }, [cutEnabled, modelScene, cutTarget, syncStateToReact])
 
   // Global Cut ON/OFF controls rendering for the complete persistent cut
   // session without replacing the active target state.
@@ -144,6 +241,7 @@ export function useViewerCut({
 
   const updateCutAxis = useCallback(
     (axis) => {
+      const before = captureCutHistorySnapshot()
       const cutEngine = cutEngineRef.current
       const state = cutEngine.setAxis(axis)
 
@@ -154,14 +252,34 @@ export function useViewerCut({
         setCutMax,
         setCutValue,
       })
+      recordCutHistory("Change cut axis", before)
     },
-    [setCutAxis, setCutMin, setCutMax, setCutValue],
+    [
+      captureCutHistorySnapshot,
+      recordCutHistory,
+      setCutAxis,
+      setCutMin,
+      setCutMax,
+      setCutValue,
+    ],
   )
 
   const updateCutValue = useCallback(
     (axis, nextValue) => {
+      if (!cutTarget) return
+
+      const before = captureCutHistorySnapshot()
       const cutEngine = cutEngineRef.current
-      let state = cutEngine.setAxisValue(axis, nextValue)
+      const previousState = cutEngine.setTarget(cutTarget)
+      const nextValues = {
+        ...(previousState.values || createNoCutValuesFromBounds(previousState.bounds)),
+        [axis]: nextValue,
+      }
+
+      // Update only the active target. Other objects and the whole-scene
+      // target keep their own values inside CutEngine.
+      cutEngine.setTarget(cutTarget)
+      let state = cutEngine.setValues(nextValues)
 
       if (!cutEnabled) {
         cutEngine.setEnabled(true)
@@ -171,37 +289,133 @@ export function useViewerCut({
       cutEngine.apply(modelScene)
       state = cutEngine.getState()
       syncStateToReact(state)
+      recordCutHistory(
+        "Adjust cut",
+        before,
+        `cut-values:${cutTarget.uuid || cutTarget.name || "target"}`,
+        450,
+      )
     },
-    [cutEnabled, modelScene, setCutEnabled, syncStateToReact],
+    [
+      captureCutHistorySnapshot,
+      cutEnabled,
+      cutTarget,
+      modelScene,
+      recordCutHistory,
+      setCutEnabled,
+      syncStateToReact,
+    ],
+  )
+
+  const setCutAllObjects = useCallback(
+    (nextValue) => {
+      const before = captureCutHistorySnapshot()
+      const nextAllObjects = Boolean(nextValue)
+      const cutEngine = cutEngineRef.current
+      const nextTarget = nextAllObjects ? modelScene : selectedObject
+
+      // Switching scope must not transfer percentages or delete stored values.
+      // The scene target and every object target are independent Cut states.
+      if (nextAllObjects) {
+        cutEngine.getTargetStates().forEach((state) => {
+          if (state.target && state.target !== modelScene) {
+            cutEngine.setTargetEnabled(false, state.target)
+          }
+        })
+      } else if (modelScene) {
+        cutEngine.setTargetEnabled(false, modelScene)
+      }
+
+      cutEngine.__vxCutAllObjects = nextAllObjects
+
+      if (!nextTarget) {
+        cutEngine.apply(modelScene)
+        // Trigger a render so the toggle and target availability update even
+        // when there is no selected object in object-only mode.
+        setCutValues?.((previous) => ({ ...(previous || {}) }))
+        recordCutHistory("Change cut scope", before)
+        return
+      }
+
+      let nextState = cutEngine.setTarget(nextTarget)
+      nextState = cutEngine.setTargetEnabled(
+        cutEnabled && hasActiveCutValues(nextState.values, nextState.bounds),
+        nextTarget,
+      )
+
+      cutEngine.apply(modelScene)
+      syncStateToReact(nextState)
+      recordCutHistory("Change cut scope", before)
+    },
+    [
+      captureCutHistorySnapshot,
+      cutEnabled,
+      modelScene,
+      recordCutHistory,
+      selectedObject,
+      setCutValues,
+      syncStateToReact,
+    ],
   )
 
   // Reset only the object currently being edited. Other object cuts remain.
   const resetCutValues = useCallback(() => {
+    const before = captureCutHistorySnapshot()
     const cutEngine = cutEngineRef.current
     const state = cutEngine.reset(cutTarget)
 
     syncStateToReact(state)
     cutEngine.apply(modelScene)
     resetModelRotationForCut()
-  }, [cutTarget, modelScene, resetModelRotationForCut, syncStateToReact])
+    recordCutHistory("Reset cut", before)
+  }, [
+    captureCutHistorySnapshot,
+    cutTarget,
+    modelScene,
+    recordCutHistory,
+    resetModelRotationForCut,
+    syncStateToReact,
+  ])
 
   const toggleCutSection = useCallback(() => {
+    const before = captureCutHistorySnapshot()
     const cutEngine = cutEngineRef.current
 
     if (cutEnabled) {
-      // Closing Cut mode keeps legacy behavior: clear the complete Cut
-      // session. The per-object Reset button only resets the active target.
-      const state = cutEngine.clear(modelScene)
+      // Closing the panel only disables rendering. Target values remain cached
+      // and are restored when the user opens Cut again.
+      const state = cutEngine.setEnabled(false)
+      cutEngine.apply(modelScene)
       syncStateToReact(state)
       setCutEnabled(false)
       resetModelRotationForCut()
+      recordCutHistory("Toggle cut", before)
       return
+    }
+
+    let state = cutTarget
+      ? cutEngine.setTarget(cutTarget)
+      : cutEngine.getState()
+
+    if (cutTarget && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, cutTarget)
     }
 
     cutEngine.setEnabled(true)
     cutEngine.apply(modelScene)
+    syncStateToReact(state)
     setCutEnabled(true)
-  }, [cutEnabled, modelScene, resetModelRotationForCut, setCutEnabled, syncStateToReact])
+    recordCutHistory("Toggle cut", before)
+  }, [
+    captureCutHistorySnapshot,
+    cutEnabled,
+    cutTarget,
+    modelScene,
+    recordCutHistory,
+    resetModelRotationForCut,
+    setCutEnabled,
+    syncStateToReact,
+  ])
 
   const handleModelLoadedWithCutBounds = useCallback(
     (scene) => {
@@ -219,7 +433,7 @@ export function useViewerCut({
 
       setTimeout(() => {
         hideLoading?.()
-      }, 700)
+      }, CAMERA_FIT_SETTLE_DELAY_MS)
     },
     [handleModelLoaded, hideLoading, syncStateToReact, updateLoading],
   )
@@ -231,7 +445,12 @@ export function useViewerCut({
 
   const clearCutSession = useCallback(() => {
     const cutEngine = cutEngineRef.current
-    const state = cutEngine.clear(modelScene)
+    cutEngine.__vxCutAllObjects = true
+    let state = cutEngine.clear(modelScene)
+
+    if (modelScene) {
+      state = cutEngine.setTarget(modelScene)
+    }
 
     setCutEnabled(false)
     syncStateToReact(state)
@@ -240,22 +459,25 @@ export function useViewerCut({
   }, [modelScene, setCutEnabled, syncStateToReact])
 
   const applySavedCuts = useCallback(
-    (savedCuts = [], preferredTarget = null) => {
+    (savedCuts = [], preferredTarget = null, options = {}) => {
       const cutEngine = cutEngineRef.current
+      const hasExplicitEnabled = typeof options?.enabled === "boolean"
 
       cutEngine.clear(modelScene)
 
+      // Saved values are staged independently from the global Cut switch.
+      // A material can therefore keep its own slider values while Cut is OFF,
+      // and those values become active again when the user reopens/enables Cut.
       const validCuts = savedCuts.filter(
-        (entry) => entry?.cutState?.enabled && entry?.targetObject,
+        (entry) => entry?.cutState && entry?.targetObject,
       )
 
       if (!modelScene || validCuts.length === 0) {
+        cutEngine.__vxCutAllObjects = true
         setCutEnabled(false)
 
-        const fallbackTarget = preferredTarget || cutTarget || modelScene
-
-        if (fallbackTarget) {
-          syncStateToReact(cutEngine.setTarget(fallbackTarget))
+        if (modelScene) {
+          syncStateToReact(cutEngine.setTarget(modelScene))
         }
 
         return false
@@ -272,31 +494,37 @@ export function useViewerCut({
         cutEngine.setValues(nextValues)
       })
 
-      cutEngine.setEnabled(true)
-      cutEngine.apply(modelScene)
-      setCutEnabled(true)
+      const preferredSavedTarget = validCuts.some(
+        (entry) => entry.targetObject === preferredTarget,
+      )
+        ? preferredTarget
+        : null
+      const activeTarget = preferredSavedTarget || validCuts[0]?.targetObject || modelScene
+      const nextEnabled = hasExplicitEnabled
+        ? Boolean(options.enabled)
+        : validCuts.some((entry) => entry?.cutState?.enabled)
 
-      const activeTarget =
-        preferredTarget || validCuts[0]?.targetObject || cutTarget || modelScene
+      cutEngine.__vxCutAllObjects = activeTarget === modelScene
+      cutEngine.setEnabled(nextEnabled)
+      cutEngine.apply(modelScene)
+      setCutEnabled(nextEnabled)
 
       if (activeTarget) {
         syncStateToReact(cutEngine.setTarget(activeTarget))
       }
 
-      return true
+      return nextEnabled
     },
-    [
-      cutTarget,
-      modelScene,
-      setCutEnabled,
-      syncStateToReact,
-    ],
+    [modelScene, setCutEnabled, syncStateToReact],
   )
 
   return {
     updateCutAxis,
     updateCutValue,
     resetCutValues,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
     cutRanges: cutRanges || createDefaultCutRanges(),
     toggleCutSection,
     handleModelLoadedWithCutBounds,

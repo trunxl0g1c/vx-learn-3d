@@ -1,12 +1,4 @@
-import Button from "../../ui/button";
-
-export default function MaterialTab({
-  material,
-  saveMaterial,
-  isSavingPackage,
-  savePackageProgress,
-  savePackageStatus,
-}) {
+export default function MaterialTab({ material }) {
   return (
     <div className="flex flex-col gap-3 p-3">
       <div className="rounded-2xl bg-dark-alpha p-4">
@@ -19,28 +11,22 @@ export default function MaterialTab({
           label="Thumbnail"
           value={material?.thumbnail ? "✓ Available" : "—"}
         />
+        <InfoRow
+          label="Object Descriptions"
+          value={String(material?.chapters?.length || 0)}
+        />
+        <InfoRow label="Flows" value={String(material?.flows?.length || 0)} />
+        <InfoRow
+          label="Procedures"
+          value={String(material?.procedures?.length || 0)}
+        />
       </div>
 
-      <Button onClick={saveMaterial} disabled={isSavingPackage}>
-        {isSavingPackage ? "Saving Package..." : "Save Package"}
-      </Button>
-      {(isSavingPackage || savePackageStatus) && (
-        <div className="rounded-xl bg-dark-alpha p-3">
-          <div className="mb-2 flex items-center justify-between text-xs font-semibold text-secondary-default">
-            <span>{savePackageStatus || "Saving Package"}</span>
-            <span>{savePackageProgress || 0}%</span>
-          </div>
-
-          <div className="h-2 overflow-hidden rounded-full bg-black/40">
-            <div
-              className="h-full rounded-full bg-accent-main transition-all duration-200"
-              style={{ width: `${savePackageProgress || 0}%` }}
-            />
-          </div>
-        </div>
-      )}
-      <Button disabled>Export Package</Button>
-      <Button disabled>Open Package</Button>
+      <div className="rounded-xl border border-secondary-dark bg-dark-alpha p-3 text-xs leading-5 text-contrast-grayout">
+        Use the <span className="font-semibold text-secondary-default">Export</span>{" "}
+        button in the top bar to save the latest VXPACK project, including the
+        GLB model and current authoring manifest.
+      </div>
     </div>
   );
 }
@@ -51,9 +37,7 @@ function InfoRow({ label, value }) {
       <div className="text-xs font-normal uppercase text-secondary-default">
         {label}
       </div>
-      <div className="mt-1 text-sm font-normal text-white">
-        {value}
-      </div>
+      <div className="mt-1 text-sm font-normal text-white">{value}</div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Sprint 17
 
-- `src/engine` is now the canonical location for reusable VXplore logic.
+- `src/engine` is now the canonical location for reusable Viqubed logic.
 - `src/core` remains only as a compatibility layer and re-exports from `src/engine`.
 - `PlayerPage.jsx` now imports project/model/selection helpers from `src/engine`.
 

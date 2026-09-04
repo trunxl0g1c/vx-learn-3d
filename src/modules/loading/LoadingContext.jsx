@@ -70,18 +70,18 @@ function GlobalLoadingOverlay({ loading }) {
       : Math.min(100, Math.max(0, loading.progress));
 
   return (
-    <div className="fixed inset-0 z-999 grid place-items-center bg-black/70 backdrop-blur-md">
+    <div className="fixed inset-0 z-999 grid place-items-center bg-black/80">
       <div className="w-[420px] rounded-[24px] border border-divider-main bg-dark-alpha px-8 py-9 text-center text-white shadow-[0_24px_90px_rgba(0,0,0,0.7)]">
         <div className="mx-auto mb-4 grid size-20 place-items-center rounded-full border border-divider-main bg-primary/70">
           <img
             src="/images/logo.svg"
-            alt="VXplore Studio"
+            alt="Viqubed Studio"
             className="size-14 rounded-full"
           />
         </div>
 
         <div className="mb-1 text-xl font-normal text-white">
-          VXplore Studio
+          Viqubed Studio
         </div>
 
         <div className="mb-7 text-sm text-secondary-default">
@@ -101,7 +101,7 @@ function GlobalLoadingOverlay({ loading }) {
             className={[
               "h-full rounded-full bg-accent-main transition-all duration-300",
               progress === null
-                ? "animate-[vx-loading-slide_1.1s_infinite_ease-in-out]"
+                ? "animate-[vx-global-loading-slide_1.1s_infinite_ease-in-out]"
                 : "",
             ].join(" ")}
             style={{
@@ -116,18 +116,6 @@ function GlobalLoadingOverlay({ loading }) {
           </div>
         )}
 
-        <style>
-          {`
-            @keyframes vx-loading-slide {
-              0% {
-                transform: translateX(-130%);
-              }
-              100% {
-                transform: translateX(260%);
-              }
-            }
-          `}
-        </style>
       </div>
     </div>
   );

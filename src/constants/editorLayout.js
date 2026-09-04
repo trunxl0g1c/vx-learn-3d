@@ -1,0 +1,4 @@
+export const EDITOR_TOP_BAR_HEIGHT = 56;
+export const EDITOR_RIGHT_PANEL_WIDTH = 500;
+export const EDITOR_VIEW_CUBE_GAP = 14;
+export const EDITOR_VIEW_CUBE_WIDTH = 138;

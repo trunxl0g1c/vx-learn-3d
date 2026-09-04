@@ -160,13 +160,13 @@ export default function ChapterParameterSection({
         onClick={handleAddParameter}
         className="gap-2 text-white bg-dark-alpha rounded-lg!"
       >
+        Add New Parameter
         <MaterialIcon
           name="add"
           fill={0}
           size={22}
           className="text-secondary-default"
         />
-        Add New Parameter
       </Button>
     </section>
   );

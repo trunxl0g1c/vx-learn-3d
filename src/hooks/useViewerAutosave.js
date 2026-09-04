@@ -1,8 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { enqueueProjectWrite } from "../modules/project-hub/storage/projectWriteCoordinator";
 import {
   saveProjectDraftToIndexedDb,
   updateProjectInIndexedDb,
 } from "../modules/project-hub/storage/projectIndexedDb";
+// Autosave used to push every local save straight to the backend in the
+// background (best-effort, via remoteContentId below). Per the user's
+// request, local saves now stay local-only — backend sync only happens when
+// the user presses "Bulk Update" in EditorTopBar, which calls
+// syncProjectToBackend directly (see useViewerPageController.handleBulkUpdate).
+// import { syncProjectToBackend } from "../modules/project-hub/api/projectSync";
 
 export function createViewerDraft({
   projectId,
@@ -46,47 +53,98 @@ export function useViewerAutosave({
   cutValue,
   cutValues,
   cutRanges,
+  previousScene,
   setSaveStatus,
   markSaved,
   markSaveError,
   setProjectDraft,
+  // remoteContentId used to trigger an automatic background push to the
+  // backend on every autosave. That's now handled manually via the "Bulk
+  // Update" button instead (see useViewerPageController.handleBulkUpdate),
+  // so it's no longer read here.
+  // remoteContentId,
 }) {
+  const previousSceneRef = useRef(previousScene || {});
+  const saveRevisionRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      // Invalidate any queued work owned by this ViewerPage instance so it
+      // cannot mutate the global ProjectStore after the editor has unmounted.
+      saveRevisionRef.current += 1;
+    };
+  }, []);
+
   useEffect(() => {
+    previousSceneRef.current = previousScene || {};
+  }, [previousScene]);
+
+  useEffect(() => {
+    // Every relevant state change invalidates an older in-flight autosave.
+    // This prevents an older save from clearing `dirty` and cancelling the
+    // debounce timer that belongs to newer Chapter/Slide/Flow/Animation edits.
+    const revision = saveRevisionRef.current + 1;
+    saveRevisionRef.current = revision;
+
     if (!projectId || projectId === "demo") return;
-    if (!material?.projectId) return;
+    if (material?.projectId !== projectId) return;
     if (!dirty) return;
 
     setSaveStatus("saving");
 
-    const timer = setTimeout(async () => {
-      try {
-        const draftToSave = createViewerDraft({
-          projectId,
-          material,
-          viewerSettings,
-          markers,
-          cutEnabled,
-          cutAxis,
-          cutValue,
-          cutValues,
-          cutRanges,
-        });
+    const timer = setTimeout(() => {
+      const runSave = async () => {
+        // A newer edit may have happened while this save was waiting in the
+        // serialized queue. In that case there is no reason to persist the
+        // stale snapshot at all.
+        if (!mountedRef.current || revision !== saveRevisionRef.current) return;
 
-        await saveProjectDraftToIndexedDb(projectId, draftToSave);
+        try {
+          const draftToSave = createViewerDraft({
+            projectId,
+            material,
+            viewerSettings,
+            markers,
+            cutEnabled,
+            cutAxis,
+            cutValue,
+            cutValues,
+            cutRanges,
+            previousScene: previousSceneRef.current,
+          });
 
-        await updateProjectInIndexedDb(projectId, {
-          thumbnail: material?.thumbnail || null,
-          material,
-          viewer: viewerSettings,
-        });
+          await saveProjectDraftToIndexedDb(projectId, draftToSave);
 
-        setProjectDraft(draftToSave);
+          await updateProjectInIndexedDb(projectId, {
+            thumbnail: material?.thumbnail || null,
+            material,
+            viewer: viewerSettings,
+            scene: draftToSave.scene,
+          });
 
-        markSaved();
-      } catch (error) {
-        console.error("Autosave gagal:", error);
-        markSaveError();
-      }
+          // Never let a completed stale save mark the project as clean or
+          // replace the current draft. A newer queued save owns that state.
+          if (!mountedRef.current || revision !== saveRevisionRef.current) return;
+
+          setProjectDraft(draftToSave);
+          markSaved();
+        } catch (error) {
+          console.error("Autosave gagal:", error);
+          if (mountedRef.current && revision === saveRevisionRef.current) {
+            markSaveError();
+          }
+        }
+      };
+
+      // Queue by project at module scope, not by hook instance. This keeps the
+      // write order intact across A -> Dashboard -> B -> A navigation.
+      void enqueueProjectWrite(projectId, runSave).catch((error) => {
+        console.error("Autosave queue gagal:", error);
+      });
     }, 1500);
 
     return () => clearTimeout(timer);
@@ -109,7 +167,7 @@ export function useViewerAutosave({
 
   useEffect(() => {
     if (!projectId || projectId === "demo") return;
-    if (!material?.projectId) return;
+    if (material?.projectId !== projectId) return;
 
     setProjectDraft((prev) =>
       createViewerDraft({
@@ -122,7 +180,10 @@ export function useViewerAutosave({
         cutValue,
         cutValues,
         cutRanges,
-        previousScene: prev?.scene,
+        previousScene: {
+          ...previousSceneRef.current,
+          ...(prev?.scene || {}),
+        },
       })
     );
   }, [

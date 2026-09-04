@@ -1,5 +1,7 @@
+import { createId } from "../../utils/createId";
+
 export const createChapter = (chapterNumber = 1) => ({
-  id: crypto.randomUUID(),
+  id: createId(),
   title: `Bab ${chapterNumber}`,
   description: "",
   cameraPosition: [0, 2, 5],

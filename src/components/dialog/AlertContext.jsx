@@ -1,11 +1,14 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useMemo,
   useState,
 } from "react";
-import AlertModal from "./AlertModal";
+
+const AlertModal = lazy(() => import("./AlertModal"));
 
 const AlertContext = createContext(null);
 
@@ -57,17 +60,21 @@ export function AlertProvider({ children }) {
     <AlertContext.Provider value={value}>
       {children}
 
-      <AlertModal
-        open={alert.open}
-        title={alert.title}
-        message={alert.message}
-        type={alert.type}
-        confirmText={alert.confirmText}
-        showCloseButton={alert.showCloseButton}
-        closeOnBackdrop={alert.closeOnBackdrop}
-        onConfirm={alert.onConfirm}
-        onClose={hideAlert}
-      />
+      {alert.open && (
+        <Suspense fallback={null}>
+          <AlertModal
+            open
+            title={alert.title}
+            message={alert.message}
+            type={alert.type}
+            confirmText={alert.confirmText}
+            showCloseButton={alert.showCloseButton}
+            closeOnBackdrop={alert.closeOnBackdrop}
+            onConfirm={alert.onConfirm}
+            onClose={hideAlert}
+          />
+        </Suspense>
+      )}
     </AlertContext.Provider>
   );
 }

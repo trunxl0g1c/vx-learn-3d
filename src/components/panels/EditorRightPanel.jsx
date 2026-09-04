@@ -3,24 +3,28 @@ import MaterialTab from "./right-tabs/MaterialTab";
 import VisualTab from "./right-tabs/VisualTab";
 import AnimationTab from "./right-tabs/AnimationTab";
 import ChapterTab from "./right-tabs/ChapterTab";
+import SlideTab from "./slide/SlideTab";
 import Button from "../ui/button";
 import InfoTab from "./right-tabs/InfoTab";
 import MaterialIcon from "../ui/material-icon";
+import {
+  EDITOR_RIGHT_PANEL_WIDTH,
+  EDITOR_TOP_BAR_HEIGHT,
+} from "../../constants/editorLayout";
 
 export default function EditorRightPanel({
   chapterFeedback,
   clearChapterFeedback,
   rightTab,
   setRightTab,
+  selectedObject,
   selectedObjectName,
   authoringObjectName,
   createChapterFromSelectedObject,
-  saveVisualStateToActiveChapter,
+  previewChapterInEditor,
+  contentAuthoringLocked = false,
+  contentAuthoringLockReason = "",
   saveCameraViewToActiveChapter,
-  saveMaterial,
-  isSavingPackage,
-  savePackageProgress,
-  savePackageStatus,
   applyShaderMode,
   shaderMode,
   metalness,
@@ -29,6 +33,7 @@ export default function EditorRightPanel({
   setRoughness,
   viewerSettings,
   setViewerSettings,
+  modelScene,
   updateEnvIntensity,
   material,
   activeChapterId,
@@ -49,11 +54,18 @@ export default function EditorRightPanel({
   getChapterAnimationConfig,
   toggleChapterAnimation,
   updateChapterAnimationField,
+  addChapterAnimation,
+  updateChapterAnimation,
+  removeChapterAnimation,
+  addChapterFlow,
+  updateChapterFlow,
+  removeChapterFlow,
   playAnimationPreview,
   stopAnimationPreview,
   addChapterMedia,
   deleteChapterMedia,
   deleteChapterContent,
+  moveChapter,
   setMarkerMode,
   requestAddMarker,
   markerMode,
@@ -61,28 +73,33 @@ export default function EditorRightPanel({
 
   hideSelectedObject,
   soloSelectedObject,
+  toggleSelectedObjectXray,
+  isSelectedObjectXray,
   resetAllTransforms,
   deselectObject,
-  deleteVisualStateFromActiveChapter,
   deleteCameraViewFromActiveChapter,
+  slideAuthoring,
+  requestAddSlideMarker,
+  leftPanelOpen = false,
 }) {
   const [isOpen, setIsOpen] = useState(true);
 
   const isInfoTab = rightTab === "info";
   const isPackageTab = rightTab === "material";
+  const isSlideTab = rightTab === "slide";
   const isFitHeight = isInfoTab || isPackageTab || markerMode;
+  const shouldHideObjectContentPanel = contentAuthoringLocked && isInfoTab;
 
   const tabProps = {
     chapterFeedback,
     clearChapterFeedback,
+    selectedObject,
     selectedObjectName,
     createChapterFromSelectedObject,
-    saveVisualStateToActiveChapter,
+    previewChapterInEditor,
+    contentAuthoringLocked,
+    contentAuthoringLockReason,
     saveCameraViewToActiveChapter,
-    saveMaterial,
-    isSavingPackage,
-    savePackageProgress,
-    savePackageStatus,
     applyShaderMode,
     shaderMode,
     metalness,
@@ -91,6 +108,7 @@ export default function EditorRightPanel({
     setRoughness,
     viewerSettings,
     setViewerSettings,
+    modelScene,
     updateEnvIntensity,
     material,
     activeChapterId,
@@ -111,25 +129,38 @@ export default function EditorRightPanel({
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
+    moveChapter,
     setMarkerMode,
     requestAddMarker,
     markerMode,
     cancelAddMarker,
     setRightTab,
     deselectObject,
-    deleteVisualStateFromActiveChapter,
     deleteCameraViewFromActiveChapter,
   };
 
+  if (shouldHideObjectContentPanel) return null;
+
   return (
     <aside
+      style={{
+        top: EDITOR_TOP_BAR_HEIGHT,
+        width: EDITOR_RIGHT_PANEL_WIDTH,
+      }}
       className={[
-        "absolute right-0 top-14 z-[120] flex w-[500px] flex-col overflow-hidden",
+        "vx-editor-right-panel absolute right-0 z-[120] flex flex-col overflow-hidden",
+        leftPanelOpen ? "vx-editor-right-panel--behind-left" : "",
         "border border-divider-main text-white transition-all duration-200",
         "bg-primary/75 backdrop-blur-sm backdrop-saturate-200",
         isOpen
@@ -139,20 +170,22 @@ export default function EditorRightPanel({
           : "h-16",
       ].join(" ")}
     >
-      <div className="flex h-16 shrink-0 items-center justify-between border-b border-divider-main bg-dark-alpha/80 px-5 text-left backdrop-blur-xl">
-        <span className="truncate text-base font-normal">
-          {activeChapterId
-            ? authoringObjectName || "Active Chapter Object"
-            : selectedObjectName || "Object Settings"}
+      <div className="flex h-16 min-w-0 shrink-0 items-center justify-between gap-2 border-b border-divider-main bg-dark-alpha/80 px-3 text-left backdrop-blur-xl sm:px-4 xl:px-5">
+        <span className="min-w-0 flex-1 truncate text-sm font-normal sm:text-base">
+          {isSlideTab
+            ? slideAuthoring?.activeSlide?.title || "Slide"
+            : activeChapterId
+              ? authoringObjectName || "Object Description"
+              : selectedObjectName || "Object Settings"}
         </span>
 
-        <div className="flex">
+        <div className="flex shrink-0 items-center gap-0.5">
           {/* <Button
             size="xs"
             variant="ghost"
             type="button"
             onClick={() => setRightTab("chapter")}
-            className="border-none"
+            className="h-9! w-9! shrink-0 border-none p-0!"
           >
             {rightTab === "chapter" ? (
               <Locate className="size-6 text-secondary-default" />
@@ -161,62 +194,72 @@ export default function EditorRightPanel({
             )}
           </Button> */}
 
-          <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={soloSelectedObject}
-            className="border-none"
-          >
-            {rightTab === "chapter" ? (
-              <MaterialIcon
-                name="my_location"
-                fill={1}
-                size={25}
-                className="text-secondary-default"
-              />
-            ) : (
-              <MaterialIcon
-                name="my_location"
-                fill={1}
-                size={25}
-                className="text-secondary-default"
-              />
-            )}
-          </Button>
+          {!isSlideTab && (
+            <>
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={soloSelectedObject}
+                className="h-9! w-9! shrink-0 border-none p-0!"
+              >
+                <MaterialIcon
+                  name="my_location"
+                  fill={1}
+                  size={25}
+                  className="text-secondary-default"
+                />
+              </Button>
 
-          {/* <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={() => setRightTab("info")}
-            className="border-none"
-          >
-            <Eye className="size-6 text-secondary-default" />
-          </Button> */}
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={toggleSelectedObjectXray}
+                className={[
+                  "h-9! w-9! shrink-0 border-none p-0!",
+                  isSelectedObjectXray ? "bg-accent-main/25" : "",
+                ].join(" ")}
+                title={
+                  isSelectedObjectXray ? "Reset X-Ray" : "X-Ray Selected"
+                }
+                aria-pressed={isSelectedObjectXray}
+              >
+                <MaterialIcon
+                  name="blur_on"
+                  fill={isSelectedObjectXray ? 1 : 0}
+                  size={25}
+                  className={
+                    isSelectedObjectXray
+                      ? "text-accent-contrast"
+                      : "text-secondary-default"
+                  }
+                />
+              </Button>
 
-          <Button
-            size="xs"
-            variant="ghost"
-            type="button"
-            onClick={hideSelectedObject}
-            className="border-none"
-          >
-            <MaterialIcon
-              name="visibility"
-              fill={1}
-              size={25}
-              className="text-secondary-default"
-            />
-            {/* <Eye className="size-6 text-secondary-default" /> */}
-          </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                type="button"
+                onClick={hideSelectedObject}
+                className="h-9! w-9! shrink-0 border-none p-0!"
+              >
+                <MaterialIcon
+                  name="visibility"
+                  fill={1}
+                  size={25}
+                  className="text-secondary-default"
+                />
+              </Button>
+            </>
+          )}
 
           <Button
             size="xs"
             variant="ghost"
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="border-none"
+            className="h-9! w-9! shrink-0 border-none p-0!"
           >
             {isOpen ? (
               <MaterialIcon
@@ -270,7 +313,17 @@ export default function EditorRightPanel({
           {rightTab === "visual" && <VisualTab {...tabProps} />}
           {rightTab === "animation" && <AnimationTab {...tabProps} />}
           {rightTab === "chapter" && (
-            <ChapterTab {...tabProps} variant="detail" />
+            <ChapterTab {...tabProps} />
+          )}
+          {rightTab === "slide" && (
+            <SlideTab
+              slideAuthoring={slideAuthoring}
+              material={material}
+              animations={animations}
+              markerMode={markerMode}
+              requestAddSlideMarker={requestAddSlideMarker}
+              cancelAddMarker={cancelAddMarker}
+            />
           )}
           {rightTab === "info" && <InfoTab {...tabProps} />}
         </div>

@@ -1,6 +1,31 @@
 import { useEffect, useRef, useState } from "react";
-import { exportVXPack } from "../utils/vxpackUtils";
+import { createId } from "../utils/createId";
+import {
+  exportViqubedDataOnly,
+  exportVXPack,
+} from "../utils/vxpackUtils";
+import {
+  getAdditionalProjectModelFileFromIndexedDb,
+  getProjectFileFromIndexedDb,
+  hydrateMaterialFromIndexedDb,
+} from "../modules/project-hub/storage/projectIndexedDb";
 import { createAnimationEngine } from "../engine/animation";
+import {
+  createViewerCameraView,
+  createViewerVisualState,
+} from "../engine/viewer";
+import {
+  addChapterAnimationAssignment,
+  addChapterFlowAssignment,
+  removeChapterAnimationAssignment,
+  removeChapterFlowAssignment,
+  moveChapterInMaterial,
+  getChapterCameraViews,
+  syncChapterCameraViews,
+  updateChapterAnimationAssignment,
+  updateChapterFlowAssignment,
+} from "../engine/chapter";
+import { usePerspectiveCameraSaveGuard } from "./viewer/usePerspectiveCameraSaveGuard";
 
 function createObjectIndexPath(object, root) {
   if (!object || !root) return null;
@@ -25,64 +50,27 @@ function createObjectIndexPath(object, root) {
   return current === root ? path : null;
 }
 
-function createObjectReference(object, root = null) {
-  if (!object) return null;
-
-  return {
-    uuid: object.uuid || null,
-    name: object.name || object.userData?.name || null,
-    path: createObjectIndexPath(object, root),
-  };
-}
-
-function createCutPercentages(values = {}, ranges = {}) {
-  return ["x", "y", "z"].reduce((result, axis) => {
-    const min = Number(ranges?.[axis]?.min);
-    const max = Number(ranges?.[axis]?.max);
-    const value = Number(values?.[axis]);
-    const span = max - min;
-
-    result[axis] =
-      Number.isFinite(min) &&
-      Number.isFinite(max) &&
-      Number.isFinite(value) &&
-      Math.abs(span) > 0.000001
-        ? Math.max(0, Math.min(100, ((max - value) / span) * 100))
-        : 0;
-
-    return result;
-  }, {});
-}
-
-function collectHiddenObjectReferences(scene) {
-  if (!scene) return [];
-
-  const hiddenObjects = [];
-
-  scene.traverse((object) => {
-    if (object === scene || object.visible !== false) return;
-
-    const reference = createObjectReference(object, scene);
-
-    if (reference?.uuid || reference?.name) {
-      hiddenObjects.push(reference);
-    }
-  });
-
-  return hiddenObjects;
-}
 
 export function useChapterManager({
   selectedObjectName,
   selectedObject,
+  selectedObjects = [],
+  blinkSelectedObjectsEnabled = false,
+  blinkTargetObjects = [],
+  blinkAssignments = [],
   authoringObject,
   cameraRef,
   controlsRef,
+  cameraProjectionMode = null,
+  setCameraProjectionMode = null,
   modelScene,
   material,
   setMaterial,
   materialModelUrl,
   modelFile,
+  additionalModels = [],
+  packageProject,
+  packageScene,
   viewerSettings,
   shaderMode,
   metalness,
@@ -92,7 +80,11 @@ export function useChapterManager({
   cutRanges,
   getCutStates,
   xrayTargetObject,
+  xrayTargetObjects = [],
+  xrayNormalObjects = [],
+  selectionVisualMode = "none",
   pullApartState,
+  captureObjectTransformState,
   activeChapterId,
   setActiveChapterId,
   setRightTab,
@@ -100,8 +92,16 @@ export function useChapterManager({
   setSelectedAnimations,
   setAnimationCommand,
   vxEngine,
+  contentAuthoringLocked = false,
+  contentAuthoringLockReason = "",
 }) {
   const animationEngine = vxEngine?.animation || createAnimationEngine();
+  const { notifyIfOrthographicCameraSaved } =
+    usePerspectiveCameraSaveGuard({
+      cameraRef,
+      cameraProjectionMode,
+      onSwitchToPerspective: setCameraProjectionMode,
+    });
 
   const activeChapter = material.chapters.find(
     (chapter) => chapter.id === activeChapterId,
@@ -110,6 +110,7 @@ export function useChapterManager({
   const activeMarkers = activeChapter?.markers || [];
 
   const [isSavingPackage, setIsSavingPackage] = useState(false);
+  const [savePackageMode, setSavePackageMode] = useState(null);
   const [savePackageProgress, setSavePackageProgress] = useState(0);
   const [savePackageTargetProgress, setSavePackageTargetProgress] = useState(0);
   const [savePackageStatus, setSavePackageStatus] = useState("");
@@ -132,6 +133,31 @@ export function useChapterManager({
 
   const clearChapterFeedback = () => {
     setChapterFeedback(null);
+  };
+
+  const captureChapterVisualState = (primaryObject = null) => {
+    if (!modelScene) return null;
+
+    return createViewerVisualState({
+      scene: modelScene,
+      primaryObject: primaryObject || selectedObject,
+      selectedObject,
+      selectedObjects,
+      xrayTargetObject,
+      xrayTargetObjects,
+      xrayNormalObjects,
+      selectionVisualMode:
+        vxEngine?.selection?.getMaterialOverrideMode?.() || selectionVisualMode,
+      blinkSelectedObjectsEnabled,
+      blinkTargetObjects,
+      blinkAssignments,
+      pullApartState,
+      objectTransforms: captureObjectTransformState?.() || [],
+      cutStates: getCutStates?.() || [],
+      cutEnabled,
+      cutValues,
+      cutRanges,
+    });
   };
 
   const progressRef = useRef(0);
@@ -171,15 +197,28 @@ export function useChapterManager({
   const createChapterFromSelectedObject = () => {
     clearChapterFeedback();
 
-    if (!selectedObjectName) {
+    if (contentAuthoringLocked) {
       showChapterError(
-        "Pilih object 3D terlebih dahulu sebelum membuat chapter.",
+        contentAuthoringLockReason ||
+          "Create Description Object is disabled while a Pro authoring tool is active.",
       );
-      return;
+      return false;
     }
 
+    if (!selectedObjectName) {
+      showChapterError(
+        "Pilih object 3D terlebih dahulu sebelum membuat description object.",
+      );
+      return false;
+    }
+
+    // Keep the existing `chapters` storage shape for backward compatibility,
+    // but new object descriptions intentionally contain only identity,
+    // description, and parameter authoring data. Slide authoring remains
+    // independent and continues to own camera, marker, media, flow, and
+    // animation authoring.
     const newChapter = {
-      id: crypto.randomUUID(),
+      id: createId(),
       title: selectedObjectName,
       objectName: selectedObjectName,
       objectUuid: selectedObject?.uuid || null,
@@ -188,28 +227,19 @@ export function useChapterManager({
       parameters: [],
       markers: [],
       animations: [],
+      flows: [],
+      visualState: null,
       cameraViewSaved: false,
-
-      cameraPosition: cameraRef.current
-        ? [
-            cameraRef.current.position.x,
-            cameraRef.current.position.y,
-            cameraRef.current.position.z,
-          ]
-        : [0, 0, 5],
-
-      cameraTarget: controlsRef.current
-        ? [
-            controlsRef.current.target.x,
-            controlsRef.current.target.y,
-            controlsRef.current.target.z,
-          ]
-        : [0, 0, 0],
-
-      modelRotation: modelScene
-        ? [modelScene.rotation.x, modelScene.rotation.y, modelScene.rotation.z]
-        : [0, 0, 0],
-
+      cameraView: null,
+      cameraViews: [],
+      cameraPosition: null,
+      cameraTarget: null,
+      cameraQuaternion: null,
+      cameraUp: null,
+      cameraZoom: null,
+      cameraType: null,
+      cameraFov: null,
+      modelRotation: null,
       callouts: [],
     };
 
@@ -220,33 +250,105 @@ export function useChapterManager({
 
     setActiveChapterId(newChapter.id);
     setRightTab("chapter");
-
-    showChapterSuccess("Chapter berhasil dibuat.");
+    showChapterSuccess("Description object berhasil dibuat.");
+    return true;
   };
 
-  const saveMaterial = async () => {
+  const resetPackageProgressLater = (delay) => {
+    setTimeout(() => {
+      setIsSavingPackage(false);
+      setSavePackageMode(null);
+      setSavePackageProgress(0);
+      setSavePackageTargetProgress(0);
+      setSavePackageStatus("");
+    }, delay);
+  };
+
+  const runPackageExport = async (mode = "full") => {
     if (isSavingPackage) return;
+
+    const isDataOnly = mode === "data-only";
 
     try {
       setIsSavingPackage(true);
+      setSavePackageMode(mode);
       setSavePackageProgress(0);
       setSavePackageTargetProgress(0);
-      setSavePackageStatus("Preparing package...");
+      setSavePackageStatus(
+        isDataOnly ? "Preparing content data..." : "Preparing package...",
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 80));
 
-      await exportVXPack({
+      // Chapters, Flow, and Procedure may still be lazy IndexedDB summaries.
+      // Hydrate all records before either export so the package never loses
+      // unopened material content.
+      const exportProjectId = packageProject?.id || material?.projectId;
+      const hydratedMaterial = await hydrateMaterialFromIndexedDb(
+        exportProjectId,
+        material,
+      );
+
+      let exportModelFile = modelFile;
+      let exportAdditionalModels = additionalModels;
+
+      // Normal editor runtime deliberately keeps IndexedDB GLB files out of
+      // React state. Hydrate those large Blobs only for a full package export.
+      if (!isDataOnly && exportProjectId && exportProjectId !== "demo") {
+        if (!(exportModelFile instanceof Blob)) {
+          const storedPrimary = await getProjectFileFromIndexedDb(exportProjectId);
+          exportModelFile = storedPrimary?.blob || null;
+        }
+
+        exportAdditionalModels = await Promise.all(
+          (additionalModels || []).map(async (model) => {
+            if (model?.file instanceof Blob) return model;
+            if (!model?.id) return model;
+
+            const storedModel = await getAdditionalProjectModelFileFromIndexedDb(
+              exportProjectId,
+              model.id,
+            );
+
+            return {
+              ...model,
+              file: storedModel?.blob || null,
+            };
+          }),
+        );
+      }
+
+      const exportPayload = {
+        project: packageProject,
         material: {
-          ...material,
+          ...hydratedMaterial,
           modelUrl: materialModelUrl,
         },
-        modelFile,
+        modelFile: exportModelFile,
+        modelFileName: materialModelUrl,
+        additionalModels: exportAdditionalModels,
         viewerSettings,
+        scene: packageScene,
         shaderMode,
         metalness,
         roughness,
         onProgress: (percent) => {
           setSavePackageTargetProgress(percent);
+
+          if (isDataOnly) {
+            if (percent < 12) {
+              setSavePackageStatus("Preparing content data...");
+            } else if (percent < 30) {
+              setSavePackageStatus("Collecting project settings...");
+            } else if (percent < 95) {
+              setSavePackageStatus("Building data package...");
+            } else if (percent < 100) {
+              setSavePackageStatus("Finalizing data package...");
+            } else {
+              setSavePackageStatus("Data package saved successfully");
+            }
+            return;
+          }
 
           if (percent < 10) {
             setSavePackageStatus("Preparing package...");
@@ -260,36 +362,47 @@ export function useChapterManager({
             setSavePackageStatus("Package saved successfully");
           }
         },
-      });
+      };
 
-      setSavePackageStatus("Finalizing package...");
+      if (isDataOnly) {
+        await exportViqubedDataOnly(exportPayload);
+      } else {
+        await exportVXPack(exportPayload);
+      }
+
+      setSavePackageStatus(
+        isDataOnly
+          ? "Finalizing data package..."
+          : "Finalizing package...",
+      );
       setSavePackageTargetProgress(100);
 
       await waitUntilProgress(100);
 
-      setSavePackageStatus("Package saved successfully");
+      setSavePackageStatus(
+        isDataOnly
+          ? "Data package saved successfully"
+          : "Package saved successfully",
+      );
 
-      setTimeout(() => {
-        setIsSavingPackage(false);
-        setSavePackageProgress(0);
-        setSavePackageTargetProgress(0);
-        setSavePackageStatus("");
-      }, 1500);
+      resetPackageProgressLater(1500);
     } catch (error) {
-      console.error("Gagal menyimpan VX Package:", error);
+      console.error(
+        isDataOnly
+          ? "Gagal menyimpan VIQUBED Data:"
+          : "Gagal menyimpan VX Package:",
+        error,
+      );
 
       setSavePackageStatus(error.message || "Failed to save package");
       setSavePackageTargetProgress(100);
       setSavePackageProgress(100);
-
-      setTimeout(() => {
-        setIsSavingPackage(false);
-        setSavePackageProgress(0);
-        setSavePackageTargetProgress(0);
-        setSavePackageStatus("");
-      }, 2500);
+      resetPackageProgressLater(2500);
     }
   };
+
+  const saveMaterial = () => runPackageExport("full");
+  const saveDataOnly = () => runPackageExport("data-only");
 
   const updateChapterField = (chapterId, field, value) => {
     setMaterial((prev) => ({
@@ -300,225 +413,135 @@ export function useChapterManager({
     }));
   };
 
-  const saveVisualStateToActiveChapter = () => {
-    clearChapterFeedback();
-
-    if (!activeChapterId) {
-      showChapterError("Choose a chapter before saving visual state.");
-      return;
-    }
-
-    if (!modelScene) {
-      showChapterError(
-        "3D model is not loaded. Please refresh the page and try again.",
-      );
-      return;
-    }
-
-    // An active chapter owns a stable authoring object. Tool selection may
-    // move to other objects for Cut/X-Ray/Pull Apart without rebinding the
-    // chapter or changing the object restored by its visual state.
+  const captureActiveChapterVisualState = () => {
+    // The Chapter keeps its stable authoring object as selectedObject, while
+    // current viewport selection remains the source for highlight, blink,
+    // X-Ray, visibility, Pull Apart, and Cut state.
     const visualStateObject = activeChapter ? authoringObject : selectedObject;
-    const selectedReference = createObjectReference(
-      visualStateObject,
-      modelScene,
-    );
-    const xrayReference = createObjectReference(xrayTargetObject, modelScene);
-    const pullApartReference = createObjectReference(
-      pullApartState?.targetObject,
-      modelScene,
-    );
-
-    const persistentCutStates = getCutStates?.() || [];
-    const cuts = persistentCutStates
-      .map((cutState) => {
-        const targetReference = createObjectReference(
-          cutState?.target,
-          modelScene,
-        );
-
-        if (!cutState?.enabled || !targetReference) return null;
-
-        return {
-          enabled: true,
-          targetObject: targetReference,
-          values: {
-            x: Number(cutState?.values?.x ?? 0),
-            y: Number(cutState?.values?.y ?? 0),
-            z: Number(cutState?.values?.z ?? 0),
-          },
-          percentages: createCutPercentages(cutState?.values, cutState?.bounds),
-        };
-      })
-      .filter(Boolean);
-
-    // Keep the legacy single-cut field so older packages/players can still
-    // read the first saved cut. New Player versions use visualState.cuts.
-    const legacyCut = cuts[0] || {
-      enabled: Boolean(cutEnabled),
-      targetObject: selectedReference,
-      values: {
-        x: Number(cutValues?.x ?? 0),
-        y: Number(cutValues?.y ?? 0),
-        z: Number(cutValues?.z ?? 0),
-      },
-      percentages: createCutPercentages(cutValues, cutRanges),
-    };
-
-    const visualState = {
-      version: 2,
-      selectedObject: selectedReference,
-      visibility: {
-        hiddenObjects: collectHiddenObjectReferences(modelScene),
-      },
-      xray: {
-        enabled: Boolean(xrayReference),
-        targetObject: xrayReference,
-      },
-      pullApart: {
-        enabled: Boolean(pullApartState?.enabled),
-        targetObject: pullApartReference,
-      },
-      cuts,
-      cut: legacyCut,
-    };
-
-    setMaterial((prev) => ({
-      ...prev,
-      chapters: prev.chapters.map((chapter) =>
-        chapter.id === activeChapterId
-          ? {
-              ...chapter,
-              visualState,
-            }
-          : chapter,
-      ),
-    }));
-
-    showChapterSuccess("Visual state saved.");
+    return captureChapterVisualState(visualStateObject);
   };
 
-  const deleteVisualStateFromActiveChapter = () => {
-    clearChapterFeedback();
-
-    if (!activeChapterId) {
-      showChapterError("Choose a chapter before deleting visual state.");
-      return false;
-    }
-
-    let deleted = false;
-
-    setMaterial((prev) => {
-      const chapters = Array.isArray(prev?.chapters) ? prev.chapters : [];
-
-      const nextChapters = chapters.map((chapter) => {
-        if (chapter.id !== activeChapterId) {
-          return chapter;
-        }
-
-        if (!chapter.visualState) {
-          return chapter;
-        }
-
-        deleted = true;
-
-        return {
-          ...chapter,
-          visualState: null,
-        };
-      });
-
-      if (!deleted) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        chapters: nextChapters,
-      };
-    });
-
-    showChapterSuccess("Visual state deleted successfully.");
-
-    return deleted;
-  };
-
-  const saveCameraViewToActiveChapter = () => {
+  const saveCameraViewToActiveChapter = ({
+    cameraViewId = null,
+    caption = "",
+  } = {}) => {
     clearChapterFeedback();
 
     if (!activeChapterId) {
       showChapterError("Choose a chapter before saving camera view.");
-      return;
+      return false;
     }
 
-    if (!cameraRef.current || !controlsRef.current) {
+    const savedCameraView = createViewerCameraView({
+      camera: cameraRef.current,
+      controls: controlsRef.current,
+      modelScene,
+    });
+
+    if (!savedCameraView) {
       showChapterError(
         "Camera is not loaded. Please refresh the page and try again.",
       );
-      return;
+      return false;
     }
 
-    const cameraPos = cameraRef.current.position.clone();
-    const cameraTarget = controlsRef.current.target.clone();
+    const savedVisualState = captureActiveChapterVisualState();
 
-    const minDistance = 2.5;
-    const currentDistance = cameraPos.distanceTo(cameraTarget);
-
-    if (currentDistance < minDistance) {
-      const direction = cameraPos.clone().sub(cameraTarget).normalize();
-      cameraPos.copy(
-        cameraTarget.clone().add(direction.multiplyScalar(minDistance)),
+    if (!savedVisualState) {
+      showChapterError(
+        "Unable to capture the current camera and visual state.",
       );
+      return false;
+    }
+
+    const savedCameraWithVisualState = {
+      ...savedCameraView,
+      visualState: savedVisualState,
+    };
+
+    const activeCameraViews = getChapterCameraViews(activeChapter);
+    if (
+      cameraViewId &&
+      !activeCameraViews.some((view) => view.id === cameraViewId)
+    ) {
+      showChapterError("The selected camera view could not be updated.");
+      return false;
     }
 
     setMaterial((prev) => ({
       ...prev,
-      chapters: prev.chapters.map((chapter) =>
-        chapter.id === activeChapterId
-          ? {
-              ...chapter,
-              cameraViewSaved: true,
-              cameraPosition: [cameraPos.x, cameraPos.y, cameraPos.z],
-              cameraTarget: [cameraTarget.x, cameraTarget.y, cameraTarget.z],
-              modelRotation: modelScene
-                ? [
-                    modelScene.rotation.x,
-                    modelScene.rotation.y,
-                    modelScene.rotation.z,
-                  ]
-                : [0, 0, 0],
-            }
-          : chapter,
-      ),
+      chapters: prev.chapters.map((chapter) => {
+        if (chapter.id !== activeChapterId) return chapter;
+
+        const currentViews = getChapterCameraViews(chapter);
+        const normalizedCaption = String(caption || "").trim();
+        const nextViews = cameraViewId
+          ? currentViews.map((view, index) =>
+              view.id === cameraViewId
+                ? {
+                    ...savedCameraWithVisualState,
+                    id: view.id,
+                    caption:
+                      normalizedCaption ||
+                      view.caption ||
+                      `Camera ${index + 1}`,
+                  }
+                : view,
+            )
+          : [
+              ...currentViews,
+              {
+                ...savedCameraWithVisualState,
+                id: createId("chapter-camera"),
+                caption:
+                  normalizedCaption || `Camera ${currentViews.length + 1}`,
+              },
+            ];
+
+        return syncChapterCameraViews(chapter, nextViews);
+      }),
     }));
 
-    showChapterSuccess("Camera view saved.");
+    notifyIfOrthographicCameraSaved();
+    showChapterSuccess(
+      cameraViewId
+        ? "Camera and visual state updated."
+        : "Camera and visual state added.",
+    );
+    return true;
   };
 
-  const deleteCameraViewFromActiveChapter = () => {
+  const deleteCameraViewFromActiveChapter = (cameraViewId = null) => {
     clearChapterFeedback();
 
     if (!activeChapterId) {
       showChapterError("Choose a chapter before deleting camera view.");
-      return;
+      return false;
     }
+
+    const currentViews = getChapterCameraViews(activeChapter);
+    const hasTarget = cameraViewId
+      ? currentViews.some((view) => view.id === cameraViewId)
+      : currentViews.length > 0;
+
+    if (!hasTarget) return false;
 
     setMaterial((prev) => ({
       ...prev,
-      chapters: prev.chapters.map((chapter) =>
-        chapter.id === activeChapterId
-          ? {
-              ...chapter,
-              cameraViewSaved: false,
-              cameraPosition: null,
-              cameraTarget: null,
-              modelRotation: null,
-            }
-          : chapter,
-      ),
+      chapters: prev.chapters.map((chapter) => {
+        if (chapter.id !== activeChapterId) return chapter;
+
+        const chapterViews = getChapterCameraViews(chapter);
+        const nextViews = cameraViewId
+          ? chapterViews.filter((view) => view.id !== cameraViewId)
+          : [];
+
+        return syncChapterCameraViews(chapter, nextViews);
+      }),
     }));
 
     showChapterSuccess("Camera view deleted successfully.");
+    return true;
   };
 
   const deleteMarkerFromActiveChapter = (markerId) => {
@@ -575,6 +598,44 @@ export function useChapterManager({
     );
   };
 
+
+  const addChapterAnimation = (chapterId) => {
+    setMaterial((prev) => addChapterAnimationAssignment(prev, chapterId));
+  };
+
+  const updateChapterAnimation = (chapterId, assignmentId, patch) => {
+    setMaterial((prev) =>
+      updateChapterAnimationAssignment(
+        prev,
+        chapterId,
+        assignmentId,
+        patch,
+      ),
+    );
+  };
+
+  const removeChapterAnimation = (chapterId, assignmentId) => {
+    setMaterial((prev) =>
+      removeChapterAnimationAssignment(prev, chapterId, assignmentId),
+    );
+  };
+
+  const addChapterFlow = (chapterId) => {
+    setMaterial((prev) => addChapterFlowAssignment(prev, chapterId));
+  };
+
+  const updateChapterFlow = (chapterId, assignmentId, patch) => {
+    setMaterial((prev) =>
+      updateChapterFlowAssignment(prev, chapterId, assignmentId, patch),
+    );
+  };
+
+  const removeChapterFlow = (chapterId, assignmentId) => {
+    setMaterial((prev) =>
+      removeChapterFlowAssignment(prev, chapterId, assignmentId),
+    );
+  };
+
   const playAnimationPreview = (chapter) => {
     clearChapterFeedback();
 
@@ -619,7 +680,7 @@ export function useChapterManager({
               parameters: [
                 ...(chapter.parameters || []),
                 {
-                  id: crypto.randomUUID(),
+                  id: createId(),
                   name: "",
                   value: "",
                   unit: "",
@@ -680,7 +741,7 @@ export function useChapterManager({
                 media: [
                   ...(chapter.media || []),
                   {
-                    id: crypto.randomUUID(),
+                    id: createId(),
                     type,
                     name: file.name,
                     mimeType: file.type,
@@ -710,6 +771,10 @@ export function useChapterManager({
           : chapter,
       ),
     }));
+  };
+
+  const moveChapter = (chapterId, direction) => {
+    setMaterial((prev) => moveChapterInMaterial(prev, chapterId, direction));
   };
 
   const deleteChapterContent = (chapterId) => {
@@ -751,11 +816,12 @@ export function useChapterManager({
     clearChapterFeedback,
     createChapterFromSelectedObject,
     saveMaterial,
+    saveDataOnly,
     isSavingPackage,
+    savePackageMode,
     savePackageProgress,
     savePackageStatus,
     updateChapterField,
-    saveVisualStateToActiveChapter,
     saveCameraViewToActiveChapter,
     deleteCameraViewFromActiveChapter,
     deleteMarkerFromActiveChapter,
@@ -763,6 +829,12 @@ export function useChapterManager({
     getChapterAnimationConfig,
     toggleChapterAnimation,
     updateChapterAnimationField,
+    addChapterAnimation,
+    updateChapterAnimation,
+    removeChapterAnimation,
+    addChapterFlow,
+    updateChapterFlow,
+    removeChapterFlow,
     playAnimationPreview,
     stopAnimationPreview,
     addChapterParameter,
@@ -771,6 +843,6 @@ export function useChapterManager({
     addChapterMedia,
     deleteChapterMedia,
     deleteChapterContent,
-    deleteVisualStateFromActiveChapter,
+    moveChapter,
   };
 }

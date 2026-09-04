@@ -1,85 +1,72 @@
-import { useEffect, useRef, useState } from "react"
-import * as THREE from "three"
-
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   applyModelShaderMode,
   applyObjectNameOverrides,
+  createViqubedXrayMaterial,
   initializePlayerModelScene,
-  releaseGeneratedModelMaterial,
 } from "../../../engine/model"
-import { createPlayerObjectSelectionPayload } from "../../../engine/selection"
+import {
+  createChapterHighlightPayload,
+  createPlayerObjectSelectionPayload,
+} from "../../../engine/selection"
 import { buildObjectTreeList } from "../../../utils/objectTreeUtils"
-import { createFocusTargetFromObject, createFocusTargetFromScene } from "../../../engine/camera"
-
+import { normalizeFlowDefinitions } from "../../../engine/flow"
+import { normalizePlayerSettings } from "../../material/playerSettings"
+import {
+  getChapterCameraVisualState,
+  normalizeChapterFlowAssignments,
+} from "../../../engine/chapter"
+import usePlayerProcedurePlayback from "./usePlayerProcedurePlayback"
+import { createPlayerControllerApi } from "./createPlayerControllerApi"
 import usePlayerAnimation from "./usePlayerAnimation"
+import usePlayerQuiz from "./usePlayerQuiz"
+import usePlayerSlide from "./usePlayerSlide"
 import usePlayerSpeech from "./usePlayerSpeech"
+import usePlayerXR from "./usePlayerXR"
 import usePlayerProject, { DEFAULT_VIEWER_SETTINGS } from "./usePlayerProject"
 import usePlayerChapter from "./usePlayerChapter"
 import usePlayerFreePlay from "./usePlayerFreePlay"
-
-const DEFAULT_PLAYER_CAMERA_DIRECTION = new THREE.Vector3(0.8, 0.45, 1)
-
-function findObjectByReference(scene, reference) {
-  if (!scene || !reference) return null
-
-  if (Array.isArray(reference.path)) {
-    let current = scene
-    let pathIsValid = true
-
-    reference.path.forEach((index) => {
-      if (!pathIsValid || !current?.children?.[index]) {
-        pathIsValid = false
-        return
-      }
-
-      current = current.children[index]
-    })
-
-    if (pathIsValid && current) return current
-  }
-
-  if (reference.uuid) {
-    const uuidMatch = scene.getObjectByProperty?.("uuid", reference.uuid)
-    if (uuidMatch) return uuidMatch
-  }
-
-  const targetName = String(reference.name || "").trim()
-
-  if (!targetName) return null
-
-  let nameMatch = null
-
-  scene.traverse((object) => {
-    if (nameMatch) return
-
-    if (String(object?.name || "").trim() === targetName) {
-      nameMatch = object
-    }
-  })
-
-  return nameMatch
-}
+import { createPlayerCameraActions } from "./createPlayerCameraActions"
+import { useFocusSelectedObjectShortcut } from "../../../hooks/useFocusSelectedObjectShortcut"
+import { createPlayerXrayActions } from "./createPlayerXrayActions"
+import { createPlayerSavedViewActions } from "./createPlayerSavedViewActions"
+import { isLazyMaterialRecord } from "../../../engine/project/LazyMaterialRecords"
+import { getVisibleChapters } from "../../../engine/marker"
+import {
+  createChapterVisibilitySnapshot,
+  createPlayerSceneKey,
+  filterChaptersByVisibilitySnapshot,
+} from "../playerChapterCatalog"
+import {
+  capturePlayerInitialSceneState,
+  restorePlayerInitialSceneState,
+} from "../playerInitialSceneState"
 
 export default function usePlayerController() {
   const [material, setMaterial] = useState(null)
+  const [chapterVisibilitySnapshot, setChapterVisibilitySnapshot] =
+    useState(null)
   const [activeChapterId, setActiveChapterId] = useState(null)
   const [modelScene, setModelScene] = useState(null)
   const [objectList, setObjectList] = useState([])
-
+  const [activeFlowId, setActiveFlowId] = useState(null)
+  const [flowPlaying, setFlowPlaying] = useState(false)
+  const [flowPlaybackKey, setFlowPlaybackKey] = useState(0)
+  const [activeChapterFlowIds, setActiveChapterFlowIds] = useState([])
+  const [chapterFlowPlaybackKey, setChapterFlowPlaybackKey] = useState(0)
   const [freePlay, setFreePlay] = useState(false)
   const [freePlayMenu, setFreePlayMenu] = useState(false)
   const [activeMenu, setActiveMenu] = useState(null)
   const [showInfoPanel, setShowInfoPanel] = useState(false)
-
   const [outlineObjects, setOutlineObjects] = useState([])
+  const [blinkSelectionEnabled, setBlinkSelectionEnabled] = useState(false)
+  const [blinkRenderGroups, setBlinkRenderGroups] = useState([])
   const [shaderOutlineObjects, setShaderOutlineObjects] = useState([])
   const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [selectedObject, setSelectedObject] = useState(null)
   const [originalPositions, setOriginalPositions] = useState([])
   const [originalGroupPositions, setOriginalGroupPositions] = useState([])
-
   const [transformMode, setTransformMode] = useState("translate")
-
   const [cutEnabled, setCutEnabled] = useState(false)
   const [cutAxis, setCutAxis] = useState("x")
   const [cutValue, setCutValue] = useState(0)
@@ -92,19 +79,82 @@ export default function usePlayerController() {
   const [cutMin, setCutMin] = useState(-3)
   const [cutMax, setCutMax] = useState(3)
   const cutBoundsRef = useRef(null)
-
   const [viewerSettings, setViewerSettings] = useState(DEFAULT_VIEWER_SETTINGS)
-  const [showAnnotations, setShowAnnotations] = useState(true)
-
+  const [showAnnotations, setShowAnnotations] = useState(false)
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
   const focusTargetRef = useRef(null)
   const initialCameraStateRef = useRef(null)
-
-  const playerAnimation = usePlayerAnimation(
-    material?.chapters?.find((chapter) => chapter.id === activeChapterId)
+  const initialSceneStateRef = useRef(null)
+  const xrayTargetRef = useRef(null)
+  const xrayMaterialDisposeVersionRef = useRef(0)
+  const procedureResetRef = useRef(() => {})
+  const slideOpenRequestRef = useRef(0)
+  const flows = useMemo(
+    () => normalizeFlowDefinitions(material?.flows),
+    [material?.flows],
   )
+  const activeFlow = useMemo(
+    () => flows.find((flow) => flow.id === activeFlowId) || null,
+    [activeFlowId, flows],
+  )
+  const activeChapterFlows = useMemo(
+    () =>
+      activeChapterFlowIds
+        .map((flowId) => flows.find((flow) => flow.id === flowId))
+        .filter(Boolean),
+    [activeChapterFlowIds, flows],
+  )
+  const normalizedPlayerSettings = useMemo(
+    () => normalizePlayerSettings(material?.playerSettings),
+    [material?.playerSettings],
+  )
+  const playerXR = usePlayerXR(viewerSettings, modelScene, material?.modelFileName || material?.model?.fileName, material)
+  const visibleChapters = useMemo(() => {
+    const chapters = Array.isArray(material?.chapters) ? material.chapters : []
 
+    if (!modelScene) return chapters
+
+    const sceneKey = createPlayerSceneKey(material?.projectId, modelScene)
+    const snapshotChapters = filterChaptersByVisibilitySnapshot(
+      chapters,
+      chapterVisibilitySnapshot,
+      sceneKey,
+    )
+
+    return snapshotChapters || getVisibleChapters(chapters, modelScene)
+  }, [
+    chapterVisibilitySnapshot,
+    material?.chapters,
+    material?.projectId,
+    modelScene,
+  ])
+  const stopChapterFlows = () => {
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
+  }
+  const stopFlow = () => {
+    setFlowPlaying(false)
+    setActiveFlowId(null)
+  }
+  useEffect(() => {
+    if (activeFlowId && !flows.some((flow) => flow.id === activeFlowId)) {
+      setActiveFlowId(null)
+      setFlowPlaying(false)
+    }
+  }, [activeFlowId, flows])
+  useEffect(() => {
+    setActiveChapterFlowIds((current) =>
+      current.filter((flowId) =>
+        flows.some((flow) => flow.id === flowId && flow.enabled !== false),
+      ),
+    )
+  }, [flows])
+  const playerAnimation = usePlayerAnimation(
+    material?.chapters?.find((chapter) => chapter.id === activeChapterId),
+    material,
+    modelScene,
+  )
   const resetPlayerState = ({
     activeMenu: nextActiveMenu,
     freePlay: nextFreePlay,
@@ -117,8 +167,13 @@ export default function usePlayerController() {
     setShowInfoPanel(nextShowInfoPanel)
     setSelectedObject(null)
     setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+    setActiveFlowId(null)
+    setFlowPlaying(false)
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
+    procedureResetRef.current?.()
   }
-
   const playerProject = usePlayerProject({
     setMaterial,
     setActiveChapterId,
@@ -126,23 +181,35 @@ export default function usePlayerController() {
     resetPlayerState,
     resetAnimationState: playerAnimation.resetAnimationState,
   })
-
   const playerChapter = usePlayerChapter({
     material,
     activeChapterId,
     setActiveChapterId,
     modelScene,
+    cameraRef,
     focusTargetRef,
+    setViewerSettings,
     setSelectedObject,
     setOutlineObjects,
     playerAnimation,
+    loadChapterRecord: playerProject.loadChapterRecord,
   })
-
   const playerSpeech = usePlayerSpeech(playerChapter.activeChapter)
+  const chapterPullApartTarget = useMemo(() => {
+    if (!modelScene || !playerChapter.activeChapter) return null
+
+    return createChapterHighlightPayload(
+      playerChapter.activeChapter,
+      modelScene,
+    ).selectedObject || null
+  }, [modelScene, playerChapter.activeChapter])
 
   const clearActiveChapter = () => {
     setActiveChapterId(null)
+    setBlinkSelectionEnabled(false)
     focusTargetRef.current = null
+    setActiveChapterFlowIds([])
+    setChapterFlowPlaybackKey((key) => key + 1)
     playerAnimation.stopChapterAnimations?.()
     playerSpeech.stopSpeaking?.()
   }
@@ -166,8 +233,27 @@ export default function usePlayerController() {
     setSelectedObject,
     setOutlineObjects,
     focusTargetRef,
-    viewerSettings,
   })
+
+  const pullApartPlayerObjects = () => {
+    if (freePlay) {
+      // In Free Play a selected object scopes Pull Apart. With no selection,
+      // the whole model is intentionally used.
+      return playerFreePlay.pullApart({
+        targetObject: selectedObject || null,
+        allowSceneFallback: true,
+      })
+    }
+
+    if (!playerChapter.activeChapter) return false
+
+    // Chapter playback is scoped to the active saved/highlight object. If the
+    // visual state has no active selection, fall back to the Chapter target.
+    return playerFreePlay.pullApart({
+      targetObject: selectedObject || chapterPullApartTarget,
+      allowSceneFallback: false,
+    })
+  }
 
   useEffect(() => {
     if (!modelScene) {
@@ -176,195 +262,235 @@ export default function usePlayerController() {
       return
     }
 
-    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
+    const shaderState = applyModelShaderMode(modelScene, {
+      shaderMode: viewerSettings.shaderMode,
+      metalness: viewerSettings.metalness,
+      roughness: viewerSettings.roughness,
+      envIntensity: viewerSettings.envIntensity,
+    })
+
     setShaderOutlineObjects(shaderState.outlineObjects)
     setShaderOutlineStyle(shaderState.outlineStyle || null)
+  }, [
+    modelScene,
+    viewerSettings.shaderMode,
+    viewerSettings.metalness,
+    viewerSettings.roughness,
+    viewerSettings.envIntensity,
+  ])
 
+  useEffect(() => {
     if (window.__PLAYER_RENDERER__) {
       window.__PLAYER_RENDERER__.toneMappingExposure =
         viewerSettings.exposure
     }
-  }, [viewerSettings, modelScene])
+  }, [viewerSettings.exposure])
 
   const createPlayerObjectList = (scene) => {
     return buildObjectTreeList(scene)
   }
 
-  const focusObject = (object) => {
-    if (!object || !focusTargetRef) return
+  const {
+    focusObject,
+    applyCameraState,
+    captureInitialCameraState,
+    resetCameraToOverview,
+  } = createPlayerCameraActions({
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    initialCameraStateRef,
+    material,
+    modelScene,
+    setViewerSettings,
+  })
 
-    const focusTarget = createFocusTargetFromObject(
-      object,
-      cameraRef?.current,
-      controlsRef?.current,
-      {
-        distanceMultiplier: 1.8,
-        minimumDistance: 0.1,
-      },
-    )
+  useFocusSelectedObjectShortcut({
+    selectedObject,
+    onFocus: focusObject,
+    enabled: freePlay,
+  })
 
-    if (!focusTarget) return
+  const xrayMaterialRef = useRef(null)
 
-    focusTargetRef.current = focusTarget
+  if (!xrayMaterialRef.current) {
+    xrayMaterialRef.current = createViqubedXrayMaterial()
   }
 
-  const captureInitialCameraState = (cameraState) => {
-    if (!cameraState?.position || !cameraState?.target) return
+  useEffect(() => {
+    const disposeVersion = xrayMaterialDisposeVersionRef.current + 1
+    xrayMaterialDisposeVersionRef.current = disposeVersion
 
-    initialCameraStateRef.current = {
-      sceneId: cameraState.sceneId || null,
-      position: cameraState.position.clone(),
-      quaternion: cameraState.quaternion?.clone?.() || null,
-      target: cameraState.target.clone(),
-      zoom: Number.isFinite(Number(cameraState.zoom))
-        ? Number(cameraState.zoom)
-        : 1,
-    }
-  }
-
-  const resetCameraToOverview = () => {
-    if (!cameraRef?.current) return
-
-    const initialCameraState = initialCameraStateRef.current
-
-    if (initialCameraState) {
-      cameraRef.current.position.copy(initialCameraState.position)
-
-      if (initialCameraState.quaternion) {
-        cameraRef.current.quaternion.copy(initialCameraState.quaternion)
+    return () => {
+      const material = xrayMaterialRef.current
+      const dispose = () => {
+        if (xrayMaterialDisposeVersionRef.current !== disposeVersion) return
+        material?.dispose?.()
+        if (xrayMaterialRef.current === material) xrayMaterialRef.current = null
       }
 
-      cameraRef.current.zoom = initialCameraState.zoom
-      cameraRef.current.updateProjectionMatrix?.()
-
-      if (controlsRef?.current) {
-        controlsRef.current.target.copy(initialCameraState.target)
-        controlsRef.current.update()
+      if (typeof globalThis.queueMicrotask === "function") {
+        globalThis.queueMicrotask(dispose)
+      } else {
+        Promise.resolve().then(dispose)
       }
+    }
+  }, [])
 
-      focusTargetRef.current = null
+  const {
+    restorePlayerRenderMode,
+    resetPlayerObjectXray,
+    makePlayerTargetsXray,
+    makePlayerOthersXray,
+    makePlayerXrayExcept,
+  } = createPlayerXrayActions({
+    modelScene,
+    viewerSettings,
+    xrayTargetRef,
+    xrayMaterial: xrayMaterialRef.current,
+    setSelectedObject,
+    setOutlineObjects,
+    setShaderOutlineObjects,
+    setShaderOutlineStyle,
+  })
+
+  const {
+    applyVisualState: applySavedVisualState,
+    applyCameraView: applySavedCameraView,
+  } = createPlayerSavedViewActions({
+    modelScene,
+    material,
+    playerFreePlay,
+    makePlayerTargetsXray,
+    makePlayerOthersXray,
+    setSelectedObject,
+    setOutlineObjects,
+    setBlinkSelectionEnabled,
+    setBlinkRenderGroups,
+    applyCameraState,
+  })
+
+  const applySavedVisualStateRef = useRef(applySavedVisualState)
+  const defaultVisualStateApplyRef = useRef({ scene: null, state: null })
+  applySavedVisualStateRef.current = applySavedVisualState
+
+  useEffect(() => {
+    const visualState = normalizedPlayerSettings.defaultVisualState
+    if (!modelScene || !visualState) return
+    if (
+      defaultVisualStateApplyRef.current.scene === modelScene &&
+      defaultVisualStateApplyRef.current.state === visualState
+    ) return
+
+    defaultVisualStateApplyRef.current = { scene: modelScene, state: visualState }
+    applySavedVisualStateRef.current(visualState)
+  }, [modelScene, normalizedPlayerSettings.defaultVisualState])
+
+  const playerProcedure = usePlayerProcedurePlayback({
+    material,
+    modelScene,
+    playerProject,
+    playerAnimation,
+    playerFreePlay,
+    restorePlayerRenderMode,
+    applySavedVisualState,
+    applySavedCameraView,
+    focusObject,
+    setActiveChapterId,
+    setSelectedObject,
+    setOutlineObjects,
+    stopFlow,
+    stopChapterFlows,
+    initialSceneStateRef,
+  })
+  procedureResetRef.current = playerProcedure.resetControllerState
+
+  const playerQuiz = usePlayerQuiz({
+    material,
+    modelScene,
+    playerProject,
+    playerAnimation,
+    playerProcedure,
+    applySavedVisualState,
+    applySavedCameraView,
+    setActiveChapterId,
+    setSelectedObject,
+    setOutlineObjects,
+    stopFlow,
+    stopChapterFlows,
+    resetAssessmentPresentation: () => {
+      playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+      restorePlayerRenderMode()
+      restorePlayerInitialSceneState(modelScene, initialSceneStateRef.current)
+      resetCameraToOverview()
+      setBlinkSelectionEnabled(false)
+    },
+    setAssessmentFreePlay: setFreePlay,
+    stopSpeech: playerSpeech.stopSpeaking,
+  })
+
+  const playerSlide = usePlayerSlide({
+    material,
+    playerProject,
+    playerAnimation,
+    flows,
+    modelScene,
+    cameraRef,
+    focusTargetRef,
+    setViewerSettings,
+    applySavedVisualState,
+  })
+
+  const clearPlayerSelection = () => {
+    const protectedSelection = playerProcedure.getProtectedSelection()
+
+    if (protectedSelection) {
+      setSelectedObject(protectedSelection.selectedObject)
+      setOutlineObjects(protectedSelection.outlineObjects)
       return
     }
 
-    if (!modelScene) {
-      cameraRef.current.position.set(0, 0, 5)
-      controlsRef?.current?.target?.set?.(0, 0, 0)
-      controlsRef?.current?.update?.()
-      focusTargetRef.current = null
-      return
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
     }
-
-    // Fallback for projects loaded before the initial camera snapshot is ready.
-    const focusTarget = createFocusTargetFromScene(modelScene, {
-      camera: cameraRef.current,
-      distanceMultiplier: 1.7,
-      minimumDistance: 1.1,
-      direction: DEFAULT_PLAYER_CAMERA_DIRECTION,
-    })
-
-    if (!focusTarget) return
-
-    if (focusTarget.cameraPosition) {
-      cameraRef.current.position.copy(focusTarget.cameraPosition)
-    }
-
-    if (controlsRef?.current && focusTarget.target) {
-      controlsRef.current.target.copy(focusTarget.target)
-      controlsRef.current.update()
-    }
-
-    focusTargetRef.current = null
-  }
-
-  const xrayMaterialRef = useRef(
-    new THREE.MeshPhysicalMaterial({
-      color: "#4fc3f7",
-      transparent: true,
-      opacity: 0.22,
-      roughness: 0.2,
-      metalness: 0,
-      depthWrite: false,
-      depthTest: true,
-    }),
-  )
-
-  const restorePlayerRenderMode = () => {
-    const shaderState = applyModelShaderMode(modelScene, viewerSettings)
-    setShaderOutlineObjects(shaderState.outlineObjects)
-
-    return shaderState
-  }
-
-  const isObjectInsideTarget = (object, targetObject) => {
-    let current = object
-
-    while (current) {
-      if (current === targetObject) return true
-      current = current.parent
-    }
-
-    return false
-  }
-
-  const resetPlayerObjectXray = () => {
-    if (!modelScene) {
-      setSelectedObject(null)
-      setOutlineObjects([])
-      return
-    }
-
-    // Restore the active project render mode from the immutable GLB material
-    // cache so Toon/Clay/2D remain active after object-list X-Ray is cleared.
-    restorePlayerRenderMode()
 
     setSelectedObject(null)
     setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
   }
 
-  const makePlayerXrayExcept = (targetObject) => {
-    if (!modelScene || !targetObject) {
-      resetPlayerObjectXray()
-      return
+  const hideSelectedPlayerObject = () => {
+    if (!selectedObject) return
+
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
     }
 
-    // Always start from the original material cache before applying xray so
-    // repeated Select/Deselect operations cannot leave stale xray materials.
-    restorePlayerRenderMode()
-
-    const outlineMeshes = []
-
-    modelScene.traverse((child) => {
-      if (!child.isMesh) return
-
-      if (isObjectInsideTarget(child, targetObject)) {
-        outlineMeshes.push(child)
-        child.renderOrder = 999
-
-        if (child.material) {
-          child.material.needsUpdate = true
-        }
-
-        return
-      }
-
-      releaseGeneratedModelMaterial(child)
-      child.material = xrayMaterialRef.current
-      child.userData.__vxGeneratedShaderMaterial = false
-      child.renderOrder = 0
-      child.material.needsUpdate = true
-    })
-
-    setSelectedObject(targetObject)
-    setOutlineObjects(outlineMeshes)
+    playerFreePlay.hideSelectedObject?.()
   }
 
   const setObjectListSelectedObject = (targetObject) => {
     if (!targetObject) {
-      resetPlayerObjectXray()
-      return
+      clearPlayerSelection()
+      return null
     }
 
-    makePlayerXrayExcept(targetObject)
+    // Object List always enters Free Play before selecting.
+    if (!freePlay) setPlayerFreePlayMode(true)
+
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
+    }
+
+    const selection = createPlayerObjectSelectionPayload(
+      targetObject,
+      material?.chapters || [],
+    )
+
+    setSelectedObject(selection.selectedObject)
+    setOutlineObjects(selection.outlineObjects)
+    setBlinkSelectionEnabled(false)
+    return selection
   }
 
   const hideAllObjects = () => {
@@ -376,24 +502,205 @@ export default function usePlayerController() {
 
     setSelectedObject(null)
     setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
   }
 
-  const resetAllPlayerView = () => {
-    playerFreePlay.resetAllTransforms?.()
-    playerFreePlay.resetSection?.()
+
+  const getChapterFlowAssignments = (chapter) =>
+    normalizeChapterFlowAssignments(chapter?.flows).filter(
+      (assignment) => assignment.flowId,
+    )
+
+  const prepareChapterFlows = async (chapter) => {
+    const assignedFlowIds = getChapterFlowAssignments(chapter)
+      .filter((assignment) => assignment.autoPlay)
+      .map((assignment) => assignment.flowId)
+
+    const resolvedFlows = await Promise.all(
+      assignedFlowIds.map(async (flowId) => {
+        let flow = flows.find((item) => item.id === flowId)
+
+        if (
+          flow &&
+          isLazyMaterialRecord(flow, "flows") &&
+          playerProject.loadFlowRecord
+        ) {
+          flow = (await playerProject.loadFlowRecord(flowId)) || flow
+        }
+
+        return flow
+      }),
+    )
+
+    const autoPlayFlowIds = resolvedFlows
+      .filter(
+        (flow) =>
+          flow?.enabled !== false && (flow?.points?.length || 0) >= 2,
+      )
+      .map((flow) => flow.id)
+
+    setActiveChapterFlowIds(Array.from(new Set(autoPlayFlowIds)))
+    setChapterFlowPlaybackKey((key) => key + 1)
+  }
+
+  const playChapterFlow = async (flowId) => {
+    const activeChapter = material?.chapters?.find(
+      (chapter) => chapter.id === activeChapterId,
+    )
+    const assigned = getChapterFlowAssignments(activeChapter).some(
+      (assignment) => assignment.flowId === flowId,
+    )
+    let flow = flows.find((item) => item.id === flowId)
+
+    if (
+      flow &&
+      isLazyMaterialRecord(flow, "flows") &&
+      playerProject.loadFlowRecord
+    ) {
+      flow = (await playerProject.loadFlowRecord(flowId)) || flow
+    }
+
+    if (
+      !assigned ||
+      !flow ||
+      flow.enabled === false ||
+      (flow.points?.length || 0) < 2
+    ) {
+      return false
+    }
+
+    setActiveFlowId(null)
+    setFlowPlaying(false)
+    setActiveChapterFlowIds((current) =>
+      Array.from(new Set([...current, flowId])),
+    )
+    setChapterFlowPlaybackKey((key) => key + 1)
+    return true
+  }
+
+
+  const handleChapterFlowComplete = (flowId) => {
+    const flow = flows.find((item) => item.id === flowId)
+    if (flow?.settings?.repeat) return
+
+    setActiveChapterFlowIds((current) =>
+      current.filter((item) => item !== flowId),
+    )
+  }
+
+  const playFlow = async (flowId) => {
+    playerSlide.clearSlide?.()
+    playerProcedure.stopProcedure()
+    stopChapterFlows()
+    let flow = flows.find((item) => item.id === flowId)
+
+    if (
+      flow &&
+      isLazyMaterialRecord(flow, "flows") &&
+      playerProject.loadFlowRecord
+    ) {
+      flow = (await playerProject.loadFlowRecord(flowId)) || flow
+    }
+
+    if (!flow || (flow.points?.length || 0) < 2) return false
+
+    setActiveChapterId(null)
+    playerAnimation.stopChapterAnimations?.()
+
+    // Always start from a deterministic clean model state. Flow-specific
+    // visual state is applied immediately after the reset.
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
     restorePlayerRenderMode()
     setSelectedObject(null)
     setOutlineObjects([])
-    setActiveChapterId(null)
-    playerAnimation.stopChapterAnimations?.()
+    setBlinkSelectionEnabled(false)
+
+    applySavedVisualState(flow.visualState)
+    applySavedCameraView(flow.cameraView)
+
+    setActiveFlowId(flowId)
+    setFlowPlaying(true)
+    setFlowPlaybackKey((key) => key + 1)
+    return true
+  }
+
+
+  const resetPlayerView = () => {
+    playerFreePlay.resetMovedObjects?.({ animationDuration: 560 })
     resetCameraToOverview()
   }
 
+  const restoreInitialPlayerPresentation = () => {
+    playerQuiz.stopQuiz?.()
+    playerSlide.clearSlide?.()
+    playerProcedure.stopProcedure()
+    stopFlow()
+    stopChapterFlows()
+    playerAnimation.stopChapterAnimations?.()
+    playerSpeech.stopSpeaking?.()
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    restorePlayerInitialSceneState(modelScene, initialSceneStateRef.current)
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+    setActiveChapterId(null)
+    focusTargetRef.current = null
+    resetCameraToOverview()
+    applySavedVisualState(normalizedPlayerSettings.defaultVisualState)
+  }
+
+  const setPlayerFreePlayMode = (nextValue) => {
+    const nextFreePlay = Boolean(nextValue)
+
+    if (nextFreePlay) {
+      // Chapter/Flow/Procedure state must not leak into Free Play.
+      restoreInitialPlayerPresentation()
+      setActiveMenu(null)
+      setShowInfoPanel(false)
+      setFreePlayMenu(false)
+      setFreePlay(true)
+      return true
+    }
+
+    setFreePlay(false)
+    setFreePlayMenu(false)
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+    return false
+  }
+
+  const resetAllPlayerView = () => {
+    restoreInitialPlayerPresentation()
+    setFreePlay(false)
+    setFreePlayMenu(false)
+  }
+
   const handleModelLoaded = (scene) => {
+    if (scene && modelScene === scene) return
+
     initialCameraStateRef.current = null
     applyObjectNameOverrides(scene, material?.objectNameOverrides)
     setModelScene(scene)
     setObjectList(createPlayerObjectList(scene))
+
+    const initialVisibleChapters = getVisibleChapters(
+      material?.chapters,
+      scene,
+    )
+    // Chapter camera/visual-state playback changes mesh visibility at runtime.
+    // Capture the catalogue once, before any chapter is opened, so reopening
+    // the list does not progressively remove chapters merely because the
+    // active chapter hides other objects. Initial authoring visibility is
+    // still respected here.
+    setChapterVisibilitySnapshot(
+      createChapterVisibilitySnapshot({
+        projectId: material?.projectId,
+        scene,
+        visibleChapters: initialVisibleChapters,
+      }),
+    )
 
     const modelInit = initializePlayerModelScene({
       scene,
@@ -423,101 +730,133 @@ export default function usePlayerController() {
 
     setOriginalPositions(modelInit.originalPositions)
     setOriginalGroupPositions(modelInit.originalGroupPositions)
+    initialSceneStateRef.current = capturePlayerInitialSceneState(scene)
     setShaderOutlineObjects(modelInit.shaderOutlineObjects || [])
     setShaderOutlineStyle(modelInit.shaderOutlineStyle || null)
 
-    // Initial player load must show the full model overview.
-    // Chapter selection, object highlight, and camera focus happen only after
-    // the user explicitly selects a chapter/object.
+    // Keep a clean baseline here. The saved project default visual state is
+    // applied after modelScene commits, so Pull Apart/Cut engines already point
+    // at the active scene.
     setSelectedObject(null)
     setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
     focusTargetRef.current = null
 
     setActiveMenu(null)
     setShowInfoPanel(false)
+    playerProject.notifyModelLoaded?.(scene)
   }
 
-  const applyHiddenVisualObjects = (visualState) => {
-    const hiddenObjects = visualState?.visibility?.hiddenObjects || []
+  const handleSelectChapter = async (chapterId) => {
+    if (!material?.chapters?.some((item) => item.id === chapterId)) return false
 
-    hiddenObjects.forEach((reference) => {
-      const object = findObjectByReference(modelScene, reference)
-      if (object) object.visible = false
-    })
-  }
+    // A Chapter click supersedes any Slide that may still be hydrating.
+    slideOpenRequestRef.current += 1
 
-  const handleSelectChapter = (chapterId) => {
-    const chapter = material?.chapters?.find((item) => item.id === chapterId)
+    playerSlide.clearSlide?.()
+    stopFlow()
+    playerProcedure.stopProcedure()
 
-    if (!chapter) return
-
-    playerFreePlay.resetVisualState?.()
+    // Saved state must be applied on a stable baseline. An animated reset can
+    // finish after the restore and silently overwrite Pull Apart/transforms.
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
     restorePlayerRenderMode()
     setSelectedObject(null)
     setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
 
-    playerChapter.handleSelectChapter(chapterId)
+    const chapterView = await playerChapter.handleSelectChapter(chapterId)
+    const chapter = chapterView?.chapter
 
-    const visualState = chapter.visualState
+    if (!chapter) return false
 
-    if (!visualState) return
-
-    const pullApartTarget = findObjectByReference(
-      modelScene,
-      visualState.pullApart?.targetObject,
+    applySavedVisualState(
+      getChapterCameraVisualState(chapter, chapterView?.cameraView),
+      {
+        fallbackObject: chapterView?.selectedObject || null,
+      },
     )
-    playerFreePlay.applySavedPullApart?.(
-      visualState.pullApart,
-      pullApartTarget,
+    await prepareChapterFlows(chapter)
+
+    return true
+  }
+
+  const handleSelectChapterCameraView = (cameraIndex) => {
+    const chapter = playerChapter.activeChapter
+    if (!chapter) return null
+
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+
+    const cameraResult = playerChapter.handleSelectCameraView(cameraIndex)
+    const defaultSelection = playerChapter.highlightChapterObject(chapter)
+
+    applySavedVisualState(
+      getChapterCameraVisualState(chapter, cameraResult?.cameraView),
+      {
+        fallbackObject: defaultSelection?.selectedObject || null,
+      },
     )
 
-    applyHiddenVisualObjects(visualState)
+    return cameraResult
+  }
 
-    const xrayTarget = findObjectByReference(
-      modelScene,
-      visualState.xray?.targetObject,
-    )
+  const handleSelectSlide = async (slideId) => {
+    if (!material?.slides?.some((item) => item.id === slideId)) return false
 
-    if (visualState.xray?.enabled && xrayTarget) {
-      makePlayerXrayExcept(xrayTarget)
-    } else {
-      const savedSelectedObject = findObjectByReference(
-        modelScene,
-        visualState.selectedObject,
-      )
+    // Hydrate first so a lazy IndexedDB read never leaves the Player sitting
+    // on an intermediate reset frame between two slides.
+    const requestId = slideOpenRequestRef.current + 1
+    slideOpenRequestRef.current = requestId
+    const preparedSlide = await playerSlide.prepareSlide?.(slideId)
+    if (!preparedSlide) return false
+    if (slideOpenRequestRef.current !== requestId) return false
 
-      if (savedSelectedObject) {
-        const selection = createPlayerObjectSelectionPayload(
-          savedSelectedObject,
-          material?.chapters || [],
-        )
+    stopFlow()
+    stopChapterFlows()
+    playerProcedure.stopProcedure()
+    playerQuiz.stopQuiz?.()
+    clearActiveChapter()
+    playerSlide.stopFlows?.()
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
 
-        setSelectedObject(selection.selectedObject)
-        setOutlineObjects(selection.outlineObjects)
-      }
-    }
+    return Boolean(await playerSlide.selectSlide?.(slideId, preparedSlide))
+  }
 
-    const savedCuts = Array.isArray(visualState.cuts)
-      ? visualState.cuts
-      : visualState.cut
-        ? [visualState.cut]
-        : []
-
-    const resolvedCuts = savedCuts
-      .map((cutState) => ({
-        cutState,
-        targetObject: findObjectByReference(
-          modelScene,
-          cutState?.targetObject,
-        ),
-      }))
-      .filter((entry) => entry.targetObject)
-
-    playerFreePlay.applySavedCuts?.(resolvedCuts)
+  const handleSelectSlideCameraView = (cameraIndex) => {
+    if (!playerSlide.activeSlide) return null
+    playerFreePlay.resetVisualState?.({ animationDuration: 0 })
+    restorePlayerRenderMode()
+    setSelectedObject(null)
+    setOutlineObjects([])
+    setBlinkSelectionEnabled(false)
+    return playerSlide.selectCameraView?.(cameraIndex) || null
   }
 
   const handleSelectObjectFromPlayer = (object) => {
     if (!object) return null
+
+    if (playerQuiz.acceptsObjectSelection) {
+      return playerQuiz.handleObjectClick(object)
+    }
+
+    // Procedure target clicks remain active; normal selection needs Free Play.
+    if (["waiting", "dragging", "animating"].includes(playerProcedure.status)) {
+      return playerProcedure.handleObjectClick(object)
+    }
+
+    if (!freePlay) return null
+
+    if (xrayTargetRef.current) {
+      restorePlayerRenderMode()
+    }
 
     const selection = createPlayerObjectSelectionPayload(
       object,
@@ -526,128 +865,136 @@ export default function usePlayerController() {
 
     setSelectedObject(selection.selectedObject)
     setOutlineObjects(selection.outlineObjects)
+    setBlinkSelectionEnabled(false)
 
-    // A single click is selection-only. Chapter camera/visual state remains
-    // controlled by the explicit Chapter UI, while camera focus is reserved
-    // for a double click on the object.
+    // Single click selects; Free Play double click handles camera focus.
     return selection
   }
 
   const handleDoubleClickObjectFromPlayer = (object) => {
-    if (!object) return
+    if (!object) return null
 
     const selection = handleSelectObjectFromPlayer(object)
-    focusObject(selection?.selectedObject || object)
+    if (!selection) return null
+
+    // Procedure cameras stay locked; only Free Play may refocus.
+    if (freePlay) {
+      focusObject(selection.selectedObject || object)
+    }
+
+    return selection
   }
 
-  return {
-    status: {
-      isLoadingProject: playerProject.isLoadingProject,
-      loadError: playerProject.loadError,
-    },
-
-    scene: {
-      material,
-      modelScene,
-      viewerSettings,
-      outlineObjects,
-      shaderOutlineObjects,
-      shaderOutlineStyle,
-      setOutlineObjects,
-      setSelectedObject,
-      cameraRef,
-      controlsRef,
-      focusTargetRef,
-      freePlay,
-      selectedObject,
-      transformMode,
-      objectList,
-      focusObject,
-      makeXrayExcept: makePlayerXrayExcept,
-      resetXray: resetPlayerObjectXray,
-      setObjectListSelectedObject,
-      activeChapter: playerChapter.activeChapter,
-      selectedAnimations: playerAnimation.selectedAnimations,
-      animationCommand: playerAnimation.animationCommand,
-      handleSelectObjectFromPlayer,
-      handleDoubleClickObjectFromPlayer,
-      handleModelLoaded,
-      captureInitialCameraState,
-      setAnimations: playerAnimation.setAnimations,
-      showAnnotations,
-    },
-
-    chapterPanel: {
-      freePlay,
-      showInfoPanel,
-      activeChapter: playerChapter.activeChapter,
-      speakChapterDescription: playerSpeech.speakChapterDescription,
-      stopSpeaking: playerSpeech.stopSpeaking,
-      playChapterAnimations: playerAnimation.playChapterAnimations,
-      stopChapterAnimations: playerAnimation.stopChapterAnimations,
-    },
-
-    toolsMenu: {
-      freePlay,
-      freePlayMenu,
-      cutEnabled,
-      toggleCutSection: playerFreePlay.toggleCutSection,
-      hideSelectedObject: playerFreePlay.hideSelectedObject,
-      pullApart: playerFreePlay.pullApart,
-      isPullApartActive: playerFreePlay.isPullApartActive,
-      resetAllTransforms: resetAllPlayerView,
-      soloSelectedObject: playerFreePlay.soloSelectedObject,
-      showAllObjects: playerFreePlay.showAllObjects,
-      hideAllObjects,
-    },
-
-    cutSlider: {
-      freePlay,
-      cutEnabled,
-      cutAxis,
-      setCutAxis: playerFreePlay.updateCutAxis,
-      cutValue,
-      cutValues,
-      cutRanges,
-      cutMin,
-      cutMax,
-      setCutValue,
-      updateCutValue: playerFreePlay.updateCutValue,
-      resetCutValues: playerFreePlay.resetSection,
-    },
-
-    chapterList: {
-      freePlay,
-      activeMenu,
-      material,
-      activeChapterId,
-      handleSelectChapter,
-      clearActiveChapter,
-    },
-
-    settingsPanel: {
-      showAnnotations,
-      setShowAnnotations,
-      resetAll: resetAllPlayerView,
-    },
-
-    toolbar: {
-      loadPlayerFile: playerProject.loadPlayerFile,
-      freePlay,
-      setFreePlay,
-      setFreePlayMenu,
-      setActiveMenu,
-      setShowInfoPanel,
-      setOutlineObjects,
-      stopChapterAnimations: playerAnimation.stopChapterAnimations,
-      setCutEnabled,
-      showAllObjects: playerFreePlay.showAllObjects,
-      resetAllTransforms: resetAllPlayerView,
-      activeChapterId,
-      handleSelectChapter,
-      freePlayMenu,
-      activeMenu,
-      showInfoPanel,
-    },
+  const updatePlayerViewerSetting = (key, value) => {
+    setViewerSettings((previousSettings) => ({
+      ...previousSettings,
+      [key]: value,
+    }))
   }
+
+  const applyPlayerShaderMode = (mode) => {
+    updatePlayerViewerSetting("shaderMode", mode)
+  }
+
+  const setPlayerMetalness = (value) => {
+    updatePlayerViewerSetting("metalness", Number(value))
+  }
+
+  const setPlayerRoughness = (value) => {
+    updatePlayerViewerSetting("roughness", Number(value))
+  }
+
+  const updatePlayerEnvIntensity = (value) => {
+    updatePlayerViewerSetting("envIntensity", Number(value))
+  }
+
+  return createPlayerControllerApi({
+    playerProject,
+    material,
+    modelScene,
+    viewerSettings,
+    outlineObjects,
+    blinkSelectionEnabled,
+    blinkRenderGroups,
+    shaderOutlineObjects,
+    shaderOutlineStyle,
+    setOutlineObjects,
+    setSelectedObject,
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    freePlay,
+    selectedObject,
+    transformMode,
+    setTransformMode,
+    objectList,
+    focusObject,
+    makePlayerXrayExcept,
+    resetPlayerObjectXray,
+    setObjectListSelectedObject,
+    playerChapter,
+    handleSelectChapterCameraView,
+    playerAnimation,
+    handleSelectObjectFromPlayer,
+    handleDoubleClickObjectFromPlayer,
+    clearPlayerSelection,
+    handleModelLoaded,
+    captureInitialCameraState,
+    showAnnotations,
+    activeFlow,
+    flowPlaying,
+    setFlowPlaying,
+    flowPlaybackKey,
+    activeChapterFlows,
+    turntableAnimation: normalizedPlayerSettings.turntableAnimation,
+    chapterFlowPlaybackKey,
+    handleChapterFlowComplete,
+    playerProcedure,
+    playerQuiz,
+    playerSlide,
+    playerXR,
+    handleSelectSlide,
+    handleSelectSlideCameraView,
+    playerSpeech,
+    getChapterFlowAssignments,
+    activeChapterFlowIds,
+    playChapterFlow,
+    stopChapterFlows,
+    flows,
+    activeFlowId,
+    playFlow,
+    stopFlow,
+    freePlayMenu,
+    cutEnabled,
+    playerFreePlay,
+    pullApartPlayerObjects,
+    hideSelectedPlayerObject,
+    resetAllPlayerView,
+    hideAllObjects,
+    cutAxis,
+    cutValue,
+    cutValues,
+    cutRanges,
+    cutMin,
+    cutMax,
+    setCutValue,
+    activeMenu,
+    activeChapterId,
+    visibleChapters,
+    handleSelectChapter,
+    clearActiveChapter,
+    setViewerSettings,
+    applyPlayerShaderMode,
+    setPlayerMetalness,
+    setPlayerRoughness,
+    updatePlayerEnvIntensity,
+    setShowAnnotations,
+    resetPlayerView,
+    setFreePlay: setPlayerFreePlayMode,
+    setFreePlayMenu,
+    setActiveMenu,
+    setShowInfoPanel,
+    setCutEnabled,
+    showInfoPanel,
+  })
 }

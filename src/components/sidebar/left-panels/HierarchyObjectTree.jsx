@@ -1,18 +1,24 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import HierarchyTreeItem from "./HierarchyTreeItem";
 import {
   collectOpenMap,
   filterTree,
+  findObjectTreePath,
   getNodeKey,
   setObjectVisibility,
 } from "../../../utils/hierarchyTreeUtils";
 import Input from "../../ui/input";
 import { Search } from "lucide-react";
 import Button from "../../ui/button";
+import { createObjectIndexPath } from "../../../engine/model";
 
 export default function HierarchyObjectTree({
   objectList,
   selectedObject,
+  selectedObjects,
+  multipleSelectEnabled,
+  selectObjectFromList,
+  clearSelection,
   setSelectedObject,
   highlightObject,
   makeXrayExcept,
@@ -28,21 +34,213 @@ export default function HierarchyObjectTree({
   hideAllObjects,
   setRightTab,
   renameObject,
+  chapters = [],
+  modelScene = null,
+  onOpenObjectDescription,
 }) {
   const filteredObjectList = filterTree(objectList, searchObject, treeDepth);
 
   const [openMap, setOpenMap] = useState({});
+  const [pendingScrollNodeKey, setPendingScrollNodeKey] = useState(null);
+  const nodeElementMapRef = useRef(new Map());
+  const scrollContainerRef = useRef(null);
+  const revealedSelectionRef = useRef({
+    objectList: null,
+    selectedObject: null,
+  });
   const [, setVisibilityVersion] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const [treeViewMode, setTreeViewMode] = useState("expand");
+
+  const descriptionLookup = useMemo(() => {
+    const byUuid = new Map();
+    const byPath = new Map();
+    const byName = new Map();
+
+    const normalizeName = (value) =>
+      String(value || "")
+        .replaceAll("_", " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+
+    (Array.isArray(chapters) ? chapters : []).forEach((chapter) => {
+      const uuid = String(chapter?.objectUuid || chapter?.objectUUID || "").trim();
+      const path = Array.isArray(chapter?.objectPath)
+        ? chapter.objectPath.join(".")
+        : "";
+      const name = normalizeName(chapter?.objectName);
+
+      if (uuid && !byUuid.has(uuid)) byUuid.set(uuid, chapter);
+      if (path && !byPath.has(path)) byPath.set(path, chapter);
+      if (name && !byName.has(name)) byName.set(name, chapter);
+    });
+
+    return { byUuid, byPath, byName, normalizeName };
+  }, [chapters]);
+
+  const getObjectDescription = useCallback(
+    (object, fallbackName = "") => {
+      if (!object) return null;
+
+      const uuid = String(object.uuid || "").trim();
+      if (uuid && descriptionLookup.byUuid.has(uuid)) {
+        return descriptionLookup.byUuid.get(uuid);
+      }
+
+      if (modelScene) {
+        const path = createObjectIndexPath(object, modelScene);
+        const pathKey = Array.isArray(path) && path.length > 0 ? path.join(".") : "";
+
+        if (pathKey && descriptionLookup.byPath.has(pathKey)) {
+          return descriptionLookup.byPath.get(pathKey);
+        }
+      }
+
+      const name = descriptionLookup.normalizeName(object.name || fallbackName);
+      return name ? descriptionLookup.byName.get(name) || null : null;
+    },
+    [descriptionLookup, modelScene],
+  );
 
   const refreshVisibility = () => {
     setVisibilityVersion((prev) => prev + 1);
   };
 
+  const registerNodeRef = useCallback((nodeKey, element) => {
+    if (!nodeKey) return;
+
+    if (element) {
+      nodeElementMapRef.current.set(nodeKey, element);
+      return;
+    }
+
+    nodeElementMapRef.current.delete(nodeKey);
+  }, []);
+
   useEffect(() => {
     setOpenMap(collectOpenMap(objectList, true));
   }, [objectList]);
+
+
+  useEffect(() => {
+    if (!selectedObject) {
+      revealedSelectionRef.current = {
+        objectList,
+        selectedObject: null,
+      };
+      return;
+    }
+
+    const previousReveal = revealedSelectionRef.current;
+
+    if (
+      previousReveal.objectList === objectList &&
+      previousReveal.selectedObject === selectedObject
+    ) {
+      return;
+    }
+
+    revealedSelectionRef.current = {
+      objectList,
+      selectedObject,
+    };
+
+    const selectedPath = findObjectTreePath(objectList, selectedObject);
+    if (selectedPath.length === 0) return;
+
+    const selectedNode = selectedPath[selectedPath.length - 1];
+    const selectedNodeKey = getNodeKey(selectedNode);
+    const requiredDepth = Number(selectedNode.level || 0) + 1;
+
+    setOpenMap((previousMap) => {
+      let changed = false;
+      const nextMap = { ...previousMap };
+
+      selectedPath.slice(0, -1).forEach((ancestor) => {
+        const ancestorKey = getNodeKey(ancestor);
+
+        if (ancestorKey && nextMap[ancestorKey] !== true) {
+          nextMap[ancestorKey] = true;
+          changed = true;
+        }
+      });
+
+      return changed ? nextMap : previousMap;
+    });
+
+    if (treeDepth < requiredDepth) {
+      setTreeDepth?.(requiredDepth);
+    }
+
+    const visibleDepth = Math.max(treeDepth, requiredDepth);
+    const visiblePath = findObjectTreePath(
+      filterTree(objectList, searchObject, visibleDepth),
+      selectedObject,
+    );
+
+    // A viewport selection must remain discoverable even when the current
+    // search filter excludes it. A selection already made from a visible row
+    // keeps the user's search untouched.
+    if (visiblePath.length === 0 && searchObject) {
+      setSearchObject?.("");
+    }
+
+    setPendingScrollNodeKey(selectedNodeKey);
+  }, [
+    objectList,
+    searchObject,
+    selectedObject,
+    setSearchObject,
+    setTreeDepth,
+    treeDepth,
+  ]);
+
+  useEffect(() => {
+    if (!pendingScrollNodeKey) return undefined;
+
+    let firstFrame = 0;
+    let secondFrame = 0;
+
+    firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(() => {
+        const selectedElement =
+          nodeElementMapRef.current.get(pendingScrollNodeKey);
+
+        if (!selectedElement) return;
+
+        const scrollContainer = scrollContainerRef.current;
+
+        if (!scrollContainer) return;
+
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const elementRect = selectedElement.getBoundingClientRect();
+        const centeredOffset =
+          (scrollContainer.clientHeight - selectedElement.offsetHeight) / 2;
+        const targetScrollTop =
+          scrollContainer.scrollTop +
+          (elementRect.top - containerRect.top) -
+          centeredOffset;
+
+        // Keep auto-focus local to the Object List. scrollIntoView() may also
+        // scroll viewport ancestors, which can move the Editor top bar out of
+        // view when the sidebar is positioned inside the full-screen layout.
+        scrollContainer.scrollTo({
+          top: Math.max(0, targetScrollTop),
+          behavior: "smooth",
+        });
+
+        setPendingScrollNodeKey((currentKey) =>
+          currentKey === pendingScrollNodeKey ? null : currentKey,
+        );
+      });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      window.cancelAnimationFrame(secondFrame);
+    };
+  }, [pendingScrollNodeKey, openMap, searchObject, treeDepth]);
 
   const handleShowAll = () => {
     setIsVisible(true);
@@ -62,14 +260,17 @@ export default function HierarchyObjectTree({
 
   return (
     <div className="flex h-full min-h-0 flex-col text-white">
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3">
+      <div
+        ref={scrollContainerRef}
+        className="sidebar-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3"
+      >
         <Input
           type="text"
           placeholder="search object"
           value={searchObject}
           onChange={(event) => setSearchObject(event.target.value)}
           leftIcon={<Search className="size-5" />}
-          className="mb-4 h-8.5! rounded-full px-2!"
+          className="mb-4 h-9! rounded-full px-2!"
           inputClassName="text-base"
         />
 
@@ -148,6 +349,10 @@ export default function HierarchyObjectTree({
               key={getNodeKey(item) || index}
               item={item}
               selectedObject={selectedObject}
+              selectedObjects={selectedObjects}
+              multipleSelectEnabled={multipleSelectEnabled}
+              selectObjectFromList={selectObjectFromList}
+              clearSelection={clearSelection}
               setSelectedObject={setSelectedObject}
               highlightObject={highlightObject}
               makeXrayExcept={makeXrayExcept}
@@ -158,8 +363,11 @@ export default function HierarchyObjectTree({
               openMap={openMap}
               setOpenMap={setOpenMap}
               refreshVisibility={refreshVisibility}
+              registerNodeRef={registerNodeRef}
               setRightTab={setRightTab}
               renameObject={renameObject}
+              getObjectDescription={getObjectDescription}
+              onOpenObjectDescription={onOpenObjectDescription}
             />
           ))}
         </div>

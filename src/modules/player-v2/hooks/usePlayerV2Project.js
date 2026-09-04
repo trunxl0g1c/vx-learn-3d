@@ -16,6 +16,7 @@ export const DEFAULT_PLAYER_V2_VIEWER_SETTINGS = {
   shaderMode: "original",
   metalness: 0.1,
   roughness: 0.1,
+  cameraProjectionMode: "perspective",
 }
 
 function createV2MaterialFromLoadedProject(loaded, fallbackFileName) {
@@ -126,6 +127,7 @@ export default function usePlayerV2Project() {
   return {
     material,
     viewerSettings,
+    setViewerSettings,
     projectInfo,
     isLoadingProject,
     loadError,

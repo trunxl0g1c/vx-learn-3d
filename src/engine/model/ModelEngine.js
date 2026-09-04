@@ -5,6 +5,11 @@ import {
   cloneModelMaterial,
   syncSketchEdgeVisibility,
 } from "./ModelSceneUtils"
+import {
+  applyModelTransformOverrides,
+  captureModelTransformOverrides,
+} from "./ModelTransformState"
+import { showObjectsInScene } from "./ModelVisibility"
 
 export function computeModelBounds(scene) {
   if (!scene) return null
@@ -58,6 +63,7 @@ export function createModelEngine(options = {}) {
   let originalPositions = []
   let originalGroupPositions = []
   let lastState = null
+  let pullApartSessionSequence = 0
 
   const getNow = () => {
     if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -77,6 +83,42 @@ export function createModelEngine(options = {}) {
 
   const getOriginalPositions = () => originalPositions
   const getOriginalGroupPositions = () => originalGroupPositions
+
+  const captureTransformOverrides = (options = {}) =>
+    captureModelTransformOverrides(scene, originalGroupPositions, options)
+
+  const applyTransformOverrides = (overrides = []) =>
+    applyModelTransformOverrides(scene, overrides)
+
+  const setOriginalTransforms = ({
+    positions = [],
+    groupPositions = [],
+  } = {}) => {
+    originalPositions = positions.map((item) => ({
+      ...item,
+      position: item?.position?.clone?.() || item?.position,
+    }))
+
+    originalGroupPositions = groupPositions.map((item) => ({
+      ...item,
+      position: item?.position?.clone?.() || item?.position,
+      rotation: item?.rotation?.clone?.() || item?.rotation,
+      scale: item?.scale?.clone?.() || item?.scale,
+    }))
+
+    if (lastState) {
+      lastState = {
+        ...lastState,
+        originalPositions,
+        originalGroupPositions,
+      }
+    }
+
+    return {
+      originalPositions,
+      originalGroupPositions,
+    }
+  }
 
   const setScene = (nextScene) => {
     scene = nextScene || null
@@ -139,6 +181,7 @@ export function createModelEngine(options = {}) {
         object: child,
         position: child.position.clone(),
         rotation: child.rotation.clone(),
+        scale: child.scale.clone(),
       })
 
       if (!child.isMesh) return
@@ -148,6 +191,7 @@ export function createModelEngine(options = {}) {
 
         if (originalMaterial) {
           child.material = cloneModelMaterial(originalMaterial)
+          child.userData.__vxGeneratedShaderMaterial = true
         }
       }
 
@@ -586,6 +630,74 @@ export function createModelEngine(options = {}) {
     syncSketchEdgeVisibility(scene)
   }
 
+  const capturePullApartVisibility = () => {
+    const visibility = []
+
+    scene?.traverse?.((object) => {
+      visibility.push({ object, visible: object.visible })
+    })
+
+    return visibility
+  }
+
+  const createPullApartSession = ({ targetObject, meshes }) => ({
+    id: `pull-apart-${pullApartSessionSequence += 1}`,
+    scene,
+    targetObject: targetObject || null,
+    affectedObjects: Array.from(new Set(meshes)).map((object) => ({
+      object,
+      position: object.position.clone(),
+    })),
+    visibility: capturePullApartVisibility(),
+  })
+
+  const restorePullApartVisibility = (session) => {
+    session?.visibility?.forEach(({ object, visible }) => {
+      if (!object) return
+      object.visible = visible
+    })
+
+    syncSketchEdgeVisibility(scene)
+  }
+
+  const resetPullApartSession = (session, options = {}) => {
+    if (!scene || !session || session.scene !== scene) return 0
+
+    const requestedDuration = Number(options.animationDuration)
+    const animationDuration = Number.isFinite(requestedDuration)
+      ? requestedDuration
+      : 450
+    let resetCount = 0
+
+    session.affectedObjects?.forEach(({ object, position }) => {
+      if (!object || !position) return
+
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (animationDuration <= 0) {
+        object.position.copy(position)
+        delete object.userData.targetPosition
+        delete object.userData.targetPositionAnimation
+        object.updateMatrixWorld?.(true)
+      } else {
+        object.userData.targetPosition = position.clone()
+        object.userData.targetPositionAnimation = createTargetAnimation(
+          object,
+          animationDuration,
+        )
+      }
+
+      resetCount += 1
+    })
+
+    restorePullApartVisibility(session)
+    scene.updateMatrixWorld?.(true)
+
+    return resetCount
+  }
+
   const pullApart = (targetObject = null, options = {}) => {
     if (!scene) return false
 
@@ -596,6 +708,8 @@ export function createModelEngine(options = {}) {
       maxDepthMultiplier = 1.8,
       animationDuration = 450,
       hideOutsideSelection = true,
+      returnSession = false,
+      useCurrentPositions = false,
     } = options
 
     const rootObject = resolvePullApartRootObject(targetObject)
@@ -603,9 +717,13 @@ export function createModelEngine(options = {}) {
     scene.updateMatrixWorld(true)
 
     const branches = getDirectPullApartBranches(rootObject)
-    const meshes = branches.flatMap((branch) => branch.meshes)
+    const meshes = Array.from(
+      new Set(branches.flatMap((branch) => branch.meshes)),
+    )
 
     if (meshes.length === 0) return false
+
+    const session = createPullApartSession({ targetObject, meshes })
 
     if (targetObject && hideOutsideSelection) {
       applyVisibilityForPullApartTarget(targetObject)
@@ -630,7 +748,9 @@ export function createModelEngine(options = {}) {
 
       branch.meshes.forEach((mesh) => {
         const original = originalPositions.find((item) => item.object === mesh)
-        const basePosition = original?.position?.clone?.() || mesh.position.clone()
+        const basePosition = useCurrentPositions
+          ? mesh.position.clone()
+          : original?.position?.clone?.() || mesh.position.clone()
 
         mesh.userData.targetPosition = createLocalTargetFromWorldOffset(
           mesh,
@@ -644,21 +764,95 @@ export function createModelEngine(options = {}) {
       })
     })
 
-    return true
+    return returnSession ? session : true
   }
 
-  const resetParts = () => {
+  const resetParts = (options = {}) => {
+    const requestedDuration = Number(options.animationDuration)
+    const animationDuration = Number.isFinite(requestedDuration)
+      ? requestedDuration
+      : 420
+
     originalPositions.forEach((item) => {
-      item.object.userData.targetPosition = item.position.clone()
-      item.object.userData.targetPositionAnimation = createTargetAnimation(item.object, 420)
+      const object = item?.object
+      const position = item?.position
+
+      if (!object || !position) return
+
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (animationDuration <= 0) {
+        object.position.copy(position)
+        delete object.userData.targetPosition
+        delete object.userData.targetPositionAnimation
+        object.updateMatrix?.()
+        object.updateMatrixWorld?.(true)
+        return
+      }
+
+      object.userData.targetPosition = position.clone()
+      object.userData.targetPositionAnimation = createTargetAnimation(
+        object,
+        animationDuration,
+      )
     })
+
+    scene?.updateMatrixWorld?.(true)
   }
 
-  const resetMovedObjects = () => {
+  const resetMovedObjects = ({ animationDuration = 560 } = {}) => {
+    let animatedObjectCount = 0
+
     originalGroupPositions.forEach((item) => {
-      item.object.userData.moveTargetPosition = item.position.clone()
-      item.object.userData.moveTargetRotation = item.rotation.clone()
+      const object = item?.object
+
+      if (!object || !item?.position || !item?.rotation || !item?.scale) return
+
+      const targetPosition = item.position.clone()
+      const targetRotation = item.rotation.clone()
+      const targetScale = item.scale.clone()
+      const targetQuaternion = new THREE.Quaternion().setFromEuler(targetRotation)
+      const positionChanged = object.position.distanceToSquared(targetPosition) > 1e-10
+      const rotationChanged = object.quaternion.angleTo(targetQuaternion) > 1e-5
+      const scaleChanged = object.scale.distanceToSquared(targetScale) > 1e-10
+
+      delete object.userData.targetPosition
+      delete object.userData.targetPositionAnimation
+      delete object.userData.moveTargetPosition
+      delete object.userData.moveTargetRotation
+      delete object.userData.moveTargetTransformAnimation
+
+      if (!positionChanged && !rotationChanged && !scaleChanged) return
+
+      const requestedDuration = Number(animationDuration)
+
+      if (Number.isFinite(requestedDuration) && requestedDuration <= 0) {
+        object.position.copy(targetPosition)
+        object.rotation.copy(targetRotation)
+        object.scale.copy(targetScale)
+        object.updateMatrixWorld?.(true)
+        animatedObjectCount += 1
+        return
+      }
+
+      object.userData.moveTargetPosition = targetPosition
+      object.userData.moveTargetRotation = targetRotation
+      object.userData.moveTargetTransformAnimation = {
+        fromPosition: object.position.clone(),
+        fromQuaternion: object.quaternion.clone(),
+        fromScale: object.scale.clone(),
+        targetQuaternion,
+        targetScale,
+        startedAt: getNow(),
+        duration: Math.max(requestedDuration || 560, 1),
+      }
+
+      animatedObjectCount += 1
     })
+
+    return animatedObjectCount
   }
 
   const resetRotation = () => {
@@ -695,18 +889,29 @@ export function createModelEngine(options = {}) {
     return true
   }
 
-  const soloObject = (object) => {
-    if (!object || !scene) return false
+  const showObjects = (objectOrObjects) => {
+    return showObjectsInScene(scene, objectOrObjects)
+  }
+
+  const soloObject = (objectOrObjects) => {
+    if (!scene) return false
+
+    const targets = Array.from(
+      new Set(
+        (Array.isArray(objectOrObjects) ? objectOrObjects : [objectOrObjects])
+          .filter(Boolean),
+      ),
+    )
+
+    if (targets.length === 0) return false
 
     scene.traverse((child) => {
       if (child.isMesh) child.visible = false
     })
 
-    object.traverse?.((child) => {
-      if (child.isMesh) child.visible = true
-    })
-
-    return true
+    // A selected branch must remain renderable even when it (or one of its
+    // parents) had previously been hidden. Sibling meshes stay hidden.
+    return showObjects(targets)
   }
 
   const resetTransforms = () => {
@@ -758,9 +963,13 @@ export function createModelEngine(options = {}) {
     computeMarkerScale: () => computeMarkerScale(scene),
     getOriginalPositions,
     getOriginalGroupPositions,
+    captureTransformOverrides,
+    applyTransformOverrides,
+    setOriginalTransforms,
     getState: () => lastState,
     registerIntegrations,
     pullApart,
+    resetPullApartSession,
     resetParts,
     resetMovedObjects,
     resetRotation,
@@ -768,6 +977,7 @@ export function createModelEngine(options = {}) {
     clearState,
     dispose,
     showAllObjects,
+    showObjects,
     hideAllObjects,
     hideObject,
     soloObject,

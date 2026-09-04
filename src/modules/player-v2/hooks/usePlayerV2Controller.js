@@ -7,6 +7,9 @@ import {
   createChapterFocusTarget,
   initializePlayerModelScene,
 } from "../../../engine/model"
+import { switchCameraProjectionThen } from "../../../engine/camera"
+import { getChapterCameraViews } from "../../../engine/chapter"
+import { speakText, stopSpeech } from "../../../engine/speech"
 import usePlayerV2Project from "./usePlayerV2Project"
 import usePlayerV2Selection from "./usePlayerV2Selection"
 import usePlayerV2Camera from "./usePlayerV2Camera"
@@ -19,6 +22,7 @@ export default function usePlayerV2Controller() {
   const [shaderOutlineStyle, setShaderOutlineStyle] = useState(null)
   const [, setAnimations] = useState([])
   const [activeChapterId, setActiveChapterId] = useState(null)
+  const [activeCameraViewIndex, setActiveCameraViewIndex] = useState(0)
 
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
@@ -70,7 +74,7 @@ export default function usePlayerV2Controller() {
     }
   }, [modelScene, playerProject.viewerSettings])
 
-  const applyChapterView = (chapter, sceneOverride = null) => {
+  const applyChapterView = (chapter, sceneOverride = null, cameraIndex = 0) => {
     const scene = sceneOverride || modelScene
 
     if (!chapter) {
@@ -79,14 +83,30 @@ export default function usePlayerV2Controller() {
       return
     }
 
+    const cameraViews = getChapterCameraViews(chapter)
+    const normalizedCameraIndex = Math.max(
+      0,
+      Math.min(Number(cameraIndex) || 0, Math.max(0, cameraViews.length - 1)),
+    )
+    const cameraView = cameraViews[normalizedCameraIndex] || null
+
     if (scene) {
       selection.highlightChapterObject(chapter, scene)
-      applyChapterModelRotation(scene, chapter)
+      applyChapterModelRotation(scene, chapter, cameraView)
     }
 
-    const focusTarget = createChapterFocusTarget(chapter)
+    const focusTarget = createChapterFocusTarget(chapter, cameraView)
+    setActiveCameraViewIndex(normalizedCameraIndex)
+
     if (focusTarget) {
-      focusTargetRef.current = focusTarget
+      switchCameraProjectionThen({
+        cameraRef,
+        setViewerSettings: playerProject.setViewerSettings,
+        mode: focusTarget.cameraType,
+        onReady: () => {
+          focusTargetRef.current = focusTarget
+        },
+      })
     }
   }
 
@@ -113,8 +133,27 @@ export default function usePlayerV2Controller() {
 
     if (firstChapter) {
       setActiveChapterId(firstChapter.id)
+      setActiveCameraViewIndex(0)
       selection.highlightChapterObject(firstChapter, scene)
-      focusTargetRef.current = modelState.focusTarget
+      const firstCameraView = getChapterCameraViews(firstChapter)[0] || null
+      applyChapterModelRotation(scene, firstChapter, firstCameraView)
+
+      const firstFocusTarget = createChapterFocusTarget(
+        firstChapter,
+        firstCameraView,
+      )
+      if (firstFocusTarget) {
+        switchCameraProjectionThen({
+          cameraRef,
+          setViewerSettings: playerProject.setViewerSettings,
+          mode: firstFocusTarget.cameraType,
+          onReady: () => {
+            focusTargetRef.current = firstFocusTarget
+          },
+        })
+      } else {
+        focusTargetRef.current = null
+      }
     }
   }
 
@@ -123,7 +162,12 @@ export default function usePlayerV2Controller() {
     if (!chapter) return
 
     setActiveChapterId(chapterId)
-    applyChapterView(chapter)
+    applyChapterView(chapter, null, 0)
+  }
+
+  const handleSelectCameraView = (cameraIndex) => {
+    if (!activeChapter) return
+    applyChapterView(activeChapter, null, cameraIndex)
   }
 
   const handleSelectObjectFromPlayer = (object) => {
@@ -146,21 +190,18 @@ export default function usePlayerV2Controller() {
   }
 
   const speakChapterDescription = () => {
-    if (!activeChapter?.description) return
+    if (!activeChapter?.description) return false
 
-    window.speechSynthesis.cancel()
-
-    const utterance = new SpeechSynthesisUtterance(activeChapter.description)
-    utterance.lang = "id-ID"
-    utterance.rate = 1
-    utterance.pitch = 1
-
-    window.speechSynthesis.speak(utterance)
+    return speakText(activeChapter.description, {
+      language: "auto",
+      defaultLanguage: "id-ID",
+      rate: 1,
+      pitch: 1,
+      consistentVoice: true,
+    })
   }
 
-  const stopSpeaking = () => {
-    window.speechSynthesis.cancel()
-  }
+  const stopSpeaking = stopSpeech
 
   const noopAnimationAction = () => {}
 
@@ -176,7 +217,10 @@ export default function usePlayerV2Controller() {
       chapters,
       activeChapter,
       activeChapterId,
+      cameraViews: getChapterCameraViews(activeChapter),
+      activeCameraViewIndex,
       handleSelectChapter,
+      handleSelectCameraView,
       speakChapterDescription,
       stopSpeaking,
       playChapterAnimations: noopAnimationAction,

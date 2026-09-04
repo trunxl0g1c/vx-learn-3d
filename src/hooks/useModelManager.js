@@ -140,13 +140,13 @@ export function useModelManager({
     return didPullApart
   }
 
-  const resetParts = () => {
-    getModelEngine().resetParts()
+  const resetParts = (options = {}) => {
+    getModelEngine().resetParts(options)
     setPullApartState({ enabled: false, targetObject: null })
   }
 
-  const resetMovedObjects = () => {
-    getModelEngine().resetMovedObjects()
+  const resetMovedObjects = (options = {}) => {
+    getModelEngine().resetMovedObjects(options)
   }
 
   const resetModelRotationForCut = () => {
@@ -169,11 +169,11 @@ export function useModelManager({
     setCutEnabled((prev) => !prev)
   }
 
-  const soloSelectedObject = (selectedObject) => {
-    const success = getModelEngine().soloObject(selectedObject)
+  const soloSelectedObject = (selectedObjectOrObjects) => {
+    const success = getModelEngine().soloObject(selectedObjectOrObjects)
 
     if (!success) {
-      alert('Select an object first')
+      alert('Select one or more objects first')
     }
   }
 
@@ -188,8 +188,33 @@ export function useModelManager({
     clearSelectionState()
   }
 
+  const hideSelectedObjects = (selectedObjects = []) => {
+    const targets = Array.from(
+      new Set(
+        (Array.isArray(selectedObjects) ? selectedObjects : [selectedObjects])
+          .filter(Boolean),
+      ),
+    )
+
+    if (targets.length === 0) {
+      alert('Select one or more objects first')
+      return false
+    }
+
+    targets.forEach((targetObject) => {
+      getModelEngine().hideObject(targetObject)
+    })
+
+    clearSelectionState()
+    return true
+  }
+
   const showAllObjects = () => {
     getModelEngine().showAllObjects()
+  }
+
+  const showObjects = (objects = []) => {
+    return getModelEngine().showObjects?.(objects) || false
   }
 
   const hideAllObjects = () => {
@@ -197,15 +222,23 @@ export function useModelManager({
     clearSelectionState()
   }
 
-  const resetAllTransforms = () => {
-    resetParts()
-    resetMovedObjects()
+  const resetAllTransforms = (options = {}) => {
+    resetParts(options)
+    resetMovedObjects(options)
     resetModelRotationForCut()
   }
 
-  const resetVisualState = () => {
-    resetAllTransforms()
+  const resetVisualState = (options = {}) => {
+    resetAllTransforms(options)
     showAllObjects()
+  }
+
+  const captureObjectTransformState = () => {
+    return getModelEngine().captureTransformOverrides?.() || []
+  }
+
+  const applySavedObjectTransforms = (transforms = []) => {
+    return getModelEngine().applyTransformOverrides?.(transforms) || 0
   }
 
   const applySavedPullApart = (savedState, targetObject = null) => {
@@ -239,10 +272,14 @@ export function useModelManager({
     toggleCutSection,
     soloSelectedObject,
     hideSelectedObject,
+    hideSelectedObjects,
     showAllObjects,
+    showObjects,
     hideAllObjects,
     resetAllTransforms,
     resetVisualState,
+    captureObjectTransformState,
+    applySavedObjectTransforms,
     applySavedPullApart,
     pullApartState,
   }

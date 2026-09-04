@@ -1,27 +1,58 @@
-import { FileText, ImageIcon, Trash2, Video } from "lucide-react";
+import { Camera, FileText, ImageIcon, Trash2, Video } from "lucide-react";
 import Switch from "../../ui/switch";
 import Slider from "../../ui/slider";
 import {
   getViewerBackground,
   getViewerBackgroundStyle,
-  normalizeViewerHdri,
 } from "../../../utils/viewerBackground";
 import Button from "../../ui/button";
 import SelectField from "../../ui/select";
 import ColorFieldInput from "./attributes/ColorFieldInput";
+import TurntableAnimationSettings from "./TurntableAnimationSettings";
+import StageBackgroundControls from "./StageBackgroundControls";
+import GridSettingsControls from "./GridSettingsControls";
 import InlineAlert from "../../ui/inline-alert";
+import ConfirmationDialog from "../../dialog/ConfirmationDialog";
 import { useState } from "react";
+import { normalizePlayerSettings } from "../../../modules/material/playerSettings";
+import { createId } from "../../../utils/createId";
+import BlinkPresetSettings from "./BlinkPresetSettings";
+import ModelLicenseSettingsControls from "./ModelLicenseSettingsControls";
+import SettingsAccordionSection from "./SettingsAccordionSection";
+import { usePerspectiveCameraSaveGuard } from "../../../hooks/viewer/usePerspectiveCameraSaveGuard";
+import { normalizeBlinkSelectionSettings } from "../../../engine/selection";
+import { useCategories } from "../../../modules/category/api/categories";
+import {
+  sanitizeSafeLabel,
+  sanitizeText,
+  validateFile,
+} from "../../../utils/validation";
 
-const HDRI_PRESETS = [
-  { label: "None", value: "" },
-  { label: "Studio", value: "/hdr/studio.hdr" },
-  { label: "Warehouse", value: "/hdr/warehouse.hdr" },
-  { label: "Sunset", value: "/hdr/sunset.hdr" },
-  { label: "Hangar", value: "/hdr/hangar.hdr" },
-  { label: "Industrial", value: "/hdr/industrial.hdr" },
-  { label: "Empty Hangar", value: "/hdr/emptyhangar.hdr" },
-  { label: "Cape Hill", value: "/hdr/capehill.hdr" },
-];
+const VERSION_MAX_LENGTH = 32;
+const AUTHOR_MAX_LENGTH = 80;
+const THUMBNAIL_ALLOWED_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+const THUMBNAIL_MAX_BYTES = 5 * 1024 * 1024;
+const MEDIA_MAX_BYTES = 200 * 1024 * 1024;
+const DOCUMENT_ALLOWED_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+]);
+
+function getMediaAllowedTypes(type) {
+  if (type === "IMAGE") return ["image/*"];
+  if (type === "VIDEO") return ["video/*"];
+  return [...DOCUMENT_ALLOWED_TYPES];
+}
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -120,7 +151,12 @@ async function captureViewportThumbnail() {
   await waitForBackgroundTextureReady();
   await waitForNextFrame();
 
-  const dataUrl = canvas.toDataURL("image/png");
+  const captureViewport = window.__EDITOR_CAPTURE_VIEWPORT__;
+  const dataUrl =
+    typeof captureViewport === "function"
+      ? captureViewport()
+      : canvas.toDataURL("image/png");
+
   return resizeImageDataUrl(dataUrl);
 }
 
@@ -129,13 +165,42 @@ export default function ProjectSettingsPanel({
   setMaterial,
   viewerSettings,
   setViewerSettings,
+  saveDefaultPlayerCameraViewAndState,
+  cameraProjectionMode = "perspective",
+  setCameraProjectionMode = null,
+  modelLicenseModels = [],
+  onUpdateModelLicense,
+  onReadModelLicenseMetadata,
+  onRemoveAdditionalGlb,
+  onRemoveProjectMedia,
 }) {
   const titleLength = material.title?.length || 0;
   const descriptionLength = material.description?.length || 0;
   const background = getViewerBackground(viewerSettings);
-  const hdri = normalizeViewerHdri(viewerSettings);
+  const blinkSettings = normalizeBlinkSelectionSettings(
+    viewerSettings?.blinkSettings,
+  );
+
+  const {
+    data: categories = [],
+    isLoading: isLoadingCategories,
+    isError: isCategoriesError,
+  } = useCategories();
+  const categoryOptions = categories.map((category) => ({
+    label: category.name,
+    value: category.id,
+  }));
+  let categoryPlaceholder = "Select a category";
+  if (isCategoriesError) categoryPlaceholder = "Failed to load categories";
+  else if (isLoadingCategories) categoryPlaceholder = "Loading categories...";
 
   const [panelError, setPanelError] = useState("");
+  const [mediaPendingDelete, setMediaPendingDelete] = useState(null);
+  const [isRemovingMedia, setIsRemovingMedia] = useState(false);
+  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
+    cameraProjectionMode,
+    onSwitchToPerspective: setCameraProjectionMode,
+  });
 
   const showPanelError = (message) => {
     setPanelError(message);
@@ -155,39 +220,6 @@ export default function ProjectSettingsPanel({
     }));
   };
 
-  const updateHdri = (patch) => {
-    setViewerSettings?.((prev) => ({
-      ...prev,
-      ...patch,
-    }));
-  };
-
-  const handleImportHdri = async (file) => {
-    if (!file) return;
-
-    const lowerName = file.name.toLowerCase();
-    const isSupported =
-      lowerName.endsWith(".hdr") || lowerName.endsWith(".exr");
-
-    if (!isSupported) {
-      return;
-    }
-
-    const dataUrl = await readFileAsDataUrl(file);
-
-    updateHdri({
-      hdriSource: "custom",
-      hdri: dataUrl,
-      customHdri: {
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl,
-        importedAt: new Date().toISOString(),
-      },
-    });
-  };
-
   const updateThumbnail = (thumbnail, metadata = {}) => {
     setMaterial((prev) => ({
       ...prev,
@@ -201,8 +233,14 @@ export default function ProjectSettingsPanel({
   const handleImportThumbnail = async (file) => {
     if (!file) return;
 
-    if (!file.type?.startsWith("image/")) {
-      alert("Thumbnail must be an image.");
+    const fileError = validateFile(file, {
+      allowedTypes: THUMBNAIL_ALLOWED_TYPES,
+      maxBytes: THUMBNAIL_MAX_BYTES,
+      fieldLabel: "Project thumbnail",
+    });
+
+    if (fileError) {
+      showPanelError(fileError);
       return;
     }
 
@@ -223,12 +261,23 @@ export default function ProjectSettingsPanel({
         type: "image/jpeg",
       });
     } catch (error) {
-      alert(error?.message || "Failed to capture viewport.");
+      showPanelError(error?.message || "Failed to capture viewport.");
     }
   };
 
   const addProjectMedia = async (type, file) => {
     if (!file) return;
+
+    const fileError = validateFile(file, {
+      allowedTypes: getMediaAllowedTypes(type),
+      maxBytes: MEDIA_MAX_BYTES,
+      fieldLabel: `${getMediaLabel(type)} media`,
+    });
+
+    if (fileError) {
+      showPanelError(fileError);
+      return;
+    }
 
     const dataUrl = await readFileAsDataUrl(file);
 
@@ -237,7 +286,7 @@ export default function ProjectSettingsPanel({
       media: [
         ...(prev.media || []),
         {
-          id: crypto.randomUUID(),
+          id: createId(),
           type,
           title: getMediaTitle(file, type),
           name: file.name || getMediaTitle(file, type),
@@ -258,10 +307,83 @@ export default function ProjectSettingsPanel({
     }));
   };
 
+  const confirmRemoveProjectMedia = async () => {
+    if (!mediaPendingDelete) return;
+
+    setIsRemovingMedia(true);
+
+    try {
+      if (onRemoveProjectMedia) {
+        await onRemoveProjectMedia(mediaPendingDelete.id);
+      } else {
+        removeProjectMedia(mediaPendingDelete.id);
+      }
+
+      setMediaPendingDelete(null);
+    } catch (error) {
+      showPanelError(error?.message || "Failed to remove media.");
+    } finally {
+      setIsRemovingMedia(false);
+    }
+  };
+
   const mediaList = Array.isArray(material.media) ? material.media : [];
+  const playerSettings = normalizePlayerSettings(material.playerSettings);
+  const turntableAnimation = playerSettings.turntableAnimation;
+
+  const updatePlayerSettings = (patch) => {
+    setMaterial((prev) => {
+      const currentSettings = normalizePlayerSettings(prev.playerSettings);
+
+      return {
+        ...prev,
+        playerSettings: {
+          ...currentSettings,
+          ...patch,
+          turntableAnimation: patch.turntableAnimation
+            ? normalizePlayerSettings({
+                ...currentSettings,
+                turntableAnimation: {
+                  ...currentSettings.turntableAnimation,
+                  ...patch.turntableAnimation,
+                },
+              }).turntableAnimation
+            : currentSettings.turntableAnimation,
+          menuVisibility: patch.menuVisibility
+            ? {
+                ...currentSettings.menuVisibility,
+                ...patch.menuVisibility,
+              }
+            : currentSettings.menuVisibility,
+        },
+      };
+    });
+  };
+
+  const updatePlayerMenuVisibility = (key, checked) => {
+    updatePlayerSettings({
+      menuVisibility: {
+        [key]: checked,
+      },
+    });
+  };
+
+  const handleSaveDefaultPlayerCameraViewAndState = () => {
+    clearPanelError();
+
+    if (!requirePerspectiveCameraForSave()) return;
+
+    const didSave = saveDefaultPlayerCameraViewAndState?.();
+
+    if (!didSave) {
+      showPanelError(
+        "Camera viewport belum siap. Tunggu model tampil lalu coba simpan kembali.",
+      );
+    }
+  };
 
   return (
-    <div className="flex h-full flex-col text-white">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden text-white">
       <div className="sticky top-0 z-10 flex h-16 items-center bg-[#14201f] px-4 text-lg font-normal">
         Project Settings
       </div>
@@ -282,26 +404,48 @@ export default function ProjectSettingsPanel({
           <div className="relative">
             <input
               value={material.title || ""}
-              maxLength={48}
+              maxLength={100}
               placeholder="Project title"
               onChange={(event) => {
                 clearPanelError();
 
                 setMaterial((previousMaterial) => ({
                   ...previousMaterial,
-                  title: event.target.value,
+                  title: sanitizeSafeLabel(event.target.value, {
+                    maxLength: 48,
+                  }),
                 }));
               }}
               className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
             />
 
             <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
-              {titleLength}/48
+              {titleLength}/100
             </span>
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div>
+          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
+            Category
+          </label>
+
+          <SelectField
+            value={material.categoryId || ""}
+            onChange={(value) =>
+              setMaterial((prev) => ({
+                ...prev,
+                categoryId: value || null,
+              }))
+            }
+            options={categoryOptions}
+            placeholder={categoryPlaceholder}
+            disabled={isLoadingCategories || isCategoriesError}
+            className="h-[44px]! rounded-lg border-secondary-default!"
+          />
+        </div>
+
+        {/* <div className="flex items-center justify-between">
           <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
@@ -312,6 +456,27 @@ export default function ProjectSettingsPanel({
               setMaterial((prev) => ({
                 ...prev,
                 availableOnMarketplace: checked,
+              }))
+            }
+          />
+        </div> */}
+
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="block text-base font-normal text-contrast-grayout">
+              Public
+            </span>
+            <span className="block text-xs text-contrast-grayout/70 max-w-62.5">
+              Required before this content can be shared <br /> to other.
+            </span>
+          </div>
+
+          <Switch
+            checked={material.visibility === "PUBLIC"}
+            onCheckedChange={(checked) =>
+              setMaterial((prev) => ({
+                ...prev,
+                visibility: checked ? "PUBLIC" : "PRIVATE",
               }))
             }
           />
@@ -330,7 +495,11 @@ export default function ProjectSettingsPanel({
               onChange={(e) =>
                 setMaterial((prev) => ({
                   ...prev,
-                  description: e.target.value,
+                  description: sanitizeText(e.target.value, {
+                    maxLength: 650,
+                    collapseWhitespace: false,
+                    allowNewlines: true,
+                  }),
                 }))
               }
               className="min-h-[146px] w-full resize-none rounded-lg border border-secondary-default bg-transparent px-3 py-3 pr-12 text-sm font-normal leading-6 text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
@@ -347,17 +516,27 @@ export default function ProjectSettingsPanel({
             Version
           </label>
 
-          <input
-            value={material.version || ""}
-            placeholder="1.0.0"
-            onChange={(e) =>
-              setMaterial((prev) => ({
-                ...prev,
-                version: e.target.value,
-              }))
-            }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
-          />
+          <div className="relative">
+            <input
+              value={material.version || ""}
+              maxLength={VERSION_MAX_LENGTH}
+              placeholder="1.0.0"
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  version: sanitizeText(e.target.value, {
+                    maxLength: VERSION_MAX_LENGTH,
+                    collapseWhitespace: false,
+                  }),
+                }))
+              }
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
+            />
+
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
+              {(material.version || "").length}/{VERSION_MAX_LENGTH}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -365,17 +544,27 @@ export default function ProjectSettingsPanel({
             Author
           </label>
 
-          <input
-            value={material.author || ""}
-            placeholder="Author name"
-            onChange={(e) =>
-              setMaterial((prev) => ({
-                ...prev,
-                author: e.target.value,
-              }))
-            }
-            className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
-          />
+          <div className="relative">
+            <input
+              value={material.author || ""}
+              maxLength={AUTHOR_MAX_LENGTH}
+              placeholder="Author name"
+              onChange={(e) =>
+                setMaterial((prev) => ({
+                  ...prev,
+                  author: sanitizeText(e.target.value, {
+                    maxLength: AUTHOR_MAX_LENGTH,
+                    collapseWhitespace: false,
+                  }),
+                }))
+              }
+              className="h-[44px] w-full rounded-lg border border-secondary-default bg-transparent px-3 pr-14 text-sm font-normal text-white outline-none placeholder:text-contrast-grayout focus:ring-1 focus:ring-[#67D4EA]"
+            />
+
+            <span className="absolute bottom-2 right-3 text-[10px] font-normal text-contrast-grayout">
+              {(material.author || "").length}/{AUTHOR_MAX_LENGTH}
+            </span>
+          </div>
         </div>
 
         <div>
@@ -442,10 +631,8 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-            Media
-          </label>
+        <div className="rounded-xl border border-secondary-default bg-primary p-4">
+          <div className="mb-4 text-sm font-normal text-white">Media</div>
 
           <div className="space-y-3">
             {mediaList.length > 0 && (
@@ -453,9 +640,9 @@ export default function ProjectSettingsPanel({
                 {mediaList.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 rounded-lg border border-secondary-default bg-primary p-3"
+                    className="flex items-center gap-3 rounded-lg border border-secondary-default bg-dark-alpha p-3"
                   >
-                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#315b64] bg-dark-alpha">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-lg border border-[#315b64] bg-primary">
                       {item.type === "IMAGE" && item.url ? (
                         <img
                           src={item.url}
@@ -478,14 +665,15 @@ export default function ProjectSettingsPanel({
                       </div>
                     </div>
 
-                    <button
+                    <Button
                       type="button"
-                      onClick={() => removeProjectMedia(item.id)}
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#315b64] text-contrast-grayout transition hover:border-secondary-default hover:text-white"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setMediaPendingDelete(item)}
                       aria-label="Remove media"
                     >
                       <Trash2 className="size-4" />
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -501,7 +689,7 @@ export default function ProjectSettingsPanel({
                   key={item.type}
                   title={item.label}
                   aria-label={item.label}
-                  className="grid h-12 cursor-pointer place-items-center rounded-lg border border-secondary-default bg-primary text-white transition hover:border-secondary-default hover:bg-dark-alpha"
+                  className="grid h-12 cursor-pointer place-items-center rounded-lg border border-secondary-default bg-dark-alpha text-white transition hover:bg-dark-alpha/70"
                 >
                   {getMediaIcon(item.type, "size-5 text-secondary-default")}
                   <input
@@ -520,104 +708,107 @@ export default function ProjectSettingsPanel({
           </div>
         </div>
 
-        <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-4 text-sm font-normal text-white">Environment</div>
+        <SettingsAccordionSection title="3D License">
+          <ModelLicenseSettingsControls
+            embedded
+            models={modelLicenseModels}
+            onUpdateModelLicense={onUpdateModelLicense}
+            onReadModelLicenseMetadata={onReadModelLicenseMetadata}
+            onRemoveAdditionalGlb={onRemoveAdditionalGlb}
+          />
+        </SettingsAccordionSection>
 
-          <label className="mb-2 block text-sm font-normal text-contrast-grayout">
-            HDRI Lighting
-          </label>
+        <SettingsAccordionSection title="Player Settings">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm font-normal text-contrast-grayout">
+                Auto Show Materi
+              </span>
 
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <Button
-              size="sm"
-              variant={hdri.source === "preset" ? "default" : "outline"}
-              type="button"
-              onClick={() =>
-                updateHdri({
-                  hdriSource: "preset",
-                  hdri: hdri.hdri || "/hdr/studio.hdr",
-                })
-              }
-            >
-              Preset HDRI
-            </Button>
-
-            <Button
-              asChild
-              size="sm"
-              variant={hdri.source === "custom" ? "default" : "outline"}
-            >
-              <label>
-                Import HDRI
-                <input
-                  type="file"
-                  accept=".hdr,.exr"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleImportHdri(file);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            </Button>
-          </div>
-
-          {hdri.source == "custom" ? (
-            <div className="mb-4 rounded-lg border border-secondary-default bg-primary px-3 py-3">
-              <div className="text-xs font-normal uppercase tracking-wide">
-                Custom HDRI
-              </div>
-              <div className="mt-1 truncate text-sm font-normal text-white">
-                {hdri.customHdri?.name || "No custom HDRI selected"}
-              </div>
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() =>
-                  updateHdri({
-                    hdriSource: "preset",
-                    hdri: "/hdr/studio.hdr",
-                    customHdri: null,
-                  })
+              <Switch
+                checked={playerSettings.autoShowMaterial}
+                onCheckedChange={(checked) =>
+                  updatePlayerSettings({ autoShowMaterial: checked })
                 }
-                className="mt-3 w-full"
-              >
-                Remove Custom HDRI
-              </Button>
+              />
             </div>
-          ) : (
-            <SelectField
-              value={viewerSettings?.hdri || ""}
-              options={HDRI_PRESETS}
-              onChange={(value) =>
-                updateHdri({
-                  hdriSource: "preset",
-                  hdri: value,
-                })
-              }
-            />
-          )}
 
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-sm font-normal text-contrast-grayout">
-              Show HDRI as background
-            </span>
-            <Switch
-              checked={viewerSettings?.showHdriBackground || false}
-              onCheckedChange={(checked) =>
-                updateHdri({ showHdriBackground: checked })
-              }
-            />
+            <div className="border-t border-white/10 pt-4">
+              <Button
+                type="button"
+                onClick={handleSaveDefaultPlayerCameraViewAndState}
+                className="text-xs w-full"
+              >
+                <Camera className="size-4" />
+                {playerSettings.defaultCameraView ||
+                playerSettings.defaultVisualState
+                  ? "Update Default Camera View and State"
+                  : "Save Default Camera View and State"}
+              </Button>
+
+              <p className="mt-2 text-[11px] leading-5 text-contrast-grayout">
+                Default camera dan state otomatis disimpan saat project pertama
+                kali dibuka. Tombol ini memperbaruinya dengan kondisi viewport
+                Editor saat ini untuk tampilan awal Editor maupun Player.
+              </p>
+            </div>
+
+            <div className="border-t border-white/10 pt-4">
+              <div className="mb-4 text-xs font-semibold uppercase tracking-wide text-contrast-grayout">
+                Player Menu
+              </div>
+
+              <div className="space-y-4">
+                {[
+                  ["environmentSettings", "Environment Settings"],
+                  ["objectList", "Object List"],
+                  ["freePlay", "Free Play"],
+                  ["pullApart", "Exploded View"],
+                  ["cut", "Cut"],
+                ].map(([key, label], index) => (
+                  <div
+                    key={key}
+                    className={[
+                      "flex items-center justify-between gap-4",
+                      index > 0 ? "border-t border-white/10 pt-4" : "",
+                    ].join(" ")}
+                  >
+                    <span className="text-sm font-normal text-contrast-grayout">
+                      {label}
+                    </span>
+
+                    <Switch
+                      checked={playerSettings.menuVisibility[key]}
+                      onCheckedChange={(checked) =>
+                        updatePlayerMenuVisibility(key, checked)
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </SettingsAccordionSection>
 
-        <div className="rounded-xl border border-secondary-default bg-primary p-4">
-          <div className="mb-2 text-sm font-normal text-white">Background</div>
+        <SettingsAccordionSection title="Turntable Animation">
+          <TurntableAnimationSettings
+            embedded
+            settings={turntableAnimation}
+            onChange={(nextSettings) =>
+              updatePlayerSettings({ turntableAnimation: nextSettings })
+            }
+          />
+        </SettingsAccordionSection>
 
+        <SettingsAccordionSection title="Blink Setting">
+          <BlinkPresetSettings
+            embedded
+            viewerSettings={viewerSettings}
+            setViewerSettings={setViewerSettings}
+          />
+        </SettingsAccordionSection>
+
+        <SettingsAccordionSection title="Background">
           <label className="mb-2 block text-sm font-normal text-contrast-grayout">
             Background Type
           </label>
@@ -657,6 +848,15 @@ export default function ProjectSettingsPanel({
             <Button
               size="sm"
               type="button"
+              variant={background.type === "stage" ? "default" : "outline"}
+              onClick={() => updateBackground({ type: "stage" })}
+            >
+              Stage
+            </Button>
+
+            <Button
+              size="sm"
+              type="button"
               variant={background.type === "image" ? "default" : "outline"}
             >
               <label>
@@ -667,7 +867,20 @@ export default function ProjectSettingsPanel({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
+                    e.target.value = "";
+
                     if (!file) return;
+
+                    const fileError = validateFile(file, {
+                      allowedTypes: THUMBNAIL_ALLOWED_TYPES,
+                      maxBytes: THUMBNAIL_MAX_BYTES,
+                      fieldLabel: "Background image",
+                    });
+
+                    if (fileError) {
+                      showPanelError(fileError);
+                      return;
+                    }
 
                     const reader = new FileReader();
                     reader.onload = () => {
@@ -678,7 +891,6 @@ export default function ProjectSettingsPanel({
                       });
                     };
                     reader.readAsDataURL(file);
-                    e.target.value = "";
                   }}
                 />
               </label>
@@ -779,6 +991,13 @@ export default function ProjectSettingsPanel({
               </>
             )}
 
+            {background.type === "stage" && (
+              <StageBackgroundControls
+                background={background}
+                updateBackground={updateBackground}
+              />
+            )}
+
             {background.type === "image" && (
               <>
                 <div className="rounded-lg border border-secondary-dark bg-primary px-3 py-3 text-sm font-semibold text-white">
@@ -808,6 +1027,11 @@ export default function ProjectSettingsPanel({
               </>
             )}
 
+            <GridSettingsControls
+              viewerSettings={viewerSettings}
+              setViewerSettings={setViewerSettings}
+            />
+
             <div>
               <div className="mb-2 text-sm font-normal text-white">Preview</div>
               <div
@@ -817,8 +1041,8 @@ export default function ProjectSettingsPanel({
               />
             </div>
           </div>
-        </div>
-        <div className="flex items-center justify-between">
+        </SettingsAccordionSection>
+        {/* <div className="flex items-center justify-between">
           <span className="text-base font-normal text-contrast-grayout">
             Available on the marketplace
           </span>
@@ -832,8 +1056,25 @@ export default function ProjectSettingsPanel({
               }))
             }
           />
-        </div>
+        </div> */}
       </div>
+
+      <ConfirmationDialog
+        open={Boolean(mediaPendingDelete)}
+        title="Remove Media?"
+        message={`Delete "${
+          mediaPendingDelete?.title ||
+          mediaPendingDelete?.name ||
+          `this ${getMediaLabel(mediaPendingDelete?.type).toLowerCase()}`
+        }" from the project?`}
+        description="If this file was already uploaded, it will also be removed from storage. This action cannot be undone."
+        confirmText="Remove"
+        isLoading={isRemovingMedia}
+        onClose={() => {
+          if (!isRemovingMedia) setMediaPendingDelete(null);
+        }}
+        onConfirm={confirmRemoveProjectMedia}
+      />
     </div>
   );
 }

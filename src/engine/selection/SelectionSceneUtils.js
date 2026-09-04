@@ -1,8 +1,13 @@
-import { resolveObjectByStoredIndexPath } from "../model/ObjectNameOverrides"
+import {
+  areObjectPathsEqual,
+  createObjectIndexPath,
+  resolveObjectByStoredIndexPath,
+} from "../model/ObjectNameOverrides"
 import {
   releaseGeneratedModelMaterial,
   syncSketchEdgeVisibility,
 } from "../model/ModelSceneUtils"
+import { resolveLogicalObject } from "../../utils/objectTreeUtils"
 
 export function normalizeObjectName(name) {
   return (name || "")
@@ -21,12 +26,75 @@ function cloneMaterial(material) {
   return material?.clone?.() || material
 }
 
+const XRAY_PREVIOUS_MATERIAL_KEY = "__vxXrayPreviousMaterial"
+const XRAY_PREVIOUS_GENERATED_KEY = "__vxXrayPreviousGeneratedMaterial"
+
+function rememberMaterialBeforeXray(mesh) {
+  if (!mesh?.isMesh || !mesh.material) return false
+
+  const userData = mesh.userData || (mesh.userData = {})
+
+  // A mesh can pass through several X-Ray actions before the user resets the
+  // visual state. Preserve the first real render material instead of stacking
+  // clones/references on every toggle.
+  if (Object.prototype.hasOwnProperty.call(userData, XRAY_PREVIOUS_MATERIAL_KEY)) {
+    return false
+  }
+
+  userData[XRAY_PREVIOUS_MATERIAL_KEY] = mesh.material
+  userData[XRAY_PREVIOUS_GENERATED_KEY] = Boolean(
+    userData.__vxGeneratedShaderMaterial,
+  )
+  return true
+}
+
+function restoreMaterialAfterXray(mesh) {
+  if (!mesh?.isMesh) return false
+
+  const userData = mesh.userData
+  if (
+    !userData ||
+    !Object.prototype.hasOwnProperty.call(userData, XRAY_PREVIOUS_MATERIAL_KEY)
+  ) {
+    return false
+  }
+
+  const previousMaterial = userData[XRAY_PREVIOUS_MATERIAL_KEY]
+  const previousGenerated = Boolean(userData[XRAY_PREVIOUS_GENERATED_KEY])
+
+  if (previousMaterial) {
+    mesh.material = previousMaterial
+  }
+
+  userData.__vxGeneratedShaderMaterial = previousGenerated
+  delete userData[XRAY_PREVIOUS_MATERIAL_KEY]
+  delete userData[XRAY_PREVIOUS_GENERATED_KEY]
+  markMaterialNeedsUpdate(mesh.material)
+  return true
+}
+
+export function restoreXrayMaterialAssignments(scene) {
+  if (!scene) return 0
+
+  let restoredCount = 0
+
+  scene.traverse?.((child) => {
+    if (restoreMaterialAfterXray(child)) {
+      restoredCount += 1
+    }
+  })
+
+  return restoredCount
+}
+
 function restoreOriginalMaterial(child) {
   if (!child?.isMesh || !child.userData?.originalMaterial) return
 
   releaseGeneratedModelMaterial(child)
   child.material = cloneMaterial(child.userData.originalMaterial)
-  child.userData.__vxGeneratedShaderMaterial = false
+  // The restored material is a Viqubed-owned clone. Mark it so the next
+  // restore/X-Ray transition disposes it instead of leaking one clone per click.
+  child.userData.__vxGeneratedShaderMaterial = true
 }
 
 function markMaterialNeedsUpdate(material) {
@@ -81,7 +149,9 @@ export function collectMeshes(object) {
 }
 
 export function createSelectionPayload(object) {
-  if (!object) {
+  const logicalObject = resolveLogicalObject(object)
+
+  if (!logicalObject) {
     return {
       selectedObject: null,
       outlineObjects: [],
@@ -89,8 +159,37 @@ export function createSelectionPayload(object) {
   }
 
   return {
-    selectedObject: object,
-    outlineObjects: collectMeshes(object),
+    selectedObject: logicalObject,
+    outlineObjects: collectMeshes(logicalObject),
+  }
+}
+
+export function createMultiSelectionPayload(
+  targetObjects = [],
+  activeTargetObject = null,
+) {
+  const validTargets = Array.from(
+    new Set(
+      (Array.isArray(targetObjects) ? targetObjects : [targetObjects])
+        .map(resolveLogicalObject)
+        .filter(Boolean),
+    ),
+  )
+
+  if (validTargets.length === 0) return createClearSelectionPayload()
+
+  const logicalActiveTargetObject = resolveLogicalObject(activeTargetObject)
+  const outlineObjects = Array.from(
+    new Set(validTargets.flatMap((targetObject) => collectMeshes(targetObject))),
+  )
+
+  return {
+    selectedObject:
+      logicalActiveTargetObject &&
+      validTargets.includes(logicalActiveTargetObject)
+        ? logicalActiveTargetObject
+        : validTargets[validTargets.length - 1],
+    outlineObjects,
   }
 }
 
@@ -170,50 +269,165 @@ export function createObjectHighlightPayload(
   return createSelectionPayload(targetObject)
 }
 
-export function applyXrayExcept({
-  targetObject,
+export function applyXrayToNonTargets({
+  targetObjects = [],
+  activeTargetObject = null,
   scene,
   xrayMaterial,
   restoreMaterialState = null,
 }) {
-  if (!targetObject || !scene || !xrayMaterial) {
+  const validTargets = Array.from(
+    new Set(
+      (Array.isArray(targetObjects) ? targetObjects : [targetObjects])
+        .map(resolveLogicalObject)
+        .filter(Boolean),
+    ),
+  )
+
+  if (validTargets.length === 0 || !scene || !xrayMaterial) {
     return createClearSelectionPayload()
   }
 
-  resetSceneMaterialState(scene, restoreMaterialState)
+  const logicalActiveTargetObject = resolveLogicalObject(activeTargetObject)
+
+  // X-Ray is a transient material override. Restore only previous X-Ray swaps
+  // instead of rebuilding/cloning the active shader material for every mesh in
+  // the scene. Re-applying the whole shader mode here was the main source of
+  // the large one-time memory spike on the first X-Ray action.
+  restoreXrayMaterialAssignments(scene)
 
   const selectedMeshes = []
 
   scene.traverse((child) => {
     if (!child.isMesh) return
 
-    const isSelected =
-      child === targetObject ||
-      child.parent === targetObject ||
-      targetObject.children.includes(child) ||
-      isObjectChildOf(child, targetObject)
+    const belongsToSelection = validTargets.some(
+      (targetObject) =>
+        child === targetObject || isObjectChildOf(child, targetObject),
+    )
 
-    if (isSelected) {
+    if (belongsToSelection) {
       selectedMeshes.push(child)
       child.renderOrder = 999
-
-      const materials = Array.isArray(child.material)
-        ? child.material
-        : [child.material]
-
-      materials.forEach((material) => material?.emissive?.set?.(0x000000))
-    } else {
-      releaseGeneratedModelMaterial(child)
-      child.material = xrayMaterial
-      child.userData.__vxGeneratedShaderMaterial = false
-      child.renderOrder = 0
+      markMaterialNeedsUpdate(child.material)
+      return
     }
 
+    rememberMaterialBeforeXray(child)
+    child.material = xrayMaterial
+    child.userData.__vxGeneratedShaderMaterial = false
+    child.renderOrder = 0
     markMaterialNeedsUpdate(child.material)
   })
 
   return {
-    selectedObject: targetObject,
+    selectedObject:
+      logicalActiveTargetObject &&
+      validTargets.includes(logicalActiveTargetObject)
+        ? logicalActiveTargetObject
+        : validTargets[validTargets.length - 1],
+    outlineObjects: selectedMeshes,
+  }
+}
+
+export function applyXrayToTargets({
+  targetObjects = [],
+  activeTargetObject = null,
+  scene,
+  xrayMaterial,
+  restoreMaterialState = null,
+}) {
+  const validTargets = Array.from(
+    new Set(
+      (Array.isArray(targetObjects) ? targetObjects : [targetObjects])
+        .map(resolveLogicalObject)
+        .filter(Boolean),
+    ),
+  )
+
+  if (validTargets.length === 0 || !scene || !xrayMaterial) {
+    return createClearSelectionPayload()
+  }
+
+  const logicalActiveTargetObject = resolveLogicalObject(activeTargetObject)
+
+  restoreXrayMaterialAssignments(scene)
+
+  const selectedMeshes = []
+
+  scene.traverse((child) => {
+    if (!child.isMesh) return
+
+    const belongsToSelection = validTargets.some(
+      (targetObject) =>
+        child === targetObject || isObjectChildOf(child, targetObject),
+    )
+
+    if (belongsToSelection) {
+      selectedMeshes.push(child)
+      rememberMaterialBeforeXray(child)
+      child.material = xrayMaterial
+      child.userData.__vxGeneratedShaderMaterial = false
+      child.renderOrder = 999
+      markMaterialNeedsUpdate(child.material)
+      return
+    }
+
+    child.renderOrder = 0
+    markMaterialNeedsUpdate(child.material)
+  })
+
+  return {
+    selectedObject:
+      logicalActiveTargetObject &&
+      validTargets.includes(logicalActiveTargetObject)
+        ? logicalActiveTargetObject
+        : validTargets[validTargets.length - 1],
+    outlineObjects: selectedMeshes,
+  }
+}
+
+export function applyXrayExcept({
+  targetObject,
+  scene,
+  xrayMaterial,
+  restoreMaterialState = null,
+}) {
+  const logicalTargetObject = resolveLogicalObject(targetObject)
+
+  if (!logicalTargetObject || !scene || !xrayMaterial) {
+    return createClearSelectionPayload()
+  }
+
+  // Restore only the previous X-Ray swap. The normal/shader material itself is
+  // kept alive and reused, so X-Ray does not allocate a fresh material set.
+  restoreXrayMaterialAssignments(scene)
+
+  const selectedMeshes = []
+
+  scene.traverse((child) => {
+    if (!child.isMesh) return
+
+    const belongsToTarget =
+      child === logicalTargetObject ||
+      isObjectChildOf(child, logicalTargetObject)
+
+    if (belongsToTarget) {
+      selectedMeshes.push(child)
+      rememberMaterialBeforeXray(child)
+      child.material = xrayMaterial
+      child.userData.__vxGeneratedShaderMaterial = false
+      child.renderOrder = 999
+      markMaterialNeedsUpdate(child.material)
+      return
+    }
+
+    child.renderOrder = 0
+    markMaterialNeedsUpdate(child.material)
+  })
+
+  return {
+    selectedObject: logicalTargetObject,
     outlineObjects: selectedMeshes,
   }
 }
@@ -224,10 +438,18 @@ export function resetXrayObjects(
   restoreMaterialState = null,
 ) {
   if (scene) {
-    resetSceneMaterialState(scene, restoreMaterialState)
+    restoreXrayMaterialAssignments(scene)
 
     scene.traverse((child) => {
-      if (child.isMesh) child.renderOrder = 0
+      if (!child.isMesh) return
+
+      child.renderOrder = 0
+      const materials = Array.isArray(child.material)
+        ? child.material
+        : [child.material]
+
+      materials.forEach((material) => material?.emissive?.set?.(0x000000))
+      markMaterialNeedsUpdate(child.material)
     })
 
     return createClearSelectionPayload()
@@ -252,6 +474,7 @@ export function resetXrayObjects(
 export function createSelectionFromMeshPayload(mesh, objectTree = []) {
   if (!mesh) return null
 
+  const logicalMesh = resolveLogicalObject(mesh)
   const flattenedTree = flattenSelectionTree(objectTree)
   const treeItemByObject = new Map(
     flattenedTree.map((item) => [item.object, item]),
@@ -260,7 +483,7 @@ export function createSelectionFromMeshPayload(mesh, objectTree = []) {
   // Resolve the deepest selectable object hit by the raycast. The previous
   // implementation iterated every tree item and could keep replacing the
   // result with a higher ancestor, which made clicks select the parent group.
-  let selectedObject = mesh
+  let selectedObject = logicalMesh
 
   while (selectedObject && !treeItemByObject.has(selectedObject)) {
     selectedObject = selectedObject.parent
@@ -280,14 +503,38 @@ export function createSelectionFromMeshPayload(mesh, objectTree = []) {
   }
 }
 
-export function findExactChapterForObject(object, chapters = []) {
+export function findExactChapterForObject(
+  object,
+  chapters = [],
+  root = null,
+) {
   if (!object || !Array.isArray(chapters)) return null
 
-  const objectUuid = String(object.uuid || "").trim()
-  const objectName = normalizeObjectName(object.name)
+  const logicalObject = resolveLogicalObject(object)
+  const candidates = [logicalObject]
 
-  return (
-    chapters.find((chapter) => {
+  // Backward compatibility: older projects could attach content to one of the
+  // generated primitive children before logical grouping was introduced. A
+  // chapter attached to the logical parent wins; primitive chapters are only a
+  // fallback.
+  logicalObject?.traverse?.((child) => {
+    if (child !== logicalObject && child.isMesh) candidates.push(child)
+  })
+
+  for (const candidate of candidates.filter(Boolean)) {
+    const objectUuid = String(candidate.uuid || "").trim()
+    const objectName = normalizeObjectName(candidate.name)
+    const objectPath = root ? createObjectIndexPath(candidate, root) : []
+
+    const foundChapter = chapters.find((chapter) => {
+      if (
+        objectPath.length > 0 &&
+        Array.isArray(chapter?.objectPath) &&
+        areObjectPathsEqual(chapter.objectPath, objectPath)
+      ) {
+        return true
+      }
+
       const chapterObjectUuid = String(
         chapter?.objectUuid || chapter?.objectUUID || ""
       ).trim()
@@ -300,8 +547,12 @@ export function findExactChapterForObject(object, chapters = []) {
         objectName.length > 0 &&
         normalizeObjectName(chapter?.objectName) === objectName
       )
-    }) || null
-  )
+    })
+
+    if (foundChapter) return foundChapter
+  }
+
+  return null
 }
 
 export function findChapterForObject(object, chapters = []) {

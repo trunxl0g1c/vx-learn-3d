@@ -47,6 +47,13 @@ export default function ChapterMarkerSection({
         </>
       ) : (
         <>
+          {markers.length > 0 && (
+            <div className="rounded-lg border border-secondary-default/25 bg-secondary-default/5 px-3 py-2 text-xs leading-5 text-contrast-grayout">
+              Click a marker text block to edit it. Drag to reposition it, or
+              drag its right edge to change the label width and wrapping.
+            </div>
+          )}
+
           {markers.length === 0 ? (
             <div className="rounded-lg border border-dashed border-divider-main px-3 py-2 text-sm text-contrast-grayout">
               No marker has been set yet
@@ -103,13 +110,13 @@ export default function ChapterMarkerSection({
             onClick={handleAddMarker}
             className="gap-2 text-white bg-dark-alpha rounded-lg!"
           >
+            Add New Marker
             <MaterialIcon
               name="add"
               fill={0}
               size={22}
               className="text-secondary-default"
             />
-            Add New Marker
           </Button>
         </>
       )}

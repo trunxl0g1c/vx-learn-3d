@@ -12,7 +12,7 @@ export default function SelectField({
   return (
     <div className={`relative w-full ${className}`}>
       <select
-        value={value}
+        value={value ?? ""}
         disabled={disabled}
         onChange={(e) => onChange?.(e.target.value)}
         className={`h-[46px] w-full cursor-pointer appearance-none rounded-lg border border-accent-main bg-transparent px-3 pr-10 text-sm font-normal text-white outline-none focus:ring-1 focus:ring-accent-main disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
@@ -23,9 +23,12 @@ export default function SelectField({
           </option>
         )}
 
-        {options.map((option) => (
+        {options.map((option, index) => (
           <option
-            key={option.value ?? option.label}
+            key={
+              option.key ??
+              `${String(option.value ?? option.label ?? "option")}-${index}`
+            }
             value={option.value}
             className="bg-[#1f1d20] text-white"
           >

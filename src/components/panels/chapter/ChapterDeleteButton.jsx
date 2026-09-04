@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, X } from "lucide-react";
+import { X } from "lucide-react";
 import Button from "../../ui/button";
 
-export default function ChapterDeleteButton({ chapter, onDelete }) {
+export default function ChapterDeleteButton({
+  chapter,
+  onDelete,
+  contentType = "content",
+}) {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -24,8 +28,18 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
 
   if (!chapter) return null;
 
+  const isDescription = contentType === "description";
   const chapterTitle =
-    chapter.title || chapter.objectName || "Untitled Content";
+    chapter.title ||
+    chapter.objectName ||
+    (isDescription ? "Untitled Description" : "Untitled Content");
+  const dialogTitle = isDescription
+    ? "Delete Description Object?"
+    : "Delete Content?";
+  const contentLabel = isDescription ? "Description object" : "Content";
+  const buttonLabel = isDescription
+    ? "Delete Description Object"
+    : "Delete Content";
 
   const handleConfirmDelete = () => {
     setIsConfirmOpen(false);
@@ -55,7 +69,7 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
                 id="delete-content-title"
                 className="text-xl font-normal tracking-[-0.2px]"
               >
-                Delete Content?
+                {dialogTitle}
               </h3>
 
               <button
@@ -70,15 +84,15 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
 
             <div id="delete-content-description" className="px-7 py-7">
               <p className="text-base leading-6 text-white/80">
-                Content{" "}
+                {contentLabel}{" "}
                 <span className="font-normal text-white">“{chapterTitle}”</span>{" "}
                 will be permanently deleted.
               </p>
 
               <p className="mt-3 text-sm leading-6 text-grayout-main">
-                Description, parameters, markers, media, animations, camera
-                view, and visual state belonging to this content will also be
-                removed. The 3D object itself will not be deleted.
+                {isDescription
+                  ? "Description and parameters belonging to this object description will be removed. The 3D object itself will not be deleted."
+                  : "Description, parameters, markers, media, animations, camera view, and visual state belonging to this content will also be removed. The 3D object itself will not be deleted."}
               </p>
             </div>
 
@@ -123,7 +137,7 @@ export default function ChapterDeleteButton({ chapter, onDelete }) {
           className="w-full rounded-2xl! bg-red-500/5 uppercase"
         >
           {/* <Trash2 className="size-4" /> */}
-          Delete Content
+          {buttonLabel}
         </Button>
       </div>
 

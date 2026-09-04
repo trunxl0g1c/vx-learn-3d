@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.docker
+
+# Self-signed dev HTTPS cert/key (Caddyfile.dev) — machine-specific, regenerate per host
+certs/dev
 
 # Editor directories and files
 .vscode/*

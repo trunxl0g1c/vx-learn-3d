@@ -37,6 +37,17 @@ function createCutValuesFromPercentages(percentages = {}, bounds = {}, fallback 
   }, {})
 }
 
+function hasActiveCutValues(values = {}, bounds = {}) {
+  return ["x", "y", "z"].some((axis) => {
+    const max = Number(bounds?.[axis]?.max)
+    const value = Number(values?.[axis])
+
+    return Number.isFinite(max) && Number.isFinite(value)
+      ? value < max - 0.000001
+      : false
+  })
+}
+
 export default function usePlayerFreePlay({
   modelScene,
   selectedObject,
@@ -56,11 +67,12 @@ export default function usePlayerFreePlay({
   setSelectedObject,
   setOutlineObjects,
   focusTargetRef,
-  viewerSettings,
 }) {
   const modelEngineRef = useRef(null)
   const cutEngineRef = useRef(null)
+  const pullApartSessionRef = useRef(null)
   const [isPullApartActive, setIsPullApartActive] = useState(false)
+  const [cutAllObjects, setCutAllObjectsState] = useState(true)
 
   if (!modelEngineRef.current) {
     modelEngineRef.current = createModelEngine({ buildObjectTree })
@@ -70,17 +82,40 @@ export default function usePlayerFreePlay({
     cutEngineRef.current = createCutEngine()
   }
 
+  useEffect(() => {
+    const engine = modelEngineRef.current
+
+    pullApartSessionRef.current = null
+    setIsPullApartActive(false)
+
+    if (!modelScene) {
+      engine.setScene?.(null)
+      return
+    }
+
+    engine.setScene?.(modelScene)
+    engine.setOriginalTransforms?.({
+      positions: originalPositions,
+      groupPositions: originalGroupPositions,
+    })
+  }, [modelScene, originalPositions, originalGroupPositions])
+
   const getModelEngine = () => {
     const engine = modelEngineRef.current
 
     if (modelScene && engine.getScene() !== modelScene) {
-      engine.initialize(modelScene, viewerSettings || {})
+      engine.setScene?.(modelScene)
+      engine.setOriginalTransforms?.({
+        positions: originalPositions,
+        groupPositions: originalGroupPositions,
+      })
     }
 
     return engine
   }
 
-  const getCutTarget = () => selectedObject || modelScene
+  const getCutTarget = () => (cutAllObjects ? modelScene : selectedObject)
+  const cutTargetAvailable = Boolean(getCutTarget())
 
   const syncCutState = (state) => {
     if (!state?.bounds) return
@@ -99,20 +134,28 @@ export default function usePlayerFreePlay({
     }
   }
 
-  // Selection changes only switch the cut state being edited. Cuts already
-  // applied to other objects stay registered and visible.
+  // Each object and the whole-scene scope keep independent Cut values.
+  // Selecting another object only changes which cached state is edited.
   useEffect(() => {
     if (!modelScene) return
 
     const cutEngine = cutEngineRef.current
     const target = getCutTarget()
 
-    if (!target) return
+    if (!target) {
+      cutEngine.apply(modelScene)
+      return
+    }
 
-    const state = cutEngine.setTarget(target)
+    let state = cutEngine.setTarget(target)
+
+    if (cutEnabled && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, target)
+    }
+
     syncCutState(state)
     cutEngine.apply(modelScene)
-  }, [modelScene, selectedObject])
+  }, [cutAllObjects, cutEnabled, modelScene, selectedObject])
 
   useEffect(() => {
     if (!modelScene) return
@@ -161,10 +204,18 @@ export default function usePlayerFreePlay({
   }
 
   const updateCutValue = (axis, value) => {
-    ensureCutBounds()
+    const target = getCutTarget()
+    if (!target) return
 
     const cutEngine = cutEngineRef.current
-    let state = cutEngine.setAxisValue(axis, value)
+    const previousState = cutEngine.setTarget(target)
+    const nextValues = {
+      ...(previousState.values || createNoCutValues(previousState.bounds)),
+      [axis]: value,
+    }
+
+    cutEngine.setTarget(target)
+    let state = cutEngine.setValues(nextValues)
 
     cutEngine.setEnabled(true)
     cutEngine.apply(modelScene)
@@ -174,35 +225,112 @@ export default function usePlayerFreePlay({
     syncCutState(state)
   }
 
-  const pullApart = () => {
+  const setCutAllObjects = (nextValue) => {
+    const nextAllObjects = Boolean(nextValue)
+    const cutEngine = cutEngineRef.current
+    const nextTarget = nextAllObjects ? modelScene : selectedObject
+
+    // Scope switching preserves every target's values. Only the previous
+    // scope is temporarily disabled to avoid stacking whole-scene and
+    // per-object clipping planes unintentionally.
+    if (nextAllObjects) {
+      cutEngine.getTargetStates().forEach((state) => {
+        if (state.target && state.target !== modelScene) {
+          cutEngine.setTargetEnabled(false, state.target)
+        }
+      })
+    } else if (modelScene) {
+      cutEngine.setTargetEnabled(false, modelScene)
+    }
+
+    setCutAllObjectsState(nextAllObjects)
+
+    if (!nextTarget) {
+      cutEngine.apply(modelScene)
+      return
+    }
+
+    let nextState = cutEngine.setTarget(nextTarget)
+    nextState = cutEngine.setTargetEnabled(
+      cutEnabled && hasActiveCutValues(nextState.values, nextState.bounds),
+      nextTarget,
+    )
+
+    cutEngine.apply(modelScene)
+    syncCutState(nextState)
+  }
+
+  const resetActivePullApart = ({ animationDuration = 450 } = {}) => {
+    const session = pullApartSessionRef.current
+
+    if (!session) {
+      setIsPullApartActive(false)
+      return 0
+    }
+
+    const resetCount = getModelEngine().resetPullApartSession?.(session, {
+      animationDuration,
+    }) || 0
+
+    pullApartSessionRef.current = null
+    setIsPullApartActive(false)
+
+    return resetCount
+  }
+
+  const pullApart = ({
+    targetObject = selectedObject || null,
+    allowSceneFallback = true,
+  } = {}) => {
     if (!modelScene) return false
 
-    if (isPullApartActive) {
-      resetAllTransforms()
+    if (isPullApartActive || pullApartSessionRef.current) {
+      resetActivePullApart()
       return false
     }
 
-    const didPullApart = getModelEngine().pullApart(selectedObject, {
+    if (!targetObject && !allowSceneFallback) return false
+
+    const session = getModelEngine().pullApart(targetObject, {
       mode: "hierarchy",
-      strength: selectedObject ? 0.28 : 0.18,
+      strength: targetObject ? 0.28 : 0.18,
       animationDuration: 450,
-      hideOutsideSelection: true,
+      hideOutsideSelection: Boolean(targetObject),
+      returnSession: true,
+      useCurrentPositions: true,
     })
 
-    if (didPullApart) {
-      setIsPullApartActive(true)
-    }
+    if (!session) return false
 
-    return didPullApart
+    pullApartSessionRef.current = session
+    setIsPullApartActive(true)
+
+    return true
   }
 
-  const resetParts = () => {
-    getModelEngine().resetParts()
+  const resetParts = ({ animationDuration = 420 } = {}) => {
+    getModelEngine().resetParts({ animationDuration })
+    pullApartSessionRef.current = null
     setIsPullApartActive(false)
   }
 
-  const resetMovedObjects = () => {
-    getModelEngine().resetMovedObjects()
+  const resetMovedObjects = ({ animationDuration = 560 } = {}) => {
+    const engine = getModelEngine()
+
+    engine.setOriginalTransforms?.({
+      positions: originalPositions,
+      groupPositions: originalGroupPositions,
+    })
+
+    const animatedObjectCount = engine.resetMovedObjects?.({
+      animationDuration,
+    }) || 0
+
+    pullApartSessionRef.current = null
+    setIsPullApartActive(false)
+    modelScene?.updateMatrixWorld?.(true)
+
+    return animatedObjectCount
   }
 
   const resetModelRotationForCut = () => {
@@ -229,15 +357,24 @@ export default function usePlayerFreePlay({
     const cutEngine = cutEngineRef.current
 
     if (cutEnabled) {
-      const state = cutEngine.clear(modelScene)
+      const state = cutEngine.setEnabled(false)
+      cutEngine.apply(modelScene)
       syncCutState(state)
       setCutEnabled(false)
       resetModelRotationForCut()
       return
     }
 
+    const target = getCutTarget()
+    let state = target ? cutEngine.setTarget(target) : cutEngine.getState()
+
+    if (target && hasActiveCutValues(state.values, state.bounds)) {
+      state = cutEngine.setTargetEnabled(true, target)
+    }
+
     cutEngine.setEnabled(true)
     cutEngine.apply(modelScene)
+    syncCutState(state)
     setCutEnabled(true)
   }
 
@@ -263,51 +400,92 @@ export default function usePlayerFreePlay({
     showAllObjectsInScene(modelScene)
   }
 
-  const resetVisualState = () => {
-    resetParts()
-    resetMovedObjects()
-    resetModelRotationForCut()
-    showAllObjects()
+  const resetSavedPresentationState = ({
+    preserveTransforms = false,
+    preserveVisibility = false,
+    animationDuration = 420,
+  } = {}) => {
+    if (preserveTransforms) {
+      resetActivePullApart({ animationDuration: 0 })
+    } else {
+      resetParts({ animationDuration })
+    }
+
+    if (!preserveVisibility) {
+      showAllObjects()
+    }
 
     const cutEngine = cutEngineRef.current
     cutEngine.clear(modelScene)
+    setCutAllObjectsState(true)
     setCutEnabled(false)
   }
 
+  const resetVisualState = ({ animationDuration = 560 } = {}) => {
+    // Keep mesh-level pull-apart resets on the same timing as group resets.
+    // Run this first because resetParts clears pending move-transform data.
+    // The complete position/rotation/scale reset installed below must remain
+    // authoritative until it finishes.
+    resetSavedPresentationState({ animationDuration })
+    resetMovedObjects({ animationDuration })
+    resetModelRotationForCut()
+  }
+
   const resetAllTransforms = () => {
-    resetVisualState()
+    resetVisualState({ animationDuration: 0 })
   }
 
   const applySavedPullApart = (pullApartState, targetObject) => {
     if (!pullApartState?.enabled || !modelScene) return false
 
-    const didPullApart = getModelEngine().pullApart(targetObject || null, {
+    if (pullApartSessionRef.current) {
+      resetActivePullApart({ animationDuration: 0 })
+    }
+
+    const session = getModelEngine().pullApart(targetObject || null, {
       mode: "hierarchy",
       strength: targetObject ? 0.28 : 0.18,
       animationDuration: 450,
-      hideOutsideSelection: true,
+      hideOutsideSelection: Boolean(targetObject),
+      returnSession: true,
+      useCurrentPositions: true,
     })
 
-    setIsPullApartActive(Boolean(didPullApart))
-    return didPullApart
+    pullApartSessionRef.current = session || null
+    setIsPullApartActive(Boolean(session))
+    return Boolean(session)
   }
 
-  const applySavedCuts = (savedCuts = []) => {
+  const applySavedCuts = (
+    savedCuts = [],
+    preferredTarget = null,
+    options = {},
+  ) => {
     const cutEngine = cutEngineRef.current
+    const hasExplicitEnabled = typeof options?.enabled === "boolean"
 
     cutEngine.clear(modelScene)
 
+    // Keep authored slider values staged even when this material stores Cut
+    // as OFF. Opening the Cut panel then shows the active Slide/Chapter's own
+    // values instead of values left behind by the previous context.
     const validCuts = savedCuts.filter(
-      (entry) => entry?.cutState?.enabled && entry?.targetObject,
+      (entry) => entry?.cutState && entry?.targetObject,
     )
 
     if (!modelScene || validCuts.length === 0) {
+      setCutAllObjectsState(true)
       setCutEnabled(false)
+
+      if (modelScene) {
+        syncCutState(cutEngine.setTarget(modelScene))
+      }
+
       return false
     }
 
     validCuts.forEach(({ cutState, targetObject }) => {
-      let state = cutEngine.setTarget(targetObject)
+      const state = cutEngine.setTarget(targetObject)
       const nextValues = createCutValuesFromPercentages(
         cutState.percentages,
         state.bounds,
@@ -317,25 +495,43 @@ export default function usePlayerFreePlay({
       cutEngine.setValues(nextValues)
     })
 
-    cutEngine.setEnabled(true)
-    cutEngine.apply(modelScene)
-    setCutEnabled(true)
+    const preferredSavedTarget = validCuts.some(
+      (entry) => entry.targetObject === preferredTarget,
+    )
+      ? preferredTarget
+      : null
+    const activeTarget = preferredSavedTarget || validCuts[0]?.targetObject || modelScene
+    const nextEnabled = hasExplicitEnabled
+      ? Boolean(options.enabled)
+      : validCuts.some((entry) => entry?.cutState?.enabled)
 
-    const preferredTarget = selectedObject || validCuts[0]?.targetObject || modelScene
-    const activeState = cutEngine.setTarget(preferredTarget)
+    cutEngine.setEnabled(nextEnabled)
+    cutEngine.apply(modelScene)
+    setCutEnabled(nextEnabled)
+
+    const activeState = cutEngine.setTarget(activeTarget)
+
+    setCutAllObjectsState(activeTarget === modelScene)
     syncCutState(activeState)
 
-    return true
+    return nextEnabled
   }
 
   const applySavedCut = (cutState, targetObject) =>
     applySavedCuts([{ cutState, targetObject }])
 
+  const applySavedObjectTransforms = (transforms = []) =>
+    getModelEngine().applyTransformOverrides?.(transforms) || 0
+
   return {
     applyCutBoundsForAxis,
     updateCutAxis,
     updateCutValue,
+    cutAllObjects,
+    setCutAllObjects,
+    cutTargetAvailable,
     pullApart,
+    resetActivePullApart,
     isPullApartActive,
     resetParts,
     resetMovedObjects,
@@ -345,9 +541,11 @@ export default function usePlayerFreePlay({
     hideSelectedObject,
     soloSelectedObject,
     showAllObjects,
+    resetSavedPresentationState,
     resetVisualState,
     resetAllTransforms,
     applySavedPullApart,
+    applySavedObjectTransforms,
     applySavedCut,
     applySavedCuts,
   }

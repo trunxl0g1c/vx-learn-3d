@@ -9,6 +9,7 @@ function Checkbox({
   onCheckedChange,
   disabled = false,
   label,
+  title,
   className = "",
   labelClassName = "",
 }) {
@@ -18,6 +19,7 @@ function Checkbox({
       role="checkbox"
       aria-checked={checked}
       disabled={disabled}
+      title={title}
       onClick={() => onCheckedChange?.(!checked)}
       className={cn(
         "inline-flex cursor-pointer items-center gap-2 text-sm font-normal text-white",
