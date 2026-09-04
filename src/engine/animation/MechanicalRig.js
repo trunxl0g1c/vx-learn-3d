@@ -32,6 +32,7 @@ export function createMechanicalRigDefinition(baseTransform = null) {
     parentTrackId: null,
     axis: "y",
     pivot: [0, 0, 0],
+    pivotSource: "default",
     freeTransformSpace: "raw",
     limits: {
       enabled: false,
@@ -71,6 +72,7 @@ export function normalizeMechanicalRig(rig, baseTransform = null) {
     : "y";
   const min = toFiniteNumber(source.limits?.min, type === "linear" ? -1 : -180);
   const max = toFiniteNumber(source.limits?.max, type === "linear" ? 1 : 180);
+  const pivot = normalizeVector3(source.pivot, [0, 0, 0]);
 
   return {
     ...createMechanicalRigDefinition(baseTransform),
@@ -78,7 +80,14 @@ export function normalizeMechanicalRig(rig, baseTransform = null) {
     type,
     parentTrackId: source.parentTrackId || null,
     axis,
-    pivot: normalizeVector3(source.pivot, [0, 0, 0]),
+    pivot,
+    pivotSource: ["default", "objectBounds", "custom"].includes(
+      source.pivotSource,
+    )
+      ? source.pivotSource
+      : pivot.some((value) => Math.abs(value) > EPSILON)
+        ? "custom"
+        : "default",
     freeTransformSpace:
       source.freeTransformSpace === "raw" ? "raw" : "applied",
     limits: {

@@ -150,6 +150,34 @@ export function createAuthoredAnimationLocalPivot(object, pivotObject) {
   return logicalObject.worldToLocal(worldPosition).toArray();
 }
 
+export function createAuthoredAnimationLocalBoundsCenter(object) {
+  const logicalObject = resolveLogicalObject(object);
+  if (!logicalObject) return null;
+
+  logicalObject.updateWorldMatrix?.(true, true);
+  const inverseObjectWorld = logicalObject.matrixWorld.clone().invert();
+  const localBounds = new THREE.Box3().makeEmpty();
+  const childBounds = new THREE.Box3();
+  const childToObject = new THREE.Matrix4();
+
+  logicalObject.traverse?.((child) => {
+    const geometry = child?.geometry;
+    if (!geometry) return;
+
+    if (!geometry.boundingBox) geometry.computeBoundingBox?.();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+
+    child.updateWorldMatrix?.(true, false);
+    childToObject.copy(inverseObjectWorld).multiply(child.matrixWorld);
+    childBounds.copy(geometry.boundingBox).applyMatrix4(childToObject);
+    localBounds.union(childBounds);
+  });
+
+  return localBounds.isEmpty()
+    ? [0, 0, 0]
+    : localBounds.getCenter(new THREE.Vector3()).toArray();
+}
+
 function getNearestHitFaceVertexWorldPosition(hit) {
   const geometry = hit?.object?.geometry;
   const positionAttribute = geometry?.attributes?.position;

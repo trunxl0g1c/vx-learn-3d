@@ -93,10 +93,39 @@ export default function AnimationTimelineGrid({ animationAuthoring }) {
   const timeFromPointer = (clientX, rect) =>
     clamp((clientX - rect.left) / pixelsPerSecond, 0, duration);
 
-  const scrubFromPointer = (event) => {
+  const beginScrubDrag = (event) => {
     if (event.button !== 0) return;
+    event.preventDefault();
+
     const rect = event.currentTarget.getBoundingClientRect();
-    animationAuthoring?.scrubTo?.(timeFromPointer(event.clientX, rect));
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    const scrub = (clientX) => {
+      animationAuthoring?.scrubTo?.(timeFromPointer(clientX, rect));
+    };
+
+    const handleMove = (moveEvent) => {
+      scrub(moveEvent.clientX);
+    };
+
+    const finishDrag = () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", finishDrag);
+      window.removeEventListener("pointercancel", finishDrag);
+      window.removeEventListener("blur", finishDrag);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+
+    scrub(event.clientX);
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", finishDrag, { once: true });
+    window.addEventListener("pointercancel", finishDrag, { once: true });
+    window.addEventListener("blur", finishDrag, { once: true });
   };
 
   const beginTrackDrag = (event, trackId) => {
@@ -249,9 +278,9 @@ export default function AnimationTimelineGrid({ animationAuthoring }) {
                 Object / Track
               </div>
               <div
-                className="relative h-6 shrink-0 cursor-crosshair select-none"
+                className="relative h-6 shrink-0 cursor-ew-resize touch-none select-none"
                 style={{ width: timelineWidth }}
-                onPointerDown={scrubFromPointer}
+                onPointerDown={beginScrubDrag}
               >
                 {ticks.map((tick) => (
                   <div
@@ -372,13 +401,13 @@ export default function AnimationTimelineGrid({ animationAuthoring }) {
 
                     <div
                       className={[
-                        "relative h-9 shrink-0 cursor-crosshair select-none",
+                        "relative h-9 shrink-0 cursor-ew-resize touch-none select-none",
                         active ? "bg-accent-main/[0.035]" : rowShade,
                       ].join(" ")}
                       style={{ width: timelineWidth }}
                       onPointerDown={(event) => {
                         animationAuthoring?.setActiveTrackId?.(track.id);
-                        scrubFromPointer(event);
+                        beginScrubDrag(event);
                       }}
                     >
                       {ticks.map((tick) => (

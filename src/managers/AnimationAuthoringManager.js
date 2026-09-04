@@ -5,9 +5,11 @@ import {
   captureAuthoredAnimationTrackBaseline,
   createAuthoredAnimationDefinition,
   createAuthoredAnimationKeyframeTransform,
+  createAnimationParentRelativeKeyframeTransform,
   createAuthoredAnimationTrack,
   createAuthoredAnimationTransform,
   createAuthoredAnimationObjectReference,
+  createAuthoredAnimationLocalBoundsCenter,
   createAuthoredAnimationLocalPivot,
   createAuthoredAnimationLocalPivotFromHit,
   createMechanicalRigDefinition,
@@ -109,6 +111,12 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
         createAuthoredAnimationLocalPivot(object, pivotObject)
       );
     },
+    createLocalBoundsCenter(object) {
+      return (
+        engine?.createAuthoredLocalBoundsCenter?.(object) ||
+        createAuthoredAnimationLocalBoundsCenter(object)
+      );
+    },
     createLocalPivotFromHit(object, hit, snapMode = "surface") {
       return (
         engine?.createAuthoredLocalPivotFromHit?.(object, hit, snapMode) ||
@@ -131,6 +139,27 @@ export function createAnimationAuthoringManagerAdapter(engine = null) {
       return (
         engine?.createAuthoredKeyframeTransform?.(object, rig) ||
         createAuthoredAnimationKeyframeTransform(object, rig)
+      );
+    },
+    createParentRelativeKeyframeTransform(
+      object,
+      track,
+      time,
+      startObjectWorldMatrix,
+    ) {
+      return (
+        engine?.createAuthoredParentRelativeKeyframeTransform?.(
+          object,
+          track,
+          time,
+          startObjectWorldMatrix,
+        ) ||
+        createAnimationParentRelativeKeyframeTransform(
+          object,
+          track,
+          time,
+          startObjectWorldMatrix,
+        )
       );
     },
     applyPivotTransform(

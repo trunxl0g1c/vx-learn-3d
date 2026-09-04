@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAnimationAuthoringManagerAdapter } from "../managers/AnimationAuthoringManager";
 import { isLazyMaterialRecord } from "../engine/project/LazyMaterialRecords";
-import {
-  getAnimationReferenceIdentity,
-  normalizeAnimationRigPoint,
-  wouldCreateRigParentCycle,
-} from "./animationAuthoringUtils";
+import { useAnimationTrackParentPivot } from "./useAnimationTrackParentPivot";
+import { useAnimationTrackKeyframes } from "./useAnimationTrackKeyframes";
+import { getAnimationReferenceIdentity, normalizeAnimationRigPoint } from "./animationAuthoringUtils";
 
 export function useAnimationAuthoring({
   material,
@@ -514,22 +512,15 @@ export function useAnimationAuthoring({
     ],
   );
 
-  const setActiveTrackRigParent = useCallback(
-    (parentTrackId) => {
-      const nextParentId = parentTrackId || null;
-      if (
-        wouldCreateRigParentCycle(
-          activeAnimation?.tracks,
-          activeTrackId,
-          nextParentId,
-        )
-      ) {
-        return false;
-      }
-      return updateActiveTrackRig({ parentTrackId: nextParentId });
-    },
-    [activeAnimation?.tracks, activeTrackId, updateActiveTrackRig],
-  );
+  const setActiveTrackRigParent = useAnimationTrackParentPivot({
+    activeAnimation,
+    activeTrack,
+    activeTrackId,
+    activeTrackObject,
+    isAuthoringActive,
+    manager,
+    updateActiveTrackRig,
+  });
 
   const setActiveTrackRigType = useCallback(
     (type) => {
@@ -572,7 +563,7 @@ export function useAnimationAuthoring({
     if (!activeTrackObject || !selectedObject) return false;
     const pivot = manager.createLocalPivot(activeTrackObject, selectedObject);
     if (!pivot) return false;
-    return updateActiveTrackRig({ pivot });
+    return updateActiveTrackRig({ pivot, pivotSource: "custom" });
   }, [activeTrackObject, manager, selectedObject, updateActiveTrackRig]);
 
   const setActiveTrackRigPoint = useCallback(
@@ -589,7 +580,10 @@ export function useAnimationAuthoring({
         }));
       }
 
-      return updateActiveTrackRig({ pivot: normalized });
+      return updateActiveTrackRig({
+        pivot: normalized,
+        pivotSource: "custom",
+      });
     },
     [rigPointEditTarget, updateActiveTrackRig],
   );
@@ -597,7 +591,12 @@ export function useAnimationAuthoring({
   const setActiveTrackRigPivot = useCallback(
     (pivot) => {
       const normalized = normalizeAnimationRigPoint(pivot);
-      return normalized ? updateActiveTrackRig({ pivot: normalized }) : false;
+      return normalized
+        ? updateActiveTrackRig({
+            pivot: normalized,
+            pivotSource: "custom",
+          })
+        : false;
     },
     [updateActiveTrackRig],
   );
@@ -703,85 +702,23 @@ export function useAnimationAuthoring({
     updateActiveTrackRig,
   ]);
 
-  const previewActiveTrackTransform = useCallback(() => {
-    if (!activeAnimation || !activeTrack || !activeTrackObject || !modelScene) {
-      return false;
-    }
-
-    ensureBaseline();
-    const transform = manager.createKeyframeTransform(activeTrackObject, activeTrack.rig);
-    if (!transform) return false;
-    const currentState = manager.evaluateTrackState(activeTrack, currentTime);
-    const currentOpacity = currentState?.opacity ?? 1;
-    const currentMorphProgress = currentState?.morphProgress ?? 0;
-    const previewTrack = manager.upsertKeyframe(
-      activeTrack,
-      currentTime,
-      transform,
-      activeAnimation.duration,
-      activeAnimation.settings?.defaultEasing,
-      currentOpacity,
-      currentMorphProgress,
-    );
-    const previewAnimation = {
-      ...activeAnimation,
-      tracks: (activeAnimation.tracks || []).map((track) =>
-        track.id === previewTrack.id ? previewTrack : track,
-      ),
-    };
-
-    return manager.applyAtTime(modelScene, previewAnimation, currentTime, baselineRef.current);
-  }, [
+  const {
+    addOrUpdateKeyframe,
+    beginActiveTrackTransform,
+    endActiveTrackTransform,
+    previewActiveTrackTransform,
+  } = useAnimationTrackKeyframes({
     activeAnimation,
     activeTrack,
     activeTrackObject,
+    baselineRef,
     currentTime,
     ensureBaseline,
     manager,
     modelScene,
-  ]);
-
-  const addOrUpdateKeyframe = useCallback(() => {
-    if (!activeTrack || !activeTrackObject || !activeAnimation) return false;
-    const transform = manager.createKeyframeTransform(activeTrackObject, activeTrack.rig);
-    if (!transform) return false;
-
-    const currentState = manager.evaluateTrackState(activeTrack, currentTime);
-    const currentOpacity = currentState?.opacity ?? 1;
-    const currentMorphProgress = currentState?.morphProgress ?? 0;
-    const nextTrack = manager.upsertKeyframe(
-      activeTrack,
-      currentTime,
-      transform,
-      activeAnimation.duration,
-      activeAnimation.settings?.defaultEasing,
-      currentOpacity,
-      currentMorphProgress,
-    );
-    const savedKeyframe = nextTrack.keyframes.find(
-      (keyframe) => Math.abs(keyframe.time - currentTime) < 0.0001,
-    );
-
-    const previewAnimation = {
-      ...activeAnimation,
-      tracks: (activeAnimation.tracks || []).map((track) =>
-        track.id === nextTrack.id ? nextTrack : track,
-      ),
-    };
-
-    updateActiveTrack(nextTrack);
-    manager.applyAtTime(modelScene, previewAnimation, currentTime, baselineRef.current);
-    setSelectedKeyframeId(savedKeyframe?.id || null);
-    return true;
-  }, [
-    activeAnimation,
-    activeTrack,
-    activeTrackObject,
-    currentTime,
-    manager,
-    modelScene,
+    setSelectedKeyframeId,
     updateActiveTrack,
-  ]);
+  });
 
   const deleteKeyframe = useCallback(
     (keyframeId = selectedKeyframeId) => {
@@ -984,6 +921,8 @@ export function useAnimationAuthoring({
     toggleHydraulicAnchorEditing,
     assignRigReferenceFromSelectedObject,
     assignMorphTargetFromSelectedObject,
+    beginActiveTrackTransform,
+    endActiveTrackTransform,
     applyActiveTrackPivotTransform: (...matrices) => manager.applyPivotTransform(activeTrackObject, ...matrices),
     previewActiveTrackTransform,
     addOrUpdateKeyframe,

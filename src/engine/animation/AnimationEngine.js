@@ -7,6 +7,7 @@ import {
   createAuthoredAnimationDefinition,
   createAuthoredAnimationKeyframeTransform,
   createAuthoredAnimationObjectReference,
+  createAuthoredAnimationLocalBoundsCenter,
   createAuthoredAnimationLocalPivot,
   createAuthoredAnimationLocalPivotFromHit,
   createAuthoredAnimationTrack,
@@ -20,6 +21,7 @@ import {
   restoreAuthoredAnimationBaseline,
   upsertAuthoredAnimationKeyframe,
 } from "./AuthoredAnimation";
+import { createAnimationParentRelativeKeyframeTransform } from "./ParentRelativeKeyframe";
 import {
   applyMechanicalPivotTransform,
   createMechanicalRigDefinition,
@@ -417,6 +419,7 @@ export function createAnimationEngine() {
     createAuthoredDefinition: createAuthoredAnimationDefinition,
     duplicateAuthoredDefinition: duplicateAuthoredAnimationDefinition,
     createAuthoredObjectReference: createAuthoredAnimationObjectReference,
+    createAuthoredLocalBoundsCenter: createAuthoredAnimationLocalBoundsCenter,
     createAuthoredLocalPivot: createAuthoredAnimationLocalPivot,
     createAuthoredLocalPivotFromHit: createAuthoredAnimationLocalPivotFromHit,
     createMechanicalRig: createMechanicalRigDefinition,
@@ -428,6 +431,8 @@ export function createAnimationEngine() {
     createAuthoredTrack: createAuthoredAnimationTrack,
     createAuthoredTransform: createAuthoredAnimationTransform,
     createAuthoredKeyframeTransform: createAuthoredAnimationKeyframeTransform,
+    createAuthoredParentRelativeKeyframeTransform:
+      createAnimationParentRelativeKeyframeTransform,
     applyMechanicalPivotTransform,
     evaluateAuthoredTrackState: evaluateAuthoredAnimationTrackState,
     applyAuthoredTransform: applyAuthoredAnimationTransform,

@@ -220,6 +220,14 @@ export default function EditorViewport({ controller }) {
     selectObjectFromMesh?.(object);
     if (animationAuthoring?.isAuthoringActive) setActiveSidebar("hierarchy");
   };
+  const handleTransformStart = (object) => {
+    animationAuthoring?.beginActiveTrackTransform?.(object);
+    beginObjectTransformHistory?.(object);
+  };
+  const handleTransformEnd = (object) => {
+    commitObjectTransformHistory?.(object);
+    animationAuthoring?.endActiveTrackTransform?.(object);
+  };
 
   return (
     <div onClick={() => setActiveMenu(null)} style={viewportStyle}>
@@ -289,8 +297,8 @@ export default function EditorViewport({ controller }) {
         setSelectedObject={setSelectedObject}
         setOutlineObjects={setOutlineObjects}
         setSelectedObjectName={setSelectedObjectName}
-        onTransformStart={beginObjectTransformHistory}
-        onTransformEnd={commitObjectTransformHistory}
+        onTransformStart={handleTransformStart}
+        onTransformEnd={handleTransformEnd}
         onClearSelection={clearSelectionFromViewport}
         flowPointMode={flow?.pointMode}
         onAddFlowPoint={flow?.addPoint}
