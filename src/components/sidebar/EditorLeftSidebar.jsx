@@ -61,6 +61,7 @@ export default function EditorLeftSidebar({
   flow,
   procedural,
   animationAuthoring,
+  animationPlayback,
   quizAuthoring,
   xrAuthoring,
   slideAuthoring,
@@ -98,7 +99,13 @@ export default function EditorLeftSidebar({
     >
       <button
         type="button"
-        onClick={() => setActiveSidebar(null)}
+        onClick={() =>
+          setActiveSidebar(
+            activeSidebar === "hierarchy" && slideAuthoring?.activeSlideId
+              ? "slides"
+              : null,
+          )
+        }
         className="absolute right-4 top-4 z-[120] grid size-8 cursor-pointer place-items-center rounded-lg text-secondary-default transition hover:bg-white/10"
         title="Close sidebar"
       >
@@ -133,7 +140,11 @@ export default function EditorLeftSidebar({
             showAllObjects={showAllObjects}
             hideAllObjects={hideAllObjects}
             setSelectedObject={setSelectedObject}
-            setRightTab={activeChapterId ? undefined : setRightTab}
+            setRightTab={
+              activeChapterId || slideAuthoring?.activeSlideId
+                ? undefined
+                : setRightTab
+            }
             renameObject={renameObject}
             chapters={material?.chapters || []}
             modelScene={modelScene}
@@ -186,9 +197,11 @@ export default function EditorLeftSidebar({
             activeChapterId={activeChapterId}
             setActiveChapterId={setActiveChapterId}
             animations={animations}
+            authoredAnimations={animationAuthoring?.animations || []}
             selectedAnimations={selectedAnimations}
             setSelectedAnimations={setSelectedAnimations}
             setAnimationCommand={setAnimationCommand}
+            animationInteraction={animationPlayback}
           />
         )}
 

@@ -7,6 +7,7 @@ import {
   createSceneProjectionCenterState,
   resolveSceneProjectionCenter,
   createFocusTargetFromObject,
+  createFocusTargetFromObjects,
   createFocusTargetFromScene,
   getClosestOrthographicView,
   switchCameraProjectionThen,
@@ -138,6 +139,50 @@ export function useCameraManager({
     applyFocusTargetToControls(focusTarget, controlsRef);
     focusTargetRef.current = focusTarget;
 
+    setIsAutoRotating(false);
+    setTargetRotationY(modelScene.rotation.y);
+  }, [
+    cameraRef,
+    controlsRef,
+    focusTargetRef,
+    modelScene,
+    setIsAutoRotating,
+    setTargetRotationY,
+    vxEngine,
+  ]);
+
+  const focusObjects = useCallback((objects, options = {}) => {
+    const targets = Array.from(
+      new Set((Array.isArray(objects) ? objects : [objects]).filter(Boolean)),
+    );
+    if (targets.length === 0 || !modelScene) return;
+
+    syncCameraEngineRefs(vxEngine, modelScene, cameraRef, controlsRef);
+
+    const focusOptions = {
+      distanceMultiplier: 1.8,
+      direction: DEFAULT_EDITOR_CAMERA_DIRECTION,
+      fitOrthographicZoom: true,
+      ...options,
+    };
+    const focusTarget =
+      vxEngine?.camera?.focusObjects?.(targets, {
+        camera: cameraRef?.current,
+        controls: controlsRef?.current,
+        ...focusOptions,
+        apply: false,
+      }) ||
+      createFocusTargetFromObjects(
+        targets,
+        cameraRef?.current,
+        controlsRef?.current,
+        focusOptions,
+      );
+
+    if (!focusTarget) return;
+
+    applyFocusTargetToControls(focusTarget, controlsRef);
+    focusTargetRef.current = focusTarget;
     setIsAutoRotating(false);
     setTargetRotationY(modelScene.rotation.y);
   }, [
@@ -356,6 +401,7 @@ export function useCameraManager({
 
   return {
     focusObject,
+    focusObjects,
     resetCameraToInitialView,
     saveCurrentViewAsHome,
     setEditorCameraView,

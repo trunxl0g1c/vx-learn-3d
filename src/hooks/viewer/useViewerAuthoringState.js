@@ -4,7 +4,6 @@ import {
   createViewerVisualState,
 } from "../../engine/viewer";
 import { applySavedViewerVisualState } from "./applySavedViewerVisualState";
-import { usePerspectiveCameraSaveGuard } from "./usePerspectiveCameraSaveGuard";
 
 export function useViewerAuthoringState({
   flow,
@@ -33,8 +32,6 @@ export function useViewerAuthoringState({
   cutRanges,
   cameraRef,
   controlsRef,
-  cameraProjectionMode = null,
-  setCameraProjectionMode = null,
   resetXray,
   resetVisualState,
   showAllObjects,
@@ -47,13 +44,6 @@ export function useViewerAuthoringState({
   setSelectedObjectName,
   applySavedCuts,
 }) {
-  const { requirePerspectiveCameraForSave } =
-    usePerspectiveCameraSaveGuard({
-      cameraRef,
-      cameraProjectionMode,
-      onSwitchToPerspective: setCameraProjectionMode,
-    });
-
   const captureVisualState = useCallback(
     (primaryObject = null) =>
       createViewerVisualState({
@@ -119,18 +109,16 @@ export function useViewerAuthoringState({
 
   const saveCameraToActiveFlow = useCallback(() => {
     if (!flow.activeFlowId) return false;
-    if (!requirePerspectiveCameraForSave()) return false;
 
     const cameraView = captureCameraView();
     if (!cameraView) return false;
 
     flow.updateFlow(flow.activeFlowId, { cameraView });
     return true;
-  }, [captureCameraView, flow, requirePerspectiveCameraForSave]);
+  }, [captureCameraView, flow]);
 
   const saveViewStateToActiveFlow = useCallback(() => {
     if (!flow.activeFlowId || !modelScene) return false;
-    if (!requirePerspectiveCameraForSave()) return false;
 
     const visualState = captureVisualState(selectedObject);
     const cameraView = captureCameraView();
@@ -147,7 +135,6 @@ export function useViewerAuthoringState({
     captureVisualState,
     flow,
     modelScene,
-    requirePerspectiveCameraForSave,
     selectedObject,
   ]);
 
@@ -164,7 +151,6 @@ export function useViewerAuthoringState({
 
   const saveActiveProcedureStepViewState = useCallback(() => {
     if (!procedural.activeStepId || !modelScene) return false;
-    if (!requirePerspectiveCameraForSave()) return false;
 
     const primaryObject = procedural.activeAnimatedObject || selectedObject;
     const visualState = captureVisualState(primaryObject);
@@ -183,7 +169,6 @@ export function useViewerAuthoringState({
     captureVisualState,
     modelScene,
     procedural,
-    requirePerspectiveCameraForSave,
     selectedObject,
   ]);
 
@@ -199,18 +184,16 @@ export function useViewerAuthoringState({
 
   const saveQuizQuestionCamera = useCallback(() => {
     if (!quiz?.activeQuestionId) return false;
-    if (!requirePerspectiveCameraForSave()) return false;
 
     const cameraView = captureCameraView();
     if (!cameraView) return false;
 
     quiz.updateQuestion(quiz.activeQuestionId, { cameraView });
     return true;
-  }, [captureCameraView, quiz, requirePerspectiveCameraForSave]);
+  }, [captureCameraView, quiz]);
 
   const saveQuizQuestionViewState = useCallback(() => {
     if (!quiz?.activeQuestionId || !modelScene) return false;
-    if (!requirePerspectiveCameraForSave()) return false;
 
     const visualState = captureVisualState(selectedObject);
     const cameraView = captureCameraView();
@@ -227,7 +210,6 @@ export function useViewerAuthoringState({
     captureVisualState,
     modelScene,
     quiz,
-    requirePerspectiveCameraForSave,
     selectedObject,
   ]);
 

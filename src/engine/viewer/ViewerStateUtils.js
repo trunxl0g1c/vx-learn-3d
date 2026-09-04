@@ -4,12 +4,15 @@ import { createObjectIndexPath } from "../model";
 export const PERSPECTIVE_CAMERA_SAVE_WARNING =
   "Camera & State hanya dapat disimpan dalam mode Perspective. Ubah View ke Perspective terlebih dahulu.";
 
+export const ORTHOGRAPHIC_CAMERA_SAVE_NOTICE =
+  "Kamera sedang dalam mode Orthographic. Camera & State tetap disimpan, tetapi Rotate Camera tidak berfungsi pada mode ini.";
+
 export function isOrthographicViewerCamera(camera) {
   return Boolean(camera?.isOrthographicCamera);
 }
 
 export function canSaveViewerCameraView(camera) {
-  return Boolean(camera) && !isOrthographicViewerCamera(camera);
+  return Boolean(camera);
 }
 
 function normalizeObjectList(objects = []) {
@@ -336,9 +339,6 @@ export function createViewerCameraView({
   modelScene = null,
   savedAt = new Date().toISOString(),
 } = {}) {
-  // Saved Camera & State is intentionally Perspective-only. Orthographic is
-  // still available as an authoring/navigation mode, but must never be
-  // persisted as a content/default camera view.
   if (!canSaveViewerCameraView(camera)) return null;
 
   const cameraView = createStoredCameraView(camera, controls);

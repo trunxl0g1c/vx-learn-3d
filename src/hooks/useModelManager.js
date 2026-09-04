@@ -140,13 +140,13 @@ export function useModelManager({
     return didPullApart
   }
 
-  const resetParts = () => {
-    getModelEngine().resetParts()
+  const resetParts = (options = {}) => {
+    getModelEngine().resetParts(options)
     setPullApartState({ enabled: false, targetObject: null })
   }
 
-  const resetMovedObjects = () => {
-    getModelEngine().resetMovedObjects()
+  const resetMovedObjects = (options = {}) => {
+    getModelEngine().resetMovedObjects(options)
   }
 
   const resetModelRotationForCut = () => {
@@ -213,19 +213,23 @@ export function useModelManager({
     getModelEngine().showAllObjects()
   }
 
+  const showObjects = (objects = []) => {
+    return getModelEngine().showObjects?.(objects) || false
+  }
+
   const hideAllObjects = () => {
     getModelEngine().hideAllObjects()
     clearSelectionState()
   }
 
-  const resetAllTransforms = () => {
-    resetParts()
-    resetMovedObjects()
+  const resetAllTransforms = (options = {}) => {
+    resetParts(options)
+    resetMovedObjects(options)
     resetModelRotationForCut()
   }
 
-  const resetVisualState = () => {
-    resetAllTransforms()
+  const resetVisualState = (options = {}) => {
+    resetAllTransforms(options)
     showAllObjects()
   }
 
@@ -270,6 +274,7 @@ export function useModelManager({
     hideSelectedObject,
     hideSelectedObjects,
     showAllObjects,
+    showObjects,
     hideAllObjects,
     resetAllTransforms,
     resetVisualState,

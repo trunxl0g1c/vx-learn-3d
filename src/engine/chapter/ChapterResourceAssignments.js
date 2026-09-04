@@ -9,6 +9,28 @@ function normalizeSpeed(value) {
   return Number.isFinite(speed) && speed > 0 ? speed : 1;
 }
 
+export const ANIMATION_PLAYBACK_MODES = Object.freeze({
+  AFTER_PREVIOUS: "after-previous",
+  WITH_PREVIOUS: "with-previous",
+});
+
+function normalizeAnimationPlaybackMode(value, index = 0) {
+  if (index === 0) {
+    return ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS;
+  }
+  if (value === ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS) {
+    return ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS;
+  }
+  if (value === ANIMATION_PLAYBACK_MODES.WITH_PREVIOUS) {
+    return ANIMATION_PLAYBACK_MODES.WITH_PREVIOUS;
+  }
+
+  // Existing projects played every assigned animation together. Preserve that
+  // behavior when the new field is absent while making the first assignment
+  // the explicit start of the playback sequence.
+  return ANIMATION_PLAYBACK_MODES.WITH_PREVIOUS;
+}
+
 export function normalizeChapterAnimationAssignment(item, index = 0) {
   if (typeof item === "string") {
     return {
@@ -19,6 +41,7 @@ export function normalizeChapterAnimationAssignment(item, index = 0) {
       autoPlay: false,
       loop: false,
       speed: 1,
+      playMode: normalizeAnimationPlaybackMode(null, index),
     };
   }
 
@@ -32,6 +55,7 @@ export function normalizeChapterAnimationAssignment(item, index = 0) {
     autoPlay: normalizeBoolean(item?.autoPlay),
     loop: normalizeBoolean(item?.loop),
     speed: normalizeSpeed(item?.speed),
+    playMode: normalizeAnimationPlaybackMode(item?.playMode, index),
   };
 }
 
@@ -39,6 +63,25 @@ export function normalizeChapterAnimationAssignments(items) {
   return Array.isArray(items)
     ? items.map((item, index) => normalizeChapterAnimationAssignment(item, index))
     : [];
+}
+
+export function createChapterAnimationPlaybackGroups(items) {
+  const assignments = normalizeChapterAnimationAssignments(items).filter(
+    (item) => item.name || item.animationId,
+  );
+
+  return assignments.reduce((groups, assignment) => {
+    const playWithPrevious =
+      assignment.playMode === ANIMATION_PLAYBACK_MODES.WITH_PREVIOUS;
+
+    if (groups.length === 0 || !playWithPrevious) {
+      groups.push([assignment]);
+    } else {
+      groups[groups.length - 1].push(assignment);
+    }
+
+    return groups;
+  }, []);
 }
 
 export function normalizeChapterFlowAssignment(item, index = 0) {
@@ -89,7 +132,10 @@ function updateChapterAssignments(material, chapterId, field, updater) {
 export function addChapterAnimationAssignment(material, chapterId) {
   return updateChapterAssignments(material, chapterId, "animations", (items) => [
     ...normalizeChapterAnimationAssignments(items),
-    normalizeChapterAnimationAssignment({ assignmentId: createId("chapter-animation") }),
+    normalizeChapterAnimationAssignment({
+      assignmentId: createId("chapter-animation"),
+      playMode: ANIMATION_PLAYBACK_MODES.AFTER_PREVIOUS,
+    }),
   ]);
 }
 

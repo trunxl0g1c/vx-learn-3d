@@ -7,6 +7,7 @@ import {
 import { resolveLogicalObject } from "../../utils/objectTreeUtils";
 import {
   applyWorldMatrixToObject,
+  createFreeTransformTargetFromAppliedTransform,
   createHydraulicWorldMatrix,
   createMechanicalJointDeltaMatrix,
   createMechanicalRigDefinition,
@@ -207,6 +208,25 @@ export function createAuthoredAnimationTransform(object) {
   };
 }
 
+export function createAuthoredAnimationKeyframeTransform(object, rigValue) {
+  const appliedTransform = createAuthoredAnimationTransform(object);
+  if (!appliedTransform) return null;
+
+  const rig = normalizeMechanicalRig(rigValue, appliedTransform);
+  const baseTransform =
+    normalizeAuthoredAnimationTransform(rig.baseTransform) || appliedTransform;
+
+  if (rig.type !== "free" || rig.freeTransformSpace !== "raw") {
+    return appliedTransform;
+  }
+
+  return createFreeTransformTargetFromAppliedTransform(
+    rig,
+    baseTransform,
+    appliedTransform,
+  );
+}
+
 export function normalizeAuthoredAnimationTransform(transform) {
   if (!transform || typeof transform !== "object") return null;
 
@@ -276,7 +296,7 @@ export function normalizeAuthoredAnimationKeyframe(keyframe, index = 0, duration
 
 export function normalizeAuthoredAnimationTrack(track, index = 0, duration = 2) {
   const source = track && typeof track === "object" ? track : {};
-  const keyframes = (Array.isArray(source.keyframes) ? source.keyframes : [])
+  let keyframes = (Array.isArray(source.keyframes) ? source.keyframes : [])
     .map((keyframe, keyframeIndex) =>
       normalizeAuthoredAnimationKeyframe(keyframe, keyframeIndex, duration),
     )
@@ -286,13 +306,30 @@ export function normalizeAuthoredAnimationTrack(track, index = 0, duration = 2) 
     normalizeAuthoredAnimationTransform(source.rig?.baseTransform) ||
     keyframes[0]?.transform ||
     null;
+  const rig = normalizeMechanicalRig(source.rig, fallbackBaseTransform);
+
+  if (
+    rig.type === "free" &&
+    rig.freeTransformSpace !== "raw" &&
+    fallbackBaseTransform
+  ) {
+    keyframes = keyframes.map((keyframe) => ({
+      ...keyframe,
+      transform: createFreeTransformTargetFromAppliedTransform(
+        rig,
+        fallbackBaseTransform,
+        keyframe.transform,
+      ),
+    }));
+    rig.freeTransformSpace = "raw";
+  }
 
   return {
     ...source,
     id: String(source.id || createId("animation-track")),
     object: source.object || source.reference || null,
     keyframes,
-    rig: normalizeMechanicalRig(source.rig, fallbackBaseTransform),
+    rig,
     opacityAnimated: source.opacityAnimated === true,
     enabled: source.enabled !== false,
     orderIndex: Number.isFinite(Number(source.orderIndex))

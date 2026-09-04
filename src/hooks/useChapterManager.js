@@ -11,10 +11,8 @@ import {
 } from "../modules/project-hub/storage/projectIndexedDb";
 import { createAnimationEngine } from "../engine/animation";
 import {
-  PERSPECTIVE_CAMERA_SAVE_WARNING,
   createViewerCameraView,
   createViewerVisualState,
-  isOrthographicViewerCamera,
 } from "../engine/viewer";
 import {
   addChapterAnimationAssignment,
@@ -98,11 +96,12 @@ export function useChapterManager({
   contentAuthoringLockReason = "",
 }) {
   const animationEngine = vxEngine?.animation || createAnimationEngine();
-  const { requirePerspectiveCameraForSave } = usePerspectiveCameraSaveGuard({
-    cameraRef,
-    cameraProjectionMode,
-    onSwitchToPerspective: setCameraProjectionMode,
-  });
+  const { notifyIfOrthographicCameraSaved } =
+    usePerspectiveCameraSaveGuard({
+      cameraRef,
+      cameraProjectionMode,
+      onSwitchToPerspective: setCameraProjectionMode,
+    });
 
   const activeChapter = material.chapters.find(
     (chapter) => chapter.id === activeChapterId,
@@ -433,11 +432,6 @@ export function useChapterManager({
       return false;
     }
 
-    if (!requirePerspectiveCameraForSave()) {
-      showChapterError(PERSPECTIVE_CAMERA_SAVE_WARNING);
-      return false;
-    }
-
     const savedCameraView = createViewerCameraView({
       camera: cameraRef.current,
       controls: controlsRef.current,
@@ -508,6 +502,7 @@ export function useChapterManager({
       }),
     }));
 
+    notifyIfOrthographicCameraSaved();
     showChapterSuccess(
       cameraViewId
         ? "Camera and visual state updated."

@@ -132,6 +132,22 @@ export function createRenderableBoundsFromObject(root, options = {}) {
   return fallbackBox
 }
 
+export function createRenderableBoundsFromObjects(objects, options = {}) {
+  const bounds = new THREE.Box3()
+  let hasBounds = false
+
+  Array.from(new Set((Array.isArray(objects) ? objects : [objects]).filter(Boolean)))
+    .forEach((object) => {
+      const objectBounds = createRenderableBoundsFromObject(object, options)
+      if (!objectBounds) return
+
+      bounds.union(objectBounds)
+      hasBounds = true
+    })
+
+  return hasBounds && !bounds.isEmpty() ? bounds : null
+}
+
 function getFitDistanceForBox(box, options = {}) {
   const { size, maxSize } = getBoundsMetrics(box)
   const distanceMultiplier = options.distanceMultiplier ?? 2.4
@@ -371,6 +387,38 @@ export function createFocusTargetFromObject(object, camera, controls, options = 
     ? currentCameraPosition.sub(currentTarget)
     : null
 
+  const focusTarget = createCameraFocusTargetFromBox(box, {
+    ...options,
+    camera,
+    direction: options.direction || cameraDirection,
+  })
+
+  if (
+    focusTarget &&
+    camera?.isOrthographicCamera &&
+    options.fitOrthographicZoom === true
+  ) {
+    const zoom = createOrthographicFocusZoom(box, camera, controls, options)
+
+    if (zoom) {
+      focusTarget.zoom = zoom
+      focusTarget.cameraType = "orthographic"
+    }
+  }
+
+  return focusTarget
+}
+
+export function createFocusTargetFromObjects(objects, camera, controls, options = {}) {
+  const box = createRenderableBoundsFromObjects(objects, options)
+
+  if (!box) return null
+
+  const currentCameraPosition = camera?.position?.clone?.()
+  const currentTarget = controls?.target?.clone?.() || new THREE.Vector3(0, 0, 0)
+  const cameraDirection = currentCameraPosition
+    ? currentCameraPosition.sub(currentTarget)
+    : null
   const focusTarget = createCameraFocusTargetFromBox(box, {
     ...options,
     camera,

@@ -32,6 +32,7 @@ export function createMechanicalRigDefinition(baseTransform = null) {
     parentTrackId: null,
     axis: "y",
     pivot: [0, 0, 0],
+    freeTransformSpace: "raw",
     limits: {
       enabled: false,
       min: -180,
@@ -78,6 +79,8 @@ export function normalizeMechanicalRig(rig, baseTransform = null) {
     parentTrackId: source.parentTrackId || null,
     axis,
     pivot: normalizeVector3(source.pivot, [0, 0, 0]),
+    freeTransformSpace:
+      source.freeTransformSpace === "raw" ? "raw" : "applied",
     limits: {
       enabled: source.limits?.enabled === true,
       min: Math.min(min, max),
@@ -164,7 +167,12 @@ function createFreeDeltaMatrix(rig, baseTransform, targetTransform) {
   const targetMatrix = createTransformMatrix(targetTransform || baseTransform);
   const relativeMatrix = baseMatrix.clone().invert().multiply(targetMatrix);
   const pivot = new THREE.Vector3().fromArray(rig.pivot || [0, 0, 0]);
-  if (pivot.lengthSq() <= EPSILON) return relativeMatrix;
+  if (
+    pivot.lengthSq() <= EPSILON ||
+    rig.freeTransformSpace !== "raw"
+  ) {
+    return relativeMatrix;
+  }
 
   const relative = decomposeTransformMatrix(relativeMatrix);
   const translation = new THREE.Matrix4().makeTranslation(
@@ -186,6 +194,39 @@ function createFreeDeltaMatrix(rig, baseTransform, targetTransform) {
     .multiply(rotation)
     .multiply(scale)
     .multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+}
+
+export function createFreeTransformTargetFromAppliedTransform(
+  rigValue,
+  baseTransform,
+  appliedTransform,
+) {
+  const rig = normalizeMechanicalRig(rigValue, baseTransform);
+  const baseMatrix = createTransformMatrix(baseTransform);
+  const appliedMatrix = createTransformMatrix(appliedTransform || baseTransform);
+  const pivot = new THREE.Vector3().fromArray(rig.pivot || [0, 0, 0]);
+
+  if (rig.type !== "free" || pivot.lengthSq() <= EPSILON) {
+    return decomposeTransformMatrix(appliedMatrix);
+  }
+
+  const appliedDelta = baseMatrix.clone().invert().multiply(appliedMatrix);
+  const relative = decomposeTransformMatrix(appliedDelta);
+  const relativeRotation = new THREE.Quaternion()
+    .fromArray(relative.quaternion)
+    .normalize();
+  const relativeScale = new THREE.Vector3().fromArray(relative.scale);
+  const rawTranslation = new THREE.Vector3()
+    .fromArray(relative.position)
+    .sub(pivot)
+    .add(pivot.clone().multiply(relativeScale).applyQuaternion(relativeRotation));
+  const rawDelta = new THREE.Matrix4().compose(
+    rawTranslation,
+    relativeRotation,
+    relativeScale,
+  );
+
+  return decomposeTransformMatrix(baseMatrix.multiply(rawDelta));
 }
 
 function createRevoluteDeltaMatrix(rig, baseTransform, targetTransform) {
@@ -287,6 +328,31 @@ export function applyWorldMatrixToObject(object, worldMatrix) {
   object.updateMatrix?.();
   object.updateMatrixWorld?.(true);
   return true;
+}
+
+export function applyMechanicalPivotTransform(
+  object,
+  startObjectWorldMatrix,
+  startPivotWorldMatrix,
+  currentPivotWorldMatrix,
+) {
+  if (
+    !object ||
+    !startObjectWorldMatrix ||
+    !startPivotWorldMatrix ||
+    !currentPivotWorldMatrix
+  ) {
+    return false;
+  }
+
+  const pivotDelta = currentPivotWorldMatrix
+    .clone()
+    .multiply(startPivotWorldMatrix.clone().invert());
+  const desiredWorldMatrix = pivotDelta.multiply(
+    startObjectWorldMatrix.clone(),
+  );
+
+  return applyWorldMatrixToObject(object, desiredWorldMatrix);
 }
 
 export function createHydraulicWorldMatrix({

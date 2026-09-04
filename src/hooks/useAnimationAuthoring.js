@@ -709,7 +709,7 @@ export function useAnimationAuthoring({
     }
 
     ensureBaseline();
-    const transform = manager.createTransform(activeTrackObject);
+    const transform = manager.createKeyframeTransform(activeTrackObject, activeTrack.rig);
     if (!transform) return false;
     const currentState = manager.evaluateTrackState(activeTrack, currentTime);
     const currentOpacity = currentState?.opacity ?? 1;
@@ -743,7 +743,7 @@ export function useAnimationAuthoring({
 
   const addOrUpdateKeyframe = useCallback(() => {
     if (!activeTrack || !activeTrackObject || !activeAnimation) return false;
-    const transform = manager.createTransform(activeTrackObject);
+    const transform = manager.createKeyframeTransform(activeTrackObject, activeTrack.rig);
     if (!transform) return false;
 
     const currentState = manager.evaluateTrackState(activeTrack, currentTime);
@@ -984,6 +984,7 @@ export function useAnimationAuthoring({
     toggleHydraulicAnchorEditing,
     assignRigReferenceFromSelectedObject,
     assignMorphTargetFromSelectedObject,
+    applyActiveTrackPivotTransform: (...matrices) => manager.applyPivotTransform(activeTrackObject, ...matrices),
     previewActiveTrackTransform,
     addOrUpdateKeyframe,
     deleteKeyframe,

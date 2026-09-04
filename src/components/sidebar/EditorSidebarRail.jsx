@@ -34,7 +34,11 @@ const sidebarItems = [
   },
 ];
 
-export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
+export default function EditorSidebarRail({
+  activeSidebar,
+  setActiveSidebar,
+  returnToSlideList = false,
+}) {
   const navigate = useNavigate();
 
   const proActive = activeSidebar === "pro";
@@ -60,7 +64,15 @@ export default function EditorSidebarRail({ activeSidebar, setActiveSidebar }) {
                 key={item.id}
                 type="button"
                 title={item.label}
-                onClick={() => setActiveSidebar(active ? null : item.target)}
+                onClick={() =>
+                  setActiveSidebar(
+                    active
+                      ? item.target === "hierarchy" && returnToSlideList
+                        ? "slides"
+                        : null
+                      : item.target,
+                  )
+                }
                 className={[
                   "grid size-14 cursor-pointer place-items-center border transition",
                   active

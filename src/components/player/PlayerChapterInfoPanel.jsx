@@ -96,6 +96,13 @@ export default function PlayerChapterInfoPanel({
                   : "Perspective"}
               </div>
 
+              {cameraViews[activeCameraViewIndex]?.cameraType ===
+                "orthographic" && (
+                <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-400/10 px-2.5 py-2 text-xs font-medium text-amber-200">
+                  Rotate Camera Disabled
+                </div>
+              )}
+
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Button
                   variant="outline"

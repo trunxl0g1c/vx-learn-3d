@@ -21,6 +21,7 @@ import { useEditorHistory } from "./useEditorHistory";
 import { useFlowManager } from "./useFlowManager";
 import { useProceduralManager } from "./useProceduralManager";
 import { useAnimationAuthoring } from "./useAnimationAuthoring";
+import { useEditorAnimationPlayback } from "./useEditorAnimationPlayback";
 import { useQuizAuthoring } from "./useQuizAuthoring";
 import { useSlideAuthoring } from "./useSlideAuthoring";
 import { useXRAuthoring } from "./useXRAuthoring";
@@ -229,7 +230,7 @@ export function useViewerPageController() {
     if (!proSidebarOpen) { flow.stopAuthoring(); procedural.stopAuthoring(); quiz.stopAuthoring(); xrAuthoring.stopAuthoring(); }
     if (!animationSidebarCompatible) animationAuthoring.stopAuthoring();
   }, [activeSidebar, flow.stopAuthoring, procedural.stopAuthoring, animationAuthoring.stopAuthoring, quiz.stopAuthoring, xrAuthoring.stopAuthoring]);
-  const slideModeActive = activeSidebar === "slides";
+  const slideModeActive = activeSidebar === "slides" || (activeSidebar === "hierarchy" && rightTab === "slide");
   const { contentAuthoringLocked, contentAuthoringLockReason } =
     useContentAuthoringLock({
       slideModeActive,
@@ -444,6 +445,7 @@ export function useViewerPageController() {
 
   const {
     focusObject,
+    focusObjects,
     resetCameraToInitialView,
     setEditorCameraView,
     setEditorCameraProjectionMode,
@@ -513,6 +515,7 @@ export function useViewerPageController() {
     hideSelectedObject: hideSelectedObjectBase,
     hideSelectedObjects: hideSelectedObjectsBase,
     showAllObjects: showAllObjectsBase,
+    showObjects: showObjectsBase,
     hideAllObjects: hideAllObjectsBase,
     resetAllTransforms,
     resetVisualState,
@@ -659,6 +662,15 @@ export function useViewerPageController() {
     showAllObjectsBase,
     hideAllObjectsBase,
     clearSelection,
+  });
+  const animationPlayback = useEditorAnimationPlayback({
+    enabled: activeSidebar === "animation",
+    modelScene,
+    animationEngine: vxEngine?.animation,
+    hydrateAnimationRecord: loadAnimationRecord,
+    showObjects: showObjectsBase,
+    highlightObjects: highlightSelectedObjectsPreservingVisualState,
+    focusObjects,
   });
 
   const {
@@ -998,6 +1010,7 @@ export function useViewerPageController() {
     flow: flowAuthoring,
     procedural: proceduralAuthoring,
     animationAuthoring,
+    animationPlayback,
     quizAuthoring,
     xrAuthoring,
     slideAuthoring,
