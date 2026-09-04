@@ -108,7 +108,7 @@ function ObjectAnswerEditor({
             quizAuthoring.assignSelectedObject({ append: multiple })
           }
         >
-          <MaterialIcon name="ads_click" className="size-4" />
+          <MaterialIcon name="ads_click" size={20} />
           {multiple ? "Add Selected" : "Use Selected"}
         </Button>
       </div>
@@ -122,16 +122,16 @@ function ObjectAnswerEditor({
           objects.map((reference, index) => (
             <span
               key={`${reference.uuid || reference.name || "object"}-${index}`}
-              className="flex items-center gap-2 rounded-lg border border-secondary-default/40 bg-primary/70 px-2.5 py-1.5 text-xs text-white"
+              className="flex items-center justify-center gap-2 rounded-lg border border-secondary-default/40 bg-primary/70 px-2.5 py-1.5 text-sm text-white"
             >
-              <MaterialIcon name="view_in_ar" className="size-4 text-secondary-default" />
+              {/* <MaterialIcon name="view_in_ar" className="size-4 text-secondary-default" /> */}
               {reference.name || "Object"}
               <button
                 type="button"
                 onClick={() => quizAuthoring.removeCorrectObject(index)}
-                className="text-contrast-grayout hover:text-red-300"
+                className="text-contrast-grayout hover:text-red-300 cursor-pointer"
               >
-                <MaterialIcon name="close" className="size-3.5" />
+                <MaterialIcon name="close" size={20} />
               </button>
             </span>
           ))

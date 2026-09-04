@@ -15,7 +15,7 @@ export default function PlayerFlowListPanel({
   onClose,
 }) {
   return (
-    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[86px] border border-grayout-extra-dark top-6 z-50 flex max-h-[calc(100vh-48px)] w-[380px] flex-col overflow-hidden rounded-2xl bg-dark-alpha shadow-2xl backdrop-blur-2xl">
+    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[88px] border border-grayout-extra-dark top-6 z-50 flex max-h-[calc(100vh-48px)] w-[380px] flex-col overflow-hidden rounded-2xl bg-dark-alpha shadow-2xl backdrop-blur-2xl">
       <div className="flex items-start justify-between border-b border-grayout-dark px-5 py-4">
         <div>
           <h2 className="text-lg font-normal text-white">Flow Materials</h2>

@@ -3,6 +3,7 @@ import {
   getLazyAwareMaterialRecordCount,
   isLazyMaterialRecord,
 } from "../../engine/project/LazyMaterialRecords";
+import Button from "../ui/button";
 
 function getAnimatedEntries(step) {
   if (Array.isArray(step?.animatedObjects) && step.animatedObjects.length > 0) {
@@ -45,10 +46,10 @@ export default function PlayerProceduralListPanel({
   const completedSet = new Set(completedStepIds || []);
 
   return (
-    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[86px] top-6 z-50 flex max-h-[calc(100vh-48px)] w-[400px] flex-col overflow-hidden rounded-2xl border border-grayout-dark bg-dark-alpha shadow-2xl backdrop-blur-2xl">
+    <aside className="vx-player-panel vx-player-panel--full-mobile absolute left-[86px] top-6 z-50 flex max-h-[calc(100vh-48px)] w-[400px] flex-col overflow-hidden rounded-2xl border border-grayout-extra-dark bg-dark-alpha shadow-2xl backdrop-blur-2xl">
       <div className="flex items-center justify-between border-b border-grayout-dark px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-white">Procedures</h2>
+          <h2 className="text-lg font-normal text-white">Procedures</h2>
           <p className="mt-1 text-xs text-contrast-grayout">
             Complete guided or assembly steps in order
           </p>
@@ -56,7 +57,7 @@ export default function PlayerProceduralListPanel({
         <button
           type="button"
           onClick={onClose}
-          className="grid size-9 place-items-center rounded-lg text-secondary-default hover:bg-white/10"
+          className="cursor-pointer grid size-9 place-items-center rounded-lg text-white/75 hover:bg-white/10"
           title="Close"
         >
           <X className="size-5" />
@@ -124,11 +125,11 @@ export default function PlayerProceduralListPanel({
                 ].join(" ")}
               >
                 <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent-main text-sm font-bold text-white">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-accent-main text-sm font-normal text-white">
                     {procedureIndex + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-semibold text-white">
+                    <h3 className="truncate text-sm font-normal text-white">
                       {procedure.name}
                     </h3>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-contrast-grayout">
@@ -161,16 +162,16 @@ export default function PlayerProceduralListPanel({
                           procedure dapat dijalankan kembali.
                         </p>
                         {hasCompletionAnimation && (
-                          <button
+                          <Button
+                            size="xs"
                             type="button"
                             onClick={() =>
                               onPlayCompletionAnimation?.(procedure.id)
                             }
-                            className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-default/60 bg-primary text-xs font-semibold text-secondary-default transition hover:bg-white/10"
                           >
                             <Play className="size-4" />
                             Play {completionAnimation.name}
-                          </button>
+                          </Button>
                         )}
                       </div>
                     ) : isPreparing ? (
@@ -181,7 +182,7 @@ export default function PlayerProceduralListPanel({
                     ) : currentStep ? (
                       <>
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-xs font-semibold text-white">
+                          <p className="text-xs font-normal text-white">
                             Step {activeStepIndex + 1} of {playbackSteps.length}
                           </p>
                           <span className="text-[10px] uppercase tracking-wide text-secondary-default">
@@ -194,7 +195,7 @@ export default function PlayerProceduralListPanel({
                                   : "Waiting for any target click"}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm font-semibold text-white">
+                        <p className="mt-2 text-sm font-normal text-white">
                           {currentStep.name}
                         </p>
                         <p className="mt-1 text-xs leading-5 text-contrast-grayout">
@@ -258,7 +259,8 @@ export default function PlayerProceduralListPanel({
                   </div>
                 )}
 
-                <button
+                <Button
+                  size="sm"
                   type="button"
                   disabled={!canPlay || isPreparing}
                   onClick={() => {
@@ -274,15 +276,8 @@ export default function PlayerProceduralListPanel({
 
                     onPlay?.(procedure.id);
                   }}
-                  className={[
-                    "mt-4 flex h-10 w-full items-center justify-center gap-2 rounded-lg border text-sm font-semibold transition",
-                    isRunning
-                      ? "border-red-400/50 bg-red-500/10 text-red-200 hover:bg-red-500/20"
-                      : "border-secondary-default/60 bg-primary text-secondary-default hover:bg-white/10",
-                    !canPlay || isPreparing
-                      ? "cursor-not-allowed opacity-40"
-                      : "",
-                  ].join(" ")}
+                  variant={isRunning ? "destructive" : "default"}
+                  className="w-full mt-5"
                 >
                   {isPreparing ? (
                     <>
@@ -306,7 +301,7 @@ export default function PlayerProceduralListPanel({
                       <Play className="size-4" /> Start
                     </>
                   )}
-                </button>
+                </Button>
               </article>
             );
           })
